@@ -1,0 +1,368 @@
+import { Hono } from "hono";
+import { eq, and } from "drizzle-orm";
+import { ulid } from "ulidx";
+import { randomBytes } from "@noble/hashes/utils.js";
+import { jwtVerify } from "jose";
+
+import { invites, memberships, users, workspaces } from "@/worker/db/schema";
+import { requireAuth } from "@/worker/middleware/auth";
+import { rateLimit } from "@/worker/middleware/rate-limit";
+import { verifyTurnstileToken } from "@/worker/middleware/turnstile";
+import {
+  hashPassword,
+  verifyPassword,
+  createAccessToken,
+  createRefreshToken,
+  setRefreshCookie,
+  toUserResponse,
+} from "@/worker/lib/auth";
+import { checkMembership } from "@/worker/lib/membership";
+import { parseBody } from "@/worker/lib/validate";
+import { CreateInviteRequest, AcceptInviteRequest } from "@/shared/types";
+import type { AppContext } from "@/worker/router";
+
+function generateToken(): string {
+  const bytes = randomBytes(32);
+  // Base64url encode
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+const invitesRouter = new Hono<AppContext>();
+
+// POST /workspaces/:wid/invite
+invitesRouter.post("/workspaces/:wid/invite", requireAuth, rateLimit("RL_API"), async (c) => {
+  const workspaceId = c.req.param("wid");
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const data = await parseBody(c, CreateInviteRequest);
+  if (data instanceof Response) return data;
+
+  const { email, role } = data;
+
+  // Check user is a member of the workspace
+  const membership = await checkMembership(db, user.id, workspaceId);
+  if (!membership) {
+    return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
+  }
+
+  // Any member role or above can create invites
+  if (membership.role === "guest") {
+    return c.json({ error: "forbidden", message: "Guests cannot create invites" }, 403);
+  }
+
+  // Members can only invite as member or guest
+  if (role === "admin" && membership.role !== "owner" && membership.role !== "admin") {
+    return c.json({ error: "forbidden", message: "Only owners and admins can invite as admin" }, 403);
+  }
+
+  const token = generateToken();
+  const inviteId = ulid();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  await db.insert(invites).values({
+    id: inviteId,
+    email: email?.toLowerCase() ?? null,
+    workspace_id: workspaceId,
+    invited_by: user.id,
+    role,
+    token,
+    expires_at: expiresAt,
+  });
+
+  const origin = new URL(c.req.url).origin;
+
+  return c.json(
+    {
+      invite: {
+        id: inviteId,
+        token,
+        role,
+        email: email?.toLowerCase() ?? null,
+        expires_at: expiresAt,
+        invite_link: `${origin}/invite/${token}`,
+      },
+    },
+    201,
+  );
+});
+
+// GET /invite/:token
+invitesRouter.get("/invite/:token", async (c) => {
+  const token = c.req.param("token");
+  const db = c.get("db");
+
+  const result = await db
+    .select({
+      id: invites.id,
+      email: invites.email,
+      role: invites.role,
+      workspace_id: invites.workspace_id,
+      expires_at: invites.expires_at,
+      accepted_at: invites.accepted_at,
+      revoked_at: invites.revoked_at,
+      workspace_name: workspaces.name,
+      workspace_icon: workspaces.icon,
+      invited_by_name: users.name,
+    })
+    .from(invites)
+    .innerJoin(workspaces, eq(invites.workspace_id, workspaces.id))
+    .innerJoin(users, eq(invites.invited_by, users.id))
+    .where(eq(invites.token, token))
+    .limit(1);
+
+  if (result.length === 0) {
+    return c.json({ error: "not_found", message: "Invite not found" }, 404);
+  }
+
+  const invite = result[0];
+
+  if (invite.revoked_at) {
+    return c.json({ error: "gone", message: "This invite has been revoked" }, 410);
+  }
+
+  if (invite.accepted_at) {
+    return c.json({ error: "gone", message: "This invite has already been accepted" }, 410);
+  }
+
+  if (new Date(invite.expires_at) < new Date()) {
+    return c.json({ error: "gone", message: "This invite has expired" }, 410);
+  }
+
+  return c.json({
+    invite: {
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      workspace_name: invite.workspace_name,
+      workspace_icon: invite.workspace_icon,
+      invited_by_name: invite.invited_by_name,
+    },
+  });
+});
+
+// POST /invite/:token/accept
+invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
+  const token = c.req.param("token");
+  const db = c.get("db");
+
+  const data = await parseBody(c, AcceptInviteRequest);
+  if (data instanceof Response) return data;
+
+  const { turnstileToken, email, password, name } = data;
+
+  const turnstile = await verifyTurnstileToken(c.env, {
+    token: turnstileToken,
+    expectedAction: "accept_invite",
+    remoteIp: c.req.header("cf-connecting-ip"),
+    requestUrl: c.req.url,
+  });
+
+  if (!turnstile.ok) {
+    return c.json({ error: "turnstile_failed", message: turnstile.message }, turnstile.status);
+  }
+
+  // Load invite
+  const inviteResult = await db.select().from(invites).where(eq(invites.token, token)).limit(1);
+
+  if (inviteResult.length === 0) {
+    return c.json({ error: "not_found", message: "Invite not found" }, 404);
+  }
+
+  const invite = inviteResult[0];
+
+  if (invite.revoked_at) {
+    return c.json({ error: "gone", message: "This invite has been revoked" }, 410);
+  }
+
+  if (invite.accepted_at) {
+    return c.json({ error: "gone", message: "This invite has already been accepted" }, 410);
+  }
+
+  if (new Date(invite.expires_at) < new Date()) {
+    return c.json({ error: "gone", message: "This invite has expired" }, 410);
+  }
+
+  // If invite is pinned to a specific email, enforce it (pre-check for new-user flow)
+  if (invite.email && email && email.toLowerCase() !== invite.email) {
+    return c.json({ error: "forbidden", message: "This invite is for a different email address" }, 403);
+  }
+
+  let userId: string;
+  let userName: string;
+  let userEmail: string;
+  let userAvatarUrl: string | null = null;
+  let userCreatedAt: string = new Date().toISOString();
+  let isNewUser = false;
+
+  // Check if creating a new user account
+  if (email && password && name) {
+    // Creating new user
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email.toLowerCase()))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      // User exists - verify password before proceeding
+      userId = existingUser[0].id;
+      const fullUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+      if (!verifyPassword(password, fullUser[0].password_hash)) {
+        return c.json({ error: "unauthorized", message: "Invalid password for existing account" }, 401);
+      }
+
+      userName = fullUser[0].name;
+      userEmail = fullUser[0].email;
+      userAvatarUrl = fullUser[0].avatar_url;
+      userCreatedAt = fullUser[0].created_at;
+    } else {
+      userId = ulid();
+      const passwordHash = hashPassword(password);
+
+      await db.insert(users).values({
+        id: userId,
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        name,
+      });
+
+      userName = name;
+      userEmail = email.toLowerCase();
+      isNewUser = true;
+    }
+  } else {
+    // Existing user must be authenticated
+    const authHeader = c.req.header("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return c.json(
+        {
+          error: "bad_request",
+          message: "Either provide email/password/name to create an account, or authenticate with a Bearer token",
+        },
+        400,
+      );
+    }
+
+    try {
+      const jwtToken = authHeader.split(" ")[1];
+      const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+      const { payload } = await jwtVerify(jwtToken, secret, {
+        algorithms: ["HS256"],
+      });
+
+      if (!payload.sub || payload.type === "refresh") {
+        return c.json({ error: "unauthorized", message: "Invalid token" }, 401);
+      }
+
+      userId = payload.sub;
+      const fullUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+      if (fullUser.length === 0) {
+        return c.json({ error: "unauthorized", message: "User not found" }, 401);
+      }
+
+      userName = fullUser[0].name;
+      userEmail = fullUser[0].email;
+      userAvatarUrl = fullUser[0].avatar_url;
+      userCreatedAt = fullUser[0].created_at;
+
+      // If invite is pinned to a specific email, enforce it (authenticated user flow)
+      if (invite.email && userEmail.toLowerCase() !== invite.email) {
+        return c.json({ error: "forbidden", message: "This invite is for a different email address" }, 403);
+      }
+    } catch {
+      return c.json({ error: "unauthorized", message: "Invalid token" }, 401);
+    }
+  }
+
+  // Check if already a member
+  const existingMembership = await checkMembership(db, userId, invite.workspace_id);
+  if (existingMembership) {
+    // Mark invite as accepted but don't create duplicate membership
+    await db
+      .update(invites)
+      .set({ accepted_at: new Date().toISOString(), accepted_by: userId })
+      .where(eq(invites.id, invite.id));
+
+    const [accessToken, refreshToken] = await Promise.all([
+      createAccessToken(userId, c.env),
+      createRefreshToken(userId, c.env),
+    ]);
+    setRefreshCookie(c, refreshToken);
+
+    return c.json({
+      user: { id: userId, email: userEmail, name: userName, avatar_url: userAvatarUrl, created_at: userCreatedAt },
+      workspace_id: invite.workspace_id,
+      accessToken,
+      already_member: true,
+    });
+  }
+
+  // Create membership and mark invite accepted
+  const now = new Date().toISOString();
+
+  await db.batch([
+    db.insert(memberships).values({
+      user_id: userId,
+      workspace_id: invite.workspace_id,
+      role: invite.role,
+    }),
+    db.update(invites).set({ accepted_at: now, accepted_by: userId }).where(eq(invites.id, invite.id)),
+  ]);
+
+  const [accessToken, refreshToken] = await Promise.all([
+    createAccessToken(userId, c.env),
+    createRefreshToken(userId, c.env),
+  ]);
+
+  setRefreshCookie(c, refreshToken);
+
+  return c.json(
+    {
+      user: { id: userId, email: userEmail, name: userName, avatar_url: userAvatarUrl, created_at: userCreatedAt },
+      workspace_id: invite.workspace_id,
+      accessToken,
+      is_new_user: isNewUser,
+    },
+    isNewUser ? 201 : 200,
+  );
+});
+
+// DELETE /invite/:id
+invitesRouter.delete("/invite/:id", requireAuth, rateLimit("RL_API"), async (c) => {
+  const inviteId = c.req.param("id");
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const inviteResult = await db.select().from(invites).where(eq(invites.id, inviteId)).limit(1);
+
+  if (inviteResult.length === 0) {
+    return c.json({ error: "not_found", message: "Invite not found" }, 404);
+  }
+
+  const invite = inviteResult[0];
+
+  // Check if user created the invite or is an admin/owner of the workspace
+  if (invite.invited_by !== user.id) {
+    const membership = await checkMembership(db, user.id, invite.workspace_id);
+    if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+      return c.json({ error: "forbidden", message: "You cannot revoke this invite" }, 403);
+    }
+  }
+
+  if (invite.revoked_at) {
+    return c.json({ error: "conflict", message: "Invite is already revoked" }, 409);
+  }
+
+  await db.update(invites).set({ revoked_at: new Date().toISOString() }).where(eq(invites.id, inviteId));
+
+  return c.json({ ok: true });
+});
+
+export { invitesRouter };

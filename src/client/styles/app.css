@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --default-transition-duration: 75ms;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  /* Teal accent palette */
+  --color-accent-50: #f0fdfa;
+  --color-accent-100: #ccfbf1;
+  --color-accent-200: #99f6e4;
+  --color-accent-300: #5eead4;
+  --color-accent-400: #2dd4bf;
+  --color-accent-500: #14b8a6;
+  --color-accent-600: #0d9488;
+  --color-accent-700: #0f766e;
+  --color-accent-800: #115e59;
+  --color-accent-900: #134e4a;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-slide-up: slide-up 0.35s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-[#09090b] text-zinc-100;
+    font-feature-settings:
+      "ss01" on,
+      "cv01" on;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  *:focus-visible {
+    @apply outline-accent-500/50 outline-2 outline-offset-2;
+  }
+
+  ::selection {
+    @apply bg-accent-500/30 text-white;
+  }
+}
+
+/* Scrollbar styling */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme(--color-zinc-700) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: theme(--color-zinc-700);
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: theme(--color-zinc-600);
+  }
+}
+
+/* Override BlockNote defaults — must be outside @layer to beat unlayered library CSS */
+.bn-default-styles {
+  font-family: var(--font-sans);
+}
+
+.bn-container[data-color-scheme="dark"] {
+  --bn-colors-editor-background: transparent;
+}
+
+.bn-editor {
+  padding-inline-start: 28px;
+  padding-inline-end: 0;
+}
+
+.bn-block-content[data-content-type="codeBlock"] > div > select {
+  background-color: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  padding: 2px 6px;
+  opacity: 0.7;
+}
+
+.bn-block-content[data-content-type="codeBlock"] > div > select > option {
+  color: #e4e4e7;
+  background-color: #27272a;
+}
