@@ -1,6 +1,5 @@
 import { YServer } from "y-partyserver";
 import type { Connection, ConnectionContext } from "partyserver";
-import * as awarenessProtocol from "y-protocols/awareness";
 import * as Y from "yjs";
 import { eq } from "drizzle-orm";
 import { createDb } from "@/worker/db/client";
@@ -10,6 +9,8 @@ import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 
 const MAX_CONNECTIONS_PER_DOC = 20;
 const log = createLogger("doc-sync");
+
+const READONLY_TAG = "readonly";
 
 /** Read awareness client IDs stored on the connection by y-partyserver. */
 function getAwarenessIds(conn: Connection): number[] {
@@ -52,6 +53,15 @@ export class DocSync extends YServer<Env> {
     super.onClose(connection, code, reason, wasClean);
   }
 
+  getConnectionTags(connection: Connection, ctx: ConnectionContext): string[] {
+    const url = new URL(ctx.request.url);
+    if (url.searchParams.get("readOnly") === "1") {
+      log.debug("connection_readonly", { pageId: this.name });
+      return [READONLY_TAG];
+    }
+    return [];
+  }
+
   async onConnect(connection: Connection, ctx: ConnectionContext): Promise<void> {
     let count = 0;
     for (const _ of this.getConnections()) count++;
@@ -61,7 +71,13 @@ export class DocSync extends YServer<Env> {
       connection.close(4029, "Too many concurrent editors");
       return;
     }
+
     return super.onConnect(connection, ctx);
+  }
+
+  /** y-partyserver calls this in readSyncMessage to gate syncStep2/update. */
+  isReadOnly(connection: Connection): boolean {
+    return connection.tags.includes(READONLY_TAG);
   }
 
   async onLoad(): Promise<Y.Doc | void> {

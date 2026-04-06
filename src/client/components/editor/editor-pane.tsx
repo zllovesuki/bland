@@ -19,6 +19,9 @@ interface EditorPaneProps {
   initialTitle: string;
   onTitleChange?: (title: string) => void;
   onProvider?: (provider: YProvider | null) => void;
+  shareToken?: string;
+  readOnly?: boolean;
+  workspaceId?: string;
 }
 
 const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = {
@@ -55,20 +58,37 @@ function BlockEditor({
   fragment,
   provider,
   pageId,
+  readOnly,
+  shareToken,
+  workspaceId,
 }: {
   fragment: Y.XmlFragment;
   provider: { awareness: Awareness };
   pageId: string;
+  readOnly?: boolean;
+  shareToken?: string;
+  workspaceId?: string;
 }) {
   const user = useAuthStore((s) => s.user);
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const resolvedWorkspaceId = workspaceId ?? workspace?.id;
 
   const handleUploadFile = useCallback(
     async (file: File) => {
-      if (!workspace) throw new Error("No workspace");
-      return uploadFile(workspace.id, file, pageId);
+      if (!resolvedWorkspaceId) throw new Error("No workspace");
+      return uploadFile(resolvedWorkspaceId, file, pageId, shareToken);
     },
-    [workspace, pageId],
+    [resolvedWorkspaceId, pageId, shareToken],
+  );
+
+  const resolveFileUrl = useCallback(
+    async (url: string) => {
+      if (shareToken && url.startsWith("/uploads/")) {
+        return `${url}?share=${shareToken}`;
+      }
+      return url;
+    },
+    [shareToken],
   );
 
   const editor = useCreateBlockNote(
@@ -82,15 +102,24 @@ function BlockEditor({
           color: userColor(user?.id ?? "anon"),
         },
       },
-      uploadFile: handleUploadFile,
+      uploadFile: readOnly ? undefined : handleUploadFile,
+      resolveFileUrl: shareToken ? resolveFileUrl : undefined,
     },
     [pageId],
   );
 
-  return <BlockNoteView editor={editor} theme="dark" />;
+  return <BlockNoteView editor={editor} theme="dark" editable={!readOnly} />;
 }
 
-export function EditorPane({ pageId, initialTitle, onTitleChange, onProvider }: EditorPaneProps) {
+export function EditorPane({
+  pageId,
+  initialTitle,
+  onTitleChange,
+  onProvider,
+  shareToken,
+  readOnly,
+  workspaceId,
+}: EditorPaneProps) {
   const [title, setTitle] = useState(initialTitle);
   const [editorState, setEditorState] = useState<{
     fragment: Y.XmlFragment;
@@ -154,13 +183,13 @@ export function EditorPane({ pageId, initialTitle, onTitleChange, onProvider }: 
 
       // Connect WebSocket to DocSync DO — always create provider so
       // reconnect picks up a fresh token via the params function
-      const hasToken = !!useAuthStore.getState().accessToken;
+      const hasToken = !!shareToken || !!useAuthStore.getState().accessToken;
       wsProvider = new YProvider(window.location.host, pageId, ydoc, {
         party: "doc-sync",
         connect: hasToken,
-        params: () => ({
-          token: useAuthStore.getState().accessToken || "",
-        }),
+        params: shareToken
+          ? () => ({ share: shareToken })
+          : () => ({ token: useAuthStore.getState().accessToken || "" }),
       });
       wsProvider.on("sync", handleProviderSync);
       seedTitleTimeout = window.setTimeout(() => {
@@ -191,7 +220,7 @@ export function EditorPane({ pageId, initialTitle, onTitleChange, onProvider }: 
       idb.destroy();
       ydoc.destroy();
     };
-  }, [pageId]);
+  }, [pageId, shareToken]);
 
   const handleTitleInput = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -214,9 +243,10 @@ export function EditorPane({ pageId, initialTitle, onTitleChange, onProvider }: 
         value={title}
         onChange={handleTitleInput}
         disabled={!editorState}
+        readOnly={readOnly}
         placeholder="Untitled"
         rows={1}
-        className="mb-4 w-full resize-none overflow-hidden border-none bg-transparent pl-7 text-4xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-50"
+        className="mb-4 w-full resize-none overflow-hidden border-none bg-transparent pl-7 text-4xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-50 read-only:cursor-default"
         onInput={(e) => {
           const el = e.currentTarget;
           el.style.height = "auto";
@@ -228,7 +258,14 @@ export function EditorPane({ pageId, initialTitle, onTitleChange, onProvider }: 
       />
 
       {editorState ? (
-        <BlockEditor fragment={editorState.fragment} provider={editorState.provider} pageId={pageId} />
+        <BlockEditor
+          fragment={editorState.fragment}
+          provider={editorState.provider}
+          pageId={pageId}
+          readOnly={readOnly}
+          shareToken={shareToken}
+          workspaceId={workspaceId}
+        />
       ) : (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-zinc-600" />

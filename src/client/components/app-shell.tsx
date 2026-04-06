@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useLocation } from "@tanstack/react-router";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "./header";
@@ -7,6 +7,8 @@ import { Footer } from "./footer";
 import { Sidebar } from "./sidebar/sidebar";
 
 export function AppShell() {
+  const location = useLocation();
+  const isShareView = location.pathname.startsWith("/s/");
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
 
@@ -17,6 +19,8 @@ export function AppShell() {
       return next;
     });
   }, []);
+
+  if (isShareView) return <Outlet />;
 
   return (
     <div className="flex h-screen flex-col">

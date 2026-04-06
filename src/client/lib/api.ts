@@ -10,6 +10,10 @@ import type {
   ApiError,
   InvitePreview,
   SearchResult,
+  PageShare,
+  SharedPageInfo,
+  AncestorInfo,
+  PageContext,
 } from "@/shared/types";
 
 const API_BASE = "/api/v1";
@@ -153,6 +157,17 @@ export const api = {
       const res = await apiFetch<{ members: WorkspaceMember[] }>(`/workspaces/${id}/members`);
       return res.members;
     },
+    updateMemberRole: async (workspaceId: string, userId: string, role: string) => {
+      return apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/members/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      });
+    },
+    removeMember: async (workspaceId: string, userId: string) => {
+      return apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/members/${userId}`, {
+        method: "DELETE",
+      });
+    },
   },
 
   pages: {
@@ -161,8 +176,8 @@ export const api = {
       return res.pages;
     },
     get: async (workspaceId: string, pageId: string) => {
-      const res = await apiFetch<{ page: Page }>(`/workspaces/${workspaceId}/pages/${pageId}`);
-      return res.page;
+      const res = await apiFetch<{ page: Page; can_edit?: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}`);
+      return { ...res.page, can_edit: res.can_edit ?? true };
     },
     create: async (workspaceId: string, data: { title?: string; parent_id?: string; icon?: string }) => {
       const res = await apiFetch<{ page: Page }>(`/workspaces/${workspaceId}/pages`, {
@@ -184,9 +199,21 @@ export const api = {
     },
     delete: (workspaceId: string, pageId: string) =>
       apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}`, { method: "DELETE" }),
-    children: async (workspaceId: string, pageId: string) => {
-      const res = await apiFetch<{ pages: Page[] }>(`/workspaces/${workspaceId}/pages/${pageId}/children`);
+    children: async (workspaceId: string, pageId: string, shareToken?: string) => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
+      const res = await apiFetch<{ pages: Page[] }>(`/workspaces/${workspaceId}/pages/${pageId}/children${qs}`);
       return res.pages;
+    },
+    ancestors: async (workspaceId: string, pageId: string, shareToken?: string) => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
+      const res = await apiFetch<{ ancestors: AncestorInfo[] }>(
+        `/workspaces/${workspaceId}/pages/${pageId}/ancestors${qs}`,
+      );
+      return res.ancestors;
+    },
+    context: async (pageId: string) => {
+      const res = await apiFetch<PageContext>(`/pages/${pageId}/context`);
+      return res;
     },
   },
 
@@ -194,16 +221,19 @@ export const api = {
     presign: async (
       workspaceId: string,
       data: { filename: string; content_type: string; size_bytes: number; page_id?: string | null },
+      shareToken?: string,
     ) => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
       const res = await apiFetch<{ upload: { id: string; upload_url: string; url: string } }>(
-        `/workspaces/${workspaceId}/uploads/presign`,
+        `/workspaces/${workspaceId}/uploads/presign${qs}`,
         { method: "POST", body: JSON.stringify(data) },
       );
       return res.upload;
     },
-    uploadData: async (uploadUrl: string, file: File) => {
+    uploadData: async (uploadUrl: string, file: File, shareToken?: string) => {
+      const url = shareToken ? `${uploadUrl}?share=${encodeURIComponent(shareToken)}` : uploadUrl;
       const token = useAuthStore.getState().accessToken;
-      const res = await fetch(uploadUrl, {
+      const res = await fetch(url, {
         method: "PUT",
         credentials: "include",
         headers: {
@@ -222,6 +252,39 @@ export const api = {
       `/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
     );
     return res.results;
+  },
+
+  shares: {
+    list: async (pageId: string) => {
+      const res = await apiFetch<{ shares: PageShare[] }>(`/pages/${pageId}/share`);
+      return res.shares;
+    },
+    create: async (
+      pageId: string,
+      data: { grantee_type: "user" | "link"; grantee_id?: string; grantee_email?: string; permission: "view" | "edit" },
+    ) => {
+      const res = await apiFetch<{ share: PageShare }>(`/pages/${pageId}/share`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      return res.share;
+    },
+    delete: (pageId: string, shareId: string) =>
+      apiFetch<{ ok: boolean }>(`/pages/${pageId}/share/${shareId}`, { method: "DELETE" }),
+    resolve: async (token: string) => {
+      const res = await apiFetch<SharedPageInfo>(`/share/${token}`);
+      return res;
+    },
+  },
+
+  profile: {
+    update: async (data: { name?: string; avatar_url?: string | null }) => {
+      const res = await apiFetch<{ user: User }>("/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      return res.user;
+    },
   },
 
   invites: {

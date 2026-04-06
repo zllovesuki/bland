@@ -21,7 +21,7 @@ import {
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { CF_IP_HEADER, JWT_ALGORITHM } from "@/worker/lib/constants";
-import { LoginRequest } from "@/shared/types";
+import { LoginRequest, UpdateProfileRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
 const auth = new Hono<AppContext>();
@@ -122,6 +122,24 @@ auth.post("/auth/logout", rateLimit("RL_API"), (c) => {
 auth.get("/auth/me", requireAuth, rateLimit("RL_API"), async (c) => {
   const user = c.get("user")!;
   return c.json({ user: toUserResponse(user) });
+});
+
+// PATCH /auth/me - Update profile
+auth.patch("/auth/me", requireAuth, rateLimit("RL_API"), async (c) => {
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const data = await parseBody(c, UpdateProfileRequest);
+  if (data instanceof Response) return data;
+
+  const updates: Record<string, string | null> = { updated_at: new Date().toISOString() };
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.avatar_url !== undefined) updates.avatar_url = data.avatar_url;
+
+  await db.update(users).set(updates).where(eq(users.id, user.id));
+  const updated = await db.select().from(users).where(eq(users.id, user.id)).get();
+
+  return c.json({ user: toUserResponse(updated!) });
 });
 
 export { auth };

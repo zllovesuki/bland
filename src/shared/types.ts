@@ -55,6 +55,13 @@ export const Page = z.object({
 });
 export type Page = z.infer<typeof Page>;
 
+export const GranteeUser = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+export type GranteeUser = z.infer<typeof GranteeUser>;
+
 export const PageShare = z.object({
   id: z.string(),
   page_id: z.string(),
@@ -64,6 +71,7 @@ export const PageShare = z.object({
   link_token: z.string().nullable(),
   created_by: z.string(),
   created_at: z.string(),
+  grantee_user: GranteeUser.nullable().optional(),
 });
 export type PageShare = z.infer<typeof PageShare>;
 
@@ -125,28 +133,29 @@ export const AcceptInviteRequest = z.object({
 });
 export type AcceptInviteRequest = z.infer<typeof AcceptInviteRequest>;
 
+// Reserved slugs that conflict with frontend routes
+const RESERVED_SLUGS = new Set(["s", "login", "invite", "profile", "api", "uploads", "ws"]);
+
+const workspaceSlug = z
+  .string()
+  .min(1)
+  .max(60)
+  .regex(
+    /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
+    "Slug must be lowercase alphanumeric with hyphens, cannot start or end with a hyphen",
+  )
+  .refine((s) => !RESERVED_SLUGS.has(s), "This slug is reserved");
+
 export const CreateWorkspaceRequest = z.object({
   name: z.string().min(1).max(100),
-  slug: z
-    .string()
-    .min(1)
-    .max(60)
-    .regex(
-      /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
-      "Slug must be lowercase alphanumeric with hyphens, cannot start or end with a hyphen",
-    ),
+  slug: workspaceSlug,
   icon: z.string().max(50).optional(),
 });
 export type CreateWorkspaceRequest = z.infer<typeof CreateWorkspaceRequest>;
 
 export const UpdateWorkspaceRequest = z.object({
   name: z.string().min(1).max(100).optional(),
-  slug: z
-    .string()
-    .min(1)
-    .max(60)
-    .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
-    .optional(),
+  slug: workspaceSlug.optional(),
   icon: z.string().max(50).nullable().optional(),
 });
 export type UpdateWorkspaceRequest = z.infer<typeof UpdateWorkspaceRequest>;
@@ -212,3 +221,49 @@ export const SearchResult = z.object({
   icon: z.string().nullable(),
 });
 export type SearchResult = z.infer<typeof SearchResult>;
+
+export const CreateShareRequest = z.object({
+  grantee_type: GranteeType,
+  grantee_id: z.string().max(26).optional(),
+  grantee_email: z.email().max(255).optional(),
+  permission: SharePermission,
+});
+export type CreateShareRequest = z.infer<typeof CreateShareRequest>;
+
+export const SharedPageInfo = z.object({
+  page_id: z.string(),
+  workspace_id: z.string(),
+  title: z.string(),
+  icon: z.string().nullable(),
+  cover_url: z.string().nullable(),
+  permission: SharePermission,
+  token: z.string(),
+});
+export type SharedPageInfo = z.infer<typeof SharedPageInfo>;
+
+const avatarUrl = z
+  .string()
+  .max(2048)
+  .refine((s) => s.startsWith("/uploads/") || s.startsWith("https://"), "Avatar must be an upload or HTTPS URL")
+  .nullable()
+  .optional();
+
+export const UpdateProfileRequest = z.object({
+  name: z.string().min(1).max(100).optional(),
+  avatar_url: avatarUrl,
+});
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
+
+export interface AncestorInfo {
+  id: string;
+  title: string | null;
+  icon: string | null;
+  accessible: boolean;
+}
+
+export interface PageContext {
+  workspace: Workspace;
+  page: Page;
+  access_mode: "member" | "shared";
+  can_edit: boolean;
+}

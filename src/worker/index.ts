@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
 import { createDb } from "@/worker/db/client";
 import { pages } from "@/worker/db/schema";
-import { checkMembership } from "@/worker/lib/membership";
+import { resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
@@ -32,23 +32,16 @@ export default {
 
         const url = new URL(req.url);
         const token = url.searchParams.get("token");
+        const shareToken = url.searchParams.get("share");
 
-        if (!token) {
-          log.warn("token_missing", { pageId });
+        if (!token && !shareToken) {
+          log.warn("auth_missing", { pageId });
           return new Response("Authentication required", { status: 401 });
         }
 
-        let userId: string;
-        try {
-          const { sub } = await verifyAccessToken(token, env);
-          userId = sub;
-        } catch {
-          log.warn("auth_failed", { pageId });
-          return new Response("Invalid token", { status: 401 });
-        }
-
-        // Check that the page exists, is not archived, and user is a workspace member
         const db = createDb(env.DB);
+
+        // Load page first — needed for both auth paths
         const page = await db
           .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at })
           .from(pages)
@@ -56,17 +49,58 @@ export default {
           .get();
 
         if (!page || page.archived_at) {
-          log.warn("page_not_found", { pageId, userId });
+          log.warn("page_not_found", { pageId });
           return new Response("Page not found", { status: 404 });
         }
 
-        const membership = await checkMembership(db, userId, page.workspace_id);
-        if (!membership) {
-          log.warn("access_denied", { userId, pageId, workspaceId: page.workspace_id });
-          return new Response("You do not have access to this page", { status: 403 });
+        let readOnly = false;
+
+        if (token) {
+          // JWT auth path
+          let userId: string;
+          try {
+            const { sub } = await verifyAccessToken(token, env);
+            userId = sub;
+          } catch {
+            log.warn("auth_failed", { pageId });
+            return new Response("Invalid token", { status: 401 });
+          }
+
+          // Resolve once and derive both view/edit answers. This relies on the v1
+          // assumption in permissions.ts that access levels are monotonic.
+          const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId }, [pageId], page.workspace_id);
+          const accessLevel = accessLevels.get(pageId) ?? "none";
+          if (accessLevel === "none") {
+            log.warn("access_denied", { userId, pageId });
+            return new Response("You do not have access to this page", { status: 403 });
+          }
+          readOnly = accessLevel !== "edit";
+
+          log.info("connection_authorized", { userId, pageId, readOnly });
+        } else {
+          // Share token auth path
+          const accessLevels = await resolvePageAccessLevels(
+            db,
+            { type: "link", token: shareToken! },
+            [pageId],
+            page.workspace_id,
+          );
+          const accessLevel = accessLevels.get(pageId) ?? "none";
+          if (accessLevel === "none") {
+            log.warn("share_access_denied", { pageId });
+            return new Response("Invalid or expired share link", { status: 403 });
+          }
+          readOnly = accessLevel !== "edit";
+
+          log.info("share_connection_authorized", { pageId, readOnly });
         }
 
-        log.info("connection_authorized", { userId, pageId, workspaceId: page.workspace_id });
+        // Always return a sanitized Request to prevent client-injected readOnly param
+        url.searchParams.delete("readOnly");
+        if (readOnly) {
+          url.searchParams.set("readOnly", "1");
+        }
+        return new Request(url.toString(), req);
       },
     });
     if (partyResponse) return partyResponse;

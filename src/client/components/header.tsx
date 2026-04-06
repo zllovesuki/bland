@@ -1,11 +1,9 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { FileText, LogOut, User as UserIcon, UserPlus, Check, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2 } from "lucide-react";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
-import { api } from "@/client/lib/api";
 
 interface HeaderProps {
   expanded: boolean;
@@ -14,14 +12,11 @@ interface HeaderProps {
 
 export function Header({ expanded, onToggleLayout }: HeaderProps) {
   const { isAuthenticated, user } = useAuthStore();
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [visible, setVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
   const lastScrollY = useRef(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -54,24 +49,8 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
   const handleLogout = useCallback(async () => {
     setMenuOpen(false);
     await logout();
-    navigate({ to: "/login" });
+    navigate({ to: "/login", search: { redirect: undefined } });
   }, [logout, navigate]);
-
-  const handleInvite = useCallback(async () => {
-    if (!currentWorkspace || inviteLoading) return;
-    setInviteLoading(true);
-    try {
-      const invite = await api.invites.create(currentWorkspace.id, {});
-      const link = `${window.location.origin}/invite/${invite.token}`;
-      await navigator.clipboard.writeText(link);
-      setInviteCopied(true);
-      setTimeout(() => setInviteCopied(false), 2000);
-    } catch {
-      // Silently fail
-    } finally {
-      setInviteLoading(false);
-    }
-  }, [currentWorkspace, inviteLoading]);
 
   return (
     <header
@@ -124,22 +103,14 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
                     <p className="truncate text-sm font-medium text-zinc-200">{user?.name}</p>
                     <p className="truncate text-xs text-zinc-500">{user?.email}</p>
                   </div>
-                  {currentWorkspace && (
-                    <button
-                      onClick={handleInvite}
-                      disabled={inviteLoading}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-                    >
-                      {inviteLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : inviteCopied ? (
-                        <Check className="h-3.5 w-3.5 text-accent-400" />
-                      ) : (
-                        <UserPlus className="h-3.5 w-3.5" />
-                      )}
-                      {inviteCopied ? "Link copied!" : "Invite to workspace"}
-                    </button>
-                  )}
+                  <Link
+                    to="/profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+                  >
+                    <UserIcon className="h-3.5 w-3.5" />
+                    Profile
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
@@ -154,6 +125,7 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
             !isLoginPage && (
               <Link
                 to="/login"
+                search={{ redirect: undefined }}
                 className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100"
               >
                 Sign in

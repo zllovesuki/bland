@@ -4,11 +4,11 @@ import { ulid } from "ulidx";
 
 import { jwtVerify } from "jose";
 
-import { uploads, pages } from "@/worker/db/schema";
-import { requireAuth } from "@/worker/middleware/auth";
+import { uploads, pages, pageShares } from "@/worker/db/schema";
+import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { checkMembership, requireMembership } from "@/worker/lib/membership";
-import { canEdit } from "@/worker/lib/permissions";
+import { checkMembership } from "@/worker/lib/membership";
+import { canEdit, canAccessPage } from "@/worker/lib/permissions";
 import { parseCookies, REFRESH_COOKIE, getJwtSecret } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
@@ -22,19 +22,53 @@ const log = createLogger("uploads");
 export const uploadsRouter = new Hono<AppContext>();
 
 // POST /workspaces/:wid/uploads/presign - Create upload record + return upload URL
-uploadsRouter.post("/workspaces/:wid/uploads/presign", requireAuth, rateLimit("RL_API"), async (c) => {
+// Accepts JWT auth (workspace members) or ?share=<token> (shared-link editors)
+uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("wid");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const db = c.get("db");
-
-  const membership = await requireMembership(c, db, user.id, workspaceId, true);
-  if (membership instanceof Response) return membership;
-  if (!canEdit(membership.role)) {
-    return c.json({ error: "forbidden", message: "You do not have permission to upload files" }, 403);
-  }
+  const shareToken = c.req.query("share");
 
   const data = await parseBody(c, PresignRequest);
   if (data instanceof Response) return data;
+
+  let uploadedBy: string | null = null;
+
+  // Try JWT auth first
+  if (user) {
+    const membership = await checkMembership(db, user.id, workspaceId);
+    if (membership && canEdit(membership.role)) {
+      uploadedBy = user.id;
+    } else if (data.page_id) {
+      // Guest or non-member: check page-level edit access
+      const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, data.page_id, workspaceId, "edit");
+      if (hasEdit) uploadedBy = user.id;
+    }
+  }
+
+  // Fall through to share token if JWT auth didn't authorize (spec §10.8)
+  if (!uploadedBy && shareToken) {
+    if (!data.page_id) {
+      return c.json({ error: "bad_request", message: "page_id is required for shared-link uploads" }, 400);
+    }
+    const hasEdit = await canAccessPage(db, { type: "link", token: shareToken }, data.page_id, workspaceId, "edit");
+    if (!hasEdit) {
+      return c.json({ error: "forbidden", message: "Share link does not grant edit access" }, 403);
+    }
+    const share = await db
+      .select({ created_by: pageShares.created_by })
+      .from(pageShares)
+      .where(and(eq(pageShares.link_token, shareToken), eq(pageShares.grantee_type, "link")))
+      .get();
+    if (!share) {
+      return c.json({ error: "forbidden", message: "Invalid share token" }, 403);
+    }
+    uploadedBy = share.created_by;
+  }
+
+  if (!uploadedBy) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  }
 
   // Validate page_id belongs to workspace if provided
   if (data.page_id) {
@@ -55,7 +89,7 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", requireAuth, rateLimit("R
     id: uploadId,
     workspace_id: workspaceId,
     page_id: data.page_id ?? null,
-    uploaded_by: user.id,
+    uploaded_by: uploadedBy,
     filename: data.filename,
     content_type: data.content_type,
     size_bytes: data.size_bytes,
@@ -77,24 +111,50 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", requireAuth, rateLimit("R
 export const uploadServingRouter = new Hono<AppContext>();
 
 // PUT /:id/data - Receive file binary and store in R2
-uploadServingRouter.put("/:id/data", requireAuth, rateLimit("RL_API"), async (c) => {
+// Accepts JWT auth (workspace members) or ?share=<token> (shared-link editors)
+uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c) => {
   const uploadId = c.req.param("id");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const db = c.get("db");
+  const shareToken = c.req.query("share");
 
   const upload = await db.select().from(uploads).where(eq(uploads.id, uploadId)).get();
   if (!upload) {
     return c.json({ error: "not_found", message: "Upload not found" }, 404);
   }
 
-  if (upload.uploaded_by !== user.id) {
-    return c.json({ error: "forbidden", message: "You can only upload to your own presigned URLs" }, 403);
+  let putAuthorized = false;
+
+  // Try JWT auth first
+  if (user && upload.uploaded_by === user.id) {
+    const membership = await checkMembership(db, user.id, upload.workspace_id);
+    if (membership && canEdit(membership.role)) {
+      putAuthorized = true;
+    } else if (upload.page_id) {
+      // Guest or non-member: check page-level edit access
+      putAuthorized = await canAccessPage(
+        db,
+        { type: "user", userId: user.id },
+        upload.page_id,
+        upload.workspace_id,
+        "edit",
+      );
+    }
   }
 
-  // Verify user still has edit access to the workspace
-  const membership = await checkMembership(db, user.id, upload.workspace_id);
-  if (!membership || !canEdit(membership.role)) {
-    return c.json({ error: "forbidden", message: "You no longer have edit access" }, 403);
+  // Fall through to share token if JWT auth didn't authorize (spec §10.8)
+  if (!putAuthorized && shareToken && upload.page_id) {
+    putAuthorized = await canAccessPage(
+      db,
+      { type: "link", token: shareToken },
+      upload.page_id,
+      upload.workspace_id,
+      "edit",
+    );
+  }
+
+  if (!putAuthorized) {
+    return c.json({ error: "forbidden", message: "You do not have edit access" }, 403);
   }
 
   // Prevent overwriting an already-uploaded file
@@ -117,7 +177,7 @@ uploadServingRouter.put("/:id/data", requireAuth, rateLimit("RL_API"), async (c)
   return c.json({ ok: true });
 });
 
-// GET /:id - Serve file from R2 (auth via refresh cookie)
+// GET /:id - Serve file from R2 (auth via refresh cookie or ?share=token)
 uploadServingRouter.get("/:id", async (c) => {
   const uploadId = c.req.param("id");
   const db = c.get("db");
@@ -127,23 +187,63 @@ uploadServingRouter.get("/:id", async (c) => {
     return c.json({ error: "not_found", message: "Upload not found" }, 404);
   }
 
-  // Auth via refresh cookie (same-origin browser requests send it automatically per §20.6)
+  // Try auth via refresh cookie first (same-origin browser requests)
   const cookies = parseCookies(c.req.header("cookie"));
   const refreshToken = cookies[REFRESH_COOKIE];
-  if (!refreshToken) {
-    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  let authorized = false;
+
+  if (refreshToken) {
+    try {
+      const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), { algorithms: [JWT_ALGORITHM] });
+      if (payload.sub && payload.type === "refresh") {
+        const membership = await checkMembership(db, payload.sub, upload.workspace_id);
+        if (membership) {
+          if (membership.role === "guest") {
+            // Guests need page-level share access for uploads
+            if (upload.page_id) {
+              authorized = await canAccessPage(
+                db,
+                { type: "user", userId: payload.sub },
+                upload.page_id,
+                upload.workspace_id,
+                "view",
+              );
+            }
+          } else {
+            authorized = true;
+          }
+        } else if (upload.page_id) {
+          // Non-member: check page-level share access
+          authorized = await canAccessPage(
+            db,
+            { type: "user", userId: payload.sub },
+            upload.page_id,
+            upload.workspace_id,
+            "view",
+          );
+        }
+      }
+    } catch {
+      // Cookie auth failed — fall through to share token
+    }
   }
 
-  try {
-    const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), { algorithms: [JWT_ALGORITHM] });
-    if (!payload.sub || payload.type !== "refresh") throw new Error("invalid_token");
-
-    const membership = await checkMembership(db, payload.sub, upload.workspace_id);
-    if (!membership) {
-      return c.json({ error: "forbidden", message: "Access denied" }, 403);
+  // Fallback: share token auth for shared-link users (spec §10.7)
+  if (!authorized) {
+    const shareToken = c.req.query("share");
+    if (shareToken && upload.page_id) {
+      authorized = await canAccessPage(
+        db,
+        { type: "link", token: shareToken },
+        upload.page_id,
+        upload.workspace_id,
+        "view",
+      );
     }
-  } catch {
-    return c.json({ error: "unauthorized", message: "Invalid authentication" }, 401);
+  }
+
+  if (!authorized) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
   const object = await c.env.R2.get(upload.r2_key);

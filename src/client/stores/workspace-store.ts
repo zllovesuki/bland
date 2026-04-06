@@ -7,10 +7,12 @@ interface WorkspaceState {
   currentWorkspace: Workspace | null;
   pages: Page[];
   members: WorkspaceMember[];
+  accessMode: "member" | "shared" | null;
   setWorkspaces(ws: Workspace[]): void;
-  setCurrentWorkspace(ws: Workspace): void;
+  setCurrentWorkspace(ws: Workspace | null): void;
   setPages(pages: Page[]): void;
   setMembers(members: WorkspaceMember[]): void;
+  setAccessMode(mode: "member" | "shared" | null): void;
   addWorkspace(ws: Workspace): void;
   addPage(page: Page): void;
   updatePage(id: string, updates: Partial<Page>): void;
@@ -25,6 +27,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       currentWorkspace: null,
       pages: [],
       members: [],
+      accessMode: null,
 
       setWorkspaces(workspaces) {
         set({ workspaces });
@@ -40,6 +43,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       setMembers(members) {
         set({ members });
+      },
+
+      setAccessMode(mode) {
+        set({ accessMode: mode });
       },
 
       addWorkspace(ws) {

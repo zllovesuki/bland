@@ -2,12 +2,18 @@ import { Hono } from "hono";
 import { eq, and, isNull, asc } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { pages } from "@/worker/db/schema";
+import { pages, workspaces } from "@/worker/db/schema";
 import type { Db } from "@/worker/db/client";
-import { requireAuth } from "@/worker/middleware/auth";
+import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { requireMembership } from "@/worker/lib/membership";
-import { canEdit, isAdminOrOwner } from "@/worker/lib/permissions";
+import { checkMembership, requireMembership } from "@/worker/lib/membership";
+import {
+  canEdit,
+  isAdminOrOwner,
+  canAccessPage,
+  canAccessPages,
+  resolvePageAccessLevels,
+} from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
@@ -180,16 +186,34 @@ pagesRouter.get("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asyn
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await requireMembership(c, db, user.id, workspaceId, true);
-  if (membership instanceof Response) return membership;
+  const membership = await checkMembership(db, user.id, workspaceId);
 
-  const result = await db
+  const allPages = await db
     .select()
     .from(pages)
     .where(and(eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
     .orderBy(asc(pages.position));
 
-  return c.json({ pages: result });
+  // Guests and non-members only see pages they have share access to (spec §20.2)
+  if (!membership || membership.role === "guest") {
+    const principal = { type: "user" as const, userId: user.id };
+    const accessByPage = await canAccessPages(
+      db,
+      principal,
+      allPages.map((page) => page.id),
+      workspaceId,
+      "view",
+    );
+    const visible = allPages.filter((page) => accessByPage.get(page.id));
+    // Reparent pages whose parent is not in the visible set so they appear as roots
+    const visibleIds = new Set(visible.map((p) => p.id));
+    const reparented = visible.map((p) =>
+      p.parent_id && !visibleIds.has(p.parent_id) ? { ...p, parent_id: null } : p,
+    );
+    return c.json({ pages: reparented });
+  }
+
+  return c.json({ pages: allPages });
 });
 
 // GET /workspaces/:wid/pages/:id - Get page metadata
@@ -199,8 +223,7 @@ pagesRouter.get("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), 
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await requireMembership(c, db, user.id, workspaceId, true);
-  if (membership instanceof Response) return membership;
+  const membership = await checkMembership(db, user.id, workspaceId);
 
   const page = await db
     .select()
@@ -212,29 +235,69 @@ pagesRouter.get("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), 
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
-  return c.json({ page });
+  // Members with edit role get full access
+  if (membership && canEdit(membership.role)) {
+    return c.json({ page, can_edit: true });
+  }
+
+  // Guests and non-members: resolve via page-level shares
+  const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId: user.id }, [pageId], workspaceId);
+  const accessLevel = accessLevels.get(pageId) ?? "none";
+
+  if (accessLevel === "none") {
+    return c.json({ error: "forbidden", message: "You do not have access to this page" }, 403);
+  }
+
+  return c.json({ page, can_edit: accessLevel === "edit" });
 });
 
 // GET /workspaces/:wid/pages/:id/children - List children
-pagesRouter.get("/workspaces/:wid/pages/:id/children", requireAuth, rateLimit("RL_API"), async (c) => {
+// Supports both JWT auth (workspace members) and ?share=<token> (shared-link users)
+pagesRouter.get("/workspaces/:wid/pages/:id/children", optionalAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("wid");
   const pageId = c.req.param("id");
-  const user = c.get("user")!;
+  const user = c.get("user");
   const db = c.get("db");
+  const shareToken = c.req.query("share");
 
-  const membership = await requireMembership(c, db, user.id, workspaceId, true);
-  if (membership instanceof Response) return membership;
+  // Determine access principal
+  let principal: { type: "user"; userId: string } | { type: "link"; token: string } | null = null;
 
-  // Verify parent page exists
+  if (user) {
+    const membership = await checkMembership(db, user.id, workspaceId);
+    if (membership && membership.role !== "guest") {
+      // Full workspace member — return all children directly
+      const parentPage = await db
+        .select({ id: pages.id })
+        .from(pages)
+        .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
+        .get();
+      if (!parentPage) return c.json({ error: "not_found", message: "Page not found" }, 404);
+
+      const children = await db
+        .select()
+        .from(pages)
+        .where(and(eq(pages.workspace_id, workspaceId), eq(pages.parent_id, pageId), isNull(pages.archived_at)))
+        .orderBy(asc(pages.position));
+      return c.json({ pages: children });
+    }
+    // Guest/non-member: prefer link share token if available (spec §10.8)
+    principal = shareToken ? { type: "link", token: shareToken } : { type: "user", userId: user.id };
+  } else if (shareToken) {
+    principal = { type: "link", token: shareToken };
+  }
+
+  if (!principal) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  }
+
+  // Verify parent page exists and principal has access
   const parentPage = await db
     .select({ id: pages.id })
     .from(pages)
     .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
     .get();
-
-  if (!parentPage) {
-    return c.json({ error: "not_found", message: "Page not found" }, 404);
-  }
+  if (!parentPage) return c.json({ error: "not_found", message: "Page not found" }, 404);
 
   const children = await db
     .select()
@@ -242,7 +305,84 @@ pagesRouter.get("/workspaces/:wid/pages/:id/children", requireAuth, rateLimit("R
     .where(and(eq(pages.workspace_id, workspaceId), eq(pages.parent_id, pageId), isNull(pages.archived_at)))
     .orderBy(asc(pages.position));
 
-  return c.json({ pages: children });
+  const accessByPage = await canAccessPages(
+    db,
+    principal,
+    [pageId, ...children.map((child) => child.id)],
+    workspaceId,
+    "view",
+  );
+  if (!accessByPage.get(pageId)) {
+    return c.json({ error: "forbidden", message: "You do not have access to this page" }, 403);
+  }
+  const visible = children.filter((child) => accessByPage.get(child.id));
+  return c.json({ pages: visible });
+});
+
+// GET /workspaces/:wid/pages/:id/ancestors - Ancestor chain with access info
+// Returns root-first array. Inaccessible ancestors have null title/icon (no title leak). §20.2
+pagesRouter.get("/workspaces/:wid/pages/:id/ancestors", optionalAuth, rateLimit("RL_API"), async (c) => {
+  const workspaceId = c.req.param("wid");
+  const pageId = c.req.param("id");
+  const user = c.get("user");
+  const db = c.get("db");
+  const shareToken = c.req.query("share");
+
+  let principal: { type: "user"; userId: string } | { type: "link"; token: string } | null = null;
+  if (user) {
+    const membership = await checkMembership(db, user.id, workspaceId);
+    if (membership && membership.role !== "guest") {
+      principal = { type: "user", userId: user.id };
+    } else {
+      // Guest/non-member: prefer link share token if available (spec §10.8)
+      principal = shareToken ? { type: "link", token: shareToken } : { type: "user", userId: user.id };
+    }
+  } else if (shareToken) {
+    principal = { type: "link", token: shareToken };
+  }
+  if (!principal) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  }
+
+  // Walk up parent chain from the requested page
+  const chain: { id: string; title: string; icon: string | null; parent_id: string | null }[] = [];
+  let currentId: string | null = pageId;
+  let depth = 0;
+
+  while (currentId && depth < 10) {
+    const page = await db
+      .select({ id: pages.id, title: pages.title, icon: pages.icon, parent_id: pages.parent_id })
+      .from(pages)
+      .where(and(eq(pages.id, currentId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
+      .get();
+    if (!page) break;
+    chain.push(page);
+    currentId = page.parent_id;
+    depth++;
+  }
+
+  // chain is [page, parent, grandparent, ...] — remove self (first element), then reverse to root-first
+  chain.shift();
+  chain.reverse();
+
+  const ancestorAccess = await canAccessPages(
+    db,
+    principal,
+    chain.map((ancestor) => ancestor.id),
+    workspaceId,
+    "view",
+  );
+  const ancestors = chain.map((a) => {
+    const accessible = ancestorAccess.get(a.id) ?? false;
+    return {
+      id: a.id,
+      title: accessible ? a.title : null,
+      icon: accessible ? a.icon : null,
+      accessible,
+    };
+  });
+
+  return c.json({ ancestors });
 });
 
 // PATCH /workspaces/:wid/pages/:id - Update page
@@ -252,16 +392,7 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await requireMembership(c, db, user.id, workspaceId, true);
-  if (membership instanceof Response) return membership;
-  if (!canEdit(membership.role)) {
-    return c.json({ error: "forbidden", message: "You do not have permission to edit pages in this workspace" }, 403);
-  }
-
-  const data = await parseBody(c, UpdatePageRequest);
-  if (data instanceof Response) return data;
-
-  // Verify page exists
+  // Verify page exists before permission checks to avoid leaking existence info
   const existing = await db
     .select()
     .from(pages)
@@ -270,6 +401,26 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
 
   if (!existing) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+
+  const membership = await checkMembership(db, user.id, workspaceId);
+
+  if (membership && canEdit(membership.role)) {
+    // Full edit access for owner/admin/member
+  } else {
+    // Guest or non-member: check page-level edit share
+    const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, pageId, workspaceId, "edit");
+    if (!hasEdit) {
+      return c.json({ error: "forbidden", message: "You do not have edit access to this page" }, 403);
+    }
+  }
+
+  const data = await parseBody(c, UpdatePageRequest);
+  if (data instanceof Response) return data;
+
+  // Non-members can only update icon and cover_url, not tree operations
+  if (!membership && (data.parent_id !== undefined || data.position !== undefined)) {
+    return c.json({ error: "forbidden", message: "Shared users cannot move pages" }, 403);
   }
 
   const updates = data;
@@ -409,4 +560,45 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
   return c.json({ ok: true });
 });
 
-export { pagesRouter };
+// Page context endpoint — mounted under /api/v1 (not workspace-scoped)
+const pageContextRouter = new Hono<AppContext>();
+
+// GET /pages/:id/context - Bootstrap page access for non-members
+pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), async (c) => {
+  const pageId = c.req.param("id");
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const page = await db
+    .select()
+    .from(pages)
+    .where(and(eq(pages.id, pageId), isNull(pages.archived_at)))
+    .get();
+  if (!page) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+
+  const workspace = await db.select().from(workspaces).where(eq(workspaces.id, page.workspace_id)).get();
+  if (!workspace) {
+    return c.json({ error: "not_found", message: "Workspace not found" }, 404);
+  }
+
+  const membership = await checkMembership(db, user.id, workspace.id);
+
+  if (membership && canEdit(membership.role)) {
+    return c.json({ workspace, page, access_mode: "member", can_edit: true });
+  }
+
+  // Guest or non-member: resolve via page-level shares
+  const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId: user.id }, [pageId], workspace.id);
+  const level = accessLevels.get(pageId) ?? "none";
+
+  if (level === "none") {
+    return c.json({ error: "forbidden", message: "You do not have access to this page" }, 403);
+  }
+
+  const accessMode = membership ? "member" : "shared";
+  return c.json({ workspace, page, access_mode: accessMode, can_edit: level === "edit" });
+});
+
+export { pagesRouter, pageContextRouter };

@@ -197,9 +197,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - **Sidebar decomposition**: `sidebar.tsx` is ~370 lines with the search dialog wired in. Extract the workspace switcher into `<WorkspaceSwitcher>`. Target: M5.
 - **Real-time icon/cover sync**: Icon and cover live in D1 only (REST PATCH). Other connected users don't see changes until their next page load. Broadcast via DocSync custom messages (`sendMessage`/`onCustomMessage`) to push updates live. Target: M5.
 - **Error boundaries**: No React error boundaries exist. Add around `EditorPane` and route-level content when M5 lands.
-- **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing. Add in a migration when share features land in M4.
-- **Upload serving with share tokens** (spec §10.7, §20.6): `GET /uploads/:id` only authenticates via refresh cookie (workspace members). `?share=<token>` auth for shared-link users is not implemented. Add when M4 (sharing) lands, so non-members viewing shared pages can see embedded images.
-- **Search `canAccess` filtering** (spec §20.8): Search results are filtered by workspace + non-archived, but not by page-level shares. A workspace member can see titles/snippets of share-restricted pages. Add `canAccess` post-filtering when M4 (page shares) lands.
+- **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.
 - **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
 
 ## First Files To Read
@@ -215,6 +213,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - [src/worker/routes/auth.ts](/home/vendetta/code/bland/src/worker/routes/auth.ts)
 - [src/worker/routes/workspaces.ts](/home/vendetta/code/bland/src/worker/routes/workspaces.ts)
 - [src/worker/routes/pages.ts](/home/vendetta/code/bland/src/worker/routes/pages.ts)
+- [src/worker/routes/shares.ts](/home/vendetta/code/bland/src/worker/routes/shares.ts)
 - [src/worker/routes/uploads.ts](/home/vendetta/code/bland/src/worker/routes/uploads.ts)
 - [src/worker/routes/search.ts](/home/vendetta/code/bland/src/worker/routes/search.ts)
 - [src/worker/queues/search-indexer.ts](/home/vendetta/code/bland/src/worker/queues/search-indexer.ts)

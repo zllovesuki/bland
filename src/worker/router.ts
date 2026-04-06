@@ -7,9 +7,10 @@ import { createDb, type Db } from "@/worker/db/client";
 import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
 import { workspacesRouter } from "@/worker/routes/workspaces";
-import { pagesRouter } from "@/worker/routes/pages";
+import { pagesRouter, pageContextRouter } from "@/worker/routes/pages";
 import { uploadsRouter, uploadServingRouter } from "@/worker/routes/uploads";
 import { searchRouter } from "@/worker/routes/search";
+import { sharesRouter, shareLinkRouter } from "@/worker/routes/shares";
 import { health } from "@/worker/routes/health";
 import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
@@ -90,6 +91,9 @@ app.route("/api/v1", workspacesRouter);
 app.route("/api/v1", pagesRouter);
 app.route("/api/v1", uploadsRouter);
 app.route("/api/v1", searchRouter);
+app.route("/api/v1", sharesRouter);
+app.route("/api/v1", shareLinkRouter);
+app.route("/api/v1", pageContextRouter);
 app.route("/uploads", uploadServingRouter);
 
 app.notFound((c) => {

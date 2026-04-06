@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { Loader2, AlertCircle, Trash2, ChevronRight } from "lucide-react";
+import { Loader2, AlertCircle, Trash2, ChevronRight, Lock } from "lucide-react";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
@@ -11,8 +11,9 @@ import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/editor/icon-picker";
 import { CoverPicker } from "@/client/components/editor/cover-picker";
+import { ShareDialog } from "@/client/components/editor/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
-import type { Page } from "@/shared/types";
+import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
@@ -65,6 +66,60 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
   );
 }
 
+function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
+  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    let cancelled = false;
+    api.pages
+      .ancestors(workspace.id, page.id)
+      .then((a) => {
+        if (!cancelled) setAncestors(a);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace, page.id]);
+
+  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
+
+  return (
+    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
+      <span className="truncate text-zinc-500">{workspace?.name ?? workspaceSlug}</span>
+      {ancestors.map((a) => (
+        <span key={a.id} className="flex items-center gap-1">
+          {sep}
+          {a.accessible ? (
+            <Link
+              to="/$workspaceSlug/$pageId"
+              params={{ workspaceSlug, pageId: a.id }}
+              className="truncate text-zinc-400 transition hover:text-zinc-300"
+            >
+              {a.icon ? `${a.icon} ` : ""}
+              {a.title || DEFAULT_PAGE_TITLE}
+            </Link>
+          ) : (
+            <span className="flex items-center gap-1 text-zinc-600">
+              <Lock className="h-2.5 w-2.5" />
+              Restricted
+            </span>
+          )}
+        </span>
+      ))}
+      <span className="flex items-center gap-1">
+        {sep}
+        <span className="truncate text-zinc-300">
+          {page.icon ? `${page.icon} ` : ""}
+          {page.title || DEFAULT_PAGE_TITLE}
+        </span>
+      </span>
+    </nav>
+  );
+}
+
 export function PageView() {
   const params = useParams({ strict: false }) as {
     workspaceSlug: string;
@@ -73,10 +128,13 @@ export function PageView() {
   const navigate = useNavigate();
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
   const updatePage = useWorkspaceStore((s) => s.updatePage);
+  const addPage = useWorkspaceStore((s) => s.addPage);
   const archivePage = useWorkspaceStore((s) => s.archivePage);
   const members = useWorkspaceStore((s) => s.members);
+  const accessMode = useWorkspaceStore((s) => s.accessMode);
+  const isSharedMode = accessMode === "shared";
   const currentUser = useAuthStore((s) => s.user);
-  const [page, setPage] = useState<Page | null>(null);
+  const [page, setPage] = useState<(Page & { can_edit?: boolean }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -96,7 +154,9 @@ export function PageView() {
         const data = await api.pages.get(workspace!.id, params.pageId);
         if (!cancelled) {
           setPage(data);
-          updatePage(data.id, data);
+          const exists = useWorkspaceStore.getState().pages.some((p) => p.id === data.id);
+          if (exists) updatePage(data.id, data);
+          else addPage(data);
         }
       } catch (err) {
         if (!cancelled) {
@@ -174,7 +234,7 @@ export function PageView() {
     [workspace, page, updatePage],
   );
 
-  if (isLoading) {
+  if (isLoading || !workspace) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
@@ -204,20 +264,29 @@ export function PageView() {
               <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
             )}
           </div>
-          <div className="absolute right-2 top-2">
-            <CoverPicker
-              currentCover={page.cover_url}
-              onSelect={handleCoverChange}
-              workspaceId={workspace!.id}
-              pageId={page.id}
-            />
-          </div>
+          {page.can_edit !== false && (
+            <div className="absolute right-2 top-2">
+              <CoverPicker
+                currentCover={page.cover_url}
+                onSelect={handleCoverChange}
+                workspaceId={workspace!.id}
+                pageId={page.id}
+              />
+            </div>
+          )}
         </div>
       )}
 
       <div className="mb-4 flex min-h-6 items-center justify-between">
-        <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+        {isSharedMode ? (
+          <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+        ) : (
+          <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+        )}
         <div className="flex items-center gap-3">
+          {!isSharedMode && members.find((m) => m.user_id === currentUser?.id)?.role !== "guest" && (
+            <ShareDialog pageId={page.id} workspaceId={workspace!.id} />
+          )}
           <AvatarStack
             awareness={wsProvider?.awareness ?? null}
             localClientId={wsProvider?.awareness.clientID ?? null}
@@ -228,17 +297,22 @@ export function PageView() {
 
       <div className="group/actions mb-2 flex items-start justify-between pl-7">
         <div className="flex items-center gap-2">
-          <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
-          {!page.cover_url && (
-            <CoverPicker
-              currentCover={null}
-              onSelect={handleCoverChange}
-              workspaceId={workspace!.id}
-              pageId={page.id}
-            />
+          {page.can_edit !== false && (
+            <>
+              <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
+              {!page.cover_url && (
+                <CoverPicker
+                  currentCover={null}
+                  onSelect={handleCoverChange}
+                  workspaceId={workspace!.id}
+                  pageId={page.id}
+                />
+              )}
+            </>
           )}
+          {page.can_edit === false && page.icon && <span className="text-2xl">{page.icon}</span>}
         </div>
-        {canArchivePage(members, currentUser, page) && (
+        {!isSharedMode && canArchivePage(members, currentUser, page) && (
           <button
             onClick={handleArchive}
             disabled={isArchiving}
@@ -257,6 +331,7 @@ export function PageView() {
         initialTitle={page.title}
         onTitleChange={handleTitleChange}
         onProvider={setWsProvider}
+        readOnly={page.can_edit === false}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuth } from "@/client/hooks/use-auth";
 import { toApiError } from "@/client/lib/api";
@@ -8,6 +8,7 @@ import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { redirect: redirectTo } = useSearch({ from: "/login" });
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +29,7 @@ export function LoginPage() {
 
     try {
       await login({ email, password, turnstileToken });
-      navigate({ to: "/" });
+      navigate({ to: redirectTo || "/" });
     } catch (err) {
       setError(toApiError(err).message);
       setTurnstileResetKey((k) => k + 1);

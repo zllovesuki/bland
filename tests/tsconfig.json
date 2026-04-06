@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // Keep test typechecking separate from the app build. This lets the main
+    // project continue excluding tests while still giving tests the same alias
+    // and module-resolution behavior as src/.
+    "rootDir": "..",
+    "types": ["vite/client", "node"]
+  },
+  "include": ["./**/*", "../worker-configuration.d.ts"],
+  "exclude": ["../node_modules", "../dist"]
+}

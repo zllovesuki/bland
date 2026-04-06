@@ -12,8 +12,22 @@
       rel="stylesheet"
     />
   </head>
+
   <body class="bg-[#09090b] text-white antialiased">
     <div id="root"></div>
+    <script>
+      // via https://github.com/j4rviscmd/Scripta/pull/53/changes
+      // Workaround for https://github.com/ueberdosis/tiptap/issues/5450
+      // Must run before Vite pre-bundled chunks capture console.warn
+      (() => {
+        const _warn = console.warn;
+        console.warn = (...args) => {
+          const msg = typeof args[0] === "string" ? args[0] : "";
+          if (msg.startsWith("linkifyjs: already initialized")) return;
+          _warn.apply(console, args);
+        };
+      })();
+    </script>
     <script type="module" src="/src/client/main.tsx"></script>
   </body>
 </html>
