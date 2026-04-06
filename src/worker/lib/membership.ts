@@ -13,8 +13,8 @@ export async function checkMembership(
     .select()
     .from(memberships)
     .where(and(eq(memberships.user_id, userId), eq(memberships.workspace_id, workspaceId)))
-    .limit(1);
-  return result.length > 0 ? result[0] : null;
+    .get();
+  return result ?? null;
 }
 
 /**

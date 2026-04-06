@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Loader2, AlertCircle, Trash2, ChevronRight } from "lucide-react";
 import type YProvider from "y-partyserver/provider";
@@ -9,8 +9,11 @@ import { canArchivePage } from "@/client/lib/permissions";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
+import { IconPicker } from "@/client/components/editor/icon-picker";
+import { CoverPicker } from "@/client/components/editor/cover-picker";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import type { Page } from "@/shared/types";
+import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
@@ -47,7 +50,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
             className="truncate text-zinc-400 transition hover:text-zinc-300"
           >
             {a.icon ? `${a.icon} ` : ""}
-            {a.title || "Untitled"}
+            {a.title || DEFAULT_PAGE_TITLE}
           </Link>
         </span>
       ))}
@@ -55,7 +58,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
         {sep}
         <span className="truncate text-zinc-300">
           {page.icon ? `${page.icon} ` : ""}
-          {page.title || "Untitled"}
+          {page.title || DEFAULT_PAGE_TITLE}
         </span>
       </span>
     </nav>
@@ -78,6 +81,8 @@ export function PageView() {
   const [error, setError] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
+  const iconVersionRef = useRef(0);
+  const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
 
   useEffect(() => {
@@ -133,6 +138,42 @@ export function PageView() {
     [page, updatePage],
   );
 
+  const handleIconChange = useCallback(
+    async (icon: string | null) => {
+      if (!workspace || !page) return;
+      const version = ++iconVersionRef.current;
+      setPage((p) => (p ? { ...p, icon } : p));
+      updatePage(page.id, { icon });
+      try {
+        await api.pages.update(workspace.id, page.id, { icon });
+      } catch {
+        if (iconVersionRef.current === version) {
+          setPage((p) => (p ? { ...p, icon: page.icon } : p));
+          updatePage(page.id, { icon: page.icon });
+        }
+      }
+    },
+    [workspace, page, updatePage],
+  );
+
+  const handleCoverChange = useCallback(
+    async (cover_url: string | null) => {
+      if (!workspace || !page) return;
+      const version = ++coverVersionRef.current;
+      setPage((p) => (p ? { ...p, cover_url } : p));
+      updatePage(page.id, { cover_url });
+      try {
+        await api.pages.update(workspace.id, page.id, { cover_url });
+      } catch {
+        if (coverVersionRef.current === version) {
+          setPage((p) => (p ? { ...p, cover_url: page.cover_url } : p));
+          updatePage(page.id, { cover_url: page.cover_url });
+        }
+      }
+    },
+    [workspace, page, updatePage],
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -154,6 +195,26 @@ export function PageView() {
 
   return (
     <div className="animate-fade-in mx-auto max-w-3xl px-8 py-10">
+      {page.cover_url && (
+        <div className="group/cover relative -mx-8 -mt-10 mb-6">
+          <div className="h-48 overflow-hidden rounded-b-lg">
+            {page.cover_url.startsWith("linear-gradient") ? (
+              <div className="h-full w-full" style={{ background: page.cover_url }} />
+            ) : (
+              <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
+            )}
+          </div>
+          <div className="absolute right-2 top-2">
+            <CoverPicker
+              currentCover={page.cover_url}
+              onSelect={handleCoverChange}
+              workspaceId={workspace!.id}
+              pageId={page.id}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 flex min-h-6 items-center justify-between">
         <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
         <div className="flex items-center gap-3">
@@ -165,27 +226,29 @@ export function PageView() {
         </div>
       </div>
 
-      {page.cover_url && (
-        <div className="-mx-8 -mt-10 mb-8 h-48 overflow-hidden">
-          <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
-        </div>
-      )}
-
       <div className="group/actions mb-2 flex items-start justify-between pl-7">
-        {page.icon && <span className="text-4xl">{page.icon}</span>}
-        {(() => {
-          return canArchivePage(members, currentUser, page) ? (
-            <button
-              onClick={handleArchive}
-              disabled={isArchiving}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
-              title="Archive page"
-            >
-              {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Archive
-            </button>
-          ) : null;
-        })()}
+        <div className="flex items-center gap-2">
+          <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
+          {!page.cover_url && (
+            <CoverPicker
+              currentCover={null}
+              onSelect={handleCoverChange}
+              workspaceId={workspace!.id}
+              pageId={page.id}
+            />
+          )}
+        </div>
+        {canArchivePage(members, currentUser, page) && (
+          <button
+            onClick={handleArchive}
+            disabled={isArchiving}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
+            title="Archive page"
+          >
+            {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Archive
+          </button>
+        )}
       </div>
 
       <EditorPane

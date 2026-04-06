@@ -35,10 +35,10 @@ async function getAncestorDepth(db: Db, pageId: string, workspaceId: string): Pr
       .select({ parent_id: pages.parent_id })
       .from(pages)
       .where(and(eq(pages.id, currentId), eq(pages.workspace_id, workspaceId)))
-      .limit(1);
+      .get();
 
-    if (result.length === 0) break;
-    currentId = result[0].parent_id;
+    if (!result) break;
+    currentId = result.parent_id;
     if (currentId) depth++;
   }
 
@@ -93,13 +93,13 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
 
   // If parent_id specified, validate parent exists and check depth
   if (parent_id) {
-    const parentResult = await db
+    const parentPage = await db
       .select({ id: pages.id })
       .from(pages)
       .where(and(eq(pages.id, parent_id), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-      .limit(1);
+      .get();
 
-    if (parentResult.length === 0) {
+    if (!parentPage) {
       return c.json({ error: "not_found", message: "Parent page not found" }, 404);
     }
 
@@ -144,6 +144,13 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
   });
 
   log.info("page_created", { pageId, workspaceId, parentId: parent_id ?? null, userId: user.id });
+
+  // Index newly created page in FTS
+  try {
+    await c.env.SEARCH_QUEUE.send({ type: "index-page", pageId });
+  } catch {
+    // Non-critical: FTS is a derived projection
+  }
 
   const now = new Date().toISOString();
 
@@ -195,17 +202,17 @@ pagesRouter.get("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), 
   const membership = await requireMembership(c, db, user.id, workspaceId, true);
   if (membership instanceof Response) return membership;
 
-  const result = await db
+  const page = await db
     .select()
     .from(pages)
     .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-    .limit(1);
+    .get();
 
-  if (result.length === 0) {
+  if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
-  return c.json({ page: result[0] });
+  return c.json({ page });
 });
 
 // GET /workspaces/:wid/pages/:id/children - List children
@@ -219,13 +226,13 @@ pagesRouter.get("/workspaces/:wid/pages/:id/children", requireAuth, rateLimit("R
   if (membership instanceof Response) return membership;
 
   // Verify parent page exists
-  const parentResult = await db
+  const parentPage = await db
     .select({ id: pages.id })
     .from(pages)
     .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-    .limit(1);
+    .get();
 
-  if (parentResult.length === 0) {
+  if (!parentPage) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
@@ -259,16 +266,16 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
     .select()
     .from(pages)
     .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-    .limit(1);
+    .get();
 
-  if (existing.length === 0) {
+  if (!existing) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
   const updates = data;
 
   // Handle parent_id change (move operation)
-  if (updates.parent_id !== undefined && updates.parent_id !== existing[0].parent_id) {
+  if (updates.parent_id !== undefined && updates.parent_id !== existing.parent_id) {
     const newParentId = updates.parent_id;
 
     if (newParentId !== null) {
@@ -282,9 +289,9 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
         .select({ id: pages.id })
         .from(pages)
         .where(and(eq(pages.id, newParentId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-        .limit(1);
+        .get();
 
-      if (newParent.length === 0) {
+      if (!newParent) {
         return c.json({ error: "not_found", message: "New parent page not found" }, 404);
       }
 
@@ -299,8 +306,8 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
           .select({ parent_id: pages.parent_id })
           .from(pages)
           .where(and(eq(pages.id, currentId), eq(pages.workspace_id, workspaceId)))
-          .limit(1);
-        currentId = ancestor.length > 0 ? ancestor[0].parent_id : null;
+          .get();
+        currentId = ancestor?.parent_id ?? null;
         walkCount++;
       }
 
@@ -322,24 +329,34 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   };
 
   if (updates.icon !== undefined) updateValues.icon = updates.icon;
-  if (updates.cover_url !== undefined) updateValues.cover_url = updates.cover_url;
+  if (updates.cover_url !== undefined) {
+    // Only allow null, gradient strings, or local upload paths
+    if (
+      updates.cover_url !== null &&
+      !updates.cover_url.startsWith("linear-gradient(") &&
+      !updates.cover_url.startsWith("/uploads/")
+    ) {
+      return c.json({ error: "bad_request", message: "Cover must be a gradient or an uploaded image" }, 400);
+    }
+    updateValues.cover_url = updates.cover_url;
+  }
   if (updates.position !== undefined) updateValues.position = updates.position;
   if (updates.parent_id !== undefined) updateValues.parent_id = updates.parent_id;
 
-  if (updates.parent_id !== undefined && updates.parent_id !== existing[0].parent_id) {
-    log.info("page_moved", { pageId, workspaceId, from: existing[0].parent_id, to: updates.parent_id });
+  if (updates.parent_id !== undefined && updates.parent_id !== existing.parent_id) {
+    log.info("page_moved", { pageId, workspaceId, from: existing.parent_id, to: updates.parent_id });
   }
 
   await db.update(pages).set(updateValues).where(eq(pages.id, pageId));
   log.debug("page_updated", { pageId, workspaceId, fields: Object.keys(updateValues) });
 
-  const updated = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
+  const updated = await db.select().from(pages).where(eq(pages.id, pageId)).get();
 
-  if (updated.length === 0) {
+  if (!updated) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
-  return c.json({ page: updated[0] });
+  return c.json({ page: updated });
 });
 
 // DELETE /workspaces/:wid/pages/:id - Archive page
@@ -357,14 +374,14 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
     .select()
     .from(pages)
     .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId), isNull(pages.archived_at)))
-    .limit(1);
+    .get();
 
-  if (existing.length === 0) {
+  if (!existing) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
   // Check permission: page creator, admin, or owner
-  const isCreator = existing[0].created_by === user.id;
+  const isCreator = existing.created_by === user.id;
 
   if (!isCreator && !isAdminOrOwner(membership.role)) {
     return c.json({ error: "forbidden", message: "Only the page creator or workspace admins can delete pages" }, 403);
@@ -381,6 +398,13 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
       .where(and(eq(pages.parent_id, pageId), eq(pages.workspace_id, workspaceId))),
   ]);
   log.info("page_archived", { pageId, workspaceId, userId: user.id });
+
+  // Remove from search index (consumer handles archived pages)
+  try {
+    await c.env.SEARCH_QUEUE.send({ type: "index-page", pageId });
+  } catch {
+    // Non-critical: FTS is a derived projection
+  }
 
   return c.json({ ok: true });
 });

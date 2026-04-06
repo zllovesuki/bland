@@ -12,7 +12,7 @@ type AuthVariables = {
   jwtPayload: { sub: string; jti: string } | null;
 };
 
-function extractBearerToken(header: string | undefined): string | null {
+export function extractBearerToken(header: string | undefined): string | null {
   if (!header) return null;
   const parts = header.split(" ");
   if (parts.length !== 2 || parts[0] !== "Bearer") return null;
@@ -35,15 +35,15 @@ async function verifyAndLoadUser(
   try {
     const { sub, jti } = await verifyAccessToken(token, env);
 
-    const result = await db.select().from(users).where(eq(users.id, sub)).limit(1);
+    const user = await db.select().from(users).where(eq(users.id, sub)).get();
 
-    if (result.length === 0) {
+    if (!user) {
       log.debug("token_rejected", { reason: "user_not_found", userId: sub });
       return { user: null, jwtPayload: null };
     }
 
     log.debug("token_verified", { userId: sub });
-    return { user: result[0], jwtPayload: { sub, jti } };
+    return { user, jwtPayload: { sub, jti } };
   } catch {
     log.debug("token_rejected", { reason: "invalid_jwt" });
     return { user: null, jwtPayload: null };

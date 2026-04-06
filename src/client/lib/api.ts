@@ -1,7 +1,16 @@
 import { useAuthStore } from "@/client/stores/auth-store";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-import type { LoginRequest, User, Workspace, Page, WorkspaceMember, ApiError, InvitePreview } from "@/shared/types";
+import type {
+  LoginRequest,
+  User,
+  Workspace,
+  Page,
+  WorkspaceMember,
+  ApiError,
+  InvitePreview,
+  SearchResult,
+} from "@/shared/types";
 
 const API_BASE = "/api/v1";
 
@@ -179,6 +188,40 @@ export const api = {
       const res = await apiFetch<{ pages: Page[] }>(`/workspaces/${workspaceId}/pages/${pageId}/children`);
       return res.pages;
     },
+  },
+
+  uploads: {
+    presign: async (
+      workspaceId: string,
+      data: { filename: string; content_type: string; size_bytes: number; page_id?: string | null },
+    ) => {
+      const res = await apiFetch<{ upload: { id: string; upload_url: string; url: string } }>(
+        `/workspaces/${workspaceId}/uploads/presign`,
+        { method: "POST", body: JSON.stringify(data) },
+      );
+      return res.upload;
+    },
+    uploadData: async (uploadUrl: string, file: File) => {
+      const token = useAuthStore.getState().accessToken;
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": file.type,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+      if (!res.ok) throw await res.json().catch(() => ({ error: "upload_failed", message: "Upload failed" }));
+      return res.json();
+    },
+  },
+
+  search: async (workspaceId: string, query: string) => {
+    const res = await apiFetch<{ results: SearchResult[] }>(
+      `/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
+    );
+    return res.results;
   },
 
   invites: {

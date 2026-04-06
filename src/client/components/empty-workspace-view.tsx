@@ -43,13 +43,13 @@ export function EmptyWorkspaceView() {
                 setName(e.target.value);
                 setSlug(slugify(e.target.value));
               }}
-              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-teal-500"
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent-500"
             />
             <input
               placeholder="slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-teal-500"
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-accent-500"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -65,7 +65,7 @@ export function EmptyWorkspaceView() {
               <button
                 onClick={handleCreate}
                 disabled={!name.trim() || !slug.trim() || creating}
-                className="flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-teal-500 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
               >
                 {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 Create
@@ -75,7 +75,7 @@ export function EmptyWorkspaceView() {
         ) : (
           <button
             onClick={() => setShowForm(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-500"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500"
           >
             <Plus className="h-4 w-4" />
             Create workspace

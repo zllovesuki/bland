@@ -8,6 +8,8 @@ import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
 import { workspacesRouter } from "@/worker/routes/workspaces";
 import { pagesRouter } from "@/worker/routes/pages";
+import { uploadsRouter, uploadServingRouter } from "@/worker/routes/uploads";
+import { searchRouter } from "@/worker/routes/search";
 import { health } from "@/worker/routes/health";
 import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
@@ -86,6 +88,9 @@ app.route("/api/v1", auth);
 app.route("/api/v1", invitesRouter);
 app.route("/api/v1", workspacesRouter);
 app.route("/api/v1", pagesRouter);
+app.route("/api/v1", uploadsRouter);
+app.route("/api/v1", searchRouter);
+app.route("/uploads", uploadServingRouter);
 
 app.notFound((c) => {
   return c.json({ error: "not_found", message: "Route not found" }, 404);

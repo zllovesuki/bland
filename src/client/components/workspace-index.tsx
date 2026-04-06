@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { FileText, Plus, Loader2 } from "lucide-react";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
+import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
 export function WorkspaceIndex() {
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
@@ -18,7 +19,7 @@ export function WorkspaceIndex() {
     setIsCreating(true);
     try {
       const page = await api.pages.create(currentWorkspace.id, {
-        title: "Untitled",
+        title: DEFAULT_PAGE_TITLE,
       });
       addPage(page);
       navigate({

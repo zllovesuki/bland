@@ -4,9 +4,11 @@
 
 @theme {
   --default-transition-duration: 75ms;
-  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: "Instrument Serif", Georgia, serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans:
+    "Outfit", ui-sans-serif, system-ui, -apple-system, "Noto Sans CJK SC", "PingFang SC", "Hiragino Sans",
+    "Microsoft YaHei", sans-serif;
+  --font-display: "Instrument Serif", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", "Noto Sans Mono CJK SC", monospace;
 
   /* Teal accent palette */
   --color-accent-50: #f0fdfa;

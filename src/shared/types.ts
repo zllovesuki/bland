@@ -80,11 +80,6 @@ export const Invite = z.object({
 });
 export type Invite = z.infer<typeof Invite>;
 
-export const AuthTokens = z.object({
-  accessToken: z.string(),
-});
-export type AuthTokens = z.infer<typeof AuthTokens>;
-
 export const LoginRequest = z.object({
   email: z.email().max(255),
   password: z.string().min(8).max(128),
@@ -171,8 +166,49 @@ export type CreatePageRequest = z.infer<typeof CreatePageRequest>;
 
 export const UpdatePageRequest = z.object({
   icon: z.string().max(50).nullable().optional(),
-  cover_url: z.string().url().max(2048).nullable().optional(),
+  cover_url: z.string().max(2048).nullable().optional(),
   position: z.number().optional(),
   parent_id: z.string().max(26).nullable().optional(),
 });
 export type UpdatePageRequest = z.infer<typeof UpdatePageRequest>;
+
+const ALLOWED_UPLOAD_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "application/pdf",
+] as const;
+
+export const UPLOAD_MIME_SET = new Set<string>(ALLOWED_UPLOAD_TYPES);
+export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+
+export const PresignRequest = z.object({
+  filename: z.string().min(1).max(255),
+  content_type: z.enum(ALLOWED_UPLOAD_TYPES),
+  size_bytes: z.number().int().min(1).max(MAX_UPLOAD_SIZE),
+  page_id: z.string().max(26).nullable().optional(),
+});
+export type PresignRequest = z.infer<typeof PresignRequest>;
+
+export const Upload = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  page_id: z.string().nullable(),
+  uploaded_by: z.string(),
+  filename: z.string(),
+  content_type: z.string(),
+  size_bytes: z.number(),
+  r2_key: z.string(),
+  created_at: z.string(),
+});
+export type Upload = z.infer<typeof Upload>;
+
+export const SearchResult = z.object({
+  page_id: z.string(),
+  title: z.string(),
+  snippet: z.string(),
+  icon: z.string().nullable(),
+});
+export type SearchResult = z.infer<typeof SearchResult>;

@@ -25,9 +25,9 @@ workspacesRouter.post("/workspaces", requireAuth, rateLimit("RL_API"), async (c)
   const db = c.get("db");
 
   // Check slug uniqueness
-  const existing = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
+  const existing = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.slug, slug)).get();
 
-  if (existing.length > 0) {
+  if (existing) {
     return c.json({ error: "conflict", message: "A workspace with this slug already exists" }, 409);
   }
 
@@ -111,9 +111,9 @@ workspacesRouter.patch("/workspaces/:id", requireAuth, rateLimit("RL_API"), asyn
       .select({ id: workspaces.id })
       .from(workspaces)
       .where(eq(workspaces.slug, data.slug))
-      .limit(1);
+      .get();
 
-    if (existing.length > 0 && existing[0].id !== workspaceId) {
+    if (existing && existing.id !== workspaceId) {
       return c.json({ error: "conflict", message: "A workspace with this slug already exists" }, 409);
     }
   }
@@ -126,13 +126,13 @@ workspacesRouter.patch("/workspaces/:id", requireAuth, rateLimit("RL_API"), asyn
   await db.update(workspaces).set(updateValues).where(eq(workspaces.id, workspaceId));
   log.info("workspace_updated", { workspaceId, fields: Object.keys(updateValues) });
 
-  const updated = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const updated = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).get();
 
-  if (updated.length === 0) {
+  if (!updated) {
     return c.json({ error: "not_found", message: "Workspace not found" }, 404);
   }
 
-  return c.json({ workspace: updated[0] });
+  return c.json({ workspace: updated });
 });
 
 // DELETE /workspaces/:id - Delete workspace
@@ -150,8 +150,8 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
   const pageIds = workspacePages.map((p) => p.id);
 
   const batchOps = [
+    db.delete(uploads).where(eq(uploads.workspace_id, workspaceId)),
     ...pageIds.flatMap((pid) => [
-      db.delete(uploads).where(eq(uploads.page_id, pid)),
       db.delete(docSnapshots).where(eq(docSnapshots.page_id, pid)),
       db.delete(pageShares).where(eq(pageShares.page_id, pid)),
     ]),

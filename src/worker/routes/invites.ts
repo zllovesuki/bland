@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
 
 import { invites, memberships, users, workspaces } from "@/worker/db/schema";
-import { requireAuth } from "@/worker/middleware/auth";
+import { requireAuth, extractBearerToken } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { verifyTurnstileToken } from "@/worker/middleware/turnstile";
 import {
@@ -117,25 +117,23 @@ invitesRouter.get("/invite/:token", async (c) => {
     .innerJoin(workspaces, eq(invites.workspace_id, workspaces.id))
     .innerJoin(users, eq(invites.invited_by, users.id))
     .where(eq(invites.token, token))
-    .limit(1);
+    .get();
 
-  if (result.length === 0) {
+  if (!result) {
     return c.json({ error: "not_found", message: "Invite not found" }, 404);
   }
 
-  const invite = result[0];
-
-  const stateError = validateInviteState(invite);
+  const stateError = validateInviteState(result);
   if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
 
   return c.json({
     invite: {
-      id: invite.id,
-      email: invite.email,
-      role: invite.role,
-      workspace_name: invite.workspace_name,
-      workspace_icon: invite.workspace_icon,
-      invited_by_name: invite.invited_by_name,
+      id: result.id,
+      email: result.email,
+      role: result.role,
+      workspace_name: result.workspace_name,
+      workspace_icon: result.workspace_icon,
+      invited_by_name: result.invited_by_name,
     },
   });
 });
@@ -162,13 +160,11 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   }
 
   // Load invite
-  const inviteResult = await db.select().from(invites).where(eq(invites.token, token)).limit(1);
+  const invite = await db.select().from(invites).where(eq(invites.token, token)).get();
 
-  if (inviteResult.length === 0) {
+  if (!invite) {
     return c.json({ error: "not_found", message: "Invite not found" }, 404);
   }
-
-  const invite = inviteResult[0];
 
   const stateError = validateInviteState(invite);
   if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
@@ -188,25 +184,19 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   // Check if creating a new user account
   if (email && password && name) {
     // Creating new user
-    const existingUser = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, email.toLowerCase()))
-      .limit(1);
+    const existingUser = await db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
 
-    if (existingUser.length > 0) {
+    if (existingUser) {
       // User exists - verify password before proceeding
-      userId = existingUser[0].id;
-      const fullUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-
-      if (!verifyPassword(password, fullUser[0].password_hash)) {
+      if (!verifyPassword(password, existingUser.password_hash)) {
         return c.json({ error: "unauthorized", message: "Invalid password for existing account" }, 401);
       }
 
-      userName = fullUser[0].name;
-      userEmail = fullUser[0].email;
-      userAvatarUrl = fullUser[0].avatar_url;
-      userCreatedAt = fullUser[0].created_at;
+      userId = existingUser.id;
+      userName = existingUser.name;
+      userEmail = existingUser.email;
+      userAvatarUrl = existingUser.avatar_url;
+      userCreatedAt = existingUser.created_at;
     } else {
       userId = ulid();
       const passwordHash = hashPassword(password);
@@ -224,8 +214,8 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     }
   } else {
     // Existing user must be authenticated
-    const authHeader = c.req.header("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const token = extractBearerToken(c.req.header("authorization"));
+    if (!token) {
       return c.json(
         {
           error: "bad_request",
@@ -236,19 +226,18 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     }
 
     try {
-      const jwtToken = authHeader.split(" ")[1];
-      const { sub } = await verifyAccessToken(jwtToken, c.env);
+      const { sub } = await verifyAccessToken(token, c.env);
       userId = sub;
-      const fullUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const fullUser = await db.select().from(users).where(eq(users.id, userId)).get();
 
-      if (fullUser.length === 0) {
+      if (!fullUser) {
         return c.json({ error: "unauthorized", message: "User not found" }, 401);
       }
 
-      userName = fullUser[0].name;
-      userEmail = fullUser[0].email;
-      userAvatarUrl = fullUser[0].avatar_url;
-      userCreatedAt = fullUser[0].created_at;
+      userName = fullUser.name;
+      userEmail = fullUser.email;
+      userAvatarUrl = fullUser.avatar_url;
+      userCreatedAt = fullUser.created_at;
 
       // If invite is pinned to a specific email, enforce it (authenticated user flow)
       if (invite.email && userEmail.toLowerCase() !== invite.email) {
@@ -258,6 +247,14 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
       return c.json({ error: "unauthorized", message: "Invalid token" }, 401);
     }
   }
+
+  const userPayload = {
+    id: userId,
+    email: userEmail,
+    name: userName,
+    avatar_url: userAvatarUrl,
+    created_at: userCreatedAt,
+  };
 
   // Check if already a member
   const existingMembership = await checkMembership(db, userId, invite.workspace_id);
@@ -283,7 +280,7 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     });
 
     return c.json({
-      user: { id: userId, email: userEmail, name: userName, avatar_url: userAvatarUrl, created_at: userCreatedAt },
+      user: userPayload,
       workspace_id: invite.workspace_id,
       accessToken,
       already_member: true,
@@ -318,7 +315,7 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
 
   return c.json(
     {
-      user: { id: userId, email: userEmail, name: userName, avatar_url: userAvatarUrl, created_at: userCreatedAt },
+      user: userPayload,
       workspace_id: invite.workspace_id,
       accessToken,
       is_new_user: isNewUser,
@@ -333,13 +330,11 @@ invitesRouter.delete("/invite/:id", requireAuth, rateLimit("RL_API"), async (c) 
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const inviteResult = await db.select().from(invites).where(eq(invites.id, inviteId)).limit(1);
+  const invite = await db.select().from(invites).where(eq(invites.id, inviteId)).get();
 
-  if (inviteResult.length === 0) {
+  if (!invite) {
     return c.json({ error: "not_found", message: "Invite not found" }, 404);
   }
-
-  const invite = inviteResult[0];
 
   // Check if user created the invite or is an admin/owner of the workspace
   if (invite.invited_by !== user.id) {

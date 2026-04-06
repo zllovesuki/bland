@@ -5,7 +5,7 @@ import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
 
 import { users } from "@/worker/db/schema";
-import { JWT_ALGORITHM } from "@/worker/lib/constants";
+import { JWT_ALGORITHM, REFRESH_COOKIE_MAX_AGE } from "@/worker/lib/constants";
 
 function base64Encode(bytes: Uint8Array): string {
   let binary = "";
@@ -116,7 +116,10 @@ export async function createRefreshToken(userId: string, env: Env): Promise<stri
 }
 
 export function setRefreshCookie(c: Context, token: string): void {
-  c.header("set-cookie", `${REFRESH_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
+  c.header(
+    "set-cookie",
+    `${REFRESH_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_COOKIE_MAX_AGE}`,
+  );
 }
 
 export function clearRefreshCookie(c: Context): void {

@@ -48,14 +48,12 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
 
   const db = c.get("db");
 
-  const result = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+  const user = await db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
 
-  if (result.length === 0) {
+  if (!user) {
     log.info("login_failed", { email, reason: "user_not_found" });
     return c.json({ error: "unauthorized", message: "Invalid email or password" }, 401);
   }
-
-  const user = result[0];
 
   if (!verifyPassword(password, user.password_hash)) {
     log.info("login_failed", { email, reason: "bad_password" });
@@ -95,15 +93,13 @@ auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {
     }
 
     const db = c.get("db");
-    const result = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+    const user = await db.select().from(users).where(eq(users.id, payload.sub)).get();
 
-    if (result.length === 0) {
+    if (!user) {
       log.info("refresh_failed", { reason: "user_not_found" });
       clearRefreshCookie(c);
       return c.json({ error: "unauthorized", message: "User not found" }, 401);
     }
-
-    const user = result[0];
     const accessToken = await createAccessToken(user.id, c.env);
     log.info("refresh_success", { userId: user.id });
 

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import type { Page } from "@/shared/types";
+import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -77,7 +78,7 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
       setCreating(true);
       try {
         const newPage = await api.pages.create(currentWorkspace.id, {
-          title: "Untitled",
+          title: DEFAULT_PAGE_TITLE,
           parent_id: page.id,
         });
         addPage(newPage);
@@ -118,7 +119,7 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
           {page.icon ?? <FileText className="h-3.5 w-3.5 text-zinc-500" />}
         </span>
 
-        <span className="truncate">{page.title || "Untitled"}</span>
+        <span className="truncate">{page.title || DEFAULT_PAGE_TITLE}</span>
 
         {canCreate && (
           <button

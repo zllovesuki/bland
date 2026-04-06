@@ -16,8 +16,10 @@ import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { api } from "@/client/lib/api";
+import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { slugify } from "@/lib/slugify";
 import { PageTree } from "./page-tree";
+import { SearchDialog, searchShortcutLabel } from "./search-dialog";
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -32,6 +34,18 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
   const [manualToggle, setManualToggle] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   useEffect(() => {
     if (manualToggle) return;
@@ -66,7 +80,7 @@ export function Sidebar() {
     setIsCreating(true);
     try {
       const page = await api.pages.create(currentWorkspace.id, {
-        title: "Untitled",
+        title: DEFAULT_PAGE_TITLE,
       });
       addPage(page);
       navigate({
@@ -141,6 +155,7 @@ export function Sidebar() {
             <Plus className="h-4 w-4" />
           </button>
           <button
+            onClick={() => setSearchOpen(true)}
             className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
             aria-label="Search"
           >
@@ -196,9 +211,9 @@ export function Sidebar() {
                             onKeyDown={(e) => {
                               if (e.key === "Escape") setRenaming(false);
                             }}
-                            className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:border-teal-500"
+                            className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:border-accent-500"
                           />
-                          <button type="submit" className="text-zinc-400 hover:text-teal-400">
+                          <button type="submit" className="text-zinc-400 hover:text-accent-400">
                             <Check className="h-3.5 w-3.5" />
                           </button>
                           <button
@@ -254,13 +269,13 @@ export function Sidebar() {
                           setCreateName(e.target.value);
                           setCreateSlug(slugify(e.target.value));
                         }}
-                        className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-teal-500"
+                        className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-accent-500"
                       />
                       <input
                         placeholder="slug"
                         value={createSlug}
                         onChange={(e) => setCreateSlug(e.target.value)}
-                        className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 outline-none focus:border-teal-500"
+                        className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 outline-none focus:border-accent-500"
                       />
                       <div className="flex justify-end gap-1">
                         <button
@@ -276,7 +291,7 @@ export function Sidebar() {
                         <button
                           onClick={handleCreateWorkspace}
                           disabled={!createName.trim() || !createSlug.trim() || creatingWs}
-                          className="rounded bg-teal-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-teal-500 disabled:opacity-50"
+                          className="rounded bg-accent-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
                         >
                           {creatingWs ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
                         </button>
@@ -317,12 +332,13 @@ export function Sidebar() {
               New page
             </button>
             <button
+              onClick={() => setSearchOpen(true)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition hover:bg-zinc-800/50 hover:text-zinc-300"
               aria-label="Search pages"
             >
               <Search className="h-3.5 w-3.5" />
               <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline">
-                {"\u2318"}K
+                {searchShortcutLabel}
               </kbd>
             </button>
           </div>
@@ -346,6 +362,7 @@ export function Sidebar() {
           </div>
         </>
       )}
+      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </aside>
   );
 }

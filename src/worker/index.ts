@@ -5,8 +5,9 @@ import { createDb } from "@/worker/db/client";
 import { pages } from "@/worker/db/schema";
 import { checkMembership } from "@/worker/lib/membership";
 import { verifyAccessToken } from "@/worker/lib/auth";
-import { createLogger, setLevel } from "@/worker/lib/logger";
+import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
+import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
 
@@ -46,15 +47,15 @@ export default {
           return new Response("Invalid token", { status: 401 });
         }
 
-        // Check that the page exists and user is a workspace member
+        // Check that the page exists, is not archived, and user is a workspace member
         const db = createDb(env.DB);
         const page = await db
-          .select({ workspace_id: pages.workspace_id })
+          .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at })
           .from(pages)
           .where(eq(pages.id, pageId))
           .get();
 
-        if (!page) {
+        if (!page || page.archived_at) {
           log.warn("page_not_found", { pageId, userId });
           return new Response("Page not found", { status: 404 });
         }
@@ -73,6 +74,22 @@ export default {
     return app.fetch(request, env, ctx);
   },
   async queue(batch: MessageBatch, env: Env) {
-    // M1 stub - search indexer implemented in M3
+    setLevel(env.LOG_LEVEL);
+    const log = createLogger("queue");
+
+    for (const msg of batch.messages) {
+      const body = msg.body as { type: string; pageId?: string };
+      try {
+        if (body.type === "index-page" && body.pageId) {
+          await handleSearchIndexMessage({ type: "index-page", pageId: body.pageId }, env);
+        } else {
+          log.warn("unknown_message_type", { type: body.type });
+        }
+        msg.ack();
+      } catch (e) {
+        log.error("message_failed", { type: body.type, pageId: body.pageId, ...errorContext(e) });
+        msg.retry();
+      }
+    }
   },
 } satisfies ExportedHandler<Env>;

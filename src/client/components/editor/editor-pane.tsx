@@ -9,6 +9,8 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { uploadFile } from "@/client/lib/uploads";
 import { userColor } from "@/client/hooks/use-sync";
 import "@blocknote/mantine/style.css";
 
@@ -59,6 +61,16 @@ function BlockEditor({
   pageId: string;
 }) {
   const user = useAuthStore((s) => s.user);
+  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+
+  const handleUploadFile = useCallback(
+    async (file: File) => {
+      if (!workspace) throw new Error("No workspace");
+      return uploadFile(workspace.id, file, pageId);
+    },
+    [workspace, pageId],
+  );
+
   const editor = useCreateBlockNote(
     {
       schema,
@@ -70,6 +82,7 @@ function BlockEditor({
           color: userColor(user?.id ?? "anon"),
         },
       },
+      uploadFile: handleUploadFile,
     },
     [pageId],
   );
