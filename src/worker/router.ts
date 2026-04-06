@@ -11,6 +11,8 @@ import { pagesRouter } from "@/worker/routes/pages";
 import { health } from "@/worker/routes/health";
 import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
+import { createLogger, errorContext } from "@/worker/lib/logger";
+import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
 
 type AppVariables = {
   db: Db;
@@ -20,12 +22,13 @@ type AppVariables = {
 
 export type AppContext = { Bindings: Env; Variables: AppVariables };
 
+const log = createLogger("router");
 const app = new Hono<AppContext>();
 
 app.use(
   "*",
   cors({
-    origin: ["https://bland.tools", "https://staging.bland.tools", "http://localhost:5173"],
+    origin: ALLOWED_ORIGINS,
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", D1_BOOKMARK_HEADER],
     exposeHeaders: [D1_BOOKMARK_HEADER],
@@ -93,7 +96,7 @@ app.onError((err, c) => {
     return c.json({ error: "validation_error", message: "Invalid request body", issues: err.issues }, 400);
   }
 
-  console.error("Unhandled error:", err.message, err.stack);
+  log.error("unhandled_error", errorContext(err));
   return c.json({ error: "internal_error", message: "An unexpected error occurred" }, 500);
 });
 

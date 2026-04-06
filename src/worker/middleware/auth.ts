@@ -1,8 +1,11 @@
 import { createMiddleware } from "hono/factory";
-import { jwtVerify } from "jose";
 import { eq } from "drizzle-orm";
 import { users } from "@/worker/db/schema";
 import type { Db } from "@/worker/db/client";
+import { verifyAccessToken } from "@/worker/lib/auth";
+import { createLogger } from "@/worker/lib/logger";
+
+const log = createLogger("auth.middleware");
 
 type AuthVariables = {
   user: typeof users.$inferSelect | null;
@@ -27,25 +30,22 @@ async function verifyAndLoadUser(
   const token = extractBearerToken(authorization);
   if (!token) return { user: null, jwtPayload: null };
 
+  log.debug("verify_token");
+
   try {
-    const secret = new TextEncoder().encode(env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret, {
-      algorithms: ["HS256"],
-    });
-
-    const sub = payload.sub;
-    const jti = payload.jti;
-    if (!sub || !jti) return { user: null, jwtPayload: null };
-
-    // Reject refresh tokens used as access tokens
-    if (payload.type === "refresh") return { user: null, jwtPayload: null };
+    const { sub, jti } = await verifyAccessToken(token, env);
 
     const result = await db.select().from(users).where(eq(users.id, sub)).limit(1);
 
-    if (result.length === 0) return { user: null, jwtPayload: null };
+    if (result.length === 0) {
+      log.debug("token_rejected", { reason: "user_not_found", userId: sub });
+      return { user: null, jwtPayload: null };
+    }
 
+    log.debug("token_verified", { userId: sub });
     return { user: result[0], jwtPayload: { sub, jti } };
   } catch {
+    log.debug("token_rejected", { reason: "invalid_jwt" });
     return { user: null, jwtPayload: null };
   }
 }

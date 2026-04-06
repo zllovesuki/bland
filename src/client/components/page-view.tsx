@@ -1,11 +1,16 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Loader2, AlertCircle, Trash2, ChevronRight } from "lucide-react";
-import { api } from "@/client/lib/api";
+import type YProvider from "y-partyserver/provider";
+import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { canArchivePage } from "@/client/lib/permissions";
 import { EditorPane } from "@/client/components/editor/editor-pane";
-import type { Page, ApiError } from "@/shared/types";
+import { AvatarStack } from "@/client/components/presence/avatar-stack";
+import { SyncStatusDot } from "@/client/components/presence/sync-status";
+import { useSyncStatus } from "@/client/hooks/use-sync";
+import type { Page } from "@/shared/types";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
@@ -25,7 +30,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
   const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
 
   return (
-    <nav className="mb-4 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
+    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
       <Link
         to="/$workspaceSlug"
         params={{ workspaceSlug }}
@@ -72,6 +77,8 @@ export function PageView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
+  const { status } = useSyncStatus(wsProvider);
 
   useEffect(() => {
     if (!workspace) return;
@@ -88,8 +95,7 @@ export function PageView() {
         }
       } catch (err) {
         if (!cancelled) {
-          const apiErr = err as ApiError;
-          setError(apiErr.message ?? "Failed to load page.");
+          setError(toApiError(err).message);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -120,6 +126,7 @@ export function PageView() {
   const handleTitleChange = useCallback(
     (title: string) => {
       if (page) {
+        setPage({ ...page, title });
         updatePage(page.id, { title });
       }
     },
@@ -147,7 +154,16 @@ export function PageView() {
 
   return (
     <div className="animate-fade-in mx-auto max-w-3xl px-8 py-10">
-      <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+      <div className="mb-4 flex min-h-6 items-center justify-between">
+        <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+        <div className="flex items-center gap-3">
+          <AvatarStack
+            awareness={wsProvider?.awareness ?? null}
+            localClientId={wsProvider?.awareness.clientID ?? null}
+          />
+          <SyncStatusDot status={status} />
+        </div>
+      </div>
 
       {page.cover_url && (
         <div className="-mx-8 -mt-10 mb-8 h-48 overflow-hidden">
@@ -158,9 +174,7 @@ export function PageView() {
       <div className="group/actions mb-2 flex items-start justify-between pl-7">
         {page.icon && <span className="text-4xl">{page.icon}</span>}
         {(() => {
-          const myRole = members.find((m) => m.user_id === currentUser?.id)?.role;
-          const canArchive = myRole === "owner" || myRole === "admin" || page.created_by === currentUser?.id;
-          return canArchive ? (
+          return canArchivePage(members, currentUser, page) ? (
             <button
               onClick={handleArchive}
               disabled={isArchiving}
@@ -174,7 +188,13 @@ export function PageView() {
         })()}
       </div>
 
-      <EditorPane key={page.id} pageId={page.id} initialTitle={page.title} onTitleChange={handleTitleChange} />
+      <EditorPane
+        key={page.id}
+        pageId={page.id}
+        initialTitle={page.title}
+        onTitleChange={handleTitleChange}
+        onProvider={setWsProvider}
+      />
     </div>
   );
 }

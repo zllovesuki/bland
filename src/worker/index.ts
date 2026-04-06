@@ -1,21 +1,78 @@
+import { routePartykitRequest } from "partyserver";
+import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
+import { createDb } from "@/worker/db/client";
+import { pages } from "@/worker/db/schema";
+import { checkMembership } from "@/worker/lib/membership";
+import { verifyAccessToken } from "@/worker/lib/auth";
+import { createLogger, setLevel } from "@/worker/lib/logger";
+import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
 
-// Stub DocSync DO for M1 (real implementation in M2)
-export class DocSync {
-  constructor(
-    private state: DurableObjectState,
-    private env: Env,
-  ) {}
-  async fetch() {
-    return new Response("DocSync not yet implemented", { status: 501 });
-  }
-}
+export { DocSync } from "@/worker/durable-objects/doc-sync";
+
+const log = createLogger("websocket");
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    setLevel(env.LOG_LEVEL);
+
+    // Route WebSocket connections to DocSync Durable Object
+    const partyResponse = await routePartykitRequest(request, env, {
+      onBeforeConnect: async (req, lobby) => {
+        const pageId = lobby.name;
+        log.debug("connection_attempt", { pageId });
+
+        // Validate origin
+        const origin = req.headers.get("origin");
+        if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+          log.warn("origin_rejected", { origin, pageId });
+          return new Response("Forbidden origin", { status: 403 });
+        }
+
+        const url = new URL(req.url);
+        const token = url.searchParams.get("token");
+
+        if (!token) {
+          log.warn("token_missing", { pageId });
+          return new Response("Authentication required", { status: 401 });
+        }
+
+        let userId: string;
+        try {
+          const { sub } = await verifyAccessToken(token, env);
+          userId = sub;
+        } catch {
+          log.warn("auth_failed", { pageId });
+          return new Response("Invalid token", { status: 401 });
+        }
+
+        // Check that the page exists and user is a workspace member
+        const db = createDb(env.DB);
+        const page = await db
+          .select({ workspace_id: pages.workspace_id })
+          .from(pages)
+          .where(eq(pages.id, pageId))
+          .get();
+
+        if (!page) {
+          log.warn("page_not_found", { pageId, userId });
+          return new Response("Page not found", { status: 404 });
+        }
+
+        const membership = await checkMembership(db, userId, page.workspace_id);
+        if (!membership) {
+          log.warn("access_denied", { userId, pageId, workspaceId: page.workspace_id });
+          return new Response("You do not have access to this page", { status: 403 });
+        }
+
+        log.info("connection_authorized", { userId, pageId, workspaceId: page.workspace_id });
+      },
+    });
+    if (partyResponse) return partyResponse;
+
     return app.fetch(request, env, ctx);
   },
   async queue(batch: MessageBatch, env: Env) {
-    // M1 stub - search indexer implemented in M4
+    // M1 stub - search indexer implemented in M3
   },
 } satisfies ExportedHandler<Env>;

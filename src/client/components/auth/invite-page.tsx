@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
-import { api } from "@/client/lib/api";
+import { api, toApiError } from "@/client/lib/api";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { TurnstileWidget } from "./turnstile-widget";
 import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
-import type { ApiError, InvitePreview } from "@/shared/types";
+import type { InvitePreview } from "@/shared/types";
 
 export function InvitePage() {
   const { token } = useParams({ strict: false }) as { token: string };
@@ -37,8 +37,7 @@ export function InvitePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const apiErr = err as ApiError;
-          setLoadError(apiErr.message ?? "This invite is invalid or has expired.");
+          setLoadError(toApiError(err).message);
         }
       } finally {
         if (!cancelled) setIsLoadingInvite(false);
@@ -88,8 +87,7 @@ export function InvitePage() {
         navigate({ to: "/" });
       }
     } catch (err) {
-      const apiErr = err as ApiError;
-      setError(apiErr.message ?? "Failed to accept invite. Please try again.");
+      setError(toApiError(err).message);
       setTurnstileResetKey((k) => k + 1);
       setTurnstileToken(null);
     } finally {

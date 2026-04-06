@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isLocalRequestUrl } from "@/worker/http";
 
 export type TurnstileResult = { ok: true } | { ok: false; message: string; status: 400 | 403 | 502 };
 
@@ -18,8 +19,7 @@ export async function verifyTurnstileToken(
   },
 ): Promise<TurnstileResult> {
   // Bypass verification in local development
-  const url = new URL(options.requestUrl);
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "0.0.0.0") {
+  if (isLocalRequestUrl(options.requestUrl)) {
     return { ok: true };
   }
 

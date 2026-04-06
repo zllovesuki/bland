@@ -5,6 +5,7 @@ import type { Page } from "@/shared/types";
 import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { canArchivePage } from "@/client/lib/permissions";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 
 interface PageTreeItemProps {
@@ -25,9 +26,9 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
   const addPage = useWorkspaceStore((s) => s.addPage);
   const members = useWorkspaceStore((s) => s.members);
   const currentUser = useAuthStore((s) => s.user);
-  const myRole = members.find((m) => m.user_id === currentUser?.id)?.role;
-  const canArchive = myRole === "owner" || myRole === "admin" || page.created_by === currentUser?.id;
-  const canCreate = myRole === "owner" || myRole === "admin" || myRole === "member";
+  const canArchive = canArchivePage(members, currentUser, page);
+  const myMembership = members.find((m) => m.user_id === currentUser?.id);
+  const canCreate = !!myMembership && myMembership.role !== "guest";
   const [isExpanded, setIsExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);

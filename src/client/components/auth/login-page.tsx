@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuth } from "@/client/hooks/use-auth";
+import { toApiError } from "@/client/lib/api";
 import { TurnstileWidget } from "./turnstile-widget";
 import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
-import type { ApiError } from "@/shared/types";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -30,8 +30,7 @@ export function LoginPage() {
       await login({ email, password, turnstileToken });
       navigate({ to: "/" });
     } catch (err) {
-      const apiErr = err as ApiError;
-      setError(apiErr.message ?? "Login failed. Please try again.");
+      setError(toApiError(err).message);
       setTurnstileResetKey((k) => k + 1);
       setTurnstileToken(null);
     } finally {

@@ -8,10 +8,12 @@ import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { isAdminOrOwner } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
+import { createLogger } from "@/worker/lib/logger";
 import { CreateWorkspaceRequest, UpdateWorkspaceRequest, UpdateMemberRoleRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
 const workspacesRouter = new Hono<AppContext>();
+const log = createLogger("workspaces");
 
 // POST /workspaces - Create workspace
 workspacesRouter.post("/workspaces", requireAuth, rateLimit("RL_API"), async (c) => {
@@ -45,6 +47,8 @@ workspacesRouter.post("/workspaces", requireAuth, rateLimit("RL_API"), async (c)
       role: "owner",
     }),
   ]);
+
+  log.info("workspace_created", { workspaceId, slug, userId: user.id });
 
   return c.json(
     {
@@ -120,8 +124,13 @@ workspacesRouter.patch("/workspaces/:id", requireAuth, rateLimit("RL_API"), asyn
   if (data.icon !== undefined) updateValues.icon = data.icon;
 
   await db.update(workspaces).set(updateValues).where(eq(workspaces.id, workspaceId));
+  log.info("workspace_updated", { workspaceId, fields: Object.keys(updateValues) });
 
   const updated = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+
+  if (updated.length === 0) {
+    return c.json({ error: "not_found", message: "Workspace not found" }, 404);
+  }
 
   return c.json({ workspace: updated[0] });
 });
@@ -154,6 +163,7 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
 
   // db.batch() requires a non-empty tuple type; cast needed for dynamically-built arrays
   await db.batch(batchOps as [(typeof batchOps)[number], ...(typeof batchOps)[number][]]);
+  log.info("workspace_deleted", { workspaceId, userId: user.id, pageCount: pageIds.length });
 
   return c.json({ ok: true });
 });
@@ -232,6 +242,7 @@ workspacesRouter.patch("/workspaces/:id/members/:uid", requireAuth, rateLimit("R
     .update(memberships)
     .set({ role })
     .where(and(eq(memberships.user_id, targetUserId), eq(memberships.workspace_id, workspaceId)));
+  log.info("member_role_changed", { workspaceId, targetUserId, role, byUserId: user.id });
 
   return c.json({ ok: true, role });
 });
@@ -280,6 +291,7 @@ workspacesRouter.delete("/workspaces/:id/members/:uid", requireAuth, rateLimit("
   await db
     .delete(memberships)
     .where(and(eq(memberships.user_id, targetUserId), eq(memberships.workspace_id, workspaceId)));
+  log.info("member_removed", { workspaceId, targetUserId, isSelf, byUserId: user.id });
 
   return c.json({ ok: true });
 });

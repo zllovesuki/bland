@@ -19,7 +19,7 @@
 - Expect core architecture to remain stable:
   React SPA + Cloudflare Worker API + D1 as primary structured store + Durable Objects for doc sync + R2 for uploads + Queues for derived search indexing.
 - Expect many v1 features to be partially implemented or stubbed today.
-  `DocSync` in [src/worker/index.ts](/home/vendetta/code/bland/src/worker/index.ts) is still a stub.
+  `DocSync` is implemented in [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts) as a `YServer` subclass with snapshot persistence (`onLoad`/`onSave`).
   Queue consumption is stubbed.
   The schema already includes tables for snapshots, shares, and uploads even where full behavior is not wired yet.
 
@@ -36,12 +36,53 @@
 
 - Keep edits scoped and minimal.
 - Prefer explicit code over clever code. Small duplication is acceptable when it keeps ownership and behavior obvious.
-- Reuse existing helpers, stores, contracts, and route patterns before adding new ones.
+- Reuse existing helpers, stores, contracts, and route patterns before adding new ones. When adding new code, check the lists below and use what exists before introducing anything new.
 - Do not broaden the implementation toward the full production spec unless the task requires it.
 - Preserve the split between `src/client`, `src/worker`, and `src/shared`.
 - If request or response shapes change, update both the worker route and [src/shared/types.ts](/home/vendetta/code/bland/src/shared/types.ts).
 - Multiple agents may be working in parallel. Do not revert unrelated changes.
 - Assume the dev server may already be running. Do not start `npm run dev` unless the user asks or the task clearly requires it.
+
+## Existing Helpers And Constants
+
+Before writing new code, check these files for reusable pieces:
+
+### Worker constants (`src/worker/lib/constants.ts`)
+
+- `ALLOWED_ORIGINS` — canonical origin list for CORS and WebSocket origin checks
+- `JWT_ALGORITHM` — `"HS256"`, used everywhere JWTs are signed or verified
+- `CF_IP_HEADER` — `"cf-connecting-ip"`, for rate limiting and Turnstile
+- `DEFAULT_PAGE_TITLE` — `"Untitled"`, used in page creation and doc-sync title extraction
+- `INVITE_EXPIRY_MS` — 7-day invite expiry duration
+
+### Worker auth helpers (`src/worker/lib/auth.ts`)
+
+- `getJwtSecret(env)` — encodes `JWT_SECRET` for jose. Use instead of inline `new TextEncoder().encode(...)`.
+- `verifyAccessToken(token, env)` — verifies a JWT, rejects refresh tokens, returns `{ sub, jti }`. Use instead of inline `jwtVerify` calls.
+- `createAccessToken(userId, env)` / `createRefreshToken(userId, env)` — issue JWTs.
+- `setRefreshCookie(c, token)` / `clearRefreshCookie(c)` — manage the `bland_refresh` cookie.
+- `parseCookies(header)` — parse a cookie header string.
+- `hashPassword(password)` / `verifyPassword(password, stored)` — Argon2id.
+- `toUserResponse(user)` — strip `password_hash` from a user row.
+- `generateSecureToken()` — 32-byte base64url random token (for invite tokens, share tokens).
+- `REFRESH_COOKIE` — the cookie name constant `"bland_refresh"`.
+
+### Worker membership/permissions (`src/worker/lib/membership.ts`, `src/worker/lib/permissions.ts`)
+
+- `checkMembership(db, userId, workspaceId)` — returns membership row or null.
+- `requireMembership(c, db, userId, workspaceId, rejectGuest?)` — returns membership or sends 403 Response. Use this in route handlers to eliminate boilerplate null/guest checks.
+- `canEdit(role)` — true for owner, admin, member.
+- `isAdminOrOwner(role)` — true for owner, admin.
+
+### Client constants (`src/client/lib/constants.ts`)
+
+- `TURNSTILE_SITE_KEY` — from env or test fallback.
+- `STORAGE_KEYS` — `{ D1_BOOKMARK, USER, LAYOUT }` for localStorage keys.
+
+### Client helpers (`src/client/lib/api.ts`, `src/client/lib/permissions.ts`)
+
+- `toApiError(err)` — safely cast an unknown catch error to `ApiError`. Use instead of `err as ApiError`.
+- `canArchivePage(members, currentUser, page)` — returns whether the user can archive a page.
 
 ## High-Level Architecture
 
@@ -80,7 +121,7 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 - R2 stores blobs, not authorization state. Access control must continue to come from D1-backed checks.
 - D1 bookmark propagation is intentional. Preserve the `x-d1-bookmark` flow in [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts) and [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts) when changing request handling.
 - Mutating requests should continue to prefer primary D1 reads. Do not accidentally regress read-after-write behavior.
-- Local Turnstile bypass is intentional in [src/worker/middleware/turnstile.ts](/home/vendetta/code/bland/src/worker/middleware/turnstile.ts). Do not extend that bypass to non-local environments.
+- Local Turnstile bypass is intentional in [src/worker/middleware/turnstile.ts](/home/vendetta/code/bland/src/worker/middleware/turnstile.ts). Do not extend that bypass to non-local environments. Localhost detection uses `isLocalRequestUrl` from `src/worker/http.ts` — use it instead of inline hostname checks.
 - Refresh tokens live in the `bland_refresh` cookie and access tokens stay in client state. Keep auth changes aligned with that model unless the task explicitly changes it.
 
 ## Greenfield Guidance
@@ -146,6 +187,16 @@ Notes:
 - Preserve fail-closed behavior when secrets, tokens, or verification results are missing or invalid.
 - Do not log secrets, bearer tokens, refresh cookies, or password material.
 - Do not weaken cookie flags, rate limits, or origin assumptions casually.
+
+## Deferred Work
+
+Known gaps that are intentionally deferred to later milestones. Do not fix these unless the task explicitly calls for it.
+
+- **Toast notification system** (`frontend-spec.md` §8): Not built yet. Until it exists, silent `catch` blocks in UI components (sidebar, workspace views) are acceptable. Target: M5.
+- **`components/ui/` primitives** (`frontend-spec.md` §2, §8): Button, Input, Card, Dialog components are not extracted yet — styles are inlined in each component. Extract when M5 (Polish) work begins.
+- **Sidebar decomposition**: `sidebar.tsx` is ~350 lines. When M3 adds the search dialog (`search-dialog.tsx`), extract the workspace switcher into `<WorkspaceSwitcher>`.
+- **Error boundaries**: No React error boundaries exist. Add around `EditorPane` and route-level content when M5 lands.
+- **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing. Add in a migration when share features land in M4.
 
 ## First Files To Read
 

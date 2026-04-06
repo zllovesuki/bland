@@ -1,10 +1,11 @@
-import { SignJWT } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 import { ulid } from "ulidx";
 import { argon2id } from "@noble/hashes/argon2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
 
 import { users } from "@/worker/db/schema";
+import { JWT_ALGORITHM } from "@/worker/lib/constants";
 
 function base64Encode(bytes: Uint8Array): string {
   let binary = "";
@@ -24,7 +25,38 @@ function base64Decode(str: string): Uint8Array {
   return bytes;
 }
 
+export const REFRESH_COOKIE = "bland_refresh";
+
 const ARGON2_PARAMS = { t: 2, m: 19456, p: 1 } as const;
+
+export function getJwtSecret(env: Env): Uint8Array {
+  return new TextEncoder().encode(env.JWT_SECRET);
+}
+
+export async function verifyAccessToken(token: string, env: Env): Promise<{ sub: string; jti: string }> {
+  const { payload } = await jwtVerify(token, getJwtSecret(env), {
+    algorithms: [JWT_ALGORITHM],
+  });
+
+  if (!payload.sub || !payload.jti) {
+    throw new Error("missing_claims");
+  }
+
+  if (payload.type === "refresh") {
+    throw new Error("refresh_token_misuse");
+  }
+
+  return { sub: payload.sub, jti: payload.jti };
+}
+
+export function generateSecureToken(): string {
+  const bytes = randomBytes(32);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
@@ -68,29 +100,27 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 export async function createAccessToken(userId: string, env: Env): Promise<string> {
-  const secret = new TextEncoder().encode(env.JWT_SECRET);
   return new SignJWT({ sub: userId, jti: ulid() })
-    .setProtectedHeader({ alg: "HS256" })
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime("15m")
-    .sign(secret);
+    .sign(getJwtSecret(env));
 }
 
 export async function createRefreshToken(userId: string, env: Env): Promise<string> {
-  const secret = new TextEncoder().encode(env.JWT_SECRET);
   return new SignJWT({ sub: userId, jti: ulid(), type: "refresh" })
-    .setProtectedHeader({ alg: "HS256" })
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secret);
+    .sign(getJwtSecret(env));
 }
 
 export function setRefreshCookie(c: Context, token: string): void {
-  c.header("set-cookie", `bland_refresh=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
+  c.header("set-cookie", `${REFRESH_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`);
 }
 
 export function clearRefreshCookie(c: Context): void {
-  c.header("set-cookie", `bland_refresh=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+  c.header("set-cookie", `${REFRESH_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
 }
 
 export function parseCookies(header: string | undefined): Record<string, string> {

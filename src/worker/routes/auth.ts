@@ -15,12 +15,17 @@ import {
   clearRefreshCookie,
   parseCookies,
   toUserResponse,
+  getJwtSecret,
+  REFRESH_COOKIE,
 } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
+import { createLogger } from "@/worker/lib/logger";
+import { CF_IP_HEADER, JWT_ALGORITHM } from "@/worker/lib/constants";
 import { LoginRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
 const auth = new Hono<AppContext>();
+const log = createLogger("auth");
 
 // POST /auth/login
 auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
@@ -28,11 +33,12 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
   if (data instanceof Response) return data;
 
   const { email, password, turnstileToken } = data;
+  log.debug("login_attempt", { email });
 
   const turnstile = await verifyTurnstileToken(c.env, {
     token: turnstileToken,
     expectedAction: "login",
-    remoteIp: c.req.header("cf-connecting-ip"),
+    remoteIp: c.req.header(CF_IP_HEADER),
     requestUrl: c.req.url,
   });
 
@@ -45,12 +51,14 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
   const result = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
 
   if (result.length === 0) {
+    log.info("login_failed", { email, reason: "user_not_found" });
     return c.json({ error: "unauthorized", message: "Invalid email or password" }, 401);
   }
 
   const user = result[0];
 
   if (!verifyPassword(password, user.password_hash)) {
+    log.info("login_failed", { email, reason: "bad_password" });
     return c.json({ error: "unauthorized", message: "Invalid email or password" }, 401);
   }
 
@@ -60,6 +68,7 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
   ]);
 
   setRefreshCookie(c, refreshToken);
+  log.info("login_success", { userId: user.id });
 
   return c.json({ user: toUserResponse(user), accessToken });
 });
@@ -67,19 +76,21 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
 // POST /auth/refresh
 auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {
   const cookies = parseCookies(c.req.header("cookie"));
-  const refreshToken = cookies.bland_refresh;
+  const refreshToken = cookies[REFRESH_COOKIE];
+  log.debug("refresh_attempt");
 
   if (!refreshToken) {
+    log.info("refresh_failed", { reason: "no_token" });
     return c.json({ error: "unauthorized", message: "No refresh token" }, 401);
   }
 
   try {
-    const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-    const { payload } = await jwtVerify(refreshToken, secret, {
-      algorithms: ["HS256"],
+    const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), {
+      algorithms: [JWT_ALGORITHM],
     });
 
     if (!payload.sub || payload.type !== "refresh") {
+      log.info("refresh_failed", { reason: "invalid_token" });
       return c.json({ error: "unauthorized", message: "Invalid refresh token" }, 401);
     }
 
@@ -87,15 +98,18 @@ auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {
     const result = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
 
     if (result.length === 0) {
+      log.info("refresh_failed", { reason: "user_not_found" });
       clearRefreshCookie(c);
       return c.json({ error: "unauthorized", message: "User not found" }, 401);
     }
 
     const user = result[0];
     const accessToken = await createAccessToken(user.id, c.env);
+    log.info("refresh_success", { userId: user.id });
 
     return c.json({ user: toUserResponse(user), accessToken });
   } catch {
+    log.info("refresh_failed", { reason: "expired_or_invalid" });
     clearRefreshCookie(c);
     return c.json({ error: "unauthorized", message: "Invalid or expired refresh token" }, 401);
   }
@@ -103,6 +117,7 @@ auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {
 
 // POST /auth/logout
 auth.post("/auth/logout", rateLimit("RL_API"), (c) => {
+  log.debug("logout");
   clearRefreshCookie(c);
   return c.json({ ok: true });
 });

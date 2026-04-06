@@ -27,11 +27,13 @@
     "hono": "^4.7.0",
     "jose": "^6.0.0",
     "lucide-react": "^1.7.0",
+    "partyserver": "^0.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "shiki": "^4.0.2",
     "ulidx": "^2.4.0",
     "y-indexeddb": "^9.0.12",
+    "y-partyserver": "^2.1.4",
     "yjs": "^13.6.30",
     "zod": "^4.3.6",
     "zustand": "^5.0.0"

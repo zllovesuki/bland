@@ -6,12 +6,15 @@ import { pages } from "@/worker/db/schema";
 import type { Db } from "@/worker/db/client";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { checkMembership } from "@/worker/lib/membership";
-import { canEdit } from "@/worker/lib/permissions";
+import { requireMembership } from "@/worker/lib/membership";
+import { canEdit, isAdminOrOwner } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
+import { createLogger } from "@/worker/lib/logger";
+import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
+const log = createLogger("pages");
 const MAX_DEPTH = 10;
 
 /**
@@ -77,8 +80,9 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership || !canEdit(membership.role)) {
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
+  if (!canEdit(membership.role)) {
     return c.json({ error: "forbidden", message: "You do not have permission to create pages in this workspace" }, 403);
   }
 
@@ -133,11 +137,13 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
     id: pageId,
     workspace_id: workspaceId,
     parent_id: parent_id ?? null,
-    title: title ?? "Untitled",
+    title: title ?? DEFAULT_PAGE_TITLE,
     icon: icon ?? null,
     position: pagePosition,
     created_by: user.id,
   });
+
+  log.info("page_created", { pageId, workspaceId, parentId: parent_id ?? null, userId: user.id });
 
   const now = new Date().toISOString();
 
@@ -147,7 +153,7 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
         id: pageId,
         workspace_id: workspaceId,
         parent_id: parent_id ?? null,
-        title: title ?? "Untitled",
+        title: title ?? DEFAULT_PAGE_TITLE,
         icon: icon ?? null,
         cover_url: null,
         position: pagePosition,
@@ -167,14 +173,8 @@ pagesRouter.get("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asyn
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership) {
-    return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
-  }
-
-  if (membership.role === "guest") {
-    return c.json({ error: "forbidden", message: "Guests cannot access pages directly" }, 403);
-  }
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
 
   const result = await db
     .select()
@@ -192,14 +192,8 @@ pagesRouter.get("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), 
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership) {
-    return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
-  }
-
-  if (membership.role === "guest") {
-    return c.json({ error: "forbidden", message: "Guests cannot access pages directly" }, 403);
-  }
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
 
   const result = await db
     .select()
@@ -221,14 +215,8 @@ pagesRouter.get("/workspaces/:wid/pages/:id/children", requireAuth, rateLimit("R
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership) {
-    return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
-  }
-
-  if (membership.role === "guest") {
-    return c.json({ error: "forbidden", message: "Guests cannot access pages directly" }, 403);
-  }
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
 
   // Verify parent page exists
   const parentResult = await db
@@ -257,8 +245,9 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership || !canEdit(membership.role)) {
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
+  if (!canEdit(membership.role)) {
     return c.json({ error: "forbidden", message: "You do not have permission to edit pages in this workspace" }, 403);
   }
 
@@ -337,9 +326,18 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   if (updates.position !== undefined) updateValues.position = updates.position;
   if (updates.parent_id !== undefined) updateValues.parent_id = updates.parent_id;
 
+  if (updates.parent_id !== undefined && updates.parent_id !== existing[0].parent_id) {
+    log.info("page_moved", { pageId, workspaceId, from: existing[0].parent_id, to: updates.parent_id });
+  }
+
   await db.update(pages).set(updateValues).where(eq(pages.id, pageId));
+  log.debug("page_updated", { pageId, workspaceId, fields: Object.keys(updateValues) });
 
   const updated = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
+
+  if (updated.length === 0) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
 
   return c.json({ page: updated[0] });
 });
@@ -351,14 +349,8 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership) {
-    return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
-  }
-
-  if (membership.role === "guest") {
-    return c.json({ error: "forbidden", message: "Guests cannot delete pages" }, 403);
-  }
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
 
   // Verify page exists
   const existing = await db
@@ -373,9 +365,8 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
 
   // Check permission: page creator, admin, or owner
   const isCreator = existing[0].created_by === user.id;
-  const isAdminOrOwner = membership.role === "owner" || membership.role === "admin";
 
-  if (!isCreator && !isAdminOrOwner) {
+  if (!isCreator && !isAdminOrOwner(membership.role)) {
     return c.json({ error: "forbidden", message: "Only the page creator or workspace admins can delete pages" }, 403);
   }
 
@@ -389,6 +380,7 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
       .set({ parent_id: null, updated_at: now })
       .where(and(eq(pages.parent_id, pageId), eq(pages.workspace_id, workspaceId))),
   ]);
+  log.info("page_archived", { pageId, workspaceId, userId: user.id });
 
   return c.json({ ok: true });
 });

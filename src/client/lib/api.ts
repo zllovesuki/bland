@@ -1,9 +1,16 @@
 import { useAuthStore } from "@/client/stores/auth-store";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
+import { STORAGE_KEYS } from "@/client/lib/constants";
 import type { LoginRequest, User, Workspace, Page, WorkspaceMember, ApiError, InvitePreview } from "@/shared/types";
 
 const API_BASE = "/api/v1";
-const BOOKMARK_KEY = "bland.d1.bookmark";
+
+export function toApiError(err: unknown): ApiError {
+  if (err && typeof err === "object" && "message" in err) {
+    return err as ApiError;
+  }
+  return { error: "unknown", message: err instanceof Error ? err.message : "An unexpected error occurred" };
+}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = useAuthStore.getState().accessToken;
@@ -14,7 +21,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const bookmark = localStorage.getItem(BOOKMARK_KEY);
+  const bookmark = localStorage.getItem(STORAGE_KEYS.D1_BOOKMARK);
   if (bookmark) {
     headers[D1_BOOKMARK_HEADER] = bookmark;
   }
@@ -27,7 +34,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   const returnedBookmark = res.headers.get(D1_BOOKMARK_HEADER);
   if (returnedBookmark) {
-    localStorage.setItem(BOOKMARK_KEY, returnedBookmark);
+    localStorage.setItem(STORAGE_KEYS.D1_BOOKMARK, returnedBookmark);
   }
 
   if (!res.ok) {
@@ -70,7 +77,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
         headers: { ...headers, ...(options?.headers as Record<string, string>) },
       });
       const retryBookmark = retry.headers.get(D1_BOOKMARK_HEADER);
-      if (retryBookmark) localStorage.setItem(BOOKMARK_KEY, retryBookmark);
+      if (retryBookmark) localStorage.setItem(STORAGE_KEYS.D1_BOOKMARK, retryBookmark);
       if (retry.ok) {
         if (retry.status === 204) return undefined as T;
         return retry.json();

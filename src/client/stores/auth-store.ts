@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { User } from "@/shared/types";
+import { STORAGE_KEYS } from "@/client/lib/constants";
 
 interface AuthState {
   accessToken: string | null;
@@ -12,11 +13,9 @@ interface AuthState {
   setBootstrapped(): void;
 }
 
-const USER_KEY = "bland.user";
-
 const storedUser = (() => {
   try {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.USER);
     return raw ? (JSON.parse(raw) as User) : null;
   } catch {
     return null;
@@ -30,17 +29,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   bootstrapped: false,
 
   setAuth(token, user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     set({ accessToken: token, user, isAuthenticated: true });
   },
 
   clearAuth() {
-    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(STORAGE_KEYS.USER);
     set({ accessToken: null, user: null, isAuthenticated: false });
   },
 
   setUser(user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     set({ user });
   },
 

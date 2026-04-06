@@ -1,8 +1,6 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
-import { randomBytes } from "@noble/hashes/utils.js";
-import { jwtVerify } from "jose";
 
 import { invites, memberships, users, workspaces } from "@/worker/db/schema";
 import { requireAuth } from "@/worker/middleware/auth";
@@ -15,25 +13,29 @@ import {
   createRefreshToken,
   setRefreshCookie,
   toUserResponse,
+  verifyAccessToken,
+  generateSecureToken,
 } from "@/worker/lib/auth";
 import { checkMembership } from "@/worker/lib/membership";
 import { parseBody } from "@/worker/lib/validate";
+import { createLogger } from "@/worker/lib/logger";
+import { CF_IP_HEADER, INVITE_EXPIRY_MS } from "@/worker/lib/constants";
 import { CreateInviteRequest, AcceptInviteRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
-function generateToken(): string {
-  const bytes = randomBytes(32);
-  // Base64url encode
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const log = createLogger("invites");
+
+type InviteRow = { revoked_at: string | null; accepted_at: string | null; expires_at: string };
+
+function validateInviteState(invite: InviteRow): { error: string; message: string; status: 410 } | null {
+  if (invite.revoked_at) return { error: "gone", message: "This invite has been revoked", status: 410 };
+  if (invite.accepted_at) return { error: "gone", message: "This invite has already been accepted", status: 410 };
+  if (new Date(invite.expires_at) < new Date())
+    return { error: "gone", message: "This invite has expired", status: 410 };
+  return null;
 }
 
 const invitesRouter = new Hono<AppContext>();
-
-// POST /workspaces/:wid/invite
 invitesRouter.post("/workspaces/:wid/invite", requireAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("wid");
   const user = c.get("user")!;
@@ -60,9 +62,9 @@ invitesRouter.post("/workspaces/:wid/invite", requireAuth, rateLimit("RL_API"), 
     return c.json({ error: "forbidden", message: "Only owners and admins can invite as admin" }, 403);
   }
 
-  const token = generateToken();
+  const token = generateSecureToken();
   const inviteId = ulid();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS).toISOString();
 
   await db.insert(invites).values({
     id: inviteId,
@@ -73,6 +75,8 @@ invitesRouter.post("/workspaces/:wid/invite", requireAuth, rateLimit("RL_API"), 
     token,
     expires_at: expiresAt,
   });
+
+  log.info("invite_created", { inviteId, workspaceId, role, email: email?.toLowerCase() ?? null });
 
   const origin = new URL(c.req.url).origin;
 
@@ -121,17 +125,8 @@ invitesRouter.get("/invite/:token", async (c) => {
 
   const invite = result[0];
 
-  if (invite.revoked_at) {
-    return c.json({ error: "gone", message: "This invite has been revoked" }, 410);
-  }
-
-  if (invite.accepted_at) {
-    return c.json({ error: "gone", message: "This invite has already been accepted" }, 410);
-  }
-
-  if (new Date(invite.expires_at) < new Date()) {
-    return c.json({ error: "gone", message: "This invite has expired" }, 410);
-  }
+  const stateError = validateInviteState(invite);
+  if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
 
   return c.json({
     invite: {
@@ -158,7 +153,7 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   const turnstile = await verifyTurnstileToken(c.env, {
     token: turnstileToken,
     expectedAction: "accept_invite",
-    remoteIp: c.req.header("cf-connecting-ip"),
+    remoteIp: c.req.header(CF_IP_HEADER),
     requestUrl: c.req.url,
   });
 
@@ -175,17 +170,8 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
 
   const invite = inviteResult[0];
 
-  if (invite.revoked_at) {
-    return c.json({ error: "gone", message: "This invite has been revoked" }, 410);
-  }
-
-  if (invite.accepted_at) {
-    return c.json({ error: "gone", message: "This invite has already been accepted" }, 410);
-  }
-
-  if (new Date(invite.expires_at) < new Date()) {
-    return c.json({ error: "gone", message: "This invite has expired" }, 410);
-  }
+  const stateError = validateInviteState(invite);
+  if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
 
   // If invite is pinned to a specific email, enforce it (pre-check for new-user flow)
   if (invite.email && email && email.toLowerCase() !== invite.email) {
@@ -251,16 +237,8 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
 
     try {
       const jwtToken = authHeader.split(" ")[1];
-      const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-      const { payload } = await jwtVerify(jwtToken, secret, {
-        algorithms: ["HS256"],
-      });
-
-      if (!payload.sub || payload.type === "refresh") {
-        return c.json({ error: "unauthorized", message: "Invalid token" }, 401);
-      }
-
-      userId = payload.sub;
+      const { sub } = await verifyAccessToken(jwtToken, c.env);
+      userId = sub;
       const fullUser = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
       if (fullUser.length === 0) {
@@ -296,6 +274,14 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     ]);
     setRefreshCookie(c, refreshToken);
 
+    log.info("invite_accepted", {
+      inviteId: invite.id,
+      userId,
+      workspaceId: invite.workspace_id,
+      isNewUser: false,
+      alreadyMember: true,
+    });
+
     return c.json({
       user: { id: userId, email: userEmail, name: userName, avatar_url: userAvatarUrl, created_at: userCreatedAt },
       workspace_id: invite.workspace_id,
@@ -322,6 +308,13 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   ]);
 
   setRefreshCookie(c, refreshToken);
+  log.info("invite_accepted", {
+    inviteId: invite.id,
+    userId,
+    workspaceId: invite.workspace_id,
+    isNewUser,
+    alreadyMember: false,
+  });
 
   return c.json(
     {
@@ -361,6 +354,7 @@ invitesRouter.delete("/invite/:id", requireAuth, rateLimit("RL_API"), async (c) 
   }
 
   await db.update(invites).set({ revoked_at: new Date().toISOString() }).where(eq(invites.id, inviteId));
+  log.info("invite_revoked", { inviteId, byUserId: user.id });
 
   return c.json({ ok: true });
 });
