@@ -46,6 +46,22 @@ sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c
     if (!isAdminOrOwner(membership.role)) {
       return c.json({ error: "forbidden", message: "Only admins and owners can create link shares" }, 403);
     }
+
+    // Prevent duplicate link shares with the same permission on the same page
+    const existingLink = await db
+      .select({ id: pageShares.id })
+      .from(pageShares)
+      .where(
+        and(
+          eq(pageShares.page_id, pageId),
+          eq(pageShares.grantee_type, "link"),
+          eq(pageShares.permission, data.permission),
+        ),
+      )
+      .get();
+    if (existingLink) {
+      return c.json({ error: "conflict", message: "A link share with this permission already exists" }, 409);
+    }
   }
 
   let resolvedGranteeId: string | null = null;

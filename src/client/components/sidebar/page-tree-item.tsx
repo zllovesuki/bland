@@ -6,9 +6,12 @@ import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canArchivePage } from "@/client/lib/permissions";
+import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreatePage } from "@/client/hooks/use-create-page";
+import type { DropTarget } from "@/client/hooks/use-page-drag";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { confirm } from "@/client/components/confirm";
 
 interface PageTreeItemProps {
   page: Page;
@@ -16,9 +19,29 @@ interface PageTreeItemProps {
   childPages: Page[];
   allPages: Page[];
   activeAncestorIds: Set<string>;
+  draggedId: string | null;
+  dropTarget: DropTarget | null;
+  onDragStart: (e: React.DragEvent, pageId: string) => void;
+  onDragOver: (e: React.DragEvent, pageId: string) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  canDrag: boolean;
 }
 
-export function PageTreeItem({ page, depth, childPages, allPages, activeAncestorIds }: PageTreeItemProps) {
+export function PageTreeItem({
+  page,
+  depth,
+  childPages,
+  allPages,
+  activeAncestorIds,
+  draggedId,
+  dropTarget,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDragEnd,
+  canDrag,
+}: PageTreeItemProps) {
   const params = useParams({ strict: false }) as {
     workspaceSlug?: string;
     pageId?: string;
@@ -29,8 +52,7 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
   const members = useWorkspaceStore((s) => s.members);
   const currentUser = useAuthStore((s) => s.user);
   const canArchive = canArchivePage(members, currentUser, page);
-  const myMembership = members.find((m) => m.user_id === currentUser?.id);
-  const canCreate = !!myMembership && myMembership.role !== "guest";
+  const canCreate = canCreatePage(members, currentUser);
   const { createPage, isCreating: creating } = useCreatePage();
   const isActive = params.pageId === page.id;
   const shouldExpand = activeAncestorIds.has(page.id) || isActive;
@@ -61,6 +83,11 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
       e.preventDefault();
       e.stopPropagation();
       if (!currentWorkspace || archiving) return;
+      const ok = await confirm({
+        title: "Archive page",
+        message: `"${page.title || DEFAULT_PAGE_TITLE}" will be moved to the archive.`,
+      });
+      if (!ok) return;
       setArchiving(true);
       try {
         await api.pages.delete(currentWorkspace.id, page.id);
@@ -85,19 +112,32 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
     [createPage, page.id],
   );
 
+  const isDragged = draggedId === page.id;
+  const isDropBefore = dropTarget?.pageId === page.id && dropTarget.position === "before";
+  const isDropAfter = dropTarget?.pageId === page.id && dropTarget.position === "after";
+  const isDropChild = dropTarget?.pageId === page.id && dropTarget.position === "child";
+
   return (
     <div>
+      {isDropBefore && (
+        <div className="mx-2 h-0.5 rounded bg-accent-500" style={{ marginLeft: `${depth * 16 + 8}px` }} />
+      )}
       <Link
         to="/$workspaceSlug/$pageId"
         params={{ workspaceSlug: params.workspaceSlug || currentWorkspace?.slug || "", pageId: page.id }}
-        className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition ${
+        draggable={canDrag}
+        onDragStart={(e) => onDragStart(e, page.id)}
+        onDragOver={(e) => onDragOver(e, page.id)}
+        onDragLeave={onDragLeave}
+        onDragEnd={onDragEnd}
+        className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition-colors ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-        }`}
+        } ${isDragged ? "opacity-40" : ""} ${isDropChild ? "ring-1 ring-accent-500/50" : ""}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         <button
           onClick={toggleExpand}
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition ${
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
             hasChildren ? "text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300" : "pointer-events-none opacity-0"
           }`}
           tabIndex={-1}
@@ -107,7 +147,7 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
         </button>
 
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
-          {page.icon ?? <FileText className="h-3.5 w-3.5 text-zinc-500" />}
+          {page.icon ? <EmojiIcon emoji={page.icon} size={14} /> : <FileText className="h-3.5 w-3.5 text-zinc-500" />}
         </span>
 
         <span className="truncate">{page.title || DEFAULT_PAGE_TITLE}</span>
@@ -139,7 +179,7 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-zinc-700 bg-zinc-800 shadow-lg">
+              <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-zinc-700 bg-zinc-800 shadow-lg">
                 <button
                   onClick={handleArchive}
                   disabled={archiving}
@@ -154,6 +194,10 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
         )}
       </Link>
 
+      {isDropAfter && (
+        <div className="mx-2 h-0.5 rounded bg-accent-500" style={{ marginLeft: `${depth * 16 + 8}px` }} />
+      )}
+
       {isExpanded && hasChildren && (
         <div>
           {childPages.map((child) => (
@@ -164,6 +208,13 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
               childPages={allPages.filter((p) => p.parent_id === child.id && !p.archived_at)}
               allPages={allPages}
               activeAncestorIds={activeAncestorIds}
+              draggedId={draggedId}
+              dropTarget={dropTarget}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDragEnd={onDragEnd}
+              canDrag={canDrag}
             />
           ))}
         </div>

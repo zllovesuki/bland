@@ -102,7 +102,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
       <div className="fixed inset-0 bg-black/60" />
       <div
-        className="relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl"
+        className="animate-scale-fade relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-zinc-800 px-4 py-3">
@@ -113,7 +113,8 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
             onChange={(e) => handleInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search pages..."
-            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-500 outline-none"
+            aria-label="Search pages"
+            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-500 outline-none"
           />
           {isSearching && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
           <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
@@ -136,9 +137,10 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
               key={result.page_id}
               onClick={() => selectResult(result)}
               onMouseEnter={() => setSelectedIndex(i)}
-              className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition ${
+              className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left opacity-0 animate-slide-up transition-colors ${
                 i === selectedIndex ? "bg-zinc-800" : "hover:bg-zinc-800/50"
               }`}
+              style={{ animationDelay: `${Math.min(i, 7) * 60}ms` }}
             >
               <span className="mt-0.5 shrink-0 text-base">
                 {result.icon ?? <FileText className="h-4 w-4 text-zinc-500" />}

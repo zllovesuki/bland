@@ -1,21 +1,31 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { AlertCircle, Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
+import { confirm } from "@/client/components/confirm";
+import { toast } from "@/client/components/toast";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canArchivePage } from "@/client/lib/permissions";
+import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { EditorPane } from "@/client/components/editor/editor-pane";
+import { ErrorBoundary } from "@/client/components/error-boundary";
+import { PageCover } from "@/client/components/ui/page-cover";
+import { PageErrorState } from "@/client/components/ui/page-error-state";
+import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/editor/icon-picker";
 import { CoverPicker } from "@/client/components/editor/cover-picker";
 import { ShareDialog } from "@/client/components/editor/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
+import { useOnline } from "@/client/hooks/use-online";
 import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
+import { parseDocMessage } from "@/shared/doc-messages";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
@@ -39,7 +49,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
       <Link
         to="/$workspaceSlug"
         params={{ workspaceSlug }}
-        className="truncate text-zinc-500 transition hover:text-zinc-300"
+        className="truncate text-zinc-500 transition-colors hover:text-zinc-300"
       >
         {workspace?.name ?? workspaceSlug}
       </Link>
@@ -49,17 +59,17 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
           <Link
             to="/$workspaceSlug/$pageId"
             params={{ workspaceSlug, pageId: a.id }}
-            className="truncate text-zinc-400 transition hover:text-zinc-300"
+            className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
           >
-            {a.icon ? `${a.icon} ` : ""}
+            {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
             {a.title || DEFAULT_PAGE_TITLE}
           </Link>
         </span>
       ))}
       <span className="flex items-center gap-1">
         {sep}
-        <span className="truncate text-zinc-300">
-          {page.icon ? `${page.icon} ` : ""}
+        <span className="inline-flex items-center gap-1 truncate text-zinc-300">
+          {page.icon && <EmojiIcon emoji={page.icon} size={12} />}
           {page.title || DEFAULT_PAGE_TITLE}
         </span>
       </span>
@@ -97,9 +107,9 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
             <Link
               to="/$workspaceSlug/$pageId"
               params={{ workspaceSlug, pageId: a.id }}
-              className="truncate text-zinc-400 transition hover:text-zinc-300"
+              className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
             >
-              {a.icon ? `${a.icon} ` : ""}
+              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
               {a.title || DEFAULT_PAGE_TITLE}
             </Link>
           ) : (
@@ -112,8 +122,8 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
       ))}
       <span className="flex items-center gap-1">
         {sep}
-        <span className="truncate text-zinc-300">
-          {page.icon ? `${page.icon} ` : ""}
+        <span className="inline-flex items-center gap-1 truncate text-zinc-300">
+          {page.icon && <EmojiIcon emoji={page.icon} size={12} />}
           {page.title || DEFAULT_PAGE_TITLE}
         </span>
       </span>
@@ -144,6 +154,8 @@ export function PageView() {
   const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
   const knownHasCover = useWorkspaceStore((s) => s.pages.find((p) => p.id === params.pageId)?.cover_url);
+  const online = useOnline();
+  useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
 
   useEffect(() => {
     if (!workspace) return;
@@ -162,6 +174,15 @@ export function PageView() {
         }
       } catch (err) {
         if (!cancelled) {
+          // Offline: fall back to cached page from workspace store
+          if (!online) {
+            const cached = useWorkspaceStore.getState().pages.find((p) => p.id === params.pageId);
+            if (cached) {
+              setPage(cached);
+              setIsLoading(false);
+              return;
+            }
+          }
           setError(toApiError(err).message);
         }
       } finally {
@@ -177,6 +198,11 @@ export function PageView() {
 
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;
+    const ok = await confirm({
+      title: "Archive page",
+      message: `"${page.title || DEFAULT_PAGE_TITLE}" will be moved to the archive.`,
+    });
+    if (!ok) return;
     setIsArchiving(true);
     try {
       await api.pages.delete(workspace.id, page.id);
@@ -186,6 +212,7 @@ export function PageView() {
         params: { workspaceSlug: params.workspaceSlug },
       });
     } catch {
+      toast.error("Failed to archive page");
       setIsArchiving(false);
     }
   }, [workspace, page, isArchiving, archivePage, navigate, params.workspaceSlug]);
@@ -208,6 +235,7 @@ export function PageView() {
       updatePage(page.id, { icon });
       try {
         await api.pages.update(workspace.id, page.id, { icon });
+        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch {
         if (iconVersionRef.current === version) {
           setPage((p) => (p ? { ...p, icon: page.icon } : p));
@@ -215,7 +243,7 @@ export function PageView() {
         }
       }
     },
-    [workspace, page, updatePage],
+    [workspace, page, updatePage, wsProvider],
   );
 
   const handleCoverChange = useCallback(
@@ -226,6 +254,7 @@ export function PageView() {
       updatePage(page.id, { cover_url });
       try {
         await api.pages.update(workspace.id, page.id, { cover_url });
+        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch {
         if (coverVersionRef.current === version) {
           setPage((p) => (p ? { ...p, cover_url: page.cover_url } : p));
@@ -233,57 +262,46 @@ export function PageView() {
         }
       }
     },
-    [workspace, page, updatePage],
+    [workspace, page, updatePage, wsProvider],
   );
+
+  // Listen for real-time icon/cover updates from other clients
+  useEffect(() => {
+    if (!wsProvider) return;
+    const handler = (message: string) => {
+      const msg = parseDocMessage(message);
+      if (msg?.type === "page-metadata-updated") {
+        setPage((p) => (p ? { ...p, icon: msg.icon, cover_url: msg.cover_url } : p));
+        updatePage(msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
+      }
+    };
+    wsProvider.on("custom-message", handler);
+    return () => wsProvider.off("custom-message", handler);
+  }, [wsProvider, updatePage]);
 
   if (isLoading || !workspace) {
     return (
-      <div className="mx-auto max-w-3xl px-8 py-10">
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
         {knownHasCover && (
-          <div className="-mx-8 -mt-10 mb-6">
+          <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
             <Skeleton className="h-48 w-full rounded-b-lg" />
           </div>
         )}
-        <div className="mb-4 flex items-center gap-2">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-3" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-        <Skeleton className="mb-6 h-10 w-2/3" />
-        <div className="space-y-3 pl-7">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-4/6" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/5" />
-        </div>
+        <PageLoadingSkeleton />
       </div>
     );
   }
 
   if (error || !page) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
-          <p className="text-sm text-zinc-400">{error ?? "Page not found."}</p>
-        </div>
-      </div>
-    );
+    return <PageErrorState message={error ?? "Page not found."} className="h-full" />;
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl px-8 py-10">
+    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8">
       {page.cover_url && (
-        <div className="group/cover relative -mx-8 -mt-10 mb-6">
-          <div className="h-48 overflow-hidden rounded-b-lg">
-            {page.cover_url.startsWith("linear-gradient") ? (
-              <div className="h-full w-full" style={{ background: page.cover_url }} />
-            ) : (
-              <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
-            )}
-          </div>
-          {page.can_edit !== false && (
+        <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8">
+          <PageCover coverUrl={page.cover_url} />
+          {page.can_edit !== false && online && (
             <div className="absolute right-2 top-2">
               <CoverPicker
                 currentCover={page.cover_url}
@@ -303,7 +321,7 @@ export function PageView() {
           <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
         )}
         <div className="flex items-center gap-3">
-          {!isSharedMode && members.find((m) => m.user_id === currentUser?.id)?.role !== "guest" && (
+          {!isSharedMode && online && canCreatePage(members, currentUser) && (
             <ShareDialog pageId={page.id} workspaceId={workspace!.id} />
           )}
           <AvatarStack
@@ -316,7 +334,7 @@ export function PageView() {
 
       <div className="group/actions mb-2 flex items-start justify-between pl-7">
         <div className="flex items-center gap-2">
-          {page.can_edit !== false && (
+          {page.can_edit !== false && online ? (
             <>
               <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
               {!page.cover_url && (
@@ -328,15 +346,16 @@ export function PageView() {
                 />
               )}
             </>
+          ) : (
+            page.icon && <EmojiIcon emoji={page.icon} size={28} />
           )}
-          {page.can_edit === false && page.icon && <span className="text-2xl">{page.icon}</span>}
         </div>
         {!isSharedMode && canArchivePage(members, currentUser, page) && (
           <button
             onClick={handleArchive}
-            disabled={isArchiving}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
-            title="Archive page"
+            disabled={isArchiving || !online}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-0 transition-colors hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
+            aria-label={online ? "Archive page" : "Archive page (offline)"}
           >
             {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             Archive
@@ -344,14 +363,15 @@ export function PageView() {
         )}
       </div>
 
-      <EditorPane
-        key={page.id}
-        pageId={page.id}
-        initialTitle={page.title}
-        onTitleChange={handleTitleChange}
-        onProvider={setWsProvider}
-        readOnly={page.can_edit === false}
-      />
+      <ErrorBoundary key={page.id}>
+        <EditorPane
+          pageId={page.id}
+          initialTitle={page.title}
+          onTitleChange={handleTitleChange}
+          onProvider={setWsProvider}
+          readOnly={page.can_edit === false}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/mantine";
+import { BlockNoteView } from "@blocknote/shadcn";
 import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from "@blocknote/core";
 import { createHighlighter } from "shiki";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -13,7 +13,11 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { uploadFile } from "@/client/lib/uploads";
 import { userColor } from "@/client/hooks/use-sync";
-import "@blocknote/mantine/style.css";
+import { customShadcnComponents } from "@/client/components/editor/bn-components";
+import { FormattingToolbarController } from "@/client/components/editor/controllers/formatting-toolbar";
+import { LinkToolbarController } from "@/client/components/editor/controllers/link-toolbar";
+import { SuggestionMenuController } from "@/client/components/editor/controllers/suggestion-menu";
+import "@blocknote/shadcn/style.css";
 
 interface EditorPaneProps {
   pageId: string;
@@ -41,9 +45,11 @@ const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = {
   yaml: { name: "YAML", aliases: ["yml"] },
 };
 
+const { video, audio, file, ...blockSpecs } = defaultBlockSpecs;
+
 const schema = BlockNoteSchema.create({
   blockSpecs: {
-    ...defaultBlockSpecs,
+    ...blockSpecs,
     codeBlock: createCodeBlockSpec({
       supportedLanguages: CODE_LANGUAGES,
       createHighlighter: () =>
@@ -110,7 +116,24 @@ function BlockEditor({
     [pageId],
   );
 
-  return <BlockNoteView editor={editor} theme="dark" editable={!readOnly} />;
+  return (
+    <BlockNoteView
+      editor={editor}
+      theme="dark"
+      editable={!readOnly}
+      shadCNComponents={customShadcnComponents}
+      formattingToolbar={false}
+      linkToolbar={false}
+      slashMenu={false}
+    >
+      <FormattingToolbarController />
+      <LinkToolbarController />
+      <SuggestionMenuController
+        triggerCharacter="/"
+        shouldOpen={(state) => !state.selection.$from.parent.type.isInGroup("tableContent")}
+      />
+    </BlockNoteView>
+  );
 }
 
 export function EditorPane({
@@ -248,7 +271,7 @@ export function EditorPane({
         readOnly={readOnly}
         placeholder="Untitled"
         rows={1}
-        className="mb-4 w-full resize-none overflow-hidden border-none bg-transparent pl-7 text-4xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none disabled:opacity-50 read-only:cursor-default"
+        className="mb-4 w-full resize-none overflow-hidden border-none bg-transparent pl-4 text-3xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 read-only:cursor-default sm:pl-7 sm:text-4xl"
         onInput={(e) => {
           const el = e.currentTarget;
           el.style.height = "auto";

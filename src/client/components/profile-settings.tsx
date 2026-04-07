@@ -1,11 +1,14 @@
 import { useState, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Save, Loader2, Camera, X, User as UserIcon } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api, toApiError } from "@/client/lib/api";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function ProfileSettings() {
+  useDocumentTitle("Profile");
   const user = useAuthStore((s) => s.user);
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
 
@@ -78,18 +81,21 @@ export function ProfileSettings() {
   const backSlug = currentWorkspace?.slug;
 
   return (
-    <div className="mx-auto max-w-lg px-8 py-10">
+    <div className="mx-auto max-w-2xl px-8 py-10">
       {backSlug ? (
         <Link
           to="/$workspaceSlug"
           params={{ workspaceSlug: backSlug }}
-          className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition hover:text-zinc-200"
+          className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-zinc-200"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </Link>
       ) : (
-        <Link to="/" className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition hover:text-zinc-200">
+        <Link
+          to="/"
+          className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-zinc-200"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back
         </Link>
@@ -110,8 +116,8 @@ export function ProfileSettings() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-50"
-              title="Change avatar"
+              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-50"
+              aria-label="Change avatar"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
             </button>
@@ -123,7 +129,7 @@ export function ProfileSettings() {
             {avatarUrl && (
               <button
                 onClick={() => setAvatarUrl("")}
-                className="mt-1 flex items-center gap-1 text-xs text-zinc-500 transition hover:text-zinc-300"
+                className="mt-1 flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 <X className="h-3 w-3" />
                 Remove
@@ -141,7 +147,7 @@ export function ProfileSettings() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-accent-500"
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
             placeholder="Your name"
           />
         </div>
@@ -154,14 +160,15 @@ export function ProfileSettings() {
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="flex items-center gap-3">
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSave}
             disabled={saving || !name.trim() || !hasChanges}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+            icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? "Saving..." : "Save"}
-          </button>
+          </Button>
           {success && <span className="text-sm text-green-400">Saved</span>}
         </div>
       </div>

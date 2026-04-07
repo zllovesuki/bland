@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { confirm } from "@/client/components/confirm";
 import {
   ArrowLeft,
   Save,
@@ -13,13 +14,19 @@ import {
   UserPlus,
   Copy,
   Check,
+  X,
 } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
+import { toast } from "@/client/components/toast";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
-import { getMyRole, isAdminOrOwner as checkAdminOrOwner } from "@/client/lib/permissions";
+import { useMyRole } from "@/client/hooks/use-role";
+import { EmojiPicker } from "@/client/components/ui/emoji-picker";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import type { WorkspaceMember } from "@/shared/types";
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
@@ -39,21 +46,30 @@ const ROLE_ICON: Record<string, typeof Crown> = {
 const ASSIGNABLE_ROLES = ["admin", "member", "guest"] as const;
 
 export function WorkspaceSettings() {
+  const navigate = useNavigate();
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const members = useWorkspaceStore((s) => s.members);
   const setMembers = useWorkspaceStore((s) => s.setMembers);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
   const currentUser = useAuthStore((s) => s.user);
-
-  const myRole = getMyRole(members, currentUser) ?? "guest";
-  const isOwner = myRole === "owner";
-  const isAdminOrOwner = checkAdminOrOwner(myRole);
+  const { role, isOwner, isAdminOrOwner } = useMyRole();
+  const myRole = role ?? "guest";
+  useDocumentTitle(currentWorkspace ? `Settings — ${currentWorkspace.name}` : "Settings");
 
   const [name, setName] = useState(currentWorkspace?.name ?? "");
   const [icon, setIcon] = useState(currentWorkspace?.icon ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const iconPickerRef = useRef<HTMLDivElement>(null);
+  useClickOutside(
+    iconPickerRef,
+    useCallback(() => setIconPickerOpen(false), []),
+    iconPickerOpen,
+  );
 
   const [roleDropdownId, setRoleDropdownId] = useState<string | null>(null);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
@@ -121,7 +137,13 @@ export function WorkspaceSettings() {
   const handleRemoveMember = useCallback(
     async (userId: string, memberName: string) => {
       if (!currentWorkspace) return;
-      if (!window.confirm(`Remove ${memberName} from this workspace?`)) return;
+      const ok = await confirm({
+        title: "Remove member",
+        message: `${memberName} will lose access to this workspace.`,
+        confirmLabel: "Remove",
+        variant: "danger",
+      });
+      if (!ok) return;
       setRemovingMember(userId);
       setMemberError(null);
       try {
@@ -161,6 +183,28 @@ export function WorkspaceSettings() {
     copyInviteToClipboard("invite", inviteLink);
   }, [inviteLink, copyInviteToClipboard]);
 
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteWorkspace = useCallback(async () => {
+    if (!currentWorkspace || !isOwner || deleting) return;
+    const ok = await confirm({
+      title: "Delete workspace",
+      message: `"${currentWorkspace.name}" and all its pages will be permanently deleted. This cannot be undone.`,
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await api.workspaces.delete(currentWorkspace.id);
+      useWorkspaceStore.getState().setWorkspaces(workspaces.filter((w) => w.id !== currentWorkspace.id));
+      navigate({ to: "/" });
+    } catch {
+      toast.error("Failed to delete workspace");
+      setDeleting(false);
+    }
+  }, [currentWorkspace, isOwner, deleting, workspaces, navigate]);
+
   if (!currentWorkspace) return null;
 
   const hasChanges = name.trim() !== currentWorkspace.name || (icon.trim() || null) !== (currentWorkspace.icon ?? null);
@@ -170,7 +214,7 @@ export function WorkspaceSettings() {
       <Link
         to="/$workspaceSlug"
         params={{ workspaceSlug: params.workspaceSlug ?? "" }}
-        className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition hover:text-zinc-200"
+        className="mb-6 flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-zinc-200"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to {currentWorkspace.name}
@@ -191,44 +235,56 @@ export function WorkspaceSettings() {
               <label htmlFor="ws-name" className="mb-1 block text-sm font-medium text-zinc-400">
                 Name
               </label>
-              <input
-                id="ws-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-accent-500"
-                placeholder="Workspace name"
-              />
-            </div>
-            <div>
-              <label htmlFor="ws-icon" className="mb-1 block text-sm font-medium text-zinc-400">
-                Icon
-              </label>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/50 text-lg">
-                  {icon || <span className="text-xs text-zinc-500">None</span>}
-                </span>
+              <div className="relative flex items-center gap-2" ref={iconPickerRef}>
+                <div className="group/wsicon flex shrink-0 items-center gap-0.5">
+                  <button
+                    onClick={() => setIconPickerOpen((o) => !o)}
+                    className="flex h-[38px] w-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/50 text-lg transition-colors hover:border-zinc-600"
+                    aria-label={icon ? "Change icon" : "Add icon"}
+                  >
+                    {icon ? <EmojiIcon emoji={icon} size={20} /> : <span className="text-xs text-zinc-500">😀</span>}
+                  </button>
+                  {icon && (
+                    <button
+                      onClick={() => setIcon("")}
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/wsicon:opacity-100"
+                      aria-label="Remove icon"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
                 <input
-                  id="ws-icon"
+                  id="ws-name"
                   type="text"
-                  value={icon}
-                  onChange={(e) => setIcon(e.target.value)}
-                  className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-accent-500"
-                  placeholder="Emoji or short text"
-                  maxLength={50}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
+                  placeholder="Workspace name"
                 />
+                {iconPickerOpen && (
+                  <div className="absolute left-0 top-full z-30 mt-1">
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        setIcon(emoji);
+                        setIconPickerOpen(false);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
             {saveError && <p className="text-sm text-red-400">{saveError}</p>}
             <div className="flex justify-end">
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleSave}
                 disabled={saving || !name.trim() || !hasChanges}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+                icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {saving ? "Saving..." : "Save changes"}
-              </button>
+              </Button>
             </div>
           </div>
         </section>
@@ -240,7 +296,7 @@ export function WorkspaceSettings() {
         </h2>
         {memberError && <p className="mb-3 text-sm text-red-400">{memberError}</p>}
         <div className="space-y-2">
-          {members.map((member) => {
+          {members.map((member, memberIndex) => {
             const user = member.user;
             const displayName = user?.name ?? "Unknown";
             const displayEmail = user?.email ?? "";
@@ -253,7 +309,8 @@ export function WorkspaceSettings() {
             return (
               <div
                 key={member.user_id}
-                className="flex items-center justify-between rounded-lg border border-zinc-800 px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-zinc-800 px-4 py-3 opacity-0 animate-slide-up"
+                style={{ animationDelay: `${Math.min(memberIndex, 7) * 60}ms` }}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-300">
@@ -282,7 +339,7 @@ export function WorkspaceSettings() {
                       <button
                         onClick={() => setRoleDropdownId(roleDropdownId === member.user_id ? null : member.user_id)}
                         disabled={updatingRole === member.user_id}
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className} transition hover:opacity-80`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className} transition-opacity hover:opacity-80`}
                       >
                         {updatingRole === member.user_id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -294,12 +351,12 @@ export function WorkspaceSettings() {
                         )}
                       </button>
                       {roleDropdownId === member.user_id && (
-                        <div className="animate-fade-in absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-xl">
+                        <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-lg">
                           {ASSIGNABLE_ROLES.map((role) => (
                             <button
                               key={role}
                               onClick={() => handleRoleChange(member.user_id, role)}
-                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-zinc-800 ${
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-800 ${
                                 member.role === role ? "text-accent-400" : "text-zinc-400 hover:text-zinc-200"
                               }`}
                             >
@@ -322,7 +379,7 @@ export function WorkspaceSettings() {
                     <button
                       onClick={() => handleRemoveMember(member.user_id, displayName)}
                       disabled={removingMember === member.user_id}
-                      className="rounded-md p-1 text-zinc-600 transition hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
+                      className="rounded-md p-1 text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
                       aria-label={`Remove ${displayName}`}
                     >
                       {removingMember === member.user_id ? (
@@ -352,13 +409,14 @@ export function WorkspaceSettings() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="Email (optional)"
-                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-accent-500"
+                aria-label="Invite email address"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
               />
               <div className="relative">
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as "admin" | "member" | "guest")}
-                  className="appearance-none rounded-lg border border-zinc-700 bg-zinc-800/50 py-2 pl-3 pr-8 text-sm text-zinc-300 outline-none focus:border-accent-500"
+                  className="appearance-none rounded-lg border border-zinc-700 bg-zinc-800/50 py-2 pl-3 pr-8 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
                 >
                   {isAdminOrOwner && <option value="admin">Admin</option>}
                   <option value="member">Member</option>
@@ -368,14 +426,15 @@ export function WorkspaceSettings() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleCreateInvite}
                 disabled={inviteLoading}
-                className="inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+                icon={inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
               >
-                {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                 Create invite
-              </button>
+              </Button>
             </div>
             {inviteError && <p className="text-sm text-red-400">{inviteError}</p>}
             {inviteLink && (
@@ -383,13 +442,36 @@ export function WorkspaceSettings() {
                 <p className="min-w-0 flex-1 truncate text-xs text-zinc-400">{inviteLink}</p>
                 <button
                   onClick={copyInviteLink}
-                  className="shrink-0 rounded p-1 text-zinc-400 transition hover:text-zinc-200"
-                  title="Copy link"
+                  className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:text-zinc-200"
+                  aria-label="Copy invite link"
                 >
                   {inviteCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {isOwner && (
+        <section>
+          <h2 className="mb-4 text-lg font-semibold text-red-400">Danger Zone</h2>
+          <div className="rounded-lg border border-red-500/20 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Delete this workspace</p>
+                <p className="text-xs text-zinc-500">All pages and data will be permanently removed.</p>
+              </div>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleDeleteWorkspace}
+                disabled={deleting}
+                icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              >
+                Delete workspace
+              </Button>
+            </div>
           </div>
         </section>
       )}

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -9,6 +10,27 @@
     "Microsoft YaHei", sans-serif;
   --font-display: "Instrument Serif", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", "Noto Sans Mono CJK SC", monospace;
+
+  /* Editor UI tokens for @blocknote/shadcn */
+  --color-background: #09090b;
+  --color-foreground: #f4f4f5;
+  --color-card: #18181b;
+  --color-card-foreground: #f4f4f5;
+  --color-popover: #18181b;
+  --color-popover-foreground: #d4d4d8;
+  --color-primary: #14b8a6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #27272a;
+  --color-secondary-foreground: #f4f4f5;
+  --color-muted: #27272a;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #27272a;
+  --color-accent-foreground: #f4f4f5;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #3f3f46;
+  --color-input: #3f3f46;
+  --color-ring: #14b8a6;
 
   /* Teal accent palette */
   --color-accent-50: #f0fdfa;
@@ -41,7 +63,7 @@
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -74,6 +96,15 @@
     color-scheme: dark;
   }
 
+  html,
+  body {
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
   body {
     @apply bg-[#09090b] text-zinc-100 antialiased;
     font-feature-settings:
@@ -91,18 +122,20 @@
       100% 100%;
   }
 
-  button,
+  button:not(:disabled),
   a,
+  select,
+  summary,
   [role="button"] {
     cursor: pointer;
   }
 
   *:focus-visible {
-    @apply outline-accent-500/50 outline-2 outline-offset-2;
+    @apply outline-none ring-2 ring-accent-500/50 ring-offset-2 ring-offset-zinc-950;
   }
 
   ::selection {
-    @apply bg-accent-500/30 text-white;
+    @apply bg-accent-500/[0.28] text-accent-50;
   }
 }
 
@@ -141,32 +174,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Override BlockNote defaults — must be outside @layer to beat unlayered library CSS */
-.bn-default-styles {
-  font-family: var(--font-sans);
-}
-
-.bn-container[data-color-scheme="dark"] {
-  --bn-colors-editor-background: transparent;
-}
-
-.bn-editor {
-  padding-inline-start: 28px;
-  padding-inline-end: 0;
-  padding-bottom: 40vh;
-}
-
-.bn-block-content[data-content-type="codeBlock"] > div > select {
-  background-color: #27272a;
-  border: 1px solid #3f3f46;
-  border-radius: 4px;
-  padding: 2px 6px;
-  opacity: 0.7;
-}
-
-.bn-block-content[data-content-type="codeBlock"] > div > select > option {
-  color: #e4e4e7;
-  background-color: #27272a;
 }

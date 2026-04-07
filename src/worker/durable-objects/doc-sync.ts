@@ -7,6 +7,7 @@ import { docSnapshots, pages } from "@/worker/db/schema";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { YJS_PAGE_TITLE } from "@/shared/constants";
+import { parseDocMessage } from "@/shared/doc-messages";
 
 const MAX_CONNECTIONS_PER_DOC = 20;
 const log = createLogger("doc-sync");
@@ -97,6 +98,35 @@ export class DocSync extends YServer<Env> {
   /** y-partyserver calls this in readSyncMessage to gate syncStep2/update. */
   isReadOnly(connection: Connection): boolean {
     return connection.tags.includes(READONLY_TAG);
+  }
+
+  async onCustomMessage(connection: Connection, message: string): Promise<void> {
+    const msg = parseDocMessage(message);
+    if (!msg || msg.type !== "page-metadata-refresh") return;
+
+    // Don't allow readonly connections to trigger D1 reads
+    if (connection.tags.includes(READONLY_TAG)) return;
+
+    try {
+      const row = await this.db
+        .select({ icon: pages.icon, cover_url: pages.cover_url })
+        .from(pages)
+        .where(eq(pages.id, this.name))
+        .get();
+      if (!row) return;
+
+      this.broadcastCustomMessage(
+        JSON.stringify({
+          type: "page-metadata-updated",
+          pageId: this.name,
+          icon: row.icon,
+          cover_url: row.cover_url,
+        }),
+        connection,
+      );
+    } catch (e) {
+      log.error("metadata_refresh_failed", errorContext(e));
+    }
   }
 
   async onLoad(): Promise<Y.Doc | void> {

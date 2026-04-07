@@ -4,6 +4,8 @@ import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useOnline } from "@/client/hooks/use-online";
+import { toast } from "@/client/components/toast";
 
 export function useCreatePage() {
   const [isCreating, setIsCreating] = useState(false);
@@ -11,10 +13,15 @@ export function useCreatePage() {
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const addPage = useWorkspaceStore((s) => s.addPage);
   const navigate = useNavigate();
+  const online = useOnline();
 
   const createPage = useCallback(
     async (opts?: { parentId?: string; onCreated?: (page: Page) => void }) => {
       if (!currentWorkspace || busyRef.current) return;
+      if (!online) {
+        toast.info("You're offline");
+        return;
+      }
       busyRef.current = true;
       setIsCreating(true);
       try {
@@ -29,13 +36,13 @@ export function useCreatePage() {
           params: { workspaceSlug: currentWorkspace.slug, pageId: page.id },
         });
       } catch {
-        // Silently fail — toast system not yet implemented
+        toast.error("Failed to create page");
       } finally {
         busyRef.current = false;
         setIsCreating(false);
       }
     },
-    [currentWorkspace, addPage, navigate],
+    [currentWorkspace, addPage, navigate, online],
   );
 
   return { createPage, isCreating };

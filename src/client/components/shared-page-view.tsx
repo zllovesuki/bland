@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, AlertCircle, Eye, ChevronRight, Lock } from "lucide-react";
+import { FileText, Eye, ChevronRight, Lock, Menu } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { Footer } from "@/client/components/footer";
 import { SharedPageTree } from "@/client/components/shared-page-tree";
 import type { SharedPageInfo, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
+import { parseDocMessage } from "@/shared/doc-messages";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { MobileDrawer } from "@/client/components/ui/mobile-drawer";
+import { PageCover } from "@/client/components/ui/page-cover";
+import { PageErrorState } from "@/client/components/ui/page-error-state";
+import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 function SharedBreadcrumbs({
   ancestors,
@@ -29,8 +37,11 @@ function SharedBreadcrumbs({
       {ancestors.map((a) => (
         <span key={a.id} className="flex items-center gap-1">
           {a.accessible ? (
-            <button onClick={() => onNavigate(a.id)} className="truncate text-zinc-500 transition hover:text-zinc-300">
-              {a.icon ? `${a.icon} ` : ""}
+            <button
+              onClick={() => onNavigate(a.id)}
+              className="inline-flex items-center gap-1 truncate text-zinc-500 transition-colors hover:text-zinc-300"
+            >
+              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
               {a.title || DEFAULT_PAGE_TITLE}
             </button>
           ) : (
@@ -42,8 +53,8 @@ function SharedBreadcrumbs({
           {sep}
         </span>
       ))}
-      <span className="truncate text-zinc-300">
-        {currentIcon ? `${currentIcon} ` : ""}
+      <span className="inline-flex items-center gap-1 truncate text-zinc-300">
+        {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
         {currentTitle || DEFAULT_PAGE_TITLE}
       </span>
     </nav>
@@ -57,11 +68,29 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState<string | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
   const [canEdit, setCanEdit] = useState<boolean | null>(null);
+  const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
+  useDocumentTitle(title || DEFAULT_PAGE_TITLE);
 
   // The page currently being viewed: either ?page= param or the root shared page
   const currentPageId = activePage ?? info?.page_id;
+
+  // Listen for real-time icon/cover updates
+  useEffect(() => {
+    if (!wsProvider) return;
+    const handler = (message: string) => {
+      const msg = parseDocMessage(message);
+      if (msg?.type === "page-metadata-updated") {
+        setIcon(msg.icon);
+        setCoverUrl(msg.cover_url);
+      }
+    };
+    wsProvider.on("custom-message", handler);
+    return () => wsProvider.off("custom-message", handler);
+  }, [wsProvider]);
 
   // Resolve share info once per token
   useEffect(() => {
@@ -76,6 +105,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           setInfo(data);
           setTitle(data.title);
           setIcon(data.icon);
+          setCoverUrl(data.cover_url ?? null);
           setCanEdit(data.permission === "edit");
         }
       } catch (err) {
@@ -103,10 +133,12 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     if (activePage) {
       setTitle("");
       setIcon(null);
+      setCoverUrl(null);
       setCanEdit(null);
     } else {
       setTitle(info.title);
       setIcon(info.icon);
+      setCoverUrl(info.cover_url ?? null);
       setCanEdit(info.permission === "edit");
     }
     setAncestors([]);
@@ -151,8 +183,8 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
 
   if (isLoading) {
     return (
-      <div className="flex h-screen flex-col bg-[#09090b]">
-        <header className="sticky top-0 z-50 border-b border-zinc-800/50 bg-[#09090b]/80 backdrop-blur-sm">
+      <div className="flex h-screen flex-col">
+        <header className="sticky top-0 z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
           <div className="mx-auto flex max-w-5xl items-center px-8 py-3">
             <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
               <FileText className="h-5 w-5 text-white" />
@@ -166,19 +198,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </nav>
           <main className="flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl px-8 py-10">
-              <div className="mb-4 flex items-center gap-2">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-3 w-3" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-              <Skeleton className="mb-6 h-10 w-2/3" />
-              <div className="space-y-3 pl-7">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-5/6" />
-                <Skeleton className="h-4 w-4/6" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/5" />
-              </div>
+              <PageLoadingSkeleton />
             </div>
           </main>
         </div>
@@ -189,12 +209,10 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
 
   if (error || !info) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#09090b]">
-        <div className="text-center">
-          <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
-          <p className="text-sm text-zinc-400">{error ?? "This shared link is invalid or has expired."}</p>
-        </div>
-      </div>
+      <PageErrorState
+        message={error ?? "This shared link is invalid or has expired."}
+        className="h-screen"
+      />
     );
   }
 
@@ -202,17 +220,24 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const displayPageId = currentPageId ?? info.page_id;
 
   return (
-    <div className="flex h-screen flex-col bg-[#09090b]">
-      <header className="sticky top-0 z-50 border-b border-zinc-800/50 bg-[#09090b]/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center px-8 py-3">
+    <div className="flex h-screen flex-col">
+      <header className="z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
+          <button
+            onClick={() => setMobileTreeOpen((o) => !o)}
+            className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:hidden"
+            aria-label="Toggle outline"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
             <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
               <FileText className="h-5 w-5 text-white" />
             </div>
           </Link>
 
-          <span className="ml-4 truncate text-sm text-zinc-400">
-            {icon ? `${icon} ` : ""}
+          <span className="ml-4 flex items-center gap-1.5 truncate text-sm text-zinc-400">
+            {icon && <EmojiIcon emoji={icon} size={16} />}
             {title || DEFAULT_PAGE_TITLE}
           </span>
 
@@ -228,31 +253,26 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <SharedPageTree
-          workspaceId={info.workspace_id}
-          rootPageId={info.page_id}
-          rootTitle={info.title}
-          rootIcon={info.icon}
-          shareToken={token}
-          activePageId={displayPageId}
-          onNavigate={handleNavigate}
-        />
+        <MobileDrawer open={mobileTreeOpen} onClose={() => setMobileTreeOpen(false)}>
+          <SharedPageTree
+            workspaceId={info.workspace_id}
+            rootPageId={info.page_id}
+            rootTitle={info.title}
+            rootIcon={info.icon}
+            shareToken={token}
+            activePageId={displayPageId}
+            onNavigate={(pageId) => {
+              handleNavigate(pageId);
+              setMobileTreeOpen(false);
+            }}
+          />
+        </MobileDrawer>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-8 py-10">
-            {info.cover_url && !activePage && (
-              <div className="-mx-8 -mt-10 mb-6">
-                <div className="h-48 overflow-hidden rounded-b-lg">
-                  {info.cover_url.startsWith("linear-gradient") ? (
-                    <div className="h-full w-full" style={{ background: info.cover_url }} />
-                  ) : (
-                    <img
-                      src={info.cover_url.startsWith("/uploads/") ? `${info.cover_url}?share=${token}` : info.cover_url}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  )}
-                </div>
+          <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
+            {coverUrl && !activePage && (
+              <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
+                <PageCover coverUrl={coverUrl} shareToken={token} />
               </div>
             )}
 
@@ -267,13 +287,18 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
               </div>
             )}
 
-            {icon && <div className="mb-2 pl-7 text-4xl">{icon}</div>}
+            {icon && (
+              <div className="mb-2 pl-7">
+                <EmojiIcon emoji={icon} size={36} />
+              </div>
+            )}
 
             <EditorPane
               key={displayPageId}
               pageId={displayPageId}
               initialTitle={activePage ? title : info.title}
               onTitleChange={setTitle}
+              onProvider={setWsProvider}
               shareToken={token}
               readOnly={isViewOnly}
               workspaceId={info.workspace_id}

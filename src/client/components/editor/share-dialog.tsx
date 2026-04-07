@@ -1,11 +1,12 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from "lucide-react";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { getMyRole, isAdminOrOwner } from "@/client/lib/permissions";
+import { useMyRole } from "@/client/hooks/use-role";
+import { confirm } from "@/client/components/confirm";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
 
@@ -22,9 +23,13 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   const { copiedId, copy: copyToClipboard } = useCopyFeedback<string>();
   const [creating, setCreating] = useState(false);
 
-  const [newPermission, setNewPermission] = useState<"view" | "edit">("view");
-  const [newGranteeId, setNewGranteeId] = useState("");
-  const [newEmail, setNewEmail] = useState("");
+  // People section
+  const [peopleInput, setPeopleInput] = useState("");
+  const [peoplePermission, setPeoplePermission] = useState<"view" | "edit">("view");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Link section
+  const [linkPermission, setLinkPermission] = useState<"view" | "edit">("view");
 
   const panelRef = useRef<HTMLDivElement>(null);
   useClickOutside(
@@ -36,8 +41,7 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   const members = useWorkspaceStore((s) => s.members);
   const user = useAuthStore((s) => s.user);
 
-  const myRole = getMyRole(members, user);
-  const isAdmin = isAdminOrOwner(myRole);
+  const { role: myRole, isAdminOrOwner: isAdmin } = useMyRole();
 
   useEffect(() => {
     if (!open) return;
@@ -56,53 +60,62 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   const sharedUserIds = new Set(userShares.map((s) => s.grantee_id));
   const shareableMembers = members.filter((m) => m.user_id !== user?.id && !sharedUserIds.has(m.user_id));
 
+  const filteredSuggestions = useMemo(() => {
+    if (!peopleInput.trim()) return shareableMembers;
+    const q = peopleInput.toLowerCase();
+    return shareableMembers.filter(
+      (m) => (m.user?.name?.toLowerCase().includes(q) ?? false) || (m.user?.email?.toLowerCase().includes(q) ?? false),
+    );
+  }, [peopleInput, shareableMembers]);
+
+  async function handlePeopleShare() {
+    if (!peopleInput.trim() || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      // Check if input matches a member
+      const matchedMember = shareableMembers.find(
+        (m) => m.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() || m.user?.name === peopleInput.trim(),
+      );
+      let share: PageShare;
+      if (matchedMember) {
+        share = await api.shares.create(pageId, {
+          grantee_type: "user",
+          grantee_id: matchedMember.user_id,
+          permission: peoplePermission,
+        });
+      } else {
+        // Treat as email
+        share = await api.shares.create(pageId, {
+          grantee_type: "user",
+          grantee_email: peopleInput.trim(),
+          permission: peoplePermission,
+        });
+      }
+      setShares((prev) => [...prev, share]);
+      setPeopleInput("");
+      setShowSuggestions(false);
+    } catch (err) {
+      setError(toApiError(err).message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function selectMember(member: WorkspaceMember) {
+    setPeopleInput(member.user?.email ?? member.user?.name ?? member.user_id);
+    setShowSuggestions(false);
+  }
+
   async function createLinkShare() {
     setCreating(true);
     setError(null);
     try {
       const share = await api.shares.create(pageId, {
         grantee_type: "link",
-        permission: newPermission,
+        permission: linkPermission,
       });
       setShares((prev) => [...prev, share]);
-    } catch (err) {
-      setError(toApiError(err).message);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function createEmailShare() {
-    if (!newEmail.trim()) return;
-    setCreating(true);
-    setError(null);
-    try {
-      const share = await api.shares.create(pageId, {
-        grantee_type: "user",
-        grantee_email: newEmail.trim(),
-        permission: newPermission,
-      });
-      setShares((prev) => [...prev, share]);
-      setNewEmail("");
-    } catch (err) {
-      setError(toApiError(err).message);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function createUserShare() {
-    if (!newGranteeId) return;
-    setCreating(true);
-    setError(null);
-    try {
-      const share = await api.shares.create(pageId, {
-        grantee_type: "user",
-        grantee_id: newGranteeId,
-        permission: newPermission,
-      });
-      setShares((prev) => [...prev, share]);
-      setNewGranteeId("");
     } catch (err) {
       setError(toApiError(err).message);
     } finally {
@@ -111,6 +124,11 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   }
 
   async function deleteShare(shareId: string) {
+    const ok = await confirm({
+      title: "Remove share",
+      message: "This person or link will lose access to the page.",
+    });
+    if (!ok) return;
     try {
       await api.shares.delete(pageId, shareId);
       setShares((prev) => prev.filter((s) => s.id !== shareId));
@@ -137,6 +155,26 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
     return member ? memberName(member) : (share.grantee_id ?? "Unknown");
   }
 
+  const PermissionSelect = ({
+    value,
+    onChange,
+  }: {
+    value: "view" | "edit";
+    onChange: (v: "view" | "edit") => void;
+  }) => (
+    <div className="relative shrink-0">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as "view" | "edit")}
+        className="appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1 pl-2 pr-6 text-sm text-zinc-300 outline-none focus:border-zinc-600"
+      >
+        <option value="view">View</option>
+        <option value="edit">Edit</option>
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
+    </div>
+  );
+
   return (
     <div className="relative">
       <button
@@ -148,7 +186,7 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
           }
           setOpen((o) => !o);
         }}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
       >
         <Share2 className="h-3.5 w-3.5" />
         Share
@@ -157,7 +195,7 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-lg"
+          className="animate-scale-fade origin-top-right absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-lg"
         >
           {loading ? (
             <div className="space-y-2 py-1" aria-busy="true">
@@ -167,11 +205,155 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
             </div>
           ) : (
             <>
-              {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+              {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
-              {linkShares.length > 0 && (
+              {/* People section */}
+              {myRole && myRole !== "guest" && (
                 <div className="mb-3">
-                  <p className="mb-1.5 text-xs font-medium text-zinc-400">Link shares</p>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
+                    <Users className="h-3 w-3" />
+                    People
+                  </p>
+                  <div className="relative mb-2 flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Name or email..."
+                      aria-label="Search people to share with"
+                      value={peopleInput}
+                      onChange={(e) => {
+                        setPeopleInput(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handlePeopleShare();
+                      }}
+                      className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
+                    />
+                    <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
+                    <button
+                      onClick={handlePeopleShare}
+                      disabled={creating || !peopleInput.trim()}
+                      className="shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+                    >
+                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
+                    </button>
+                    {showSuggestions && filteredSuggestions.length > 0 && peopleInput.trim() && (
+                      <div className="animate-scale-fade origin-top-left absolute left-0 top-full z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
+                        {filteredSuggestions.map((m) => (
+                          <button
+                            key={m.user_id}
+                            onClick={() => selectMember(m)}
+                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
+                          >
+                            <span className="truncate">{memberName(m)}</span>
+                            {m.user?.email && m.user.name && (
+                              <span className="truncate text-zinc-500">{m.user.email}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {userShares.length > 0 ? (
+                    <div className="space-y-1">
+                      {userShares.map((share) => (
+                        <div
+                          key={share.id}
+                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <Users className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+                            <span className="truncate text-sm text-zinc-300">{granteeName(share)}</span>
+                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">
+                              {share.permission}
+                            </span>
+                          </div>
+                          {(isAdmin || share.created_by === user?.id) && (
+                            <button
+                              onClick={() => deleteShare(share.id)}
+                              className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
+                              aria-label="Remove share"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-2 text-sm text-zinc-600">No people shares</p>
+                  )}
+                </div>
+              )}
+
+              {/* Link section */}
+              {isAdmin && (
+                <div className={myRole && myRole !== "guest" ? "border-t border-zinc-700/50 pt-3" : ""}>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
+                    <Link2 className="h-3 w-3" />
+                    Link
+                  </p>
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <button
+                      onClick={createLinkShare}
+                      disabled={creating}
+                      className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
+                    >
+                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                      Create link
+                    </button>
+                    <PermissionSelect value={linkPermission} onChange={setLinkPermission} />
+                  </div>
+                  {linkShares.length > 0 ? (
+                    <div className="space-y-1">
+                      {linkShares.map((share) => (
+                        <div
+                          key={share.id}
+                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <Link2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+                            <span className="truncate text-sm text-zinc-300">{share.permission} link</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {share.link_token && (
+                              <button
+                                onClick={() => copyLink(share)}
+                                className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+                                aria-label="Copy link"
+                              >
+                                {copiedId === share.id ? (
+                                  <Check className="h-3.5 w-3.5 text-green-400" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteShare(share.id)}
+                              className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
+                              aria-label="Remove link"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-2 text-sm text-zinc-600">No link shares</p>
+                  )}
+                </div>
+              )}
+
+              {/* Non-admin link share display (read-only, no create/delete) */}
+              {!isAdmin && linkShares.length > 0 && (
+                <div className={myRole && myRole !== "guest" ? "border-t border-zinc-700/50 pt-3" : ""}>
+                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
+                    <Link2 className="h-3 w-3" />
+                    Link
+                  </p>
                   <div className="space-y-1">
                     {linkShares.map((share) => (
                       <div
@@ -180,148 +362,26 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
                           <Link2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                          <span className="truncate text-xs text-zinc-300">{share.permission} link</span>
-                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                            {share.permission}
-                          </span>
+                          <span className="truncate text-sm text-zinc-300">{share.permission} link</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {share.link_token && (
-                            <button
-                              onClick={() => copyLink(share)}
-                              className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-700 hover:text-zinc-300"
-                              title="Copy link"
-                            >
-                              {copiedId === share.id ? (
-                                <Check className="h-3.5 w-3.5 text-green-400" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          )}
+                        {share.link_token && (
                           <button
-                            onClick={() => deleteShare(share.id)}
-                            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-700 hover:text-red-400"
-                            title="Remove share"
+                            onClick={() => copyLink(share)}
+                            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+                            aria-label="Copy link"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {copiedId === share.id ? (
+                              <Check className="h-3.5 w-3.5 text-green-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
                           </button>
-                        </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {userShares.length > 0 && (
-                <div className="mb-3">
-                  <p className="mb-1.5 text-xs font-medium text-zinc-400">People with access</p>
-                  <div className="space-y-1">
-                    {userShares.map((share) => (
-                      <div
-                        key={share.id}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <Users className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                          <span className="truncate text-xs text-zinc-300">{granteeName(share)}</span>
-                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                            {share.permission}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => deleteShare(share.id)}
-                          className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-700 hover:text-red-400"
-                          title="Remove share"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {linkShares.length === 0 && userShares.length === 0 && (
-                <p className="mb-3 text-xs text-zinc-500">No shares yet.</p>
-              )}
-
-              <div className="border-t border-zinc-700/50 pt-2">
-                <div className="mb-2 flex items-center gap-2">
-                  <label className="text-xs text-zinc-400">Permission</label>
-                  <div className="relative">
-                    <select
-                      value={newPermission}
-                      onChange={(e) => setNewPermission(e.target.value as "view" | "edit")}
-                      className="appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1 pl-2 pr-6 text-xs text-zinc-300 outline-none focus:border-zinc-600"
-                    >
-                      <option value="view">View</option>
-                      <option value="edit">Edit</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
-                  </div>
-                </div>
-
-                {isAdmin && (
-                  <button
-                    onClick={createLinkShare}
-                    disabled={creating}
-                    className="mb-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-                  >
-                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                    Create link share
-                  </button>
-                )}
-
-                {myRole && myRole !== "guest" && shareableMembers.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="relative flex-1">
-                      <select
-                        value={newGranteeId}
-                        onChange={(e) => setNewGranteeId(e.target.value)}
-                        className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 pr-6 text-xs text-zinc-300 outline-none focus:border-zinc-600"
-                      >
-                        <option value="">Select member...</option>
-                        {shareableMembers.map((m) => (
-                          <option key={m.user_id} value={m.user_id}>
-                            {memberName(m)}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
-                    </div>
-                    <button
-                      onClick={createUserShare}
-                      disabled={creating || !newGranteeId}
-                      className="rounded-md px-2 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-                    >
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
-                    </button>
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <input
-                      type="email"
-                      placeholder="Share by email..."
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") createEmailShare();
-                      }}
-                      className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 text-xs text-zinc-300 outline-none focus:border-zinc-600"
-                    />
-                    <button
-                      onClick={createEmailShare}
-                      disabled={creating || !newEmail.trim()}
-                      className="rounded-md px-2 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-                    >
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
-                    </button>
-                  </div>
-                )}
-              </div>
             </>
           )}
         </div>

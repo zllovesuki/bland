@@ -1,23 +1,21 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus, Loader2, ChevronDown, Pencil, Check, X, Trash2 } from "lucide-react";
+import { Plus, Loader2, ChevronDown, Pencil, Check, X } from "lucide-react";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import { useAuthStore } from "@/client/stores/auth-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
-import { getMyRole } from "@/client/lib/permissions";
+import { useMyRole } from "@/client/hooks/use-role";
 import { api } from "@/client/lib/api";
 import { slugify } from "@/lib/slugify";
+import { toast } from "@/client/components/toast";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 export function WorkspaceSwitcher() {
   const navigate = useNavigate();
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const members = useWorkspaceStore((s) => s.members);
-  const currentUser = useAuthStore((s) => s.user);
-  const isOwner = getMyRole(members, currentUser) === "owner";
-
+  const { isOwner } = useMyRole();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -45,44 +43,34 @@ export function WorkspaceSwitcher() {
       setCurrentWorkspace(updated);
       useWorkspaceStore.getState().setWorkspaces(workspaces.map((w) => (w.id === updated.id ? updated : w)));
     } catch {
-      // Silently fail
+      toast.error("Failed to rename workspace");
     }
     setRenaming(false);
   }, [currentWorkspace, renameName, workspaces, setCurrentWorkspace]);
 
-  const handleDeleteWorkspace = useCallback(async () => {
-    if (!currentWorkspace || !isOwner) return;
-    if (!window.confirm(`Delete "${currentWorkspace.name}"? This cannot be undone.`)) return;
-    try {
-      await api.workspaces.delete(currentWorkspace.id);
-      const remaining = workspaces.filter((w) => w.id !== currentWorkspace.id);
-      useWorkspaceStore.getState().setWorkspaces(remaining);
-      setDropdownOpen(false);
-      navigate({ to: "/" });
-    } catch {
-      // Silently fail
-    }
-  }, [currentWorkspace, isOwner, workspaces, navigate]);
-
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="flex h-10 items-center border-b border-zinc-800/50">
+      <div className="flex h-10 items-center border-b border-zinc-800/60">
         <button
           onClick={() => setDropdownOpen((o) => !o)}
-          className="flex h-full min-w-0 flex-1 items-center justify-between px-3 pr-3 transition hover:bg-zinc-800/50"
+          className="flex h-full min-w-0 flex-1 items-center justify-between px-3 pr-3 transition-colors hover:bg-zinc-800/50"
         >
           <span className="truncate text-sm font-medium text-zinc-300">
-            {currentWorkspace?.icon && <span className="mr-1.5">{currentWorkspace.icon}</span>}
+            {currentWorkspace?.icon && (
+              <span className="mr-1.5 inline-flex items-center align-middle">
+                <EmojiIcon emoji={currentWorkspace.icon} size={14} />
+              </span>
+            )}
             {currentWorkspace?.name ?? "Workspace"}
           </span>
           <ChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-zinc-500 transition ${dropdownOpen ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 text-zinc-500 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
           />
         </button>
       </div>
 
       {dropdownOpen && (
-        <div className="absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-900 shadow-lg">
+        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-900 shadow-lg">
           <div className="max-h-48 overflow-y-auto p-1">
             {workspaces.map((ws) => (
               <div key={ws.id} className="group relative">
@@ -121,13 +109,13 @@ export function WorkspaceSwitcher() {
                         setDropdownOpen(false);
                         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
                       }}
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
                         ws.id === currentWorkspace?.id
                           ? "bg-zinc-800 text-zinc-100"
                           : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
                       }`}
                     >
-                      {ws.icon && <span>{ws.icon}</span>}
+                      {ws.icon && <EmojiIcon emoji={ws.icon} size={14} />}
                       <span className="truncate">{ws.name}</span>
                     </button>
                     {ws.id === currentWorkspace?.id && isOwner && (
@@ -136,7 +124,7 @@ export function WorkspaceSwitcher() {
                           setRenaming(true);
                           setRenameName(ws.name);
                         }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 opacity-0 transition hover:text-zinc-200 group-hover:opacity-100"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 opacity-0 transition-opacity hover:text-zinc-200 group-hover:opacity-100"
                         aria-label="Rename workspace"
                       >
                         <Pencil className="h-3 w-3" />
@@ -174,7 +162,7 @@ export function WorkspaceSwitcher() {
                       setCreateName("");
                       setCreateSlug("");
                     }}
-                    className="rounded px-2 py-1 text-xs text-zinc-400 transition hover:text-zinc-200"
+                    className="rounded px-2 py-1 text-xs text-zinc-400 transition-colors hover:text-zinc-200"
                   >
                     Cancel
                   </button>
@@ -188,7 +176,7 @@ export function WorkspaceSwitcher() {
                       })
                     }
                     disabled={!createName.trim() || !createSlug.trim() || creatingWs}
-                    className="rounded bg-accent-600 px-2 py-1 text-xs font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+                    className="rounded bg-accent-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-accent-500 disabled:opacity-50"
                   >
                     {creatingWs ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
                   </button>
@@ -197,24 +185,13 @@ export function WorkspaceSwitcher() {
             ) : (
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-400 transition hover:bg-zinc-800/50 hover:text-zinc-200"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-200"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Create workspace
               </button>
             )}
           </div>
-          {isOwner && (
-            <div className="border-t border-zinc-700 p-1">
-              <button
-                onClick={handleDeleteWorkspace}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-red-400 transition hover:bg-red-500/10"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete workspace
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

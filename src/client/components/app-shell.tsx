@@ -1,16 +1,20 @@
-import { useCallback, useState } from "react";
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Outlet, useLocation, useRouterState } from "@tanstack/react-router";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import { Sidebar } from "./sidebar/sidebar";
+import { ConfirmContainer } from "./confirm";
+import { ToastContainer } from "./toast";
+import { useOnline } from "@/client/hooks/use-online";
 
 export function AppShell() {
   const location = useLocation();
   const isShareView = location.pathname.startsWith("/s/");
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const toggleLayout = useCallback(() => {
     setExpanded((prev) => {
@@ -19,6 +23,27 @@ export function AppShell() {
       return next;
     });
   }, []);
+
+  const toggleMobileDrawer = useCallback(() => setMobileDrawerOpen((o) => !o), []);
+  const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
+
+  const online = useOnline();
+
+  // Route change: close drawer, move focus, announce
+  const prevPathRef = useRef(location.pathname);
+  const [routeAnnouncement, setRouteAnnouncement] = useState("");
+  const isResolving = useRouterState({ select: (s) => s.isLoading });
+  useEffect(() => {
+    if (location.pathname !== prevPathRef.current) {
+      prevPathRef.current = location.pathname;
+      setMobileDrawerOpen(false);
+      if (!isResolving) {
+        const main = document.getElementById("main-content");
+        if (main) main.focus({ preventScroll: true });
+        setRouteAnnouncement(document.title);
+      }
+    }
+  }, [location.pathname, isResolving]);
 
   if (isShareView) return <Outlet />;
 
@@ -30,14 +55,24 @@ export function AppShell() {
       >
         Skip to content
       </a>
-      <Header expanded={expanded} onToggleLayout={toggleLayout} />
+      <Header expanded={expanded} onToggleLayout={toggleLayout} onToggleMobileSidebar={toggleMobileDrawer} />
+      {!online && (
+        <div className="animate-slide-up border-b border-amber-500/20 bg-amber-500/10 py-1.5 text-center text-xs text-amber-400">
+          Offline — changes will sync when you reconnect
+        </div>
+      )}
       <div className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl"}`}>
-        {isAuthenticated && <Sidebar />}
-        <main id="main-content" className="flex-1 overflow-y-auto">
+        {isAuthenticated && <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />}
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
           <Outlet />
         </main>
       </div>
       <Footer expanded={expanded} />
+      <ToastContainer />
+      <ConfirmContainer />
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {routeAnnouncement}
+      </div>
     </div>
   );
 }

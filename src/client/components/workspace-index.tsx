@@ -1,13 +1,16 @@
 import { useParams } from "@tanstack/react-router";
 import { FileText, Plus, Loader2 } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCreatePage } from "@/client/hooks/use-create-page";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function WorkspaceIndex() {
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
   const pages = useWorkspaceStore((s) => s.pages);
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const { createPage, isCreating } = useCreatePage();
+  useDocumentTitle(currentWorkspace?.name);
   const hasPages = pages.filter((p) => !p.archived_at).length > 0;
 
   return (
@@ -26,14 +29,16 @@ export function WorkspaceIndex() {
           <>
             <h2 className="text-lg font-semibold text-zinc-200">No pages yet</h2>
             <p className="mt-1 text-sm text-zinc-500">Create your first page to get started</p>
-            <button
+            <Button
+              variant="primary"
+              size="sm"
+              className="mt-4"
               onClick={() => createPage()}
               disabled={isCreating}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+              icon={isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             >
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {isCreating ? "Creating..." : "Create first page"}
-            </button>
+            </Button>
           </>
         )}
       </div>

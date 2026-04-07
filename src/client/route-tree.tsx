@@ -1,4 +1,6 @@
 import { createRootRoute, createRoute, redirect } from "@tanstack/react-router";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { AppShell } from "@/client/components/app-shell";
 import { LoginPage } from "@/client/components/auth/login-page";
 import { InvitePage } from "@/client/components/auth/invite-page";
@@ -30,8 +32,23 @@ async function bootstrapWorkspaceData(
   }
 }
 
+function RouteErrorFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="text-center">
+        <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
+        <p className="mb-3 text-sm text-zinc-400">Something went wrong.</p>
+        <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const rootRoute = createRootRoute({
   component: AppShell,
+  errorComponent: RouteErrorFallback,
 });
 
 const indexRoute = createRoute({

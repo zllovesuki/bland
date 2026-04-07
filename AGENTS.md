@@ -13,7 +13,8 @@
 
 ## Repository Status
 
-- This repository is greenfield and still close to its initial scaffold.
+- This repository is still greenfield, but it is no longer just the initial scaffold.
+  Auth/workspace/page flows, share links, uploads, collaborative editing, and queue-driven search indexing all exist in the live tree today.
 - The production spec is ambitious and intentionally ahead of the current implementation in several areas.
 - Write changes against the live source tree, not the spec alone.
 - Expect core architecture to remain stable:
@@ -29,6 +30,7 @@
 - `bland-production-spec.md` is the product and architecture reference.
 - `frontend-spec.md` is the frontend reference design to keep consistent across `devbin.tools` products.
 - `src/shared/types.ts` is the shared client/worker contract surface for public API shapes.
+- `src/shared/doc-messages.ts` is the shared client/worker contract surface for DocSync custom messages. Update it when changing custom message payloads.
 - `src/worker/db/schema.ts` is the schema source of truth. Do not hand-edit generated SQL in `drizzle/`.
 - `wrangler.jsonc` is the runtime binding contract for D1, R2, Queues, Durable Objects, and rate limits.
 
@@ -74,15 +76,36 @@ Before writing new code, check these files for reusable pieces:
 - `canEdit(role)` — true for owner, admin, member.
 - `isAdminOrOwner(role)` — true for owner, admin.
 
+### Worker page helpers (`src/worker/lib/page-access.ts`, `src/worker/lib/page-tree.ts`)
+
+- `getPage(db, pageId, workspaceId?)` — fetches a non-archived page row and optionally scopes it to a workspace.
+- `validatePageMove(db, pageId, newParentId, workspaceId)` — checks self-parent, cycle, and max-depth violations before reparenting.
+- `getPageAncestorChain(db, pageId, workspaceId)` — returns the ordered ancestor chain used by page-context/tree logic.
+
 ### Client constants (`src/client/lib/constants.ts`)
 
 - `TURNSTILE_SITE_KEY` — from env or test fallback.
 - `STORAGE_KEYS` — `{ D1_BOOKMARK, USER, LAYOUT, SIDEBAR }` for localStorage keys.
 
-### Client helpers (`src/client/lib/api.ts`, `src/client/lib/permissions.ts`)
+### Client helpers (`src/client/lib/api.ts`, `src/client/lib/permissions.ts`, `src/client/hooks/use-online.ts`, `src/client/hooks/use-role.ts`, `src/client/hooks/use-page-drag.ts`, `src/client/hooks/use-scroll-visibility.ts`)
 
 - `toApiError(err)` — safely cast an unknown catch error to `ApiError`. Use instead of `err as ApiError`.
+- `getMyRole(members, currentUser)` — resolves the current user's workspace role from the member list.
+- `isAdminOrOwner(role)` — returns whether the current role is owner/admin.
+- `canCreatePage(members, currentUser)` — returns whether the current user can create pages in the workspace.
 - `canArchivePage(members, currentUser, page)` — returns whether the user can archive a page.
+- `useOnline()` — shared browser online/offline signal for gating network-dependent UI.
+- `useMyRole()` — derives `{ role, isOwner, isAdminOrOwner }` from the current auth/workspace stores.
+- `usePageDrag(allPages)` / `computePosition(siblings, index)` / `isDescendant(allPages, draggedId, targetId)` — page-tree drag/drop helpers. Reuse these instead of duplicating tree move math in components.
+- `useScrollVisibility(scrollElementId, threshold?)` — shared scroll-direction visibility hook used by the app header.
+
+### Client UI primitives (`src/client/components/confirm.tsx`, `src/client/components/toast.tsx`, `src/client/components/ui/`)
+
+- `Button` — shared button styling and variants. Prefer this over ad hoc button class strings for app UI actions.
+- `Dialog` — shared modal shell with overlay, escape handling, and focus trap.
+- `confirm(opts)` — promise-based confirmation modal for destructive or risky actions. `AppShell` already mounts `ConfirmContainer`.
+- `toast.success/error/info()` — shared transient notifications. `AppShell` already mounts `ToastContainer`.
+- `EmojiIcon` / `EmojiPicker` — shared emoji rendering and picker behavior for page/workspace icons.
 
 ## High-Level Architecture
 
@@ -91,6 +114,7 @@ Before writing new code, check these files for reusable pieces:
 - `src/client/main.tsx` boots the React 19 SPA and TanStack Router.
 - `src/client/route-tree.tsx` is the route graph and current route-loading behavior.
 - `src/client/components/` owns the app shell, auth pages, workspace layout, sidebar, and page views.
+- `src/client/components/editor/` owns the BlockNote editor integration, uploads wiring, and floating menu/controller customization.
 - `src/client/stores/` holds Zustand auth and workspace state.
 - `src/client/lib/api.ts` is the centralized browser API client and D1 bookmark propagation point.
 
@@ -121,6 +145,7 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 - R2 stores blobs, not authorization state. Access control must continue to come from D1-backed checks.
 - D1 bookmark propagation is intentional. Preserve the `x-d1-bookmark` flow in [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts) and [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts) when changing request handling.
 - Mutating requests should continue to prefer primary D1 reads. Do not accidentally regress read-after-write behavior.
+- DocSync custom messages are a shared contract. Keep their JSON shapes centralized in [src/shared/doc-messages.ts](/home/vendetta/code/bland/src/shared/doc-messages.ts) instead of duplicating ad hoc payload parsing across client and worker code.
 - Local Turnstile bypass is intentional in [src/worker/middleware/turnstile.ts](/home/vendetta/code/bland/src/worker/middleware/turnstile.ts). Do not extend that bypass to non-local environments. Localhost detection uses `isLocalRequestUrl` from `src/worker/http.ts` — use it instead of inline hostname checks.
 - Refresh tokens live in the `bland_refresh` cookie and access tokens stay in client state. Keep auth changes aligned with that model unless the task explicitly changes it.
 
@@ -173,6 +198,9 @@ Notes:
 - Keep network calls centralized in [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts).
 - Keep shared app chrome in [src/client/components/app-shell.tsx](/home/vendetta/code/bland/src/client/components/app-shell.tsx), [src/client/components/header.tsx](/home/vendetta/code/bland/src/client/components/header.tsx), and [src/client/components/footer.tsx](/home/vendetta/code/bland/src/client/components/footer.tsx).
 - Preserve the existing Zustand store split unless there is a concrete reason to change it.
+- [src/client/components/editor/bn-components.tsx](/home/vendetta/code/bland/src/client/components/editor/bn-components.tsx) owns the shared BlockNote ShadCN portal/no-flip overrides. Update it instead of adding one-off popover fixes in callers.
+- [src/client/styles/custom.css](/home/vendetta/code/bland/src/client/styles/custom.css) owns shared emoji-picker and BlockNote styling overrides. Keep those changes centralized there.
+- When adding UI/editor libraries, prefer adapters that integrate with the repo's Tailwind-first styling model (for example `@blocknote/shadcn`) over packages that introduce a separate styling system (for example `@blocknote/mantine`).
 
 ### Worker changes
 
@@ -192,24 +220,41 @@ Notes:
 
 Known gaps that are intentionally deferred to later milestones. Do not fix these unless the task explicitly calls for it.
 
-- **Toast notification system** (`frontend-spec.md` §8): Not built yet. Until it exists, silent `catch` blocks in UI components (sidebar, workspace views) are acceptable. Target: M5.
-- **`components/ui/` primitives** (`frontend-spec.md` §2, §8): A shared `Skeleton` exists, but Button, Input, Card, and Dialog primitives are not extracted yet — most styles are still inlined in each component. Extract the broader primitive set when M5 (Polish) work begins.
-- **Real-time icon/cover sync**: Icon and cover live in D1 only (REST PATCH). Other connected users don't see changes until their next page load. Broadcast via DocSync custom messages (`sendMessage`/`onCustomMessage`) to push updates live. Target: M5.
-- **Error boundaries**: No React error boundaries exist. Add around `EditorPane` and route-level content when M5 lands.
-- **Floating menu flip-on-scroll**: BlockNote's slash menu and formatting toolbar use `@floating-ui/react` with `flip()` middleware. The actual scroll container is `<main class="overflow-y-auto">` in `app-shell.tsx:36`, not the window. When the user scrolls with a menu open, `flip()` recalculates placement each frame and "pops" the menu to the opposite side. Fix by rendering custom `SuggestionMenuController` / `FormattingToolbarController` children in `BlockNoteView` with `floatingUIOptions` that replace `flip()` — e.g. use `size()` to constrain `maxHeight` to available space instead of flipping. The `padding-bottom: 40vh` on `.bn-editor` (app.css) exacerbates this by creating more scrollable space below content. Target: M5 (slash command menu styling).
 - **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.
 - **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
+
+## Coupled Components
+
+The authenticated view (`page-view.tsx`, `sidebar/sidebar.tsx`) and the share-link view (`shared-page-view.tsx`, `shared-page-tree.tsx`) render structurally identical UI in several places. The following shared primitives in `src/client/components/ui/` prevent style and behavior drift:
+
+- **`mobile-drawer.tsx`** — responsive desktop-inline / mobile-overlay pattern used by `sidebar.tsx` and `shared-page-view.tsx`
+- **`page-cover.tsx`** — cover image or gradient render, with optional `shareToken` for upload URL auth; used by `page-view.tsx` and `shared-page-view.tsx`
+- **`page-error-state.tsx`** — centered AlertCircle + message; used by `page-view.tsx` and `shared-page-view.tsx`
+- **`page-loading-skeleton.tsx`** — breadcrumb + title + body skeleton placeholder; used by `page-view.tsx` and `shared-page-view.tsx`
+
+Intentionally divergent pieces that remain in each caller:
+
+- `page-view.tsx` wraps `PageCover` in a `group/cover relative` div for the `CoverPicker` hover overlay. `shared-page-view.tsx` uses a plain wrapper.
+- `page-view.tsx` conditionally renders a cover skeleton (via `knownHasCover`). `shared-page-view.tsx` does not.
+- Error messages and outer container sizing differ by context — passed as props.
+- `error-boundary.tsx` and `route-tree.tsx` have similar error patterns but include a reload button; these are intentionally separate.
+
+When modifying cover rendering, error states, loading skeletons, or mobile drawer behavior, update the shared component rather than the individual callers.
 
 ## First Files To Read
 
 - [bland-production-spec.md](/home/vendetta/code/bland/bland-production-spec.md)
 - [package.json](/home/vendetta/code/bland/package.json)
 - [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc)
+- [src/client/components/editor/editor-pane.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-pane.tsx)
 - [src/client/route-tree.tsx](/home/vendetta/code/bland/src/client/route-tree.tsx)
 - [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts)
+- [src/client/styles/custom.css](/home/vendetta/code/bland/src/client/styles/custom.css)
+- [src/shared/doc-messages.ts](/home/vendetta/code/bland/src/shared/doc-messages.ts)
 - [src/shared/types.ts](/home/vendetta/code/bland/src/shared/types.ts)
 - [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts)
 - [src/worker/db/schema.ts](/home/vendetta/code/bland/src/worker/db/schema.ts)
+- [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts)
 - [src/worker/routes/auth.ts](/home/vendetta/code/bland/src/worker/routes/auth.ts)
 - [src/worker/routes/workspaces.ts](/home/vendetta/code/bland/src/worker/routes/workspaces.ts)
 - [src/worker/routes/pages.ts](/home/vendetta/code/bland/src/worker/routes/pages.ts)

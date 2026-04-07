@@ -1,44 +1,27 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2 } from "lucide-react";
+import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu } from "lucide-react";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
 
 interface HeaderProps {
   expanded: boolean;
   onToggleLayout: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
-export function Header({ expanded, onToggleLayout }: HeaderProps) {
+export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: HeaderProps) {
   const { isAuthenticated, user } = useAuthStore();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [visible, setVisible] = useState(true);
+  const visible = useScrollVisibility("main-content");
   const [menuOpen, setMenuOpen] = useState(false);
-  const lastScrollY = useRef(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = location.pathname === "/login";
-
-  useEffect(() => {
-    function onScroll() {
-      const currentY = window.scrollY;
-      if (currentY < 10) {
-        setVisible(true);
-      } else if (currentY > lastScrollY.current + 5) {
-        setVisible(false);
-        setMenuOpen(false);
-      } else if (currentY < lastScrollY.current - 5) {
-        setVisible(true);
-      }
-      lastScrollY.current = currentY;
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useClickOutside(
     menuRef,
@@ -54,11 +37,18 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b border-zinc-800/50 bg-[#09090b]/80 backdrop-blur-sm transition-transform duration-200 ${
-        visible ? "translate-y-0" : "-translate-y-full"
-      }`}
+      className={`relative z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-950/95 backdrop-blur-sm transition-[margin-top] duration-300 ease-out ${visible ? "mt-0" : "-mt-[61px]"}`}
     >
       <div className={`flex items-center px-4 py-3 sm:px-6 ${expanded ? "" : "mx-auto max-w-7xl"}`}>
+        {isAuthenticated && onToggleMobileSidebar && (
+          <button
+            onClick={onToggleMobileSidebar}
+            className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:hidden"
+            aria-label="Toggle sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
           <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
             <FileText className="h-5 w-5 text-white" />
@@ -75,7 +65,7 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
           {isAuthenticated && (
             <button
               onClick={onToggleLayout}
-              className="hidden items-center justify-center rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300 lg:flex"
+              className="hidden items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:flex"
               aria-label={expanded ? "Center layout" : "Expand layout"}
               title={expanded ? "Center layout" : "Expand layout"}
             >
@@ -87,7 +77,7 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
                 aria-label="User menu"
               >
                 {user?.avatar_url ? (
@@ -98,7 +88,7 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
               </button>
 
               {menuOpen && (
-                <div className="animate-fade-in absolute right-0 top-full mt-2 w-48 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-xl">
+                <div className="animate-scale-fade origin-top-right absolute right-0 top-full mt-2 w-48 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-lg">
                   <div className="border-b border-zinc-800 px-3 py-2">
                     <p className="truncate text-sm font-medium text-zinc-200">{user?.name}</p>
                     <p className="truncate text-xs text-zinc-500">{user?.email}</p>
@@ -106,14 +96,14 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
                   <Link
                     to="/profile"
                     onClick={() => setMenuOpen(false)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
                   >
                     <UserIcon className="h-3.5 w-3.5" />
                     Profile
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     Sign out
@@ -126,7 +116,7 @@ export function Header({ expanded, onToggleLayout }: HeaderProps) {
               <Link
                 to="/login"
                 search={{ redirect: undefined }}
-                className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-zinc-600 hover:text-zinc-100"
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
               >
                 Sign in
               </Link>

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Plus, Loader2 } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { slugify } from "@/lib/slugify";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function EmptyWorkspaceView() {
+  useDocumentTitle(undefined);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -20,48 +23,54 @@ export function EmptyWorkspaceView() {
             <input
               autoFocus
               placeholder="Workspace name"
+              aria-label="Workspace name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
                 setSlug(slugify(e.target.value));
               }}
-              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent-500"
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
             />
             <input
               placeholder="slug"
+              aria-label="Workspace URL slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-accent-500"
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
             />
             <div className="flex justify-end gap-2">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setShowForm(false);
                   setName("");
                   setSlug("");
                 }}
-                className="rounded-md px-3 py-1.5 text-sm text-zinc-400 transition hover:text-zinc-200"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => createWorkspace(name, slug)}
                 disabled={!name.trim() || !slug.trim() || isCreating}
-                className="flex items-center gap-1.5 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
+                icon={isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
               >
-                {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 Create
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            className="mt-4"
             onClick={() => setShowForm(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-500"
+            icon={<Plus className="h-4 w-4" />}
           >
-            <Plus className="h-4 w-4" />
             Create workspace
-          </button>
+          </Button>
         )}
       </div>
     </div>

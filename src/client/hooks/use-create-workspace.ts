@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { toast } from "@/client/components/toast";
 
 export function useCreateWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
@@ -20,7 +21,7 @@ export function useCreateWorkspace() {
         onCreated?.();
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
       } catch {
-        // Silently fail — toast system not yet implemented
+        toast.error("Failed to create workspace");
       } finally {
         busyRef.current = false;
         setIsCreating(false);

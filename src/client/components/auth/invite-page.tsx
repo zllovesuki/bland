@@ -1,17 +1,20 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { TurnstileWidget } from "./turnstile-widget";
 import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
+import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import type { InvitePreview } from "@/shared/types";
 
 export function InvitePage() {
   const { token } = useParams({ strict: false }) as { token: string };
   const navigate = useNavigate();
+  useDocumentTitle("Accept Invite");
   const { isAuthenticated } = useAuthStore();
 
   const [invite, setInvite] = useState<InvitePreview | null>(null);
@@ -134,7 +137,11 @@ export function InvitePage() {
 
         <form onSubmit={handleAccept} className="space-y-4">
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-400">
+            <div
+              id="invite-error"
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-400"
+            >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -155,7 +162,8 @@ export function InvitePage() {
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder-zinc-600 transition focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/50"
+                    aria-describedby={error ? "invite-error" : undefined}
+                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
                   />
                 </div>
               </div>
@@ -175,7 +183,8 @@ export function InvitePage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     readOnly={!!invite?.email}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder-zinc-600 transition read-only:opacity-60 focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/50"
+                    aria-describedby={error ? "invite-error" : undefined}
+                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors read-only:opacity-60 focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
                   />
                 </div>
               </div>
@@ -195,7 +204,8 @@ export function InvitePage() {
                     minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder-zinc-600 transition focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/50"
+                    aria-describedby={error ? "invite-error" : undefined}
+                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
                   />
                 </div>
               </div>
@@ -209,18 +219,21 @@ export function InvitePage() {
             resetKey={turnstileResetKey}
           />
 
-          <button
+          <Button
+            variant="primary"
             type="submit"
             disabled={isSubmitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full"
+            icon={
+              isSubmitting ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )
+            }
           >
-            {isSubmitting ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            ) : (
-              <UserPlus className="h-4 w-4" />
-            )}
             {isSubmitting ? "Joining..." : isAuthenticated ? "Accept invite" : "Create account & join"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

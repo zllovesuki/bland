@@ -4,6 +4,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { api } from "@/client/lib/api";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
+import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 interface TreeNodeData {
   page: Page;
@@ -33,7 +34,7 @@ function TreeNode({
   return (
     <div>
       <div
-        className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition ${
+        className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ${
           isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -51,7 +52,7 @@ function TreeNode({
         </button>
         <button onClick={() => onNavigate(node.page.id)} className="flex min-w-0 flex-1 items-center gap-1 text-left">
           <span className="shrink-0">
-            {node.page.icon ? <span className="text-sm">{node.page.icon}</span> : <FileText className="h-3.5 w-3.5" />}
+            {node.page.icon ? <EmojiIcon emoji={node.page.icon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
           </span>
           <span className="truncate">{node.page.title || DEFAULT_PAGE_TITLE}</span>
         </button>
@@ -169,10 +170,10 @@ export function SharedPageTree({
   );
 
   return (
-    <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/50 px-2 py-4">
+    <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 px-2 py-4">
       <button
         onClick={() => onNavigate(rootPageId)}
-        className={`mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm font-medium transition ${
+        className={`mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm font-medium transition-colors ${
           activePageId === rootPageId ? "bg-zinc-800 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800/50"
         }`}
       >
