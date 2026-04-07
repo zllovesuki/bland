@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { Loader2, AlertCircle, Trash2, ChevronRight, Lock } from "lucide-react";
+import { AlertCircle, Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
@@ -142,6 +143,7 @@ export function PageView() {
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
+  const knownHasCover = useWorkspaceStore((s) => s.pages.find((p) => p.id === params.pageId)?.cover_url);
 
   useEffect(() => {
     if (!workspace) return;
@@ -236,8 +238,25 @@ export function PageView() {
 
   if (isLoading || !workspace) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+      <div className="mx-auto max-w-3xl px-8 py-10">
+        {knownHasCover && (
+          <div className="-mx-8 -mt-10 mb-6">
+            <Skeleton className="h-48 w-full rounded-b-lg" />
+          </div>
+        )}
+        <div className="mb-4 flex items-center gap-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-3" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <Skeleton className="mb-6 h-10 w-2/3" />
+        <div className="space-y-3 pl-7">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/6" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/5" />
+        </div>
       </div>
     );
   }

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, Loader2, AlertCircle, Eye, ChevronRight, Lock } from "lucide-react";
+import { FileText, AlertCircle, Eye, ChevronRight, Lock } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { EditorPane } from "@/client/components/editor/editor-pane";
+import { Footer } from "@/client/components/footer";
 import { SharedPageTree } from "@/client/components/shared-page-tree";
 import type { SharedPageInfo, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
@@ -54,11 +56,13 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
 
   // The page currently being viewed: either ?page= param or the root shared page
   const currentPageId = activePage ?? info?.page_id;
 
+  // Resolve share info once per token
   useEffect(() => {
     let cancelled = false;
 
@@ -69,7 +73,8 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
         const data = await api.shares.resolve(token);
         if (!cancelled) {
           setInfo(data);
-          if (!activePage) setTitle(data.title);
+          setTitle(data.title);
+          setIcon(data.icon);
         }
       } catch (err) {
         if (!cancelled) {
@@ -84,44 +89,46 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     return () => {
       cancelled = true;
     };
-  }, [token, activePage]);
+  }, [token]);
 
-  // Load ancestors for the current page
+  // Load page-specific title, icon, and ancestors when active page changes
   useEffect(() => {
-    if (!info || !currentPageId) return;
+    if (!info) return;
+
+    const pageId = activePage ?? info.page_id;
+
+    // Clear stale data immediately so old page content doesn't flash
+    if (activePage) {
+      setTitle("");
+      setIcon(null);
+    } else {
+      setTitle(info.title);
+      setIcon(info.icon);
+    }
+    setAncestors([]);
+
     let cancelled = false;
 
+    if (activePage) {
+      api.pages
+        .get(info.workspace_id, activePage, token)
+        .then((page) => {
+          if (!cancelled) {
+            setTitle(page.title);
+            setIcon(page.icon ?? null);
+          }
+        })
+        .catch(() => {});
+    }
+
     api.pages
-      .ancestors(info.workspace_id, currentPageId, token)
+      .ancestors(info.workspace_id, pageId, token)
       .then((data) => {
         if (!cancelled) setAncestors(data);
       })
       .catch(() => {
         if (!cancelled) setAncestors([]);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [info, currentPageId, token]);
-
-  // Load title for child pages
-  useEffect(() => {
-    if (!info || !activePage) return;
-    let cancelled = false;
-
-    // Fetch children of root to find the active page's title
-    api.pages
-      .children(info.workspace_id, info.page_id, token)
-      .then((pages) => {
-        if (cancelled) return;
-        // The active page might be a deeper child — walk the tree
-        const match = pages.find((p) => p.id === activePage);
-        if (match) {
-          setTitle(match.title);
-        }
-      })
-      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -139,8 +146,38 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#09090b]">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+      <div className="flex h-screen flex-col bg-[#09090b]">
+        <header className="sticky top-0 z-50 border-b border-zinc-800/50 bg-[#09090b]/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl items-center px-8 py-3">
+            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
+              <FileText className="h-5 w-5 text-white" />
+            </div>
+            <Skeleton className="ml-4 h-4 w-40" />
+          </div>
+        </header>
+        <div className="flex flex-1 overflow-hidden">
+          <nav className="w-56 shrink-0 border-r border-zinc-800/50 px-2 py-4">
+            <Skeleton className="h-5 w-3/4" />
+          </nav>
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-3xl px-8 py-10">
+              <div className="mb-4 flex items-center gap-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-3" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="mb-6 h-10 w-2/3" />
+              <div className="space-y-3 pl-7">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-4/6" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/5" />
+              </div>
+            </div>
+          </main>
+        </div>
+        <Footer expanded={false} />
       </div>
     );
   }
@@ -170,7 +207,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </Link>
 
           <span className="ml-4 truncate text-sm text-zinc-400">
-            {info.icon ? `${info.icon} ` : ""}
+            {icon ? `${icon} ` : ""}
             {title || DEFAULT_PAGE_TITLE}
           </span>
 
@@ -219,13 +256,13 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
                 <SharedBreadcrumbs
                   ancestors={ancestors}
                   currentTitle={title}
-                  currentIcon={info.icon}
+                  currentIcon={icon}
                   onNavigate={handleNavigate}
                 />
               </div>
             )}
 
-            {info.icon && !activePage && <div className="mb-2 pl-7 text-4xl">{info.icon}</div>}
+            {icon && <div className="mb-2 pl-7 text-4xl">{icon}</div>}
 
             <EditorPane
               key={displayPageId}
@@ -239,6 +276,8 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </div>
         </main>
       </div>
+
+      <Footer expanded={false} />
     </div>
   );
 }

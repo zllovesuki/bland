@@ -40,6 +40,7 @@ export function useSyncStatus(provider: YProvider | null): {
 export interface AwarenessUser {
   name: string;
   color: string;
+  avatar_url?: string | null;
 }
 
 export interface AwarenessState {

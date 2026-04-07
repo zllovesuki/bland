@@ -25,6 +25,7 @@
   /* Animations */
   --animate-fade-in: fade-in 0.4s ease-out both;
   --animate-slide-up: slide-up 0.35s ease-out both;
+  --animate-scale-fade: scale-fade 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-shimmer: shimmer 1.5s ease-in-out infinite;
 }
 
@@ -48,6 +49,17 @@
   }
 }
 
+@keyframes scale-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: -200% 0;
@@ -58,11 +70,25 @@
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-[#09090b] text-zinc-100;
+    @apply bg-[#09090b] text-zinc-100 antialiased;
     font-feature-settings:
       "ss01" on,
       "cv01" on;
+    background-image:
+      radial-gradient(circle, rgba(255, 255, 255, 0.03) 0.5px, transparent 0.5px),
+      radial-gradient(circle, rgba(255, 255, 255, 0.02) 0.5px, transparent 0.5px),
+      radial-gradient(circle at 20% 20%, rgba(20, 184, 166, 0.02), transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(20, 184, 166, 0.015), transparent 50%);
+    background-size:
+      3px 3px,
+      7px 7px,
+      100% 100%,
+      100% 100%;
   }
 
   button,
@@ -129,6 +155,7 @@
 .bn-editor {
   padding-inline-start: 28px;
   padding-inline-end: 0;
+  padding-bottom: 40vh;
 }
 
 .bn-block-content[data-content-type="codeBlock"] > div > select {

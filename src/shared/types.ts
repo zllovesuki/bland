@@ -254,6 +254,11 @@ export const UpdateProfileRequest = z.object({
 });
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
 
+export interface PageWithAccess {
+  page: Page;
+  can_edit: boolean;
+}
+
 export interface AncestorInfo {
   id: string;
   title: string | null;

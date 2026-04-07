@@ -13,6 +13,23 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
 
+async function bootstrapWorkspaceData(
+  store: ReturnType<typeof useWorkspaceStore.getState>,
+  workspaceId: string,
+  accessMode: "member" | "shared",
+) {
+  store.setAccessMode(accessMode);
+  if (accessMode === "shared") {
+    const pages = await api.pages.list(workspaceId);
+    store.setPages(pages);
+    store.setMembers([]);
+  } else {
+    const [pages, members] = await Promise.all([api.pages.list(workspaceId), api.workspaces.members(workspaceId)]);
+    store.setPages(pages);
+    store.setMembers(members);
+  }
+}
+
 const rootRoute = createRootRoute({
   component: AppShell,
 });
@@ -26,12 +43,15 @@ const indexRoute = createRoute({
       throw redirect({ to: "/login", search: { redirect: undefined } });
     }
     try {
+      const store = useWorkspaceStore.getState();
       const workspaces = await api.workspaces.list();
-      useWorkspaceStore.getState().setWorkspaces(workspaces);
+      store.setWorkspaces(workspaces);
       if (workspaces.length > 0) {
+        const preferred = store.currentWorkspace;
+        const target = preferred && workspaces.find((w) => w.id === preferred.id) ? preferred.slug : workspaces[0].slug;
         throw redirect({
           to: "/$workspaceSlug",
-          params: { workspaceSlug: workspaces[0].slug },
+          params: { workspaceSlug: target },
         });
       }
     } catch (err) {
@@ -108,14 +128,8 @@ const workspaceRoute = createRoute({
     const workspace = workspaces.find((w) => w.slug === params.workspaceSlug);
     if (workspace) {
       store.setCurrentWorkspace(workspace);
-      store.setAccessMode("member");
       try {
-        const [pages, members] = await Promise.all([
-          api.pages.list(workspace.id),
-          api.workspaces.members(workspace.id),
-        ]);
-        store.setPages(pages);
-        store.setMembers(members);
+        await bootstrapWorkspaceData(store, workspace.id, "member");
       } catch {
         // Component handles empty state
       }
@@ -163,19 +177,7 @@ const pageRoute = createRoute({
     try {
       const ctx = await api.pages.context(params.pageId);
       store.setCurrentWorkspace(ctx.workspace);
-      store.setAccessMode(ctx.access_mode);
-      if (ctx.access_mode === "shared") {
-        const pages = await api.pages.list(ctx.workspace.id);
-        store.setPages(pages);
-        store.setMembers([]);
-      } else {
-        const [pages, members] = await Promise.all([
-          api.pages.list(ctx.workspace.id),
-          api.workspaces.members(ctx.workspace.id),
-        ]);
-        store.setPages(pages);
-        store.setMembers(members);
-      }
+      await bootstrapWorkspaceData(store, ctx.workspace.id, ctx.access_mode);
       // Redirect to canonical slug if stale
       if (ctx.workspace.slug !== params.workspaceSlug) {
         throw redirect({

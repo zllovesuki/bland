@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from "lucide-react";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { getMyRole, isAdminOrOwner } from "@/client/lib/permissions";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
 
@@ -17,7 +19,7 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   const [shares, setShares] = useState<PageShare[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { copiedId, copy: copyToClipboard } = useCopyFeedback<string>();
   const [creating, setCreating] = useState(false);
 
   const [newPermission, setNewPermission] = useState<"view" | "edit">("view");
@@ -34,8 +36,8 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   const members = useWorkspaceStore((s) => s.members);
   const user = useAuthStore((s) => s.user);
 
-  const myRole = members.find((m) => m.user_id === user?.id)?.role;
-  const isAdmin = myRole === "owner" || myRole === "admin";
+  const myRole = getMyRole(members, user);
+  const isAdmin = isAdminOrOwner(myRole);
 
   useEffect(() => {
     if (!open) return;
@@ -120,9 +122,7 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
   function copyLink(share: PageShare) {
     if (!share.link_token) return;
     const url = `${window.location.origin}/s/${share.link_token}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(share.id);
-    setTimeout(() => setCopiedId(null), 2000);
+    copyToClipboard(share.id, url);
   }
 
   function memberName(member: WorkspaceMember): string {

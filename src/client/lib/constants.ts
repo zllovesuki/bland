@@ -4,4 +4,5 @@ export const STORAGE_KEYS = {
   D1_BOOKMARK: "bland:d1:bookmark",
   USER: "bland:user",
   LAYOUT: "bland:layout",
+  SIDEBAR: "bland:sidebar",
 } as const;

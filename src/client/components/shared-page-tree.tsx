@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ChevronRight, FileText } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { api } from "@/client/lib/api";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
@@ -31,19 +32,16 @@ function TreeNode({
 
   return (
     <div>
-      <button
-        onClick={() => onNavigate(node.page.id)}
-        className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-sm transition ${
+      <div
+        className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition ${
           isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300"
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(node.page.id);
-          }}
+          onClick={() => onToggle(node.page.id)}
           className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-zinc-500 hover:text-zinc-300"
+          aria-label={node.expanded ? "Collapse" : "Expand"}
         >
           <ChevronRight
             className={`h-3 w-3 transition-transform ${node.expanded ? "rotate-90" : ""} ${
@@ -51,11 +49,13 @@ function TreeNode({
             }`}
           />
         </button>
-        <span className="shrink-0">
-          {node.page.icon ? <span className="text-sm">{node.page.icon}</span> : <FileText className="h-3.5 w-3.5" />}
-        </span>
-        <span className="truncate">{node.page.title || DEFAULT_PAGE_TITLE}</span>
-      </button>
+        <button onClick={() => onNavigate(node.page.id)} className="flex min-w-0 flex-1 items-center gap-1 text-left">
+          <span className="shrink-0">
+            {node.page.icon ? <span className="text-sm">{node.page.icon}</span> : <FileText className="h-3.5 w-3.5" />}
+          </span>
+          <span className="truncate">{node.page.title || DEFAULT_PAGE_TITLE}</span>
+        </button>
+      </div>
       {node.expanded &&
         node.children?.map((child) => (
           <TreeNode
@@ -94,6 +94,13 @@ export function SharedPageTree({
   const [rootChildren, setRootChildren] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Reset tree state when the root page changes (e.g. navigating to a different shared link)
+  useEffect(() => {
+    setNodes(new Map());
+    setRootChildren(null);
+    setLoading(false);
+  }, [rootPageId, shareToken]);
+
   const loadChildren = useCallback(
     async (parentId: string) => {
       try {
@@ -123,14 +130,14 @@ export function SharedPageTree({
     [workspaceId, shareToken],
   );
 
-  // Load root children on first render
-  if (rootChildren === null && !loading) {
+  useEffect(() => {
+    if (rootChildren !== null) return;
     setLoading(true);
     loadChildren(rootPageId).then((children) => {
       setRootChildren(children.map((c) => c.id));
       setLoading(false);
     });
-  }
+  }, [rootPageId, loadChildren]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = useCallback(
     async (pageId: string) => {
@@ -161,8 +168,6 @@ export function SharedPageTree({
     [nodes, loadChildren],
   );
 
-  if (!rootChildren || rootChildren.length === 0) return null;
-
   return (
     <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/50 px-2 py-4">
       <button
@@ -174,22 +179,29 @@ export function SharedPageTree({
         {rootIcon ? <span>{rootIcon}</span> : <FileText className="h-3.5 w-3.5" />}
         <span className="truncate">{rootTitle || DEFAULT_PAGE_TITLE}</span>
       </button>
-      {rootChildren.map((id) => {
-        const node = nodes.get(id);
-        if (!node) return null;
-        return (
-          <TreeNode
-            key={id}
-            node={node}
-            depth={1}
-            activePageId={activePageId}
-            shareToken={shareToken}
-            workspaceId={workspaceId}
-            onNavigate={onNavigate}
-            onToggle={handleToggle}
-          />
-        );
-      })}
+      {rootChildren === null ? (
+        <div className="space-y-1 px-2 pt-1">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      ) : (
+        rootChildren.map((id) => {
+          const node = nodes.get(id);
+          if (!node) return null;
+          return (
+            <TreeNode
+              key={id}
+              node={node}
+              depth={1}
+              activePageId={activePageId}
+              shareToken={shareToken}
+              workspaceId={workspaceId}
+              onNavigate={onNavigate}
+              onToggle={handleToggle}
+            />
+          );
+        })
+      )}
     </nav>
   );
 }

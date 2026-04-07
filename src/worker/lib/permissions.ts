@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { checkMembership } from "@/worker/lib/membership";
+import { MAX_TREE_DEPTH } from "@/shared/constants";
 import type { Db } from "@/worker/db/client";
 
 export function canEdit(role: string): boolean {
@@ -12,8 +13,6 @@ export function isAdminOrOwner(role: string): boolean {
 
 export type ShareAction = "view" | "edit";
 export type AccessLevel = "none" | "view" | "edit";
-
-const MAX_PERMISSION_DEPTH = 10;
 const FULL_WORKSPACE_ACCESS_LEVEL: AccessLevel = "edit";
 const ACCESS_RANK: Record<AccessLevel, number> = {
   none: 0,
@@ -26,6 +25,31 @@ const ACCESS_RANK: Record<AccessLevel, number> = {
  * Either an authenticated user or a link share token.
  */
 export type Principal = { type: "user"; userId: string } | { type: "link"; token: string };
+
+/**
+ * Resolve the access principal from an optionalAuth context.
+ * Full workspace members (non-guest) are flagged so callers can fast-path.
+ */
+export async function resolvePrincipal(
+  db: Db,
+  user: { id: string } | null,
+  workspaceId: string,
+  shareToken?: string,
+): Promise<{ principal: Principal; fullMember: boolean } | null> {
+  if (user) {
+    const membership = await checkMembership(db, user.id, workspaceId);
+    if (membership && membership.role !== "guest") {
+      return { principal: { type: "user", userId: user.id }, fullMember: true };
+    }
+    // Guest/non-member: prefer link share token if available (spec §10.8)
+    const principal: Principal = shareToken ? { type: "link", token: shareToken } : { type: "user", userId: user.id };
+    return { principal, fullMember: false };
+  }
+  if (shareToken) {
+    return { principal: { type: "link", token: shareToken }, fullMember: false };
+  }
+  return null;
+}
 
 /**
  * Resolve the effective access level for each requested page.
@@ -143,7 +167,7 @@ function buildBatchPageAccessQuery(pageIds: string[], principal: Principal, work
       FROM pages p
       JOIN ancestors a ON p.id = a.parent_id
       WHERE p.workspace_id = ${workspaceId}
-        AND a.depth < ${MAX_PERMISSION_DEPTH - 1}
+        AND a.depth < ${MAX_TREE_DEPTH - 1}
     ),
     nearest_shared_depth AS (
       SELECT a.root_id, MIN(a.depth) AS depth

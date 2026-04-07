@@ -4,6 +4,7 @@ import { createDb } from "@/worker/db/client";
 import { docSnapshots, pages } from "@/worker/db/schema";
 import { createLogger } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
+import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 
 const log = createLogger("search-indexer");
 
@@ -13,9 +14,9 @@ interface IndexPageMessage {
 }
 
 function extractPlaintext(ydoc: Y.Doc): { title: string; bodyText: string } {
-  const title = ydoc.getText("page-title").toString();
+  const title = ydoc.getText(YJS_PAGE_TITLE).toString();
 
-  const fragment = ydoc.getXmlFragment("document-store");
+  const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
   const parts: string[] = [];
 
   function walk(node: unknown) {
@@ -40,8 +41,8 @@ function extractPlaintext(ydoc: Y.Doc): { title: string; bodyText: string } {
     }
 
     // XmlFragment: recurse into children
-    if ("length" in node && typeof (node as any).get === "function") {
-      const frag = node as Y.XmlFragment;
+    if (node instanceof Y.XmlFragment) {
+      const frag = node;
       for (let i = 0; i < frag.length; i++) {
         walk(frag.get(i));
       }

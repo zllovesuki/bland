@@ -3,11 +3,12 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from "@blocknote/core";
 import { createHighlighter } from "shiki";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
+import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { uploadFile } from "@/client/lib/uploads";
@@ -100,6 +101,7 @@ function BlockEditor({
         user: {
           name: user?.name ?? "Anonymous",
           color: userColor(user?.id ?? "anon"),
+          avatar_url: user?.avatar_url ?? null,
         },
       },
       uploadFile: readOnly ? undefined : handleUploadFile,
@@ -138,8 +140,8 @@ export function EditorPane({
   useEffect(() => {
     const ydoc = new Y.Doc();
     const idb = new IndexeddbPersistence(`bland:doc:${pageId}`, ydoc);
-    const fragment = ydoc.getXmlFragment("document-store");
-    const titleText = ydoc.getText("page-title");
+    const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
+    const titleText = ydoc.getText(YJS_PAGE_TITLE);
     let wsProvider: YProvider | null = null;
     let seedTitleTimeout: ReturnType<typeof window.setTimeout> | null = null;
     let mounted = true;
@@ -228,7 +230,7 @@ export function EditorPane({
       setTitle(newVal);
       if (!editorState) return;
 
-      const titleText = editorState.ydoc.getText("page-title");
+      const titleText = editorState.ydoc.getText(YJS_PAGE_TITLE);
       editorState.ydoc.transact(() => {
         titleText.delete(0, titleText.length);
         titleText.insert(0, newVal);
@@ -267,8 +269,10 @@ export function EditorPane({
           workspaceId={workspaceId}
         />
       ) : (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin text-zinc-600" />
+        <div className="space-y-3 pl-7">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-3/6" />
         </div>
       )}
     </div>

@@ -6,17 +6,21 @@ import { createDb } from "@/worker/db/client";
 import { docSnapshots, pages } from "@/worker/db/schema";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
+import { YJS_PAGE_TITLE } from "@/shared/constants";
 
 const MAX_CONNECTIONS_PER_DOC = 20;
 const log = createLogger("doc-sync");
 
 const READONLY_TAG = "readonly";
 
+interface YpsConnectionState {
+  __ypsAwarenessIds?: number[];
+}
+
 /** Read awareness client IDs stored on the connection by y-partyserver. */
-function getAwarenessIds(conn: Connection): number[] {
+function getAwarenessIds(conn: Connection): readonly number[] {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (conn as any).state?.__ypsAwarenessIds ?? [];
+    return (conn as Connection<YpsConnectionState>).state?.__ypsAwarenessIds ?? [];
   } catch {
     return [];
   }
@@ -108,7 +112,7 @@ export class DocSync extends YServer<Env> {
       dl.warn("snapshot_size_warning", { sizeBytes: state.byteLength });
     }
 
-    const title = this.document.getText("page-title").toString() || DEFAULT_PAGE_TITLE;
+    const title = this.document.getText(YJS_PAGE_TITLE).toString() || DEFAULT_PAGE_TITLE;
     const now = new Date().toISOString();
 
     try {

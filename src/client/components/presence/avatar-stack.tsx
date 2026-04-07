@@ -9,10 +9,15 @@ interface AvatarStackProps {
 export function AvatarStack({ awareness, localClientId }: AvatarStackProps) {
   const states = useAwareness(awareness);
 
-  const remoteUsers: { clientId: number; name: string; color: string }[] = [];
+  const remoteUsers: { clientId: number; name: string; color: string; avatar_url?: string | null }[] = [];
   states.forEach((state: AwarenessState, clientId: number) => {
     if (clientId === localClientId || !state.user) return;
-    remoteUsers.push({ clientId, name: state.user.name, color: state.user.color });
+    remoteUsers.push({
+      clientId,
+      name: state.user.name,
+      color: state.user.color,
+      avatar_url: state.user.avatar_url,
+    });
   });
 
   if (remoteUsers.length === 0) return null;
@@ -22,11 +27,15 @@ export function AvatarStack({ awareness, localClientId }: AvatarStackProps) {
       {remoteUsers.slice(0, 5).map((u) => (
         <div
           key={u.clientId}
-          className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-zinc-900 text-[10px] font-medium text-white"
+          className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border-2 border-zinc-900 text-[10px] font-medium text-white"
           style={{ backgroundColor: u.color }}
           title={u.name}
         >
-          {u.name.charAt(0).toUpperCase()}
+          {u.avatar_url ? (
+            <img src={u.avatar_url} alt={u.name} className="h-full w-full object-cover" />
+          ) : (
+            u.name.charAt(0).toUpperCase()
+          )}
         </div>
       ))}
       {remoteUsers.length > 5 && (

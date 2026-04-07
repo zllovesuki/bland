@@ -18,6 +18,8 @@ import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
+import { getMyRole, isAdminOrOwner as checkAdminOrOwner } from "@/client/lib/permissions";
 import type { WorkspaceMember } from "@/shared/types";
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
@@ -44,10 +46,9 @@ export function WorkspaceSettings() {
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
   const currentUser = useAuthStore((s) => s.user);
 
-  const myMembership = members.find((m) => m.user_id === currentUser?.id);
-  const myRole = myMembership?.role ?? "guest";
+  const myRole = getMyRole(members, currentUser) ?? "guest";
   const isOwner = myRole === "owner";
-  const isAdminOrOwner = myRole === "owner" || myRole === "admin";
+  const isAdminOrOwner = checkAdminOrOwner(myRole);
 
   const [name, setName] = useState(currentWorkspace?.name ?? "");
   const [icon, setIcon] = useState(currentWorkspace?.icon ?? "");
@@ -63,7 +64,7 @@ export function WorkspaceSettings() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
+  const { copiedId: inviteCopied, copy: copyInviteToClipboard } = useCopyFeedback<string>();
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   const roleDropdownRef = useRef<HTMLDivElement>(null);
@@ -157,10 +158,8 @@ export function WorkspaceSettings() {
 
   const copyInviteLink = useCallback(() => {
     if (!inviteLink) return;
-    navigator.clipboard.writeText(inviteLink);
-    setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 2000);
-  }, [inviteLink]);
+    copyInviteToClipboard("invite", inviteLink);
+  }, [inviteLink, copyInviteToClipboard]);
 
   if (!currentWorkspace) return null;
 

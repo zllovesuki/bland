@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { ulid } from "ulidx";
 
 import { jwtVerify } from "jose";
@@ -13,6 +13,7 @@ import { parseCookies, REFRESH_COOKIE, getJwtSecret } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { JWT_ALGORITHM } from "@/worker/lib/constants";
+import { getPage } from "@/worker/lib/page-access";
 import { PresignRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
@@ -72,11 +73,7 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("
 
   // Validate page_id belongs to workspace if provided
   if (data.page_id) {
-    const page = await db
-      .select({ id: pages.id })
-      .from(pages)
-      .where(and(eq(pages.id, data.page_id), eq(pages.workspace_id, workspaceId)))
-      .get();
+    const page = await getPage(db, data.page_id, workspaceId);
     if (!page) {
       return c.json({ error: "not_found", message: "Page not found in this workspace" }, 404);
     }
@@ -196,7 +193,11 @@ uploadServingRouter.get("/:id", async (c) => {
     try {
       const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), { algorithms: [JWT_ALGORITHM] });
       if (payload.sub && payload.type === "refresh") {
-        const membership = await checkMembership(db, payload.sub, upload.workspace_id);
+        // Workspace-level uploads (e.g. avatars) are visible to any authenticated user
+        if (!upload.page_id) {
+          authorized = true;
+        }
+        const membership = !authorized ? await checkMembership(db, payload.sub, upload.workspace_id) : null;
         if (membership) {
           if (membership.role === "guest") {
             // Guests need page-level share access for uploads

@@ -5,21 +5,9 @@ import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { canAccessPages } from "@/worker/lib/permissions";
+import { sanitizeSnippet } from "@/worker/lib/html";
 import { createLogger } from "@/worker/lib/logger";
 import type { AppContext } from "@/worker/router";
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function sanitizeSnippet(raw: string): string {
-  // FTS5 snippet() uses <mark> and </mark> as delimiters.
-  // Split on those, escape everything else, then reassemble.
-  return raw
-    .split(/(<mark>|<\/mark>)/g)
-    .map((part) => (part === "<mark>" || part === "</mark>" ? part : escapeHtml(part)))
-    .join("");
-}
 
 const log = createLogger("search");
 

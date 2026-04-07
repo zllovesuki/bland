@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
@@ -98,7 +99,12 @@ export function InvitePage() {
   if (isLoadingInvite) {
     return (
       <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+        <div className="w-full max-w-sm space-y-4 px-4">
+          <Skeleton className="mx-auto h-12 w-12 rounded-2xl" />
+          <Skeleton className="mx-auto h-6 w-48" />
+          <Skeleton className="mx-auto h-4 w-64" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </div>
       </div>
     );
   }

@@ -175,8 +175,9 @@ export const api = {
       const res = await apiFetch<{ pages: Page[] }>(`/workspaces/${workspaceId}/pages`);
       return res.pages;
     },
-    get: async (workspaceId: string, pageId: string) => {
-      const res = await apiFetch<{ page: Page; can_edit?: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}`);
+    get: async (workspaceId: string, pageId: string, shareToken?: string) => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
+      const res = await apiFetch<{ page: Page; can_edit?: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}${qs}`);
       return { ...res.page, can_edit: res.can_edit ?? true };
     },
     create: async (workspaceId: string, data: { title?: string; parent_id?: string; icon?: string }) => {

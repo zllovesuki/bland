@@ -1,18 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Db } from "@/worker/db/client";
 import { canAccessPage, canAccessPages, resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { checkMembership } from "@/worker/lib/membership";
+import { createDbMock } from "@tests/worker/util/db";
 
 vi.mock("@/worker/lib/membership", () => ({
   checkMembership: vi.fn(),
 }));
-
-function createDbMock(rows: { page_id: string; access_rank: number }[] = []): Db {
-  return {
-    all: vi.fn().mockResolvedValue(rows),
-  } as unknown as Db;
-}
 
 const checkMembershipMock = vi.mocked(checkMembership);
 
@@ -78,11 +72,12 @@ describe("worker permissions", () => {
   });
 
   it("converts resolved levels into booleans for batch view and edit checks", async () => {
-    const db = createDbMock([
+    const rows = [
       { page_id: "page-a", access_rank: 2 },
       { page_id: "page-b", access_rank: 1 },
       { page_id: "page-c", access_rank: 0 },
-    ]);
+    ];
+    const db = createDbMock(rows, rows);
 
     checkMembershipMock.mockResolvedValue(null);
 
@@ -118,7 +113,8 @@ describe("worker permissions", () => {
   });
 
   it("uses the same resolver path for single-page checks", async () => {
-    const db = createDbMock([{ page_id: "page-a", access_rank: 1 }]);
+    const rows = [{ page_id: "page-a", access_rank: 1 }];
+    const db = createDbMock(rows, rows);
 
     checkMembershipMock.mockResolvedValue(null);
 

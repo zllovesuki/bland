@@ -10,6 +10,7 @@ import { isAdminOrOwner, canAccessPage } from "@/worker/lib/permissions";
 import { generateSecureToken } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
+import { getPage } from "@/worker/lib/page-access";
 import { CreateShareRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
@@ -24,12 +25,7 @@ sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c
   const user = c.get("user")!;
   const db = c.get("db");
 
-  // Load page
-  const page = await db
-    .select()
-    .from(pages)
-    .where(and(eq(pages.id, pageId), isNull(pages.archived_at)))
-    .get();
+  const page = await getPage(db, pageId);
   if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
@@ -173,11 +169,7 @@ sharesRouter.get("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c)
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const page = await db
-    .select()
-    .from(pages)
-    .where(and(eq(pages.id, pageId), isNull(pages.archived_at)))
-    .get();
+  const page = await getPage(db, pageId);
   if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
@@ -238,11 +230,7 @@ sharesRouter.delete("/pages/:id/share/:shareId", requireAuth, rateLimit("RL_API"
   const user = c.get("user")!;
   const db = c.get("db");
 
-  const page = await db
-    .select()
-    .from(pages)
-    .where(and(eq(pages.id, pageId), isNull(pages.archived_at)))
-    .get();
+  const page = await getPage(db, pageId);
   if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
@@ -305,12 +293,7 @@ shareLinkRouter.get("/share/:token", rateLimit("RL_API"), async (c) => {
     return c.json({ error: "not_found", message: "Share link not found or expired" }, 404);
   }
 
-  const page = await db
-    .select()
-    .from(pages)
-    .where(and(eq(pages.id, share.page_id), isNull(pages.archived_at)))
-    .get();
-
+  const page = await getPage(db, share.page_id);
   if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }

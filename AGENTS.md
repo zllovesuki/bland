@@ -77,7 +77,7 @@ Before writing new code, check these files for reusable pieces:
 ### Client constants (`src/client/lib/constants.ts`)
 
 - `TURNSTILE_SITE_KEY` — from env or test fallback.
-- `STORAGE_KEYS` — `{ D1_BOOKMARK, USER, LAYOUT }` for localStorage keys.
+- `STORAGE_KEYS` — `{ D1_BOOKMARK, USER, LAYOUT, SIDEBAR }` for localStorage keys.
 
 ### Client helpers (`src/client/lib/api.ts`, `src/client/lib/permissions.ts`)
 
@@ -96,9 +96,9 @@ Before writing new code, check these files for reusable pieces:
 
 ### Worker
 
-- `src/worker/index.ts` is the Worker entrypoint and exports the future `DocSync` Durable Object.
+- `src/worker/index.ts` is the Worker entrypoint, routes Partyserver WebSocket connections to `DocSync`, exports the `DocSync` Durable Object, and handles queue consumption.
 - `src/worker/router.ts` wires Hono, CORS, D1 session handling, route registration, 404s, and top-level error handling.
-- `src/worker/routes/` contains the current HTTP surface for auth, invites, workspaces, pages, and health.
+- `src/worker/routes/` contains the current HTTP surface for auth, invites, workspaces, pages, page-tree, page-context, shares, uploads, search, and health.
 - `src/worker/middleware/` owns auth, rate limiting, and Turnstile verification.
 - `src/worker/db/schema.ts` defines the Drizzle schema for D1.
 
@@ -144,7 +144,7 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 
 - For most code changes, run `npm run typecheck`.
 - If the change affects bundling or route wiring, also run `npm run build`.
-- `npm run test` exists, but the repo currently has no committed test files. Add focused tests when behavior becomes non-trivial rather than assuming test coverage already exists.
+- `npm run test` runs Vitest. The repo has focused worker tests already; add more when behavior becomes non-trivial instead of assuming broad coverage exists.
 - For formatting-only verification, use `npx prettier --check <paths>` or `npm run format:check`.
 
 ## Local Setup And Useful Commands
@@ -156,14 +156,14 @@ npm run typecheck
 npm run build
 npm run db:generate
 npm run db:migrate
-npm run db:seed-initial-user
+npm run db:seed-initial-user -- --email you@example.com --name "Your Name"
 ```
 
 Notes:
 
-- `.dev.vars.example` currently defines `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
+- `.dev.vars.example` currently defines `LOG_LEVEL`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
 - `npm run db:migrate` is currently wired to `wrangler d1 migrations apply bland-prod --local`.
-- `scripts/seed-initial-user.ts` seeds a bootstrap workspace invite for local setup.
+- `scripts/seed-initial-user.ts` seeds the initial local user, workspace, and owner membership. It refuses to run if users already exist.
 
 ## Change Guidelines
 
@@ -193,8 +193,7 @@ Notes:
 Known gaps that are intentionally deferred to later milestones. Do not fix these unless the task explicitly calls for it.
 
 - **Toast notification system** (`frontend-spec.md` §8): Not built yet. Until it exists, silent `catch` blocks in UI components (sidebar, workspace views) are acceptable. Target: M5.
-- **`components/ui/` primitives** (`frontend-spec.md` §2, §8): Button, Input, Card, Dialog components are not extracted yet — styles are inlined in each component. Extract when M5 (Polish) work begins.
-- **Sidebar decomposition**: `sidebar.tsx` is ~370 lines with the search dialog wired in. Extract the workspace switcher into `<WorkspaceSwitcher>`. Target: M5.
+- **`components/ui/` primitives** (`frontend-spec.md` §2, §8): A shared `Skeleton` exists, but Button, Input, Card, and Dialog primitives are not extracted yet — most styles are still inlined in each component. Extract the broader primitive set when M5 (Polish) work begins.
 - **Real-time icon/cover sync**: Icon and cover live in D1 only (REST PATCH). Other connected users don't see changes until their next page load. Broadcast via DocSync custom messages (`sendMessage`/`onCustomMessage`) to push updates live. Target: M5.
 - **Error boundaries**: No React error boundaries exist. Add around `EditorPane` and route-level content when M5 lands.
 - **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.

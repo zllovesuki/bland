@@ -1,31 +1,13 @@
-import { useState, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Plus, Loader2 } from "lucide-react";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import { api } from "@/client/lib/api";
 import { slugify } from "@/lib/slugify";
+import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 
 export function EmptyWorkspaceView() {
-  const navigate = useNavigate();
-  const addWorkspace = useWorkspaceStore((s) => s.addWorkspace);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = useCallback(async () => {
-    if (!name.trim() || !slug.trim() || creating) return;
-    setCreating(true);
-    try {
-      const ws = await api.workspaces.create({ name: name.trim(), slug: slug.trim() });
-      addWorkspace(ws);
-      navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
-    } catch {
-      // Silently fail
-    } finally {
-      setCreating(false);
-    }
-  }, [name, slug, creating, addWorkspace, navigate]);
+  const { createWorkspace, isCreating } = useCreateWorkspace();
 
   return (
     <div className="flex h-full items-center justify-center">
@@ -63,11 +45,11 @@ export function EmptyWorkspaceView() {
                 Cancel
               </button>
               <button
-                onClick={handleCreate}
-                disabled={!name.trim() || !slug.trim() || creating}
+                onClick={() => createWorkspace(name, slug)}
+                disabled={!name.trim() || !slug.trim() || isCreating}
                 className="flex items-center gap-1.5 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-500 disabled:opacity-50"
               >
-                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 Create
               </button>
             </div>

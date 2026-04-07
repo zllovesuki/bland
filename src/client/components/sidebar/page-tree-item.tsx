@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import type { Page } from "@/shared/types";
@@ -8,15 +8,17 @@ import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage } from "@/client/lib/permissions";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { useCreatePage } from "@/client/hooks/use-create-page";
 
 interface PageTreeItemProps {
   page: Page;
   depth: number;
   childPages: Page[];
   allPages: Page[];
+  activeAncestorIds: Set<string>;
 }
 
-export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItemProps) {
+export function PageTreeItem({ page, depth, childPages, allPages, activeAncestorIds }: PageTreeItemProps) {
   const params = useParams({ strict: false }) as {
     workspaceSlug?: string;
     pageId?: string;
@@ -24,18 +26,22 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
   const navigate = useNavigate();
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const archivePage = useWorkspaceStore((s) => s.archivePage);
-  const addPage = useWorkspaceStore((s) => s.addPage);
   const members = useWorkspaceStore((s) => s.members);
   const currentUser = useAuthStore((s) => s.user);
   const canArchive = canArchivePage(members, currentUser, page);
   const myMembership = members.find((m) => m.user_id === currentUser?.id);
   const canCreate = !!myMembership && myMembership.role !== "guest";
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { createPage, isCreating: creating } = useCreatePage();
+  const isActive = params.pageId === page.id;
+  const shouldExpand = activeAncestorIds.has(page.id) || isActive;
+  const [isExpanded, setIsExpanded] = useState(shouldExpand);
+
+  useEffect(() => {
+    if (shouldExpand) setIsExpanded(true);
+  }, [shouldExpand]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [creating, setCreating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isActive = params.pageId === page.id;
   const hasChildren = childPages.length > 0;
 
   const toggleExpand = useCallback((e: React.MouseEvent) => {
@@ -71,27 +77,12 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
   );
 
   const handleCreateSubpage = useCallback(
-    async (e: React.MouseEvent) => {
+    (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!currentWorkspace || creating) return;
-      setCreating(true);
-      try {
-        const newPage = await api.pages.create(currentWorkspace.id, {
-          title: DEFAULT_PAGE_TITLE,
-          parent_id: page.id,
-        });
-        addPage(newPage);
-        setIsExpanded(true);
-        navigate({
-          to: "/$workspaceSlug/$pageId",
-          params: { workspaceSlug: params.workspaceSlug ?? "", pageId: newPage.id },
-        });
-      } finally {
-        setCreating(false);
-      }
+      createPage({ parentId: page.id, onCreated: () => setIsExpanded(true) });
     },
-    [currentWorkspace, creating, page.id, addPage, navigate, params.workspaceSlug],
+    [createPage, page.id],
   );
 
   return (
@@ -172,6 +163,7 @@ export function PageTreeItem({ page, depth, childPages, allPages }: PageTreeItem
               depth={depth + 1}
               childPages={allPages.filter((p) => p.parent_id === child.id && !p.archived_at)}
               allPages={allPages}
+              activeAncestorIds={activeAncestorIds}
             />
           ))}
         </div>
