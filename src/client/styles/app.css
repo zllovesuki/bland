@@ -18,7 +18,7 @@
   --color-card-foreground: #f4f4f5;
   --color-popover: #18181b;
   --color-popover-foreground: #d4d4d8;
-  --color-primary: #14b8a6;
+  --color-primary: #8b5cf6;
   --color-primary-foreground: #ffffff;
   --color-secondary: #27272a;
   --color-secondary-foreground: #f4f4f5;
@@ -30,19 +30,19 @@
   --color-destructive-foreground: #ffffff;
   --color-border: #3f3f46;
   --color-input: #3f3f46;
-  --color-ring: #14b8a6;
+  --color-ring: #8b5cf6;
 
-  /* Teal accent palette */
-  --color-accent-50: #f0fdfa;
-  --color-accent-100: #ccfbf1;
-  --color-accent-200: #99f6e4;
-  --color-accent-300: #5eead4;
-  --color-accent-400: #2dd4bf;
-  --color-accent-500: #14b8a6;
-  --color-accent-600: #0d9488;
-  --color-accent-700: #0f766e;
-  --color-accent-800: #115e59;
-  --color-accent-900: #134e4a;
+  /* Violet accent palette */
+  --color-accent-50: #f5f3ff;
+  --color-accent-100: #ede9fe;
+  --color-accent-200: #ddd6fe;
+  --color-accent-300: #c4b5fd;
+  --color-accent-400: #a78bfa;
+  --color-accent-500: #8b5cf6;
+  --color-accent-600: #7c3aed;
+  --color-accent-700: #6d28d9;
+  --color-accent-800: #5b21b6;
+  --color-accent-900: #4c1d95;
 
   /* Animations */
   --animate-fade-in: fade-in 0.4s ease-out both;
@@ -113,8 +113,8 @@
     background-image:
       radial-gradient(circle, rgba(255, 255, 255, 0.03) 0.5px, transparent 0.5px),
       radial-gradient(circle, rgba(255, 255, 255, 0.02) 0.5px, transparent 0.5px),
-      radial-gradient(circle at 20% 20%, rgba(20, 184, 166, 0.02), transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(20, 184, 166, 0.015), transparent 50%);
+      radial-gradient(circle at 20% 20%, rgba(139, 92, 246, 0.02), transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.015), transparent 50%);
     background-size:
       3px 3px,
       7px 7px,

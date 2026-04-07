@@ -351,7 +351,7 @@ export function WorkspaceSettings() {
                         )}
                       </button>
                       {roleDropdownId === member.user_id && (
-                        <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-lg">
+                        <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-lg">
                           {ASSIGNABLE_ROLES.map((role) => (
                             <button
                               key={role}
@@ -418,9 +418,17 @@ export function WorkspaceSettings() {
                   onChange={(e) => setInviteRole(e.target.value as "admin" | "member" | "guest")}
                   className="appearance-none rounded-lg border border-zinc-700 bg-zinc-800/50 py-2 pl-3 pr-8 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
                 >
-                  {isAdminOrOwner && <option value="admin">Admin</option>}
-                  <option value="member">Member</option>
-                  <option value="guest">Guest</option>
+                  {isAdminOrOwner && (
+                    <option value="admin" className="bg-zinc-900 text-zinc-300">
+                      Admin
+                    </option>
+                  )}
+                  <option value="member" className="bg-zinc-900 text-zinc-300">
+                    Member
+                  </option>
+                  <option value="guest" className="bg-zinc-900 text-zinc-300">
+                    Guest
+                  </option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
               </div>
