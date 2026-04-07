@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
-import EmojiPickerReact, { Theme, EmojiStyle } from "emoji-picker-react";
+import { lazy, Suspense } from "react";
+
+const EmojiPickerImpl = lazy(() => import("./emoji-picker-impl").then((mod) => ({ default: mod.EmojiPickerImpl })));
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
@@ -9,16 +11,10 @@ interface EmojiPickerProps {
 
 export function EmojiPicker({ onSelect, className, style }: EmojiPickerProps) {
   return (
-    <EmojiPickerReact
-      className={["bland-emoji-picker", className].filter(Boolean).join(" ")}
-      style={style}
-      theme={Theme.DARK}
-      emojiStyle={EmojiStyle.APPLE}
-      onEmojiClick={(emojiData) => onSelect(emojiData.emoji)}
-      searchPlaceholder="Search emoji..."
-      width={320}
-      height={400}
-      previewConfig={{ showPreview: false }}
-    />
+    <Suspense
+      fallback={<div className="h-[400px] w-[320px] rounded-lg border border-zinc-700 bg-zinc-900" style={style} />}
+    >
+      <EmojiPickerImpl onSelect={onSelect} className={className} style={style} />
+    </Suspense>
   );
 }

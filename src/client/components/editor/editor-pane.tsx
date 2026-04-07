@@ -1,23 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
-import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from "@blocknote/core";
-import { createHighlighter } from "shiki";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import "./styles/content.css";
+import "./styles/overlays.css";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
 import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import { uploadFile } from "@/client/lib/uploads";
-import { userColor } from "@/client/hooks/use-sync";
-import { customShadcnComponents } from "@/client/components/editor/bn-components";
-import { FormattingToolbarController } from "@/client/components/editor/controllers/formatting-toolbar";
-import { LinkToolbarController } from "@/client/components/editor/controllers/link-toolbar";
-import { SuggestionMenuController } from "@/client/components/editor/controllers/suggestion-menu";
-import "@blocknote/shadcn/style.css";
+import { EditorTitle } from "./editor-title";
+import { EditorBody } from "./editor-body";
 
 interface EditorPaneProps {
   pageId: string;
@@ -27,113 +19,6 @@ interface EditorPaneProps {
   shareToken?: string;
   readOnly?: boolean;
   workspaceId?: string;
-}
-
-const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = {
-  text: { name: "Plain Text", aliases: ["plaintext", "txt"] },
-  javascript: { name: "JavaScript", aliases: ["js"] },
-  typescript: { name: "TypeScript", aliases: ["ts"] },
-  html: { name: "HTML" },
-  css: { name: "CSS" },
-  json: { name: "JSON" },
-  sql: { name: "SQL" },
-  python: { name: "Python", aliases: ["py"] },
-  bash: { name: "Bash", aliases: ["sh", "shell"] },
-  markdown: { name: "Markdown", aliases: ["md"] },
-  go: { name: "Go" },
-  rust: { name: "Rust", aliases: ["rs"] },
-  yaml: { name: "YAML", aliases: ["yml"] },
-};
-
-const { video, audio, file, ...blockSpecs } = defaultBlockSpecs;
-
-const schema = BlockNoteSchema.create({
-  blockSpecs: {
-    ...blockSpecs,
-    codeBlock: createCodeBlockSpec({
-      supportedLanguages: CODE_LANGUAGES,
-      createHighlighter: () =>
-        createHighlighter({
-          themes: ["github-dark"],
-          langs: Object.keys(CODE_LANGUAGES),
-        }),
-    }),
-  },
-});
-
-function BlockEditor({
-  fragment,
-  provider,
-  pageId,
-  readOnly,
-  shareToken,
-  workspaceId,
-}: {
-  fragment: Y.XmlFragment;
-  provider: { awareness: Awareness };
-  pageId: string;
-  readOnly?: boolean;
-  shareToken?: string;
-  workspaceId?: string;
-}) {
-  const user = useAuthStore((s) => s.user);
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const resolvedWorkspaceId = workspaceId ?? workspace?.id;
-
-  const handleUploadFile = useCallback(
-    async (file: File) => {
-      if (!resolvedWorkspaceId) throw new Error("No workspace");
-      return uploadFile(resolvedWorkspaceId, file, pageId, shareToken);
-    },
-    [resolvedWorkspaceId, pageId, shareToken],
-  );
-
-  const resolveFileUrl = useCallback(
-    async (url: string) => {
-      if (shareToken && url.startsWith("/uploads/")) {
-        return `${url}?share=${shareToken}`;
-      }
-      return url;
-    },
-    [shareToken],
-  );
-
-  const editor = useCreateBlockNote(
-    {
-      schema,
-      collaboration: {
-        provider,
-        fragment,
-        user: {
-          name: user?.name ?? "Anonymous",
-          color: userColor(user?.id ?? "anon"),
-          avatar_url: user?.avatar_url ?? null,
-        },
-      },
-      uploadFile: readOnly ? undefined : handleUploadFile,
-      resolveFileUrl: shareToken ? resolveFileUrl : undefined,
-    },
-    [pageId],
-  );
-
-  return (
-    <BlockNoteView
-      editor={editor}
-      theme="dark"
-      editable={!readOnly}
-      shadCNComponents={customShadcnComponents}
-      formattingToolbar={false}
-      linkToolbar={false}
-      slashMenu={false}
-    >
-      <FormattingToolbarController />
-      <LinkToolbarController />
-      <SuggestionMenuController
-        triggerCharacter="/"
-        shouldOpen={(state) => !state.selection.$from.parent.type.isInGroup("tableContent")}
-      />
-    </BlockNoteView>
-  );
 }
 
 export function EditorPane({
@@ -152,7 +37,6 @@ export function EditorPane({
     ydoc: Y.Doc;
   } | null>(null);
 
-  // Refs for values used in the effect but that shouldn't trigger re-setup
   const initialTitleRef = useRef(initialTitle);
   initialTitleRef.current = initialTitle;
   const onTitleChangeRef = useRef(onTitleChange);
@@ -170,7 +54,6 @@ export function EditorPane({
     let mounted = true;
     let seededTitle = false;
 
-    // Observe collaborative title changes from remote peers
     const titleObserver = () => {
       if (!mounted) return;
       const t = titleText.toString();
@@ -206,8 +89,6 @@ export function EditorPane({
         onTitleChangeRef.current?.(titleText.toString());
       }
 
-      // Connect WebSocket to DocSync DO — always create provider so
-      // reconnect picks up a fresh token via the params function
       const hasToken = !!shareToken || !!useAuthStore.getState().accessToken;
       wsProvider = new YProvider(window.location.host, pageId, ydoc, {
         party: "doc-sync",
@@ -217,11 +98,13 @@ export function EditorPane({
           : () => ({ token: useAuthStore.getState().accessToken || "" }),
       });
       wsProvider.on("sync", handleProviderSync);
-      seedTitleTimeout = window.setTimeout(() => {
-        if (!wsProvider?.wsconnected && !wsProvider?.synced) {
-          maybeSeedTitle();
-        }
-      }, 5000);
+
+      // Only use a timeout fallback when no WebSocket will connect.
+      // When WS is expected, rely solely on the sync handler — avoids
+      // racing a slow-but-incoming sync that carries the real title.
+      if (!hasToken) {
+        seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
+      }
       onProviderRef.current?.(wsProvider);
       setEditorState({ fragment, provider: wsProvider, ydoc });
     }
@@ -264,26 +147,10 @@ export function EditorPane({
 
   return (
     <div>
-      <textarea
-        value={title}
-        onChange={handleTitleInput}
-        disabled={!editorState}
-        readOnly={readOnly}
-        placeholder="Untitled"
-        rows={1}
-        className="mb-4 w-full resize-none overflow-hidden border-none bg-transparent pl-4 text-3xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 read-only:cursor-default sm:pl-7 sm:text-4xl"
-        onInput={(e) => {
-          const el = e.currentTarget;
-          el.style.height = "auto";
-          el.style.height = el.scrollHeight + "px";
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.preventDefault();
-        }}
-      />
+      <EditorTitle title={title} onInput={handleTitleInput} disabled={!editorState} readOnly={readOnly} />
 
       {editorState ? (
-        <BlockEditor
+        <EditorBody
           fragment={editorState.fragment}
           provider={editorState.provider}
           pageId={pageId}

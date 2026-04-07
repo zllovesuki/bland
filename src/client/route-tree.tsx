@@ -1,16 +1,8 @@
-import { createRootRoute, createRoute, redirect } from "@tanstack/react-router";
+import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { AppShell } from "@/client/components/app-shell";
-import { LoginPage } from "@/client/components/auth/login-page";
-import { InvitePage } from "@/client/components/auth/invite-page";
-import { EmptyWorkspaceView } from "@/client/components/empty-workspace-view";
 import { WorkspaceLayout } from "@/client/components/workspace-layout";
-import { WorkspaceIndex } from "@/client/components/workspace-index";
-import { PageView } from "@/client/components/page-view";
-import { SharedPageView } from "@/client/components/shared-page-view";
-import { WorkspaceSettings } from "@/client/components/workspace-settings";
-import { ProfileSettings } from "@/client/components/profile-settings";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
@@ -77,7 +69,7 @@ const indexRoute = createRoute({
       }
     }
   },
-  component: EmptyWorkspaceView,
+  component: lazyRouteComponent(() => import("@/client/components/empty-workspace-view"), "EmptyWorkspaceView"),
 });
 
 const loginRoute = createRoute({
@@ -92,13 +84,13 @@ const loginRoute = createRoute({
       throw redirect({ to: search.redirect || "/" });
     }
   },
-  component: LoginPage,
+  component: lazyRouteComponent(() => import("@/client/components/auth/login-page"), "LoginPage"),
 });
 
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
-  component: InvitePage,
+  component: lazyRouteComponent(() => import("@/client/components/auth/invite-page"), "InvitePage"),
 });
 
 const profileRoute = createRoute({
@@ -110,7 +102,7 @@ const profileRoute = createRoute({
       throw redirect({ to: "/login", search: { redirect: undefined } });
     }
   },
-  component: ProfileSettings,
+  component: lazyRouteComponent(() => import("@/client/components/profile-settings"), "ProfileSettings"),
 });
 
 // Static /s prefix takes priority over dynamic /$workspaceSlug
@@ -120,11 +112,7 @@ const shareRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     page: typeof search.page === "string" ? search.page : undefined,
   }),
-  component: () => {
-    const params = shareRoute.useParams();
-    const search = shareRoute.useSearch();
-    return <SharedPageView token={params.token} activePage={search.page} />;
-  },
+  component: lazyRouteComponent(() => import("@/client/routes/shared-page-route"), "SharedPageRoute"),
 });
 
 const workspaceRoute = createRoute({
@@ -175,7 +163,7 @@ const workspaceIndexRoute = createRoute({
       throw redirect({ to: "/" });
     }
   },
-  component: WorkspaceIndex,
+  component: lazyRouteComponent(() => import("@/client/components/workspace-index"), "WorkspaceIndex"),
 });
 
 const settingsRoute = createRoute({
@@ -186,7 +174,7 @@ const settingsRoute = createRoute({
       throw redirect({ to: "/" });
     }
   },
-  component: WorkspaceSettings,
+  component: lazyRouteComponent(() => import("@/client/components/workspace-settings"), "WorkspaceSettings"),
 });
 
 const pageRoute = createRoute({
@@ -213,7 +201,7 @@ const pageRoute = createRoute({
       throw redirect({ to: "/" });
     }
   },
-  component: PageView,
+  component: lazyRouteComponent(() => import("@/client/components/page-view"), "PageView"),
 });
 
 export const routeTree = rootRoute.addChildren([

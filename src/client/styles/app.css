@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@source "../../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,27 +9,6 @@
     "Microsoft YaHei", sans-serif;
   --font-display: "Instrument Serif", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", "Noto Sans Mono CJK SC", monospace;
-
-  /* Editor UI tokens for @blocknote/shadcn */
-  --color-background: #09090b;
-  --color-foreground: #f4f4f5;
-  --color-card: #18181b;
-  --color-card-foreground: #f4f4f5;
-  --color-popover: #18181b;
-  --color-popover-foreground: #d4d4d8;
-  --color-primary: #8b5cf6;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #27272a;
-  --color-secondary-foreground: #f4f4f5;
-  --color-muted: #27272a;
-  --color-muted-foreground: #a1a1aa;
-  --color-accent: #27272a;
-  --color-accent-foreground: #f4f4f5;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #3f3f46;
-  --color-input: #3f3f46;
-  --color-ring: #8b5cf6;
 
   /* Violet accent palette */
   --color-accent-50: #f5f3ff;

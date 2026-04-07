@@ -4,7 +4,6 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./route-tree";
 import { useAuthStore } from "./stores/auth-store";
 import "./styles/app.css";
-import "./styles/custom.css";
 
 const router = createRouter({ routeTree });
 

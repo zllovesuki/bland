@@ -17,9 +17,9 @@ import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
-import { IconPicker } from "@/client/components/editor/icon-picker";
-import { CoverPicker } from "@/client/components/editor/cover-picker";
-import { ShareDialog } from "@/client/components/editor/share-dialog";
+import { IconPicker } from "@/client/components/icon-picker";
+import { CoverPicker } from "@/client/components/cover-picker";
+import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
 import type { Page, AncestorInfo } from "@/shared/types";
@@ -330,9 +330,7 @@ export function PageView() {
           <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
         )}
         <div className="flex items-center gap-3">
-          {!isSharedMode && online && canCreatePage(members, currentUser) && (
-            <ShareDialog pageId={page.id} workspaceId={workspace!.id} />
-          )}
+          {!isSharedMode && online && canCreatePage(members, currentUser) && <ShareDialog pageId={page.id} />}
           <AvatarStack
             awareness={wsProvider?.awareness ?? null}
             localClientId={wsProvider?.awareness.clientID ?? null}

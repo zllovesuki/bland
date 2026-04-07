@@ -16,6 +16,7 @@ import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { ToastContainer } from "./toast";
 
 function SharedBreadcrumbs({
   ancestors,
@@ -309,6 +310,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
       </div>
 
       <Footer expanded={false} />
+      <ToastContainer />
     </div>
   );
 }

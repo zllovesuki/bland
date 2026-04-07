@@ -26,6 +26,7 @@ export function IconPicker({
           <button
             onClick={() => setOpen((o) => !o)}
             className="flex items-center rounded-md px-2 py-1 transition-colors hover:bg-zinc-800"
+            aria-label="Change icon"
           >
             <EmojiIcon emoji={currentIcon} size={28} />
           </button>

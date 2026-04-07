@@ -2,6 +2,8 @@
 
 > Mini docs app with live cursors and same-page coauthoring, running on native Cloudflare.
 > **Domain:** bland.tools
+>
+> **Status note (April 8, 2026):** the live project uses a custom Tiptap/ProseMirror editor in `src/client/components/editor/`, not BlockNote. When this spec conflicts with the source tree on editor implementation details, the source tree wins.
 
 ### Philosophy
 

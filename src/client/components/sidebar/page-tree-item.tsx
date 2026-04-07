@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+
 import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
@@ -13,6 +14,7 @@ import { useCreatePage } from "@/client/hooks/use-create-page";
 import type { DropTarget } from "@/client/hooks/use-page-drag";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { confirm } from "@/client/components/confirm";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 
 interface PageTreeItemProps {
   page: Page;
@@ -176,7 +178,7 @@ export function PageTreeItem({
         )}
 
         {canArchive && (
-          <div ref={menuRef} className="relative shrink-0">
+          <div ref={menuRef} className="shrink-0">
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -190,7 +192,7 @@ export function PageTreeItem({
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {menuOpen && (
-              <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-zinc-700 bg-zinc-800 shadow-lg">
+              <DropdownPortal triggerRef={menuRef}>
                 <button
                   onClick={handleArchive}
                   disabled={archiving}
@@ -199,7 +201,7 @@ export function PageTreeItem({
                   <Trash2 className="h-3 w-3" />
                   {archiving ? "Archiving..." : "Archive"}
                 </button>
-              </div>
+              </DropdownPortal>
             )}
           </div>
         )}

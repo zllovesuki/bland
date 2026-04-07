@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useRouterState } from "@tanstack/react-router";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "./header";
 import { Footer } from "./footer";
-import { Sidebar } from "./sidebar/sidebar";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
 import { useOnline } from "@/client/hooks/use-online";
+
+const Sidebar = lazy(() => import("./sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
+
+function SidebarFallback() {
+  return (
+    <div className="hidden w-[260px] shrink-0 border-r border-zinc-800/60 bg-zinc-950/50 md:block" aria-hidden="true" />
+  );
+}
 
 export function AppShell() {
   const location = useLocation();
@@ -62,7 +69,11 @@ export function AppShell() {
         </div>
       )}
       <div className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl"}`}>
-        {isAuthenticated && <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />}
+        {isAuthenticated && (
+          <Suspense fallback={<SidebarFallback />}>
+            <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
+          </Suspense>
+        )}
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
           <Outlet />
         </main>

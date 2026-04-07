@@ -23,6 +23,7 @@
   `DocSync` is implemented in [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts) as a `YServer` subclass with snapshot persistence (`onLoad`/`onSave`).
   Queue consumption is implemented for FTS5 search indexing (`src/worker/queues/search-indexer.ts`).
   The schema already includes tables for snapshots, shares, and uploads even where full behavior is not wired yet.
+- The live editor is a custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Treat older BlockNote references in docs as stale unless they are explicitly called out as historical or planned.
 
 ## Source Of Truth
 
@@ -114,7 +115,7 @@ Before writing new code, check these files for reusable pieces:
 - `src/client/main.tsx` boots the React 19 SPA and TanStack Router.
 - `src/client/route-tree.tsx` is the route graph and current route-loading behavior.
 - `src/client/components/` owns the app shell, auth pages, workspace layout, sidebar, and page views.
-- `src/client/components/editor/` owns the BlockNote editor integration, uploads wiring, and floating menu/controller customization.
+- `src/client/components/editor/` owns the custom Tiptap editor, uploads wiring, extension setup, and floating controller customization.
 - `src/client/stores/` holds Zustand auth and workspace state.
 - `src/client/lib/api.ts` is the centralized browser API client and D1 bookmark propagation point.
 
@@ -198,9 +199,10 @@ Notes:
 - Keep network calls centralized in [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts).
 - Keep shared app chrome in [src/client/components/app-shell.tsx](/home/vendetta/code/bland/src/client/components/app-shell.tsx), [src/client/components/header.tsx](/home/vendetta/code/bland/src/client/components/header.tsx), and [src/client/components/footer.tsx](/home/vendetta/code/bland/src/client/components/footer.tsx).
 - Preserve the existing Zustand store split unless there is a concrete reason to change it.
-- [src/client/components/editor/bn-components.tsx](/home/vendetta/code/bland/src/client/components/editor/bn-components.tsx) owns the shared BlockNote ShadCN portal/no-flip overrides. Update it instead of adding one-off popover fixes in callers.
-- [src/client/styles/custom.css](/home/vendetta/code/bland/src/client/styles/custom.css) owns shared emoji-picker and BlockNote styling overrides. Keep those changes centralized there.
-- When adding UI/editor libraries, prefer adapters that integrate with the repo's Tailwind-first styling model (for example `@blocknote/shadcn`) over packages that introduce a separate styling system (for example `@blocknote/mantine`).
+- [src/client/components/editor/editor-body.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-body.tsx) wires the shared Tiptap editor instance and mounts the floating controllers. Update it instead of creating one-off editor shells in page views.
+- [src/client/components/editor/extensions/create-editor-extensions.ts](/home/vendetta/code/bland/src/client/components/editor/extensions/create-editor-extensions.ts) owns the shared Tiptap extension list. Extend it instead of duplicating editor configuration in callers.
+- [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css), [src/client/components/editor/styles/overlays.css](/home/vendetta/code/bland/src/client/components/editor/styles/overlays.css), and [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css) own shared editor and emoji-picker styling overrides. Keep styling changes centralized there.
+- When adding editor behavior, prefer composing existing Tiptap/ProseMirror extensions and controllers over introducing another editor framework or parallel abstraction.
 
 ### Worker changes
 
@@ -222,6 +224,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 
 - **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.
 - **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
+- **Orphaned upload garbage collection**: There is no delete uploads API. R2 objects are never removed — replacing or deleting an image from a document leaves the old blob in R2. Needs a periodic GC job that scans `doc_snapshots` for referenced upload URLs and deletes R2 objects not referenced by any document.
 
 ## Coupled Components
 
@@ -247,9 +250,13 @@ When modifying cover rendering, error states, loading skeletons, or mobile drawe
 - [package.json](/home/vendetta/code/bland/package.json)
 - [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc)
 - [src/client/components/editor/editor-pane.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-pane.tsx)
+- [src/client/components/editor/editor-body.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-body.tsx)
+- [src/client/components/editor/extensions/create-editor-extensions.ts](/home/vendetta/code/bland/src/client/components/editor/extensions/create-editor-extensions.ts)
 - [src/client/route-tree.tsx](/home/vendetta/code/bland/src/client/route-tree.tsx)
 - [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts)
-- [src/client/styles/custom.css](/home/vendetta/code/bland/src/client/styles/custom.css)
+- [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css)
+- [src/client/components/editor/styles/overlays.css](/home/vendetta/code/bland/src/client/components/editor/styles/overlays.css)
+- [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css)
 - [src/shared/doc-messages.ts](/home/vendetta/code/bland/src/shared/doc-messages.ts)
 - [src/shared/types.ts](/home/vendetta/code/bland/src/shared/types.ts)
 - [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts)

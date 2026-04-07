@@ -10,12 +10,27 @@ import { confirm } from "@/client/components/confirm";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
 
-interface ShareDialogProps {
-  pageId: string;
-  workspaceId: string;
+function PermissionSelect({ value, onChange }: { value: "view" | "edit"; onChange: (v: "view" | "edit") => void }) {
+  return (
+    <div className="relative shrink-0">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as "view" | "edit")}
+        className="appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1 pl-2 pr-6 text-sm text-zinc-300 outline-none focus:border-zinc-600"
+      >
+        <option value="view">View</option>
+        <option value="edit">Edit</option>
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
+    </div>
+  );
 }
 
-export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
+interface ShareDialogProps {
+  pageId: string;
+}
+
+export function ShareDialog({ pageId }: ShareDialogProps) {
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState<PageShare[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,11 +69,13 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
       .finally(() => setLoading(false));
   }, [open, pageId]);
 
-  const linkShares = shares.filter((s) => s.grantee_type === "link");
-  const userShares = shares.filter((s) => s.grantee_type === "user");
-
-  const sharedUserIds = new Set(userShares.map((s) => s.grantee_id));
-  const shareableMembers = members.filter((m) => m.user_id !== user?.id && !sharedUserIds.has(m.user_id));
+  const { linkShares, userShares, shareableMembers } = useMemo(() => {
+    const link = shares.filter((s) => s.grantee_type === "link");
+    const userS = shares.filter((s) => s.grantee_type === "user");
+    const sharedIds = new Set(userS.map((s) => s.grantee_id));
+    const shareable = members.filter((m) => m.user_id !== user?.id && !sharedIds.has(m.user_id));
+    return { linkShares: link, userShares: userS, shareableMembers: shareable };
+  }, [shares, members, user?.id]);
 
   const filteredSuggestions = useMemo(() => {
     if (!peopleInput.trim()) return shareableMembers;
@@ -154,26 +171,6 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
     const member = members.find((m) => m.user_id === share.grantee_id);
     return member ? memberName(member) : (share.grantee_id ?? "Unknown");
   }
-
-  const PermissionSelect = ({
-    value,
-    onChange,
-  }: {
-    value: "view" | "edit";
-    onChange: (v: "view" | "edit") => void;
-  }) => (
-    <div className="relative shrink-0">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as "view" | "edit")}
-        className="appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1 pl-2 pr-6 text-sm text-zinc-300 outline-none focus:border-zinc-600"
-      >
-        <option value="view">View</option>
-        <option value="edit">Edit</option>
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
-    </div>
-  );
 
   return (
     <div className="relative">
@@ -288,23 +285,29 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
               )}
 
               {/* Link section */}
-              {isAdmin && (
+              {(isAdmin || linkShares.length > 0) && (
                 <div className={myRole && myRole !== "guest" ? "border-t border-zinc-700/50 pt-3" : ""}>
                   <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
                     <Link2 className="h-3 w-3" />
                     Link
                   </p>
-                  <div className="mb-2 flex items-center gap-1.5">
-                    <button
-                      onClick={createLinkShare}
-                      disabled={creating}
-                      className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
-                    >
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                      Create link
-                    </button>
-                    <PermissionSelect value={linkPermission} onChange={setLinkPermission} />
-                  </div>
+                  {isAdmin && (
+                    <div className="mb-2 flex items-center gap-1.5">
+                      <button
+                        onClick={createLinkShare}
+                        disabled={creating}
+                        className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
+                      >
+                        {creating ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Link2 className="h-3.5 w-3.5" />
+                        )}
+                        Create link
+                      </button>
+                      <PermissionSelect value={linkPermission} onChange={setLinkPermission} />
+                    </div>
+                  )}
                   {linkShares.length > 0 ? (
                     <div className="space-y-1">
                       {linkShares.map((share) => (
@@ -330,56 +333,22 @@ export function ShareDialog({ pageId, workspaceId }: ShareDialogProps) {
                                 )}
                               </button>
                             )}
-                            <button
-                              onClick={() => deleteShare(share.id)}
-                              className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
-                              aria-label="Remove link"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => deleteShare(share.id)}
+                                className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
+                                aria-label="Remove link"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="px-2 text-sm text-zinc-600">No link shares</p>
+                    isAdmin && <p className="px-2 text-sm text-zinc-600">No link shares</p>
                   )}
-                </div>
-              )}
-
-              {/* Non-admin link share display (read-only, no create/delete) */}
-              {!isAdmin && linkShares.length > 0 && (
-                <div className={myRole && myRole !== "guest" ? "border-t border-zinc-700/50 pt-3" : ""}>
-                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
-                    <Link2 className="h-3 w-3" />
-                    Link
-                  </p>
-                  <div className="space-y-1">
-                    {linkShares.map((share) => (
-                      <div
-                        key={share.id}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <Link2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                          <span className="truncate text-sm text-zinc-300">{share.permission} link</span>
-                        </div>
-                        {share.link_token && (
-                          <button
-                            onClick={() => copyLink(share)}
-                            className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
-                            aria-label="Copy link"
-                          >
-                            {copiedId === share.id ? (
-                              <Check className="h-3.5 w-3.5 text-green-400" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
             </>
