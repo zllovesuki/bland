@@ -69,6 +69,12 @@ const loginRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
+  beforeLoad: ({ search }) => {
+    const { isAuthenticated } = useAuthStore.getState();
+    if (isAuthenticated) {
+      throw redirect({ to: search.redirect || "/" });
+    }
+  },
   component: LoginPage,
 });
 

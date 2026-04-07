@@ -85,10 +85,10 @@ export function WorkspaceSwitcher() {
         <div className="absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-900 shadow-lg">
           <div className="max-h-48 overflow-y-auto p-1">
             {workspaces.map((ws) => (
-              <div key={ws.id} className="group flex items-center">
+              <div key={ws.id} className="group relative">
                 {renaming && ws.id === currentWorkspace?.id ? (
                   <form
-                    className="flex flex-1 items-center gap-1 px-2 py-1"
+                    className="flex items-center gap-1 px-2 py-1"
                     onSubmit={(e) => {
                       e.preventDefault();
                       handleRename();
@@ -121,7 +121,7 @@ export function WorkspaceSwitcher() {
                         setDropdownOpen(false);
                         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
                       }}
-                      className={`flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition ${
                         ws.id === currentWorkspace?.id
                           ? "bg-zinc-800 text-zinc-100"
                           : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
@@ -136,7 +136,7 @@ export function WorkspaceSwitcher() {
                           setRenaming(true);
                           setRenameName(ws.name);
                         }}
-                        className="mr-1 rounded p-1 text-zinc-500 opacity-0 transition hover:text-zinc-200 group-hover:opacity-100"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 opacity-0 transition hover:text-zinc-200 group-hover:opacity-100"
                         aria-label="Rename workspace"
                       >
                         <Pencil className="h-3 w-3" />

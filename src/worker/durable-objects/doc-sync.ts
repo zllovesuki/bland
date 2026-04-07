@@ -12,6 +12,7 @@ const MAX_CONNECTIONS_PER_DOC = 20;
 const log = createLogger("doc-sync");
 
 const READONLY_TAG = "readonly";
+const MEMBER_EDIT_TAG = "member_edit";
 
 interface YpsConnectionState {
   __ypsAwarenessIds?: number[];
@@ -59,21 +60,35 @@ export class DocSync extends YServer<Env> {
 
   getConnectionTags(connection: Connection, ctx: ConnectionContext): string[] {
     const url = new URL(ctx.request.url);
+    const tags: string[] = [];
     if (url.searchParams.get("readOnly") === "1") {
       log.debug("connection_readonly", { pageId: this.name });
-      return [READONLY_TAG];
+      tags.push(READONLY_TAG);
     }
-    return [];
+    if (url.searchParams.get("authType") === "member_edit") {
+      tags.push(MEMBER_EDIT_TAG);
+    }
+    return tags;
   }
 
   async onConnect(connection: Connection, ctx: ConnectionContext): Promise<void> {
-    let count = 0;
-    for (const _ of this.getConnections()) count++;
-    log.debug("connection_attempt", { pageId: this.name, connectionCount: count });
-    if (count > MAX_CONNECTIONS_PER_DOC) {
-      log.info("connection_rejected", { pageId: this.name, reason: "max_connections", count });
-      connection.close(4029, "Too many concurrent editors");
-      return;
+    const isMemberEdit = connection.tags.includes(MEMBER_EDIT_TAG);
+
+    // Member-edit connections are guaranteed — only cap headroom connections
+    if (!isMemberEdit) {
+      let total = 0;
+      let memberEditCount = 0;
+      for (const conn of this.getConnections()) {
+        total++;
+        if (conn.tags.includes(MEMBER_EDIT_TAG)) memberEditCount++;
+      }
+      const headroomCount = total - memberEditCount;
+      log.debug("connection_attempt", { pageId: this.name, total, headroomCount, isMemberEdit });
+      if (headroomCount >= MAX_CONNECTIONS_PER_DOC) {
+        log.info("connection_rejected", { pageId: this.name, reason: "headroom_full", headroomCount });
+        connection.close(4029, "Too many concurrent connections");
+        return;
+      }
     }
 
     return super.onConnect(connection, ctx);

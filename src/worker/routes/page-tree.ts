@@ -67,6 +67,17 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/ancestors", optionalAuth, rateLim
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
+  // Gate on target page access before returning ancestor chain
+  if (resolved.fullMember) {
+    const page = await getPage(db, pageId, workspaceId);
+    if (!page) return c.json({ error: "not_found", message: "Page not found" }, 404);
+  } else {
+    const access = await canAccessPages(db, resolved.principal, [pageId], workspaceId, "view");
+    if (!access.get(pageId)) {
+      return c.json({ error: "not_found", message: "Page not found" }, 404);
+    }
+  }
+
   const chain = await getPageAncestorChain(db, pageId, workspaceId);
   // chain is [page, parent, grandparent, ...] — remove self (first element), then reverse to root-first
   chain.shift();

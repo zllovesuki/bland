@@ -66,7 +66,7 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
         await api.pages.delete(currentWorkspace.id, page.id);
         archivePage(page.id);
         if (params.pageId === page.id) {
-          navigate({ to: "/$workspaceSlug", params: { workspaceSlug: params.workspaceSlug ?? "" } });
+          navigate({ to: "/$workspaceSlug", params: { workspaceSlug: params.workspaceSlug || currentWorkspace.slug } });
         }
       } finally {
         setArchiving(false);
@@ -89,7 +89,7 @@ export function PageTreeItem({ page, depth, childPages, allPages, activeAncestor
     <div>
       <Link
         to="/$workspaceSlug/$pageId"
-        params={{ workspaceSlug: params.workspaceSlug ?? "", pageId: page.id }}
+        params={{ workspaceSlug: params.workspaceSlug || currentWorkspace?.slug || "", pageId: page.id }}
         className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}

@@ -58,6 +58,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState<string | null>(null);
   const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
+  const [canEdit, setCanEdit] = useState<boolean | null>(null);
 
   // The page currently being viewed: either ?page= param or the root shared page
   const currentPageId = activePage ?? info?.page_id;
@@ -75,6 +76,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           setInfo(data);
           setTitle(data.title);
           setIcon(data.icon);
+          setCanEdit(data.permission === "edit");
         }
       } catch (err) {
         if (!cancelled) {
@@ -101,9 +103,11 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     if (activePage) {
       setTitle("");
       setIcon(null);
+      setCanEdit(null);
     } else {
       setTitle(info.title);
       setIcon(info.icon);
+      setCanEdit(info.permission === "edit");
     }
     setAncestors([]);
 
@@ -116,6 +120,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           if (!cancelled) {
             setTitle(page.title);
             setIcon(page.icon ?? null);
+            setCanEdit(page.can_edit);
           }
         })
         .catch(() => {});
@@ -193,7 +198,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     );
   }
 
-  const isViewOnly = info.permission === "view";
+  const isViewOnly = canEdit === null ? true : !canEdit;
   const displayPageId = currentPageId ?? info.page_id;
 
   return (

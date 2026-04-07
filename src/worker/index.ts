@@ -95,10 +95,14 @@ export default {
           log.info("share_connection_authorized", { pageId, readOnly });
         }
 
-        // Always return a sanitized Request to prevent client-injected readOnly param
+        // Always return a sanitized Request to prevent client-injected params
         url.searchParams.delete("readOnly");
+        url.searchParams.delete("authType");
         if (readOnly) {
           url.searchParams.set("readOnly", "1");
+        }
+        if (token && !readOnly) {
+          url.searchParams.set("authType", "member_edit");
         }
         return new Request(url.toString(), req);
       },

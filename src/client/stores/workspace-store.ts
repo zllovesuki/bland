@@ -82,6 +82,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       partialize: (state) => ({
         workspaces: state.workspaces,
         currentWorkspace: state.currentWorkspace,
+        pages: state.pages,
       }),
     },
   ),
