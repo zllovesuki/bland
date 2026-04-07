@@ -152,6 +152,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           if (!cancelled) {
             setTitle(page.title);
             setIcon(page.icon ?? null);
+            setCoverUrl(page.cover_url ?? null);
             setCanEdit(page.can_edit);
           }
         })
@@ -270,7 +271,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
-            {coverUrl && !activePage && (
+            {coverUrl && (
               <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
                 <PageCover coverUrl={coverUrl} shareToken={token} />
               </div>

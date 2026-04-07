@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { canAccessPage, canAccessPages, resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { checkMembership } from "@/worker/lib/membership";
 import { createDbMock } from "@tests/worker/util/db";
+import { createMembership } from "@tests/worker/util/fixtures";
 
 vi.mock("@/worker/lib/membership", () => ({
   checkMembership: vi.fn(),
@@ -18,12 +19,7 @@ describe("worker permissions", () => {
   it("short-circuits workspace members to full access without running the share query", async () => {
     const db = createDbMock();
 
-    checkMembershipMock.mockResolvedValue({
-      user_id: "user-1",
-      workspace_id: "workspace-1",
-      role: "member",
-      joined_at: "2026-04-06T00:00:00.000Z",
-    });
+    checkMembershipMock.mockResolvedValue(createMembership("member", { workspace_id: "workspace-1" }));
 
     const levels = await resolvePageAccessLevels(
       db,
@@ -47,12 +43,7 @@ describe("worker permissions", () => {
       { page_id: "page-b", access_rank: 1 },
     ]);
 
-    checkMembershipMock.mockResolvedValue({
-      user_id: "user-1",
-      workspace_id: "workspace-1",
-      role: "guest",
-      joined_at: "2026-04-06T00:00:00.000Z",
-    });
+    checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
 
     const levels = await resolvePageAccessLevels(
       db,

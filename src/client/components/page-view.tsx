@@ -26,6 +26,7 @@ import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { useMyRole } from "@/client/hooks/use-role";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
@@ -144,6 +145,8 @@ export function PageView() {
   const members = useWorkspaceStore((s) => s.members);
   const accessMode = useWorkspaceStore((s) => s.accessMode);
   const isSharedMode = accessMode === "shared";
+  const { role } = useMyRole();
+  const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
   const currentUser = useAuthStore((s) => s.user);
   const [page, setPage] = useState<(Page & { can_edit?: boolean }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -315,7 +318,7 @@ export function PageView() {
       )}
 
       <div className="mb-4 flex min-h-6 items-center justify-between">
-        {isSharedMode ? (
+        {useRestrictedBreadcrumbs ? (
           <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
         ) : (
           <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />

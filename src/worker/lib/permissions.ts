@@ -160,6 +160,7 @@ function buildBatchPageAccessQuery(pageIds: string[], principal: Principal, work
       FROM requested r
       JOIN pages p ON p.id = r.root_id
       WHERE p.workspace_id = ${workspaceId}
+        AND p.archived_at IS NULL
 
       UNION ALL
 

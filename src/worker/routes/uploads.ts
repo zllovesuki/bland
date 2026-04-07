@@ -9,11 +9,11 @@ import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { canEdit, canAccessPage } from "@/worker/lib/permissions";
+import { getPage } from "@/worker/lib/page-access";
 import { parseCookies, REFRESH_COOKIE, getJwtSecret } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { JWT_ALGORITHM } from "@/worker/lib/constants";
-import { getPage } from "@/worker/lib/page-access";
 import { PresignRequest } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
 
@@ -182,6 +182,15 @@ uploadServingRouter.get("/:id", async (c) => {
   const upload = await db.select().from(uploads).where(eq(uploads.id, uploadId)).get();
   if (!upload) {
     return c.json({ error: "not_found", message: "Upload not found" }, 404);
+  }
+
+  // Page-scoped uploads: if the linked page is archived or missing, conceal the asset.
+  // This keeps all callers on the same 404 path instead of leaking through auth outcomes.
+  if (upload.page_id) {
+    const page = await getPage(db, upload.page_id, upload.workspace_id);
+    if (!page) {
+      return c.json({ error: "not_found", message: "Upload not found" }, 404);
+    }
   }
 
   // Try auth via refresh cookie first (same-origin browser requests)

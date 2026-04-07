@@ -8,6 +8,8 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import { PageTree } from "./page-tree";
 import { SearchDialog, searchShortcutLabel } from "./search-dialog";
 import { useOnline } from "@/client/hooks/use-online";
+import { useAuthStore } from "@/client/stores/auth-store";
+import { canCreatePage } from "@/client/lib/permissions";
 import { toast } from "@/client/components/toast";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { MobileDrawer } from "@/client/components/ui/mobile-drawer";
@@ -21,6 +23,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const accessMode = useWorkspaceStore((s) => s.accessMode);
   const isSharedMode = accessMode === "shared";
+  const members = useWorkspaceStore((s) => s.members);
+  const currentUser = useAuthStore((s) => s.user);
   const { createPage, isCreating } = useCreatePage();
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -78,7 +82,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
     >
       {showCollapsed ? (
         <div className="flex flex-1 flex-col items-center gap-2 pt-2">
-          {!isSharedMode && (
+          {canCreatePage(members, currentUser) && (
             <button
               onClick={() => createPage()}
               disabled={!online}
@@ -127,7 +131,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
           )}
 
           <div className="flex items-center gap-1 px-2 py-2">
-            {!isSharedMode && (
+            {canCreatePage(members, currentUser) && (
               <button
                 onClick={() => createPage()}
                 disabled={isCreating || !online}

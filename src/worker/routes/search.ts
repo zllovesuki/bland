@@ -27,7 +27,10 @@ searchRouter.get("/workspaces/:wid/search", requireAuth, rateLimit("RL_API"), as
   }
 
   const membership = await checkMembership(db, user.id, workspaceId);
-  const needsFilter = !membership || membership.role === "guest";
+  if (!membership) {
+    return c.json({ error: "forbidden", message: "Search requires workspace membership" }, 403);
+  }
+  const needsFilter = membership.role === "guest";
 
   // FTS5 trigram query — joined with pages to scope to workspace + non-archived.
   // Double-quote wrapping escapes FTS5 operators in user input.

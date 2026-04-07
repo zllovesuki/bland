@@ -2,10 +2,15 @@ import { vi } from "vitest";
 
 import type { Db } from "@/worker/db/client";
 
-export function createDbMock(...responses: unknown[]): Db {
-  const all = vi.fn();
-  for (const response of responses) {
-    all.mockResolvedValueOnce(response);
-  }
-  return { all } as unknown as Db;
+type TestQueryRow = Record<string, unknown>;
+type TestQueryResult = TestQueryRow[];
+type TestDbAll = (query: Parameters<Db["all"]>[0]) => ReturnType<Db["all"]>;
+
+export function createDbMock(...responses: TestQueryResult[]): Db {
+  const pendingResponses = [...responses];
+  const all = vi.fn<TestDbAll>().mockImplementation(() => {
+    const next = pendingResponses.shift() ?? [];
+    return Promise.resolve(next) as unknown as ReturnType<Db["all"]>;
+  });
+  return { all } as Pick<Db, "all"> as Db;
 }

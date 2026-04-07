@@ -83,6 +83,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         workspaces: state.workspaces,
         currentWorkspace: state.currentWorkspace,
         pages: state.pages,
+        members: state.members,
       }),
     },
   ),
