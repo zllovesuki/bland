@@ -7,6 +7,7 @@ import { api } from "@/client/lib/api";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
+import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import type { DropTarget } from "@/client/hooks/use-page-drag";
@@ -85,7 +86,7 @@ export function PageTreeItem({
       if (!currentWorkspace || archiving) return;
       const ok = await confirm({
         title: "Archive page",
-        message: `"${page.title || DEFAULT_PAGE_TITLE}" will be moved to the archive.`,
+        message: getArchivePageConfirmMessage(page.title, childPages.length),
       });
       if (!ok) return;
       setArchiving(true);
@@ -100,7 +101,17 @@ export function PageTreeItem({
         setMenuOpen(false);
       }
     },
-    [currentWorkspace, archiving, page.id, archivePage, params.pageId, params.workspaceSlug, navigate],
+    [
+      currentWorkspace,
+      archiving,
+      page.id,
+      page.title,
+      childPages.length,
+      archivePage,
+      params.pageId,
+      params.workspaceSlug,
+      navigate,
+    ],
   );
 
   const handleCreateSubpage = useCallback(

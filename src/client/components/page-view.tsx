@@ -9,6 +9,7 @@ import { toast } from "@/client/components/toast";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
+import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { PageCover } from "@/client/components/ui/page-cover";
@@ -139,6 +140,7 @@ export function PageView() {
   };
   const navigate = useNavigate();
   const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const pages = useWorkspaceStore((s) => s.pages);
   const updatePage = useWorkspaceStore((s) => s.updatePage);
   const addPage = useWorkspaceStore((s) => s.addPage);
   const archivePage = useWorkspaceStore((s) => s.archivePage);
@@ -159,6 +161,10 @@ export function PageView() {
   const knownHasCover = useWorkspaceStore((s) => s.pages.find((p) => p.id === params.pageId)?.cover_url);
   const online = useOnline();
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
+  const directChildCount = useMemo(
+    () => (page ? pages.filter((candidate) => candidate.parent_id === page.id && !candidate.archived_at).length : 0),
+    [pages, page],
+  );
 
   useEffect(() => {
     if (!workspace) return;
@@ -203,7 +209,7 @@ export function PageView() {
     if (!workspace || !page || isArchiving) return;
     const ok = await confirm({
       title: "Archive page",
-      message: `"${page.title || DEFAULT_PAGE_TITLE}" will be moved to the archive.`,
+      message: getArchivePageConfirmMessage(page.title, directChildCount),
     });
     if (!ok) return;
     setIsArchiving(true);
@@ -218,7 +224,7 @@ export function PageView() {
       toast.error("Failed to archive page");
       setIsArchiving(false);
     }
-  }, [workspace, page, isArchiving, archivePage, navigate, params.workspaceSlug]);
+  }, [workspace, page, directChildCount, isArchiving, archivePage, navigate, params.workspaceSlug]);
 
   const handleTitleChange = useCallback(
     (title: string) => {
