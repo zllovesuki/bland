@@ -1,12 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Outlet, useLocation, useRouterState } from "@tanstack/react-router";
+import { Outlet, useLocation, useRouterState, Link } from "@tanstack/react-router";
+import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
 import { useOnline } from "@/client/hooks/use-online";
+import { useSessionRehydration } from "@/client/hooks/use-session-rehydration";
 
 const Sidebar = lazy(() => import("./sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
 
@@ -19,7 +20,8 @@ function SidebarFallback() {
 export function AppShell() {
   const location = useLocation();
   const isShareView = location.pathname.startsWith("/s/");
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasLocalSession = useAuthStore((s) => s.hasLocalSession);
+  const sessionMode = useAuthStore((s) => s.sessionMode);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
@@ -35,6 +37,7 @@ export function AppShell() {
   const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
 
   const online = useOnline();
+  useSessionRehydration();
 
   // Route change: close drawer, move focus, announce
   const prevPathRef = useRef(location.pathname);
@@ -68,8 +71,17 @@ export function AppShell() {
           Offline — changes will sync when you reconnect
         </div>
       )}
+      {sessionMode === SESSION_MODES.EXPIRED && (
+        <div className="animate-slide-up border-b border-red-500/20 bg-red-500/10 py-1.5 text-center text-xs text-red-400">
+          Session expired.{" "}
+          <Link to="/login" search={{ redirect: location.pathname }} className="underline hover:text-red-300">
+            Sign in
+          </Link>{" "}
+          to resume editing.
+        </div>
+      )}
       <div className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl"}`}>
-        {isAuthenticated && (
+        {hasLocalSession && (
           <Suspense fallback={<SidebarFallback />}>
             <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
           </Suspense>

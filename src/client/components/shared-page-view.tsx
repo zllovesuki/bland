@@ -111,7 +111,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
         }
       } catch (err) {
         if (!cancelled) {
-          setError(toApiError(err).message);
+          setError(navigator.onLine ? toApiError(err).message : "This shared page requires a connection.");
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -210,12 +210,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   }
 
   if (error || !info) {
-    return (
-      <PageErrorState
-        message={error ?? "This shared link is invalid or has expired."}
-        className="h-screen"
-      />
-    );
+    return <PageErrorState message={error ?? "This shared link is invalid or has expired."} className="h-screen" />;
   }
 
   const isViewOnly = canEdit === null ? true : !canEdit;

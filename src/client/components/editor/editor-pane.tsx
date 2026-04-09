@@ -6,8 +6,10 @@ import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
+import { getCachedDocKey } from "@/client/lib/constants";
 import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { markDocCached } from "@/client/lib/doc-cache-hints";
 import { EditorTitle } from "./editor-title";
 import { EditorBody } from "./editor-body";
 
@@ -46,11 +48,12 @@ export function EditorPane({
 
   useEffect(() => {
     const ydoc = new Y.Doc();
-    const idb = new IndexeddbPersistence(`bland:doc:${pageId}`, ydoc);
+    const idb = new IndexeddbPersistence(getCachedDocKey(pageId), ydoc);
     const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
     const titleText = ydoc.getText(YJS_PAGE_TITLE);
     let wsProvider: YProvider | null = null;
     let seedTitleTimeout: ReturnType<typeof window.setTimeout> | null = null;
+    let unsubAuth: (() => void) | null = null;
     let mounted = true;
     let seededTitle = false;
 
@@ -79,6 +82,7 @@ export function EditorPane({
     const handleProviderSync = (isSynced: boolean) => {
       if (!isSynced) return;
       maybeSeedTitle();
+      markDocCached(pageId);
     };
 
     function handleSync() {
@@ -87,6 +91,7 @@ export function EditorPane({
       if (titleText.length > 0) {
         setTitle(titleText.toString());
         onTitleChangeRef.current?.(titleText.toString());
+        markDocCached(pageId);
       }
 
       const hasToken = !!shareToken || !!useAuthStore.getState().accessToken;
@@ -105,6 +110,16 @@ export function EditorPane({
       if (!hasToken) {
         seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
       }
+
+      // Reconnect when auth is restored after local-only mode
+      if (!shareToken) {
+        unsubAuth = useAuthStore.subscribe((state) => {
+          if (state.accessToken && wsProvider && !wsProvider.wsconnected) {
+            wsProvider.connect();
+          }
+        });
+      }
+
       onProviderRef.current?.(wsProvider);
       setEditorState({ fragment, provider: wsProvider, ydoc });
     }
@@ -122,6 +137,7 @@ export function EditorPane({
       if (seedTitleTimeout !== null) {
         window.clearTimeout(seedTitleTimeout);
       }
+      unsubAuth?.();
       wsProvider?.off("sync", handleProviderSync);
       onProviderRef.current?.(null);
       wsProvider?.destroy();

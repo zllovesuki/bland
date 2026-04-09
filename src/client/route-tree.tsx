@@ -2,27 +2,11 @@ import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tan
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { AppShell } from "@/client/components/app-shell";
+import { bootstrapWorkspaceData } from "@/client/lib/workspace-data";
 import { WorkspaceLayout } from "@/client/components/workspace-layout";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
-
-async function bootstrapWorkspaceData(
-  store: ReturnType<typeof useWorkspaceStore.getState>,
-  workspaceId: string,
-  accessMode: "member" | "shared",
-) {
-  store.setAccessMode(accessMode);
-  if (accessMode === "shared") {
-    const pages = await api.pages.list(workspaceId);
-    store.setPages(pages);
-    store.setMembers([]);
-  } else {
-    const [pages, members] = await Promise.all([api.pages.list(workspaceId), api.workspaces.members(workspaceId)]);
-    store.setPages(pages);
-    store.setMembers(members);
-  }
-}
 
 function RouteErrorFallback() {
   return (
@@ -47,8 +31,8 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   beforeLoad: async () => {
-    const { isAuthenticated } = useAuthStore.getState();
-    if (!isAuthenticated) {
+    const { hasLocalSession } = useAuthStore.getState();
+    if (!hasLocalSession) {
       throw redirect({ to: "/login", search: { redirect: undefined } });
     }
     try {
@@ -80,6 +64,7 @@ const loginRoute = createRoute({
   }),
   beforeLoad: ({ search }) => {
     const { isAuthenticated } = useAuthStore.getState();
+    // Only redirect away from login if fully authenticated (not local-only/expired)
     if (isAuthenticated) {
       throw redirect({ to: search.redirect || "/" });
     }
@@ -97,9 +82,10 @@ const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
   beforeLoad: async () => {
+    // Profile requires a live server session, not just cached data
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
-      throw redirect({ to: "/login", search: { redirect: undefined } });
+      throw redirect({ to: "/login", search: { redirect: "/profile" } });
     }
   },
   component: lazyRouteComponent(() => import("@/client/components/profile-settings"), "ProfileSettings"),
@@ -119,8 +105,8 @@ const workspaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/$workspaceSlug",
   beforeLoad: async ({ params, location }) => {
-    const { isAuthenticated } = useAuthStore.getState();
-    if (!isAuthenticated) {
+    const { hasLocalSession, isAuthenticated } = useAuthStore.getState();
+    if (!hasLocalSession) {
       throw redirect({ to: "/login", search: { redirect: location.pathname } });
     }
 
@@ -128,9 +114,11 @@ const workspaceRoute = createRoute({
 
     // Always refresh workspaces to avoid stale membership cache
     let workspaces = store.workspaces;
+    let gotRemoteResponse = false;
     try {
       workspaces = await api.workspaces.list();
       store.setWorkspaces(workspaces);
+      gotRemoteResponse = true;
     } catch {
       // Fall back to cached list
     }
@@ -144,13 +132,11 @@ const workspaceRoute = createRoute({
       } catch {
         // Component handles empty state
       }
-    } else {
-      // Non-member: clear context, let pageRoute bootstrap via context API
-      store.setCurrentWorkspace(null);
-      store.setAccessMode(null);
-      store.setPages([]);
-      store.setMembers([]);
+    } else if (gotRemoteResponse && isAuthenticated) {
+      // We got a real server response -- user isn't a member of this workspace
+      store.clearWorkspaceContext();
     }
+    // else: local-only / expired with no remote response -- keep cached state
   },
   component: WorkspaceLayout,
 });

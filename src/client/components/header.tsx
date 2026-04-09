@@ -13,7 +13,8 @@ interface HeaderProps {
 }
 
 export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: HeaderProps) {
-  const { isAuthenticated, user } = useAuthStore();
+  const hasLocalSession = useAuthStore((s) => s.hasLocalSession);
+  const user = useAuthStore((s) => s.user);
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,7 +41,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
       className={`relative z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-950/95 backdrop-blur-sm transition-[margin-top] duration-300 ease-out ${visible ? "mt-0" : "-mt-[61px]"}`}
     >
       <div className={`flex items-center px-4 py-3 sm:px-6 ${expanded ? "" : "mx-auto max-w-7xl"}`}>
-        {isAuthenticated && onToggleMobileSidebar && (
+        {hasLocalSession && onToggleMobileSidebar && (
           <button
             onClick={onToggleMobileSidebar}
             className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:hidden"
@@ -62,7 +63,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
-          {isAuthenticated && (
+          {hasLocalSession && (
             <button
               onClick={onToggleLayout}
               className="hidden items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 lg:flex"
@@ -73,7 +74,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
             </button>
           )}
 
-          {isAuthenticated ? (
+          {hasLocalSession ? (
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((o) => !o)}

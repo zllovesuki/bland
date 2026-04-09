@@ -6,6 +6,7 @@ import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { confirm } from "@/client/components/confirm";
 import { toast } from "@/client/components/toast";
+import { getCachedDocKey, SESSION_MODES } from "@/client/lib/constants";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
@@ -22,6 +23,7 @@ import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
+import { isDocCached, removeDocHint } from "@/client/lib/doc-cache-hints";
 import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
@@ -183,16 +185,34 @@ export function PageView() {
         }
       } catch (err) {
         if (!cancelled) {
-          // Offline: fall back to cached page from workspace store
-          if (!online) {
+          const apiErr = toApiError(err);
+
+          // Confirmed 403: remove from cache + clear Yjs DB (spec 20.3)
+          if (apiErr.error === "forbidden" || apiErr.message.includes("403")) {
+            useWorkspaceStore.getState().removePage(params.pageId);
+            removeDocHint(params.pageId);
+            import("y-indexeddb").then((m) => m.clearDocument(getCachedDocKey(params.pageId))).catch(() => {});
+            setError("You no longer have access to this page.");
+            setIsLoading(false);
+            return;
+          }
+
+          // Read current session mode — it may have changed during the request
+          // (e.g. apiFetch flipped to expired/local-only after a failed refresh)
+          const currentMode = useAuthStore.getState().sessionMode;
+          if (!online || currentMode !== SESSION_MODES.AUTHENTICATED) {
             const cached = useWorkspaceStore.getState().pages.find((p) => p.id === params.pageId);
             if (cached) {
-              setPage(cached);
+              if (isDocCached(params.pageId)) {
+                setPage(cached);
+              } else {
+                setError("This page isn't available offline yet.");
+              }
               setIsLoading(false);
               return;
             }
           }
-          setError(toApiError(err).message);
+          setError(apiErr.message);
         }
       } finally {
         if (!cancelled) setIsLoading(false);

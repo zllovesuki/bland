@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/client/stores/auth-store";
+import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
-import { STORAGE_KEYS } from "@/client/lib/constants";
 import type {
   LoginRequest,
   User,
@@ -17,12 +17,21 @@ import type {
 } from "@/shared/types";
 
 const API_BASE = "/api/v1";
+const AUTH_REFRESH_PATH = "/auth/refresh";
 
 export function toApiError(err: unknown): ApiError {
   if (err && typeof err === "object" && "message" in err) {
     return err as ApiError;
   }
   return { error: "unknown", message: err instanceof Error ? err.message : "An unexpected error occurred" };
+}
+
+export function requestSessionRefresh(): Promise<Response> {
+  return fetch(`${API_BASE}${AUTH_REFRESH_PATH}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -59,26 +68,27 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     // Auto-refresh on 401, or the local-dev 403 workaround for unauthorized responses.
     if (
       (res.status === 401 || (res.status === 403 && err.error === "unauthorized")) &&
-      path !== "/auth/refresh" &&
+      path !== AUTH_REFRESH_PATH &&
       path !== "/auth/login"
     ) {
       // Phase 1: Refresh — clear auth only if this fails
       let refreshData: { user: User; accessToken: string };
       try {
-        const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        });
+        const refreshRes = await requestSessionRefresh();
         if (!refreshRes.ok) {
-          useAuthStore.getState().clearAuth();
+          useAuthStore.getState().markExpired();
           throw err;
         }
         refreshData = (await refreshRes.json()) as { user: User; accessToken: string };
         useAuthStore.getState().setAuth(refreshData.accessToken, refreshData.user);
       } catch (e) {
         if (e === err) throw e; // re-thrown from !refreshRes.ok
-        useAuthStore.getState().clearAuth();
+        // Network/transport error during refresh — don't assume session is dead.
+        // Transition to local-only so cached content stays accessible.
+        const s = useAuthStore.getState();
+        if (s.sessionMode === SESSION_MODES.AUTHENTICATED) {
+          s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
+        }
         throw err;
       }
 
@@ -121,7 +131,7 @@ export const api = {
       return res;
     },
     refresh: async () => {
-      const res = await apiFetch<{ user: User; accessToken: string }>("/auth/refresh", {
+      const res = await apiFetch<{ user: User; accessToken: string }>(AUTH_REFRESH_PATH, {
         method: "POST",
       });
       return res;
