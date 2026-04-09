@@ -397,11 +397,20 @@
 }
 
 .tiptap-code-block-pre code {
+  display: block;
+  min-width: 100%;
   background: none;
   border-radius: 0;
   padding: 0;
   font-size: inherit;
   color: inherit;
+  white-space: inherit;
+}
+
+.tiptap-code-block-pre [data-node-view-content-react] {
+  display: block;
+  min-width: 100%;
+  white-space: inherit;
 }
 
 .tiptap-code-block-lang-dropdown {
@@ -428,11 +437,16 @@
 }
 
 .tiptap-code-block-lang-item:hover {
-  background-color: #27272a;
+  background-color: #3f3f46;
   color: #f4f4f5;
 }
 
 .tiptap-code-block-lang-item.is-active {
   background-color: rgba(139, 92, 246, 0.1);
   color: #a78bfa;
+}
+
+.tiptap-code-block-lang-item.is-active:hover {
+  background-color: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe;
 }

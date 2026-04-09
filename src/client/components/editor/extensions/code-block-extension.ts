@@ -1,5 +1,6 @@
 import { textblockTypeInputRule } from "@tiptap/core";
 import { CodeBlockLowlight, type CodeBlockLowlightOptions } from "@tiptap/extension-code-block-lowlight";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { createLowlight } from "lowlight";
 import c from "highlight.js/lib/languages/c";
@@ -19,6 +20,7 @@ import shell from "highlight.js/lib/languages/shell";
 import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import yaml from "highlight.js/lib/languages/yaml";
+import { resolveCodeBlockLineRange } from "./code-block-selection";
 import { CodeBlockView } from "./code-block-view";
 import { resolveLanguage } from "./code-block-shared";
 
@@ -45,6 +47,31 @@ const lowlight = createLowlight({
   toml: ini,
 });
 
+function createCodeBlockDoubleClickPlugin(codeBlockName: string) {
+  return new Plugin({
+    props: {
+      handleDoubleClick(view, pos, event) {
+        if (event.button !== 0) return false;
+
+        const $pos = view.state.doc.resolve(pos);
+        if ($pos.parent.type.name !== codeBlockName) return false;
+
+        const range = resolveCodeBlockLineRange($pos.parent.textContent, $pos.parentOffset);
+        const lineSelection = TextSelection.create(view.state.doc, $pos.start() + range.from, $pos.start() + range.to);
+
+        if (!view.state.selection.eq(lineSelection)) {
+          view.dispatch(view.state.tr.setSelection(lineSelection).setMeta("pointer", true));
+        } else if (!view.hasFocus()) {
+          view.focus();
+        }
+
+        event.preventDefault();
+        return true;
+      },
+    },
+  });
+}
+
 export const HighlightedCodeBlock = CodeBlockLowlight.extend({
   addOptions() {
     return {
@@ -54,7 +81,11 @@ export const HighlightedCodeBlock = CodeBlockLowlight.extend({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(CodeBlockView, { contentDOMElementTag: "span" });
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+
+  addProseMirrorPlugins() {
+    return [...(this.parent?.() ?? []), createCodeBlockDoubleClickPlugin(this.name)];
   },
 
   addInputRules() {

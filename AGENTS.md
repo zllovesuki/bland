@@ -203,6 +203,7 @@ Notes:
 - [src/client/components/editor/extensions/create-editor-extensions.ts](/home/vendetta/code/bland/src/client/components/editor/extensions/create-editor-extensions.ts) owns the shared Tiptap extension list. Extend it instead of duplicating editor configuration in callers.
 - [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css), [src/client/components/editor/styles/overlays.css](/home/vendetta/code/bland/src/client/components/editor/styles/overlays.css), and [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css) own shared editor and emoji-picker styling overrides. Keep styling changes centralized there.
 - When adding editor behavior, prefer composing existing Tiptap/ProseMirror extensions and controllers over introducing another editor framework or parallel abstraction.
+- When debugging hover, focus, or pointer bugs in frontend UI, verify first whether the interactive state is actually being lost or only rendered invisibly. Use DevTools to inspect `:hover`/computed styles before changing JavaScript; a visual bug can still be a CSS contrast or layering issue even when it feels event-related.
 
 ### Worker changes
 

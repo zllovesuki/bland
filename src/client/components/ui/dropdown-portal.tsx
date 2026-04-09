@@ -1,4 +1,5 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { autoUpdate, flip, offset, shift, useFloating } from "@floating-ui/react";
 import { createPortal } from "react-dom";
 
 type Align = "left" | "right";
@@ -9,25 +10,57 @@ interface DropdownPortalProps {
   width?: number;
   className?: string;
   children: React.ReactNode;
+  onClose?: () => void;
 }
 
-export function DropdownPortal({ triggerRef, align = "right", width = 128, className, children }: DropdownPortalProps) {
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+export function DropdownPortal({
+  triggerRef,
+  align = "right",
+  width = 128,
+  className,
+  children,
+  onClose,
+}: DropdownPortalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const referenceEl = triggerRef.current;
+  const placement = align === "right" ? "bottom-end" : "bottom-start";
+  const { refs, floatingStyles } = useFloating({
+    open: true,
+    placement,
+    strategy: "fixed",
+    middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
+    whileElementsMounted: autoUpdate,
+  });
 
   useLayoutEffect(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setPos({
-      top: rect.bottom + 4,
-      left: align === "right" ? rect.right - width : rect.left,
-    });
-  }, [triggerRef, align, width]);
+    if (!referenceEl) return;
+    refs.setReference(referenceEl);
+  }, [referenceEl, refs]);
+
+  useEffect(() => {
+    if (!onClose) return;
+    const handleClose = onClose;
+
+    function handler(e: MouseEvent) {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      handleClose();
+    }
+
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [onClose, triggerRef]);
 
   return createPortal(
     <div
-      className={`animate-scale-fade fixed z-50 origin-top-right rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
-      style={{ top: pos.top, left: pos.left, width }}
+      ref={(node) => {
+        refs.setFloating(node);
+        panelRef.current = node;
+      }}
+      className={`animate-fade-in z-50 ${align === "right" ? "origin-top-right" : "origin-top-left"} rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
+      style={{ ...floatingStyles, width }}
     >
       {children}
     </div>,
