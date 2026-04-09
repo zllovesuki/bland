@@ -9,7 +9,8 @@ D1 has a 10GB per-database limit. With `doc_snapshots` storing Yjs blobs plus
 D1 can hold before hitting that ceiling, and whether moving document content
 into per-page Durable Object SQLite storage would be a better long-term design.
 
-The current spec (`bland-production-spec.md`) stores Yjs snapshots in D1 via
+The current spec ([bland-production-spec.md](./bland-production-spec.md))
+stores Yjs snapshots in D1 via
 `DocSync.onLoad`/`onSave` callbacks (snapshot mode). Each page's full Yjs
 state vector is a single blob in `doc_snapshots`.
 

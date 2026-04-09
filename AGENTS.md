@@ -4,7 +4,7 @@
 
 "Can we do more with less code?"
 
-`bland-production-spec.md` is explicit about this and the repo should follow it. Prefer the smallest correct implementation that preserves correctness, performance, and security. If a larger abstraction or refactor is optional, present it as an option instead of making it the default.
+`docs/bland-production-spec.md` is explicit about this and the repo should follow it. Prefer the smallest correct implementation that preserves correctness, performance, and security. If a larger abstraction or refactor is optional, present it as an option instead of making it the default.
 
 ## Naming
 
@@ -28,8 +28,8 @@
 ## Source Of Truth
 
 - The current source tree wins when it conflicts with docs.
-- `bland-production-spec.md` is the product and architecture reference.
-- `frontend-spec.md` is the frontend reference design to keep consistent across `devbin.tools` products.
+- `docs/bland-production-spec.md` is the product and architecture reference.
+- `docs/frontend-spec.md` is the frontend reference design to keep consistent across `devbin.tools` products.
 - `src/shared/types.ts` is the shared client/worker contract surface for public API shapes.
 - `src/shared/doc-messages.ts` is the shared client/worker contract surface for DocSync custom messages. Update it when changing custom message payloads.
 - `src/worker/db/schema.ts` is the schema source of truth. Do not hand-edit generated SQL in `drizzle/`.
@@ -154,7 +154,7 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 
 - The schema and bindings were set up ahead of all feature work. A table or binding existing does not mean the full product flow exists yet.
 - Favor incremental delivery over speculative framework-building.
-- When implementing a feature from `bland-production-spec.md`, land the minimal vertical slice that matches the current repo style.
+- When implementing a feature from `docs/bland-production-spec.md`, land the minimal vertical slice that matches the current repo style.
 - If the spec and scaffold diverge, either:
   1. implement the smallest missing piece required by the task, or
   2. document the gap briefly and keep the change constrained.
@@ -247,7 +247,7 @@ When modifying cover rendering, error states, loading skeletons, or mobile drawe
 
 ## First Files To Read
 
-- [bland-production-spec.md](/home/vendetta/code/bland/bland-production-spec.md)
+- [docs/bland-production-spec.md](/home/vendetta/code/bland/docs/bland-production-spec.md)
 - [package.json](/home/vendetta/code/bland/package.json)
 - [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc)
 - [src/client/components/editor/editor-pane.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-pane.tsx)
