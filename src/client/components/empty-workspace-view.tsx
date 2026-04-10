@@ -41,17 +41,16 @@ export function EmptyWorkspaceView() {
       if (cancelled) return;
 
       const decision = resolveRootWorkspaceDecision({
-        currentWorkspace: store.currentWorkspace,
-        cachedWorkspaces: store.workspaces,
+        lastVisitedWorkspaceId: store.lastVisitedWorkspaceId,
+        cachedWorkspaces: store.memberWorkspaces,
         liveWorkspaces,
       });
 
       if (liveWorkspaces !== null) {
-        store.setWorkspaces(liveWorkspaces);
+        store.setMemberWorkspaces(liveWorkspaces);
       }
 
       if (decision.kind === "redirect") {
-        store.setCurrentWorkspace(decision.workspace);
         navigate({
           to: "/$workspaceSlug",
           params: { workspaceSlug: decision.workspace.slug },
@@ -61,7 +60,7 @@ export function EmptyWorkspaceView() {
       }
 
       if (decision.kind === "empty") {
-        store.clearWorkspaceContext();
+        store.clearActiveRoute();
 
         // Check shared inbox: if user has pages shared with them, redirect there
         let sharedItems = store.sharedInbox;
@@ -83,7 +82,7 @@ export function EmptyWorkspaceView() {
         return;
       }
 
-      store.clearWorkspaceContext();
+      store.clearActiveRoute();
 
       // Offline with no cached member workspaces: check cached shared inbox
       if (store.sharedInbox.length > 0) {

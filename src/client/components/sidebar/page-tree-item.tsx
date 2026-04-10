@@ -5,7 +5,7 @@ import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-rea
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
@@ -50,9 +50,9 @@ export function PageTreeItem({
     pageId?: string;
   };
   const navigate = useNavigate();
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const archivePage = useWorkspaceStore((s) => s.archivePage);
-  const members = useWorkspaceStore((s) => s.members);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
+  const members = useWorkspaceStore(selectActiveMembers);
   const currentUser = useAuthStore((s) => s.user);
   const canArchive = canArchivePage(members, currentUser, page);
   const canCreate = canCreatePage(members, currentUser);
@@ -94,7 +94,7 @@ export function PageTreeItem({
       setArchiving(true);
       try {
         await api.pages.delete(currentWorkspace.id, page.id);
-        archivePage(page.id);
+        archivePage(currentWorkspace.id, page.id);
         if (params.pageId === page.id) {
           navigate({ to: "/$workspaceSlug", params: { workspaceSlug: params.workspaceSlug || currentWorkspace.slug } });
         }

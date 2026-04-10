@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Loader2, ChevronDown, Pencil, Check, X } from "lucide-react";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { useMyRole } from "@/client/hooks/use-role";
@@ -12,9 +12,9 @@ import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 export function WorkspaceSwitcher() {
   const navigate = useNavigate();
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
+  const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
   const { isOwner } = useMyRole();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -40,13 +40,13 @@ export function WorkspaceSwitcher() {
     if (!currentWorkspace || !renameName.trim()) return;
     try {
       const updated = await api.workspaces.update(currentWorkspace.id, { name: renameName.trim() });
-      setCurrentWorkspace(updated);
-      useWorkspaceStore.getState().setWorkspaces(workspaces.map((w) => (w.id === updated.id ? updated : w)));
+      patchWorkspace(currentWorkspace.id, updated);
+      useWorkspaceStore.getState().upsertMemberWorkspace(updated);
     } catch {
       toast.error("Failed to rename workspace");
     }
     setRenaming(false);
-  }, [currentWorkspace, renameName, workspaces, setCurrentWorkspace]);
+  }, [currentWorkspace, renameName, patchWorkspace]);
 
   return (
     <div className="relative" ref={dropdownRef}>

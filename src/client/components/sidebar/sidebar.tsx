@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { Plus, Search, ChevronsLeft, ChevronsRight, Loader2, Settings, ArrowLeft } from "lucide-react";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@/client/stores/workspace-store";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { WorkspaceSwitcher } from "./workspace-switcher";
@@ -20,10 +20,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const accessMode = useWorkspaceStore((s) => s.accessMode);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
   const isSharedMode = accessMode === "shared";
-  const members = useWorkspaceStore((s) => s.members);
+  const members = useWorkspaceStore(selectActiveMembers);
   const currentUser = useAuthStore((s) => s.user);
   const { createPage, isCreating } = useCreatePage();
   const [collapsed, setCollapsed] = useState(() => {

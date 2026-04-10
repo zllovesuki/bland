@@ -45,7 +45,7 @@ export function SharedWithMeView() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const cachedInbox = useWorkspaceStore((s) => s.sharedInbox);
   const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
-  const memberWorkspaces = useWorkspaceStore((s) => s.workspaces);
+  const memberWorkspaces = useWorkspaceStore((s) => s.memberWorkspaces);
   const [items, setItems] = useState<SharedWithMeItem[]>(cachedInbox);
   const [viewState, setViewState] = useState<ViewState>(cachedInbox.length > 0 ? "loaded" : "loading");
 
@@ -86,39 +86,7 @@ export function SharedWithMeView() {
 
   const handlePageClick = useCallback(
     (item: SharedWithMeItem) => {
-      // Seed workspace context so the page route can bootstrap without a live fetch
-      // (enables offline navigation from cached inbox)
-      const store = useWorkspaceStore.getState();
-      store.setCurrentWorkspace({
-        id: item.workspace.id,
-        name: item.workspace.name,
-        slug: item.workspace.slug,
-        icon: item.workspace.icon,
-        owner_id: "",
-        created_at: "",
-      });
-      store.setAccessMode("shared");
-
-      // Seed a minimal page record so page-view's offline fallback can find it.
-      // Keep only pages for the target workspace to preserve the single-workspace invariant.
-      const existing = store.pages.filter((p) => p.workspace_id === item.workspace.id);
-      if (!existing.some((p) => p.id === item.page_id)) {
-        existing.push({
-          id: item.page_id,
-          workspace_id: item.workspace.id,
-          parent_id: null,
-          title: item.title,
-          icon: item.icon,
-          cover_url: item.cover_url,
-          position: 0,
-          created_by: "",
-          created_at: item.shared_at,
-          updated_at: item.shared_at,
-          archived_at: null,
-        });
-      }
-      store.setPages(existing);
-
+      // Just navigate -- the page route resolver will bootstrap workspace context
       navigate({
         to: "/$workspaceSlug/$pageId",
         params: { workspaceSlug: item.workspace.slug, pageId: item.page_id },

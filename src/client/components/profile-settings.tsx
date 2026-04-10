@@ -3,14 +3,16 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Save, Loader2, Camera, X, User as UserIcon } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectWorkspaceSnapshot } from "@/client/stores/workspace-store";
 import { api, toApiError } from "@/client/lib/api";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function ProfileSettings() {
   useDocumentTitle("Profile");
   const user = useAuthStore((s) => s.user);
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const lastWsId = useWorkspaceStore((s) => s.lastVisitedWorkspaceId);
+  const lastWsSnapshot = useWorkspaceStore((s) => selectWorkspaceSnapshot(s, lastWsId));
+  const currentWorkspace = lastWsSnapshot?.workspace ?? null;
 
   const [name, setName] = useState(user?.name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? "");

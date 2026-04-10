@@ -6,23 +6,26 @@ export type RootWorkspaceDecision =
   | { kind: "unavailable" };
 
 interface ResolveRootWorkspaceDecisionInput {
-  currentWorkspace: Workspace | null;
+  lastVisitedWorkspaceId: string | null;
   cachedWorkspaces: Workspace[];
   liveWorkspaces: Workspace[] | null;
 }
 
-function findCurrentWorkspaceMatch(workspaces: Workspace[], currentWorkspace: Workspace | null): Workspace | null {
-  if (!currentWorkspace) return null;
-  return workspaces.find((workspace) => workspace.id === currentWorkspace.id) ?? null;
+function findPreferredWorkspace(workspaces: Workspace[], lastVisitedId: string | null): Workspace | null {
+  if (lastVisitedId) {
+    const match = workspaces.find((w) => w.id === lastVisitedId);
+    if (match) return match;
+  }
+  return workspaces[0] ?? null;
 }
 
 export function resolveRootWorkspaceDecision({
-  currentWorkspace,
+  lastVisitedWorkspaceId,
   cachedWorkspaces,
   liveWorkspaces,
 }: ResolveRootWorkspaceDecisionInput): RootWorkspaceDecision {
   if (liveWorkspaces !== null) {
-    const liveTarget = findCurrentWorkspaceMatch(liveWorkspaces, currentWorkspace) ?? liveWorkspaces[0] ?? null;
+    const liveTarget = findPreferredWorkspace(liveWorkspaces, lastVisitedWorkspaceId);
     if (liveTarget) {
       return { kind: "redirect", workspace: liveTarget };
     }
@@ -30,7 +33,7 @@ export function resolveRootWorkspaceDecision({
     return { kind: "empty" };
   }
 
-  const cachedTarget = findCurrentWorkspaceMatch(cachedWorkspaces, currentWorkspace);
+  const cachedTarget = findPreferredWorkspace(cachedWorkspaces, lastVisitedWorkspaceId);
   if (cachedTarget) {
     return { kind: "redirect", workspace: cachedTarget };
   }

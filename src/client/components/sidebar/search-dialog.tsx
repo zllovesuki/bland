@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, FileText, Loader2 } from "lucide-react";
 import { api } from "@/client/lib/api";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import type { SearchResult } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
@@ -11,7 +11,7 @@ export const searchShortcutLabel = isMac ? "⌘K" : "Ctrl+K";
 
 export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const workspace = useWorkspaceStore(selectActiveWorkspace);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);

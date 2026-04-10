@@ -7,7 +7,7 @@ import { toast } from "@/client/components/toast";
 export function useCreateWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
   const busyRef = useRef(false);
-  const addWorkspace = useWorkspaceStore((s) => s.addWorkspace);
+  const upsertMemberWorkspace = useWorkspaceStore((s) => s.upsertMemberWorkspace);
   const navigate = useNavigate();
 
   const createWorkspace = useCallback(
@@ -17,7 +17,7 @@ export function useCreateWorkspace() {
       setIsCreating(true);
       try {
         const ws = await api.workspaces.create({ name: name.trim(), slug: slug.trim() });
-        addWorkspace(ws);
+        upsertMemberWorkspace(ws);
         onCreated?.();
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
       } catch {
@@ -27,7 +27,7 @@ export function useCreateWorkspace() {
         setIsCreating(false);
       }
     },
-    [addWorkspace, navigate],
+    [upsertMemberWorkspace, navigate],
   );
 
   return { createWorkspace, isCreating };

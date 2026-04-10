@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@/client/stores/workspace-store";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
@@ -48,11 +48,11 @@ const ASSIGNABLE_ROLES = ["admin", "member", "guest"] as const;
 export function WorkspaceSettings() {
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const members = useWorkspaceStore((s) => s.members);
-  const setMembers = useWorkspaceStore((s) => s.setMembers);
-  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
+  const members = useWorkspaceStore(selectActiveMembers);
+  const replaceMembers = useWorkspaceStore((s) => s.replaceSnapshotMembers);
+  const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
   const currentUser = useAuthStore((s) => s.user);
   const { role, isOwner, isAdminOrOwner } = useMyRole();
   const myRole = role ?? "guest";
@@ -106,15 +106,14 @@ export function WorkspaceSettings() {
         name: name.trim(),
         icon: icon.trim() || null,
       });
-      setCurrentWorkspace(updated);
-      const workspaces = useWorkspaceStore.getState().workspaces;
-      useWorkspaceStore.getState().setWorkspaces(workspaces.map((w) => (w.id === updated.id ? updated : w)));
+      patchWorkspace(currentWorkspace.id, updated);
+      useWorkspaceStore.getState().upsertMemberWorkspace(updated);
     } catch (err) {
       setSaveError(toApiError(err).message);
     } finally {
       setSaving(false);
     }
-  }, [currentWorkspace, name, icon, saving, setCurrentWorkspace]);
+  }, [currentWorkspace, name, icon, saving, patchWorkspace]);
 
   const handleRoleChange = useCallback(
     async (userId: string, newRole: string) => {
@@ -124,14 +123,17 @@ export function WorkspaceSettings() {
       setMemberError(null);
       try {
         await api.workspaces.updateMemberRole(currentWorkspace.id, userId, newRole);
-        setMembers(members.map((m) => (m.user_id === userId ? { ...m, role: newRole as WorkspaceMember["role"] } : m)));
+        replaceMembers(
+          currentWorkspace.id,
+          members.map((m) => (m.user_id === userId ? { ...m, role: newRole as WorkspaceMember["role"] } : m)),
+        );
       } catch (err) {
         setMemberError(toApiError(err).message);
       } finally {
         setUpdatingRole(null);
       }
     },
-    [currentWorkspace, members, setMembers],
+    [currentWorkspace, members, replaceMembers],
   );
 
   const handleRemoveMember = useCallback(
@@ -148,14 +150,17 @@ export function WorkspaceSettings() {
       setMemberError(null);
       try {
         await api.workspaces.removeMember(currentWorkspace.id, userId);
-        setMembers(members.filter((m) => m.user_id !== userId));
+        replaceMembers(
+          currentWorkspace.id,
+          members.filter((m) => m.user_id !== userId),
+        );
       } catch (err) {
         setMemberError(toApiError(err).message);
       } finally {
         setRemovingMember(null);
       }
     },
-    [currentWorkspace, members, setMembers],
+    [currentWorkspace, members, replaceMembers],
   );
 
   const handleCreateInvite = useCallback(async () => {
@@ -198,8 +203,9 @@ export function WorkspaceSettings() {
     try {
       await api.workspaces.delete(currentWorkspace.id);
       const store = useWorkspaceStore.getState();
-      store.setWorkspaces(workspaces.filter((w) => w.id !== currentWorkspace.id));
-      store.clearWorkspaceContext();
+      store.removeMemberWorkspace(currentWorkspace.id);
+      store.removeWorkspaceSnapshot(currentWorkspace.id);
+      store.clearActiveRoute();
       navigate({ to: "/" });
     } catch {
       toast.error("Failed to delete workspace");

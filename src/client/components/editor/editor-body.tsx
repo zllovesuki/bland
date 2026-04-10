@@ -3,7 +3,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import { userColor } from "@/client/hooks/use-sync";
 import { EditorContext } from "./editor-context";
 import { createEditorExtensions } from "./extensions/create-editor-extensions";
@@ -30,7 +30,7 @@ export const EditorBody = memo(function EditorBody({
   workspaceId: workspaceIdProp,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const workspace = useWorkspaceStore(selectActiveWorkspace);
   const workspaceId = workspaceIdProp ?? workspace?.id;
 
   const editor = useEditor(

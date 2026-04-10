@@ -3,15 +3,15 @@ import { useNavigate } from "@tanstack/react-router";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import { useOnline } from "@/client/hooks/use-online";
 import { toast } from "@/client/components/toast";
 
 export function useCreatePage() {
   const [isCreating, setIsCreating] = useState(false);
   const busyRef = useRef(false);
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const addPage = useWorkspaceStore((s) => s.addPage);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const addPage = useWorkspaceStore((s) => s.addPageToSnapshot);
   const navigate = useNavigate();
   const online = useOnline();
 
@@ -29,7 +29,7 @@ export function useCreatePage() {
           title: DEFAULT_PAGE_TITLE,
           parent_id: opts?.parentId,
         });
-        addPage(page);
+        addPage(currentWorkspace.id, page);
         opts?.onCreated?.(page);
         navigate({
           to: "/$workspaceSlug/$pageId",

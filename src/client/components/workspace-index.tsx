@@ -1,14 +1,14 @@
 import { useParams } from "@tanstack/react-router";
 import { FileText, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActivePages, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function WorkspaceIndex() {
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
-  const pages = useWorkspaceStore((s) => s.pages);
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const pages = useWorkspaceStore(selectActivePages);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
   const { createPage, isCreating } = useCreatePage();
   useDocumentTitle(currentWorkspace?.name);
   const hasPages = pages.filter((p) => !p.archived_at).length > 0;

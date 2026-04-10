@@ -83,7 +83,7 @@ export function InvitePage() {
 
       // Fetch workspaces and navigate to the joined workspace
       const workspaceData = await api.workspaces.list();
-      useWorkspaceStore.getState().setWorkspaces(workspaceData);
+      useWorkspaceStore.getState().setMemberWorkspaces(workspaceData);
       const joined = workspaceData.find((w) => w.id === result.workspace_id);
       if (joined) {
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: joined.slug } });

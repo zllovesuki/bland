@@ -1,14 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Outlet, useLocation, useRouterState, Link } from "@tanstack/react-router";
+import { Outlet, useLocation, useMatches, useRouterState, Link } from "@tanstack/react-router";
 import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
 import { useOnline } from "@/client/hooks/use-online";
 import { useSessionRehydration } from "@/client/hooks/use-session-rehydration";
+import type { ChromeMode } from "@/client/route-tree";
 
 const Sidebar = lazy(() => import("./sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
 
@@ -20,10 +20,10 @@ function SidebarFallback() {
 
 export function AppShell() {
   const location = useLocation();
-  const isShareView = location.pathname.startsWith("/s/");
+  const matches = useMatches();
+  const chrome: ChromeMode = (matches.at(-1)?.staticData?.chrome as ChromeMode) ?? "standalone";
   const hasLocalSession = useAuthStore((s) => s.hasLocalSession);
   const sessionMode = useAuthStore((s) => s.sessionMode);
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
@@ -57,10 +57,9 @@ export function AppShell() {
     }
   }, [location.pathname, isResolving]);
 
-  if (isShareView) return <Outlet />;
+  if (chrome === "share") return <Outlet />;
 
-  const isInboxPage = location.pathname === "/shared-with-me";
-  const showSidebar = hasLocalSession && !isInboxPage && (location.pathname !== "/" || currentWorkspace !== null);
+  const showSidebar = hasLocalSession && chrome === "workspace";
 
   return (
     <div className="flex h-screen flex-col">

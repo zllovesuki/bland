@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { requestSessionRefresh } from "@/client/lib/api";
 import { SESSION_MODES } from "@/client/lib/constants";
-import { bootstrapWorkspaceData } from "@/client/lib/workspace-data";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import { useOnline } from "./use-online";
+import { api } from "@/client/lib/api";
 
 /**
  * When the user transitions from local-only back to online,
@@ -33,12 +33,35 @@ export function useSessionRehydration() {
           useAuthStore.getState().setAuth(data.accessToken, data.user);
 
           // Background re-bootstrap: refresh workspace data without blocking UI.
-          // Branch by access mode the same way route loaders do —
-          // shared-access users can list pages but not members.
           const store = useWorkspaceStore.getState();
-          if (store.currentWorkspace) {
-            const accessMode = store.accessMode === "shared" ? "shared" : "member";
-            bootstrapWorkspaceData(store, store.currentWorkspace.id, accessMode, () => cancelled).catch(() => {});
+          const activeWsId = store.activeWorkspaceId;
+          const accessMode = store.activeAccessMode;
+          if (activeWsId && accessMode) {
+            try {
+              const fetchMode: WorkspaceAccessMode = accessMode;
+              if (fetchMode === "shared") {
+                const pages = await api.pages.list(activeWsId);
+                if (!cancelled) {
+                  const snap = store.snapshotsByWorkspaceId[activeWsId];
+                  if (snap) {
+                    store.replaceWorkspaceSnapshot(activeWsId, { ...snap, pages, members: [] });
+                  }
+                }
+              } else {
+                const [pages, members] = await Promise.all([
+                  api.pages.list(activeWsId),
+                  api.workspaces.members(activeWsId),
+                ]);
+                if (!cancelled) {
+                  const snap = store.snapshotsByWorkspaceId[activeWsId];
+                  if (snap) {
+                    store.replaceWorkspaceSnapshot(activeWsId, { ...snap, pages, members });
+                  }
+                }
+              }
+            } catch {
+              // Background refresh failed — stale cache is acceptable
+            }
           }
         } else {
           // Server reachable, session definitively dead

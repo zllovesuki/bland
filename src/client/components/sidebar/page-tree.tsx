@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from "react";
 import { useParams } from "@tanstack/react-router";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveWorkspace, selectActivePages } from "@/client/stores/workspace-store";
 import { useOnline } from "@/client/hooks/use-online";
 import { usePageDrag, computePosition } from "@/client/hooks/use-page-drag";
 import { api } from "@/client/lib/api";
@@ -8,10 +8,10 @@ import { toast } from "@/client/components/toast";
 import { PageTreeItem } from "./page-tree-item";
 
 export function PageTree() {
-  const pages = useWorkspaceStore((s) => s.pages);
-  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const accessMode = useWorkspaceStore((s) => s.accessMode);
-  const updatePage = useWorkspaceStore((s) => s.updatePage);
+  const pages = useWorkspaceStore(selectActivePages);
+  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
+  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
 
@@ -49,7 +49,7 @@ export function PageTree() {
       const oldParentId = draggedPage?.parent_id ?? null;
       const oldPosition = draggedPage?.position ?? 0;
 
-      updatePage(draggedId, { parent_id: newParentId, position: newPosition });
+      updatePage(currentWorkspace.id, draggedId, { parent_id: newParentId, position: newPosition });
       onDragEnd();
 
       try {
@@ -58,7 +58,7 @@ export function PageTree() {
           position: newPosition,
         });
       } catch {
-        updatePage(draggedId, { parent_id: oldParentId, position: oldPosition });
+        updatePage(currentWorkspace.id, draggedId, { parent_id: oldParentId, position: oldPosition });
         toast.error("Failed to move page");
       }
     },

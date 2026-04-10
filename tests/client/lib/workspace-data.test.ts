@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPage, createMember, createWorkspace } from "@tests/client/util/fixtures";
-import type { WorkspaceAccessMode } from "@/client/lib/workspace-data";
-import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
+import type { Workspace, Page, WorkspaceMember } from "@/shared/types";
+import type { WorkspaceAccessMode, WorkspaceSnapshot } from "@/client/stores/workspace-store";
 
-let loadWorkspaceRouteData: typeof import("@/client/lib/workspace-data").loadWorkspaceRouteData;
-let loadPageRouteData: typeof import("@/client/lib/workspace-data").loadPageRouteData;
-let bootstrapWorkspaceData: typeof import("@/client/lib/workspace-data").bootstrapWorkspaceData;
+let resolveWorkspaceRoute: typeof import("@/client/lib/workspace-data").resolveWorkspaceRoute;
+let resolvePageRoute: typeof import("@/client/lib/workspace-data").resolvePageRoute;
+let applyResolvedRoute: typeof import("@/client/lib/workspace-data").applyResolvedRoute;
 
 const mockPages = [createPage({ id: "p1" }), createPage({ id: "p2" })];
 const mockWorkspaceMembers = [createMember({ user_id: "u1" })];
@@ -34,216 +34,269 @@ beforeEach(async () => {
     },
   }));
   const mod = await import("@/client/lib/workspace-data");
-  bootstrapWorkspaceData = mod.bootstrapWorkspaceData;
-  loadWorkspaceRouteData = mod.loadWorkspaceRouteData;
-  loadPageRouteData = mod.loadPageRouteData;
+  resolveWorkspaceRoute = mod.resolveWorkspaceRoute;
+  resolvePageRoute = mod.resolvePageRoute;
+  applyResolvedRoute = mod.applyResolvedRoute;
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function createMockStore() {
+function createCache(
+  overrides: Partial<{
+    memberWorkspaces: Workspace[];
+    snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
+    activeAccessMode: WorkspaceAccessMode | null;
+  }> = {},
+) {
   return {
-    setAccessMode: vi.fn(),
-    setPages: vi.fn(),
-    setMembers: vi.fn(),
-  };
-}
-
-interface MockRouteStore {
-  accessMode: WorkspaceAccessMode | null;
-  workspaces: Workspace[];
-  setAccessMode: (mode: WorkspaceAccessMode | null) => void;
-  setPages: (pages: Page[]) => void;
-  setMembers: (members: WorkspaceMember[]) => void;
-  setWorkspaces: (workspaces: Workspace[]) => void;
-  setCurrentWorkspace: (workspace: Workspace | null) => void;
-  clearWorkspaceContext: () => void;
-}
-
-function createRouteStore(overrides: Partial<MockRouteStore> = {}) {
-  return {
-    accessMode: null as WorkspaceAccessMode | null,
-    workspaces: [],
-    setAccessMode: vi.fn<(mode: WorkspaceAccessMode | null) => void>(),
-    setPages: vi.fn<(pages: Page[]) => void>(),
-    setMembers: vi.fn<(members: WorkspaceMember[]) => void>(),
-    setWorkspaces: vi.fn<(workspaces: Workspace[]) => void>(),
-    setCurrentWorkspace: vi.fn<(workspace: Workspace | null) => void>(),
-    clearWorkspaceContext: vi.fn<() => void>(),
+    memberWorkspaces: [],
+    snapshotsByWorkspaceId: {},
+    activeAccessMode: null,
     ...overrides,
   };
 }
 
-describe("bootstrapWorkspaceData", () => {
-  it("fetches only pages for shared access mode", async () => {
-    const store = createMockStore();
-    await bootstrapWorkspaceData(store, "ws-1", "shared");
+describe("resolveWorkspaceRoute", () => {
+  it("resolves from live workspace list and bootstraps data", async () => {
+    const liveWs = createWorkspace({ id: "ws-live", slug: "live-ws" });
+    listWorkspacesMock.mockResolvedValue([liveWs]);
 
-    expect(store.setAccessMode).toHaveBeenCalledWith("shared");
-    expect(store.setPages).toHaveBeenCalledWith(mockPages);
-    expect(store.setMembers).toHaveBeenCalledWith([]);
+    const result = await resolveWorkspaceRoute("live-ws", true, createCache());
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("live");
+      expect(result.data.workspace).toEqual(liveWs);
+      expect(result.data.accessMode).toBe("member");
+      expect(result.data.pages).toEqual(mockPages);
+      expect(result.data.members).toEqual(mockWorkspaceMembers);
+    }
   });
 
-  it("fetches pages and members for member access mode", async () => {
-    const store = createMockStore();
-    await bootstrapWorkspaceData(store, "ws-1", "member");
+  it("returns unavailable when live list lacks the slug (may be shared-access)", async () => {
+    listWorkspacesMock.mockResolvedValue([createWorkspace({ id: "ws-other", slug: "other" })]);
 
-    expect(store.setAccessMode).toHaveBeenCalledWith("member");
-    expect(store.setPages).toHaveBeenCalledWith(mockPages);
-    expect(store.setMembers).toHaveBeenCalledWith(mockWorkspaceMembers);
+    const result = await resolveWorkspaceRoute("missing-slug", true, createCache());
+
+    // unavailable, not not_found -- child page route may resolve via api.pages.context
+    expect(result.kind).toBe("unavailable");
   });
 
-  it("skips store writes when shouldSkipApply returns true (shared)", async () => {
-    const store = createMockStore();
-    await bootstrapWorkspaceData(store, "ws-1", "shared", () => true);
-
-    expect(store.setAccessMode).toHaveBeenCalledWith("shared");
-    expect(store.setPages).not.toHaveBeenCalled();
-  });
-
-  it("skips store writes when shouldSkipApply returns true (member)", async () => {
-    const store = createMockStore();
-    await bootstrapWorkspaceData(store, "ws-1", "member", () => true);
-
-    expect(store.setAccessMode).toHaveBeenCalledWith("member");
-    expect(store.setPages).not.toHaveBeenCalled();
-    expect(store.setMembers).not.toHaveBeenCalled();
-  });
-
-  it("applies writes when shouldSkipApply returns false", async () => {
-    const store = createMockStore();
-    await bootstrapWorkspaceData(store, "ws-1", "member", () => false);
-
-    expect(store.setPages).toHaveBeenCalledWith(mockPages);
-    expect(store.setMembers).toHaveBeenCalledWith(mockWorkspaceMembers);
-  });
-});
-
-describe("loadWorkspaceRouteData", () => {
-  it("uses live workspaces when available and bootstraps the matched workspace", async () => {
-    const liveWorkspace = createWorkspace({ id: "ws-live", slug: "live-workspace" });
-    listWorkspacesMock.mockResolvedValue([createWorkspace({ id: "ws-other", slug: "other" }), liveWorkspace]);
-    const store = createRouteStore({
-      workspaces: [createWorkspace({ id: "ws-cached", slug: "cached-workspace" })],
-    });
-
-    await loadWorkspaceRouteData(store, "live-workspace", true);
-
-    expect(listWorkspacesMock).toHaveBeenCalledOnce();
-    expect(store.setWorkspaces).toHaveBeenCalledWith([
-      createWorkspace({ id: "ws-other", slug: "other" }),
-      liveWorkspace,
-    ]);
-    expect(store.setCurrentWorkspace).toHaveBeenCalledWith(liveWorkspace);
-    expect(store.setAccessMode).toHaveBeenCalledWith("member");
-    expect(listPagesMock).toHaveBeenCalledWith(liveWorkspace.id);
-    expect(listMembersMock).toHaveBeenCalledWith(liveWorkspace.id);
-    expect(store.setPages).toHaveBeenCalledWith(mockPages);
-    expect(store.setMembers).toHaveBeenCalledWith(mockWorkspaceMembers);
-    expect(store.clearWorkspaceContext).not.toHaveBeenCalled();
-  });
-
-  it("falls back to cached workspaces when api.workspaces.list() fails", async () => {
-    const cachedWorkspace = createWorkspace({ id: "ws-cached", slug: "cached-workspace" });
+  it("falls back to cached snapshot when api.workspaces.list() fails", async () => {
     listWorkspacesMock.mockRejectedValue(new Error("offline"));
-    const store = createRouteStore({
-      workspaces: [cachedWorkspace],
+    const ws = createWorkspace({ id: "ws-1", slug: "cached-ws" });
+    const cache = createCache({
+      snapshotsByWorkspaceId: {
+        "ws-1": { workspace: ws, accessMode: "member", pages: mockPages, members: [] },
+      },
     });
 
-    await loadWorkspaceRouteData(store, "cached-workspace", true);
+    const result = await resolveWorkspaceRoute("cached-ws", true, cache);
 
-    expect(listWorkspacesMock).toHaveBeenCalledOnce();
-    expect(store.setWorkspaces).not.toHaveBeenCalled();
-    expect(store.setCurrentWorkspace).toHaveBeenCalledWith(cachedWorkspace);
-    expect(store.setAccessMode).toHaveBeenCalledWith("member");
-    expect(listPagesMock).toHaveBeenCalledWith(cachedWorkspace.id);
-    expect(listMembersMock).toHaveBeenCalledWith(cachedWorkspace.id);
-    expect(store.clearWorkspaceContext).not.toHaveBeenCalled();
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("cache");
+      expect(result.data.workspace).toEqual(ws);
+    }
   });
 
-  it("clears workspace context when the remote list succeeds, the slug is missing, and isAuthenticated is true", async () => {
-    listWorkspacesMock.mockResolvedValue([createWorkspace({ id: "ws-other", slug: "other" })]);
-    const store = createRouteStore({
-      workspaces: [createWorkspace({ id: "ws-cached", slug: "missing-workspace" })],
-    });
+  it("returns unavailable when offline with no cached data", async () => {
+    listWorkspacesMock.mockRejectedValue(new Error("offline"));
 
-    await loadWorkspaceRouteData(store, "missing-workspace", true);
+    const result = await resolveWorkspaceRoute("unknown", true, createCache());
 
-    expect(store.setWorkspaces).toHaveBeenCalledWith([createWorkspace({ id: "ws-other", slug: "other" })]);
-    expect(store.clearWorkspaceContext).toHaveBeenCalledOnce();
-    expect(store.setCurrentWorkspace).not.toHaveBeenCalled();
-    expect(store.setAccessMode).not.toHaveBeenCalled();
+    expect(result.kind).toBe("unavailable");
   });
 
-  it("does not clear context on a remote miss when isAuthenticated is false", async () => {
-    listWorkspacesMock.mockResolvedValue([createWorkspace({ id: "ws-other", slug: "other" })]);
-    const store = createRouteStore({
-      workspaces: [createWorkspace({ id: "ws-cached", slug: "missing-workspace" })],
-    });
+  it("carries liveWorkspaces on resolved result for store update", async () => {
+    const workspaces = [createWorkspace({ id: "ws-1", slug: "ws-slug" })];
+    listWorkspacesMock.mockResolvedValue(workspaces);
 
-    await loadWorkspaceRouteData(store, "missing-workspace", false);
+    const result = await resolveWorkspaceRoute("ws-slug", true, createCache());
 
-    expect(store.setWorkspaces).toHaveBeenCalledWith([createWorkspace({ id: "ws-other", slug: "other" })]);
-    expect(store.clearWorkspaceContext).not.toHaveBeenCalled();
-    expect(store.setCurrentWorkspace).not.toHaveBeenCalled();
-    expect(store.setAccessMode).not.toHaveBeenCalled();
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.liveWorkspaces).toEqual(workspaces);
+    }
   });
 });
 
-describe("loadPageRouteData", () => {
-  it("returns early when accessMode is already set", async () => {
-    const store = createRouteStore({ accessMode: "member" });
-
-    await expect(loadPageRouteData(store, "current-slug", "page-1")).resolves.toEqual({});
-
-    expect(pageContextMock).not.toHaveBeenCalled();
-    expect(store.setCurrentWorkspace).not.toHaveBeenCalled();
-    expect(store.setAccessMode).not.toHaveBeenCalled();
-    expect(listPagesMock).not.toHaveBeenCalled();
-    expect(listMembersMock).not.toHaveBeenCalled();
-  });
-
-  it("bootstraps from api.pages.context(pageId)", async () => {
-    const workspace = createWorkspace({ id: "ws-shared", slug: "shared-workspace" });
+describe("resolvePageRoute", () => {
+  it("always calls api.pages.context even when parent route resolved", async () => {
+    const ws = createWorkspace({ id: "ws-1", slug: "ws-slug" });
     pageContextMock.mockResolvedValue({
-      workspace,
-      page: createPage({ id: "page-7", workspace_id: workspace.id }),
-      access_mode: "shared",
-      can_edit: false,
-    });
-    const store = createRouteStore();
-
-    await expect(loadPageRouteData(store, "shared-workspace", "page-7")).resolves.toEqual({});
-
-    expect(pageContextMock).toHaveBeenCalledWith("page-7");
-    expect(store.setCurrentWorkspace).toHaveBeenCalledWith(workspace);
-    expect(store.setAccessMode).toHaveBeenCalledWith("shared");
-    expect(listPagesMock).toHaveBeenCalledWith(workspace.id);
-    expect(listMembersMock).not.toHaveBeenCalled();
-    expect(store.setPages).toHaveBeenCalledWith(mockPages);
-    expect(store.setMembers).toHaveBeenCalledWith([]);
-  });
-
-  it("returns canonicalWorkspaceSlug when the current slug is stale", async () => {
-    const workspace = createWorkspace({ id: "ws-member", slug: "canonical-workspace" });
-    pageContextMock.mockResolvedValue({
-      workspace,
-      page: createPage({ id: "page-8", workspace_id: workspace.id }),
+      workspace: ws,
+      page: createPage({ id: "page-1", workspace_id: ws.id }),
       access_mode: "member",
       can_edit: true,
     });
-    const store = createRouteStore();
-
-    await expect(loadPageRouteData(store, "stale-workspace", "page-8")).resolves.toEqual({
-      canonicalWorkspaceSlug: "canonical-workspace",
+    const cache = createCache({
+      activeAccessMode: "member",
+      snapshotsByWorkspaceId: {
+        "ws-1": { workspace: ws, accessMode: "member", pages: mockPages, members: mockWorkspaceMembers },
+      },
     });
 
-    expect(pageContextMock).toHaveBeenCalledWith("page-8");
-    expect(store.setCurrentWorkspace).toHaveBeenCalledWith(workspace);
-    expect(store.setAccessMode).toHaveBeenCalledWith("member");
-    expect(listPagesMock).toHaveBeenCalledWith(workspace.id);
-    expect(listMembersMock).toHaveBeenCalledWith(workspace.id);
+    const result = await resolvePageRoute("ws-slug", "page-1", cache);
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("live");
+      expect(result.data.workspace).toEqual(ws);
+      expect(pageContextMock).toHaveBeenCalledWith("page-1");
+    }
+  });
+
+  it("falls back to cached snapshot when api.pages.context fails", async () => {
+    const ws = createWorkspace({ id: "ws-1", slug: "ws-slug" });
+    pageContextMock.mockRejectedValue(new Error("offline"));
+    listPagesMock.mockRejectedValue(new Error("offline"));
+    const cache = createCache({
+      snapshotsByWorkspaceId: {
+        "ws-1": { workspace: ws, accessMode: "shared", pages: mockPages, members: [] },
+      },
+    });
+
+    const result = await resolvePageRoute("ws-slug", "page-1", cache);
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("cache");
+      expect(result.data.accessMode).toBe("shared");
+    }
+  });
+
+  it("bootstraps from api.pages.context when no active context", async () => {
+    const ws = createWorkspace({ id: "ws-shared", slug: "shared-ws" });
+    pageContextMock.mockResolvedValue({
+      workspace: ws,
+      page: createPage({ id: "page-7", workspace_id: ws.id }),
+      access_mode: "shared",
+      can_edit: false,
+    });
+
+    const result = await resolvePageRoute("shared-ws", "page-7", createCache());
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("live");
+      expect(result.data.accessMode).toBe("shared");
+      expect(listPagesMock).toHaveBeenCalledWith(ws.id);
+      expect(listMembersMock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("returns canonicalSlug when URL slug is stale", async () => {
+    const ws = createWorkspace({ id: "ws-1", slug: "canonical-slug" });
+    pageContextMock.mockResolvedValue({
+      workspace: ws,
+      page: createPage({ id: "page-8", workspace_id: ws.id }),
+      access_mode: "member",
+      can_edit: true,
+    });
+
+    const result = await resolvePageRoute("stale-slug", "page-8", createCache());
+
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.data.canonicalSlug).toBe("canonical-slug");
+    }
+  });
+
+  it("returns not_found when api.pages.context returns a server error", async () => {
+    pageContextMock.mockRejectedValue({ error: "not_found", message: "Page not found" });
+
+    const result = await resolvePageRoute("ws-slug", "bad-page", createCache());
+
+    expect(result.kind).toBe("not_found");
+  });
+
+  it("returns unavailable on network error with no cached snapshot", async () => {
+    pageContextMock.mockRejectedValue(new Error("Network error"));
+
+    const result = await resolvePageRoute("ws-slug", "page-1", createCache());
+
+    expect(result.kind).toBe("unavailable");
+  });
+
+  it("treats auth-refresh transport failure as non-definitive (falls back to cache)", async () => {
+    // apiFetch rethrows structured { error: "unauthorized" } on refresh transport failure
+    pageContextMock.mockRejectedValue({ error: "unauthorized", message: "Unauthorized" });
+    const ws = createWorkspace({ id: "ws-1", slug: "ws-slug" });
+    const cache = createCache({
+      snapshotsByWorkspaceId: {
+        "ws-1": { workspace: ws, accessMode: "shared", pages: mockPages, members: [] },
+      },
+    });
+
+    const result = await resolvePageRoute("ws-slug", "page-1", cache);
+
+    // Should fall through to cache, not return not_found
+    expect(result.kind).toBe("resolved");
+    if (result.kind === "resolved") {
+      expect(result.source).toBe("cache");
+    }
+  });
+
+  it("treats generic request_failed as non-definitive", async () => {
+    pageContextMock.mockRejectedValue({ error: "request_failed", message: "Request failed with status 500" });
+
+    const result = await resolvePageRoute("ws-slug", "page-1", createCache());
+
+    // No cache available, should be unavailable not not_found
+    expect(result.kind).toBe("unavailable");
+  });
+});
+
+describe("applyResolvedRoute", () => {
+  it("applies resolved result to store", () => {
+    const store = {
+      setMemberWorkspaces: vi.fn(),
+      replaceWorkspaceSnapshot: vi.fn(),
+      setActiveRoute: vi.fn(),
+      clearActiveRoute: vi.fn(),
+      setLastVisitedWorkspaceId: vi.fn(),
+    };
+
+    const ws = createWorkspace({ id: "ws-1" });
+    applyResolvedRoute(store, {
+      kind: "resolved",
+      source: "live",
+      liveWorkspaces: [ws],
+      data: {
+        workspaceId: "ws-1",
+        workspace: ws,
+        accessMode: "member",
+        pages: mockPages,
+        members: mockWorkspaceMembers,
+      },
+    });
+
+    expect(store.setMemberWorkspaces).toHaveBeenCalledWith([ws]);
+    expect(store.replaceWorkspaceSnapshot).toHaveBeenCalledWith("ws-1", {
+      workspace: ws,
+      accessMode: "member",
+      pages: mockPages,
+      members: mockWorkspaceMembers,
+    });
+    expect(store.setActiveRoute).toHaveBeenCalledWith("ws-1", "member");
+    expect(store.setLastVisitedWorkspaceId).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("clears active route on not_found", () => {
+    const store = {
+      setMemberWorkspaces: vi.fn(),
+      replaceWorkspaceSnapshot: vi.fn(),
+      setActiveRoute: vi.fn(),
+      clearActiveRoute: vi.fn(),
+      setLastVisitedWorkspaceId: vi.fn(),
+    };
+
+    applyResolvedRoute(store, { kind: "not_found", liveWorkspaces: [createWorkspace()] });
+
+    expect(store.clearActiveRoute).toHaveBeenCalled();
+    expect(store.setMemberWorkspaces).toHaveBeenCalled();
   });
 });

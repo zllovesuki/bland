@@ -7,7 +7,12 @@ import { api, toApiError } from "@/client/lib/api";
 import { confirm } from "@/client/components/confirm";
 import { toast } from "@/client/components/toast";
 import { getCachedDocKey, SESSION_MODES } from "@/client/lib/constants";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import {
+  useWorkspaceStore,
+  selectActiveWorkspace,
+  selectActivePages,
+  selectActiveMembers,
+} from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
@@ -32,8 +37,8 @@ import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useMyRole } from "@/client/hooks/use-role";
 
 function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const pages = useWorkspaceStore((s) => s.pages);
+  const workspace = useWorkspaceStore(selectActiveWorkspace);
+  const pages = useWorkspaceStore(selectActivePages);
 
   const ancestors = useMemo(() => {
     const chain: Page[] = [];
@@ -82,7 +87,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
 }
 
 function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const workspace = useWorkspaceStore(selectActiveWorkspace);
   const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
 
   useEffect(() => {
@@ -136,18 +141,23 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
 }
 
 export function PageView() {
+  const { pageId } = useParams({ strict: false }) as { pageId: string };
+  return <PageViewContent key={pageId} />;
+}
+
+function PageViewContent() {
   const params = useParams({ strict: false }) as {
     workspaceSlug: string;
     pageId: string;
   };
   const navigate = useNavigate();
-  const workspace = useWorkspaceStore((s) => s.currentWorkspace);
-  const pages = useWorkspaceStore((s) => s.pages);
-  const updatePage = useWorkspaceStore((s) => s.updatePage);
-  const addPage = useWorkspaceStore((s) => s.addPage);
-  const archivePage = useWorkspaceStore((s) => s.archivePage);
-  const members = useWorkspaceStore((s) => s.members);
-  const accessMode = useWorkspaceStore((s) => s.accessMode);
+  const workspace = useWorkspaceStore(selectActiveWorkspace);
+  const pages = useWorkspaceStore(selectActivePages);
+  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
+  const addPage = useWorkspaceStore((s) => s.addPageToSnapshot);
+  const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
+  const members = useWorkspaceStore(selectActiveMembers);
+  const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
   const isSharedMode = accessMode === "shared";
   const { role } = useMyRole();
   const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
@@ -160,7 +170,7 @@ export function PageView() {
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
-  const knownHasCover = useWorkspaceStore((s) => s.pages.find((p) => p.id === params.pageId)?.cover_url);
+  const knownHasCover = pages.find((p) => p.id === params.pageId)?.cover_url;
   const online = useOnline();
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
   const directChildCount = useMemo(
@@ -168,20 +178,24 @@ export function PageView() {
     [pages, page],
   );
 
+  const workspaceId = workspace?.id;
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspaceId) return;
     let cancelled = false;
 
     async function loadPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await api.pages.get(workspace!.id, params.pageId);
+        const data = await api.pages.get(workspaceId!, params.pageId);
         if (!cancelled) {
           setPage(data);
-          const exists = useWorkspaceStore.getState().pages.some((p) => p.id === data.id);
-          if (exists) updatePage(data.id, data);
-          else addPage(data);
+          const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId[workspaceId!];
+          if (snap) {
+            const exists = snap.pages.some((p) => p.id === data.id);
+            if (exists) updatePage(workspaceId!, data.id, data);
+            else addPage(workspaceId!, data);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -189,7 +203,7 @@ export function PageView() {
 
           // Confirmed 403: remove from cache + clear Yjs DB (spec 20.3)
           if (apiErr.error === "forbidden" || apiErr.message.includes("403")) {
-            useWorkspaceStore.getState().removePage(params.pageId);
+            useWorkspaceStore.getState().removePageFromSnapshot(workspaceId!, params.pageId);
             removeDocHint(params.pageId);
             import("y-indexeddb").then((m) => m.clearDocument(getCachedDocKey(params.pageId))).catch(() => {});
             setError("You no longer have access to this page.");
@@ -197,11 +211,10 @@ export function PageView() {
             return;
           }
 
-          // Read current session mode — it may have changed during the request
-          // (e.g. apiFetch flipped to expired/local-only after a failed refresh)
+          // Offline/expired: try pageMetaById for cross-workspace recovery
           const currentMode = useAuthStore.getState().sessionMode;
           if (!online || currentMode !== SESSION_MODES.AUTHENTICATED) {
-            const cached = useWorkspaceStore.getState().pages.find((p) => p.id === params.pageId);
+            const cached = useWorkspaceStore.getState().pageMetaById[params.pageId];
             if (cached) {
               if (isDocCached(params.pageId)) {
                 setPage(cached);
@@ -223,7 +236,7 @@ export function PageView() {
     return () => {
       cancelled = true;
     };
-  }, [workspace, params.pageId, updatePage]);
+  }, [workspaceId, params.pageId, updatePage]);
 
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;
@@ -235,7 +248,7 @@ export function PageView() {
     setIsArchiving(true);
     try {
       await api.pages.delete(workspace.id, page.id);
-      archivePage(page.id);
+      archivePage(workspace.id, page.id);
       navigate({
         to: "/$workspaceSlug",
         params: { workspaceSlug: params.workspaceSlug },
@@ -248,12 +261,12 @@ export function PageView() {
 
   const handleTitleChange = useCallback(
     (title: string) => {
-      if (page) {
+      if (page && workspace) {
         setPage({ ...page, title });
-        updatePage(page.id, { title });
+        updatePage(workspace.id, page.id, { title });
       }
     },
-    [page, updatePage],
+    [page, workspace, updatePage],
   );
 
   const handleIconChange = useCallback(
@@ -261,14 +274,14 @@ export function PageView() {
       if (!workspace || !page) return;
       const version = ++iconVersionRef.current;
       setPage((p) => (p ? { ...p, icon } : p));
-      updatePage(page.id, { icon });
+      updatePage(workspace.id, page.id, { icon });
       try {
         await api.pages.update(workspace.id, page.id, { icon });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch {
         if (iconVersionRef.current === version) {
           setPage((p) => (p ? { ...p, icon: page.icon } : p));
-          updatePage(page.id, { icon: page.icon });
+          updatePage(workspace.id, page.id, { icon: page.icon });
         }
       }
     },
@@ -280,14 +293,14 @@ export function PageView() {
       if (!workspace || !page) return;
       const version = ++coverVersionRef.current;
       setPage((p) => (p ? { ...p, cover_url } : p));
-      updatePage(page.id, { cover_url });
+      updatePage(workspace.id, page.id, { cover_url });
       try {
         await api.pages.update(workspace.id, page.id, { cover_url });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch {
         if (coverVersionRef.current === version) {
           setPage((p) => (p ? { ...p, cover_url: page.cover_url } : p));
-          updatePage(page.id, { cover_url: page.cover_url });
+          updatePage(workspace.id, page.id, { cover_url: page.cover_url });
         }
       }
     },
@@ -296,17 +309,17 @@ export function PageView() {
 
   // Listen for real-time icon/cover updates from other clients
   useEffect(() => {
-    if (!wsProvider) return;
+    if (!wsProvider || !workspace) return;
     const handler = (message: string) => {
       const msg = parseDocMessage(message);
       if (msg?.type === "page-metadata-updated") {
         setPage((p) => (p ? { ...p, icon: msg.icon, cover_url: msg.cover_url } : p));
-        updatePage(msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
+        updatePage(workspace.id, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
       }
     };
     wsProvider.on("custom-message", handler);
     return () => wsProvider.off("custom-message", handler);
-  }, [wsProvider, updatePage]);
+  }, [wsProvider, workspace, updatePage]);
 
   if (isLoading || !workspace) {
     return (

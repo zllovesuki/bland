@@ -2,10 +2,19 @@ import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tan
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { AppShell } from "@/client/components/app-shell";
-import { loadWorkspaceRouteData, loadPageRouteData } from "@/client/lib/workspace-data";
+import { resolveWorkspaceRoute, resolvePageRoute, applyResolvedRoute } from "@/client/lib/workspace-data";
 import { WorkspaceLayout } from "@/client/components/workspace-layout";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, selectActiveSnapshot } from "@/client/stores/workspace-store";
+
+export type ChromeMode = "workspace" | "standalone" | "share";
+
+declare module "@tanstack/react-router" {
+  interface StaticDataRouteOption {
+    chrome: ChromeMode;
+    nav: "shared-inbox" | null;
+  }
+}
 
 function RouteErrorFallback() {
   return (
@@ -24,11 +33,13 @@ function RouteErrorFallback() {
 const rootRoute = createRootRoute({
   component: AppShell,
   errorComponent: RouteErrorFallback,
+  staticData: { chrome: "standalone", nav: null },
 });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  staticData: { chrome: "standalone", nav: null },
   beforeLoad: async () => {
     const { hasLocalSession } = useAuthStore.getState();
     if (!hasLocalSession) {
@@ -41,12 +52,12 @@ const indexRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
+  staticData: { chrome: "standalone", nav: null },
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
   beforeLoad: ({ search }) => {
     const { isAuthenticated } = useAuthStore.getState();
-    // Only redirect away from login if fully authenticated (not local-only/expired)
     if (isAuthenticated) {
       throw redirect({ to: search.redirect || "/" });
     }
@@ -57,14 +68,15 @@ const loginRoute = createRoute({
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
+  staticData: { chrome: "standalone", nav: null },
   component: lazyRouteComponent(() => import("@/client/components/auth/invite-page"), "InvitePage"),
 });
 
 const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
+  staticData: { chrome: "standalone", nav: null },
   beforeLoad: async () => {
-    // Profile requires a live server session, not just cached data
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
       throw redirect({ to: "/login", search: { redirect: "/profile" } });
@@ -76,6 +88,7 @@ const profileRoute = createRoute({
 const sharedWithMeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shared-with-me",
+  staticData: { chrome: "standalone", nav: "shared-inbox" },
   beforeLoad: async () => {
     const { hasLocalSession } = useAuthStore.getState();
     if (!hasLocalSession) {
@@ -85,10 +98,10 @@ const sharedWithMeRoute = createRoute({
   component: lazyRouteComponent(() => import("@/client/components/shared-with-me-view"), "SharedWithMeView"),
 });
 
-// Static /s prefix takes priority over dynamic /$workspaceSlug
 const shareRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$token",
+  staticData: { chrome: "share", nav: null },
   validateSearch: (search: Record<string, unknown>) => ({
     page: typeof search.page === "string" ? search.page : undefined,
   }),
@@ -98,13 +111,19 @@ const shareRoute = createRoute({
 const workspaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/$workspaceSlug",
+  staticData: { chrome: "workspace", nav: null },
   beforeLoad: async ({ params, location }) => {
     const { hasLocalSession, isAuthenticated } = useAuthStore.getState();
     if (!hasLocalSession) {
       throw redirect({ to: "/login", search: { redirect: location.pathname } });
     }
 
-    await loadWorkspaceRouteData(useWorkspaceStore.getState(), params.workspaceSlug, isAuthenticated);
+    const store = useWorkspaceStore.getState();
+    const result = await resolveWorkspaceRoute(params.workspaceSlug, isAuthenticated, store);
+    applyResolvedRoute(store, result);
+    // Do NOT redirect on unavailable here -- child page routes may still
+    // resolve via api.pages.context for shared-access workspaces.
+    // Only the workspace index and settings routes redirect on non-member access.
   },
   component: WorkspaceLayout,
 });
@@ -112,8 +131,12 @@ const workspaceRoute = createRoute({
 const workspaceIndexRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/",
-  beforeLoad: () => {
-    if (useWorkspaceStore.getState().accessMode !== "member") {
+  staticData: { chrome: "workspace", nav: null },
+  beforeLoad: ({ params }) => {
+    // Workspace index requires confirmed member access for the correct workspace.
+    const store = useWorkspaceStore.getState();
+    const snap = selectActiveSnapshot(store);
+    if (!snap || snap.workspace.slug !== params.workspaceSlug || snap.accessMode !== "member") {
       throw redirect({ to: "/" });
     }
   },
@@ -123,8 +146,11 @@ const workspaceIndexRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/settings",
-  beforeLoad: () => {
-    if (useWorkspaceStore.getState().accessMode !== "member") {
+  staticData: { chrome: "workspace", nav: null },
+  beforeLoad: ({ params }) => {
+    const store = useWorkspaceStore.getState();
+    const snap = selectActiveSnapshot(store);
+    if (!snap || snap.workspace.slug !== params.workspaceSlug || snap.accessMode !== "member") {
       throw redirect({ to: "/" });
     }
   },
@@ -134,17 +160,19 @@ const settingsRoute = createRoute({
 const pageRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/$pageId",
+  staticData: { chrome: "workspace", nav: null },
   beforeLoad: async ({ params }) => {
-    try {
-      const result = await loadPageRouteData(useWorkspaceStore.getState(), params.workspaceSlug, params.pageId);
-      if (result.canonicalWorkspaceSlug) {
-        throw redirect({
-          to: "/$workspaceSlug/$pageId",
-          params: { workspaceSlug: result.canonicalWorkspaceSlug, pageId: params.pageId },
-        });
-      }
-    } catch (err) {
-      if (err && typeof err === "object" && "to" in (err as object)) throw err;
+    const store = useWorkspaceStore.getState();
+    const result = await resolvePageRoute(params.workspaceSlug, params.pageId, store);
+    applyResolvedRoute(store, result);
+
+    if (result.kind === "resolved" && result.data.canonicalSlug) {
+      throw redirect({
+        to: "/$workspaceSlug/$pageId",
+        params: { workspaceSlug: result.data.canonicalSlug, pageId: params.pageId },
+      });
+    }
+    if (result.kind === "not_found" || result.kind === "unavailable") {
       throw redirect({ to: "/" });
     }
   },

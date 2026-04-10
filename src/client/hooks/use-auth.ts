@@ -27,7 +27,7 @@ export function useAuth() {
     }
     clearAuth();
     // Clear workspace cache on explicit logout
-    useWorkspaceStore.getState().resetWorkspaceState();
+    useWorkspaceStore.getState().resetStore();
   }, [clearAuth]);
 
   return { isLoading: !bootstrapped, isAuthenticated, user, login, logout };

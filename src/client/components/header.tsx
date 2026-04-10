@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useMatches, useNavigate } from "@tanstack/react-router";
 import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useAuth } from "@/client/hooks/use-auth";
@@ -18,12 +18,13 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const matches = useMatches();
   const visible = useScrollVisibility("main-content");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = location.pathname === "/login";
-  const isSharedWithMePage = location.pathname === "/shared-with-me";
+  const isSharedWithMePage = matches.at(-1)?.staticData?.nav === "shared-inbox";
 
   useClickOutside(
     menuRef,
