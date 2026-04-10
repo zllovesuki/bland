@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { ZodError } from "zod";
 
-import { users } from "@/worker/db/schema";
-import { createDb, type Db } from "@/worker/db/client";
+import { users } from "@/worker/db/d1/schema";
+import { createDb, type Db } from "@/worker/db/d1/client";
 import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
 import { workspacesRouter } from "@/worker/routes/workspaces";

@@ -1,5 +1,5 @@
 import { createMiddleware } from "hono/factory";
-import type { users } from "@/worker/db/schema";
+import type { users } from "@/worker/db/d1/schema";
 import { createLogger } from "@/worker/lib/logger";
 import { CF_IP_HEADER } from "@/worker/lib/constants";
 

@@ -1,10 +1,8 @@
-import * as Y from "yjs";
-import { eq, sql } from "drizzle-orm";
-import { createDb } from "@/worker/db/client";
-import { docSnapshots, pages } from "@/worker/db/schema";
+import { eq } from "drizzle-orm";
+import { createDb } from "@/worker/db/d1/client";
+import { pages } from "@/worker/db/d1/schema";
 import { createLogger } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
-import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 
 const log = createLogger("search-indexer");
 
@@ -13,90 +11,53 @@ interface IndexPageMessage {
   pageId: string;
 }
 
-function extractPlaintext(ydoc: Y.Doc): { title: string; bodyText: string } {
-  const title = ydoc.getText(YJS_PAGE_TITLE).toString();
-
-  const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
-  const parts: string[] = [];
-
-  function walk(node: unknown) {
-    if (!node || typeof node !== "object") return;
-
-    // XmlText: extract text content
-    if (node instanceof Y.XmlText) {
-      const text = node.toString();
-      if (text.trim()) parts.push(text.trim());
-      return;
-    }
-
-    // XmlElement: recurse into children, skip embeds
-    if (node instanceof Y.XmlElement) {
-      const blockType = node.getAttribute("blockType");
-      if (blockType === "embed") return;
-
-      for (let i = 0; i < node.length; i++) {
-        walk(node.get(i));
-      }
-      return;
-    }
-
-    // XmlFragment: recurse into children
-    if (node instanceof Y.XmlFragment) {
-      const frag = node;
-      for (let i = 0; i < frag.length; i++) {
-        walk(frag.get(i));
-      }
-    }
-  }
-
-  walk(fragment);
-
-  return { title, bodyText: parts.join(" ") };
-}
-
 export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env): Promise<void> {
   const { pageId } = msg;
   const db = createDb(env.DB);
 
-  // Check if page is archived — if so, remove from FTS
-  const page = await db.select({ archived_at: pages.archived_at }).from(pages).where(eq(pages.id, pageId)).get();
+  // Load page metadata from D1 (workspace_id for routing, archived_at for removal)
+  const page = await db
+    .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at, title: pages.title })
+    .from(pages)
+    .where(eq(pages.id, pageId))
+    .get();
 
-  if (!page || page.archived_at) {
-    await db.run(sql`DELETE FROM pages_fts WHERE page_id = ${pageId}`);
-    log.info("fts_removed", { pageId, reason: page ? "archived" : "deleted" });
+  // Page not found in D1 — likely hard-deleted. Remove stale FTS entry if one exists.
+  // We don't know the workspace_id, so we can't target the right WorkspaceIndexer.
+  // This is acceptable: the search route post-filters missing pages from results.
+  if (!page) {
+    log.info("fts_skipped", { pageId, reason: "page_not_found" });
     return;
   }
 
-  // Load snapshot
-  const snapshot = await db
-    .select({ yjsState: docSnapshots.yjs_state })
-    .from(docSnapshots)
-    .where(eq(docSnapshots.page_id, pageId))
-    .get();
+  const indexer = env.WorkspaceIndexer.getByName(page.workspace_id);
+
+  // Archived or deleted — remove from search index
+  if (page.archived_at) {
+    await indexer.removePage(pageId);
+    log.info("fts_removed", { pageId, reason: "archived" });
+    return;
+  }
+
+  // Fetch indexable text from DocSync DO
+  const doc = env.DocSync.getByName(pageId);
+  const payload = await doc.getIndexPayload(pageId);
 
   let title: string;
   let bodyText: string;
 
-  if (snapshot?.yjsState) {
-    const ydoc = new Y.Doc();
-    Y.applyUpdate(ydoc, snapshot.yjsState);
-    const extracted = extractPlaintext(ydoc);
-    title = extracted.title;
-    bodyText = extracted.bodyText;
-    ydoc.destroy();
+  if (payload.kind === "found") {
+    title = payload.title;
+    bodyText = payload.bodyText;
   } else {
     // No snapshot yet — index by page title from D1
-    const pageRow = await db.select({ title: pages.title }).from(pages).where(eq(pages.id, pageId)).get();
-    title = pageRow?.title ?? "";
+    title = page.title?.trim() || DEFAULT_PAGE_TITLE;
     bodyText = "";
   }
 
-  // Normalize empty title to match UI display
-  const indexTitle = title.trim() || DEFAULT_PAGE_TITLE;
-
-  // Idempotent: delete then insert (FTS5 doesn't support REPLACE INTO)
-  await db.run(sql`DELETE FROM pages_fts WHERE page_id = ${pageId}`);
-  await db.run(sql`INSERT INTO pages_fts (page_id, title, body_text) VALUES (${pageId}, ${indexTitle}, ${bodyText})`);
-
-  log.info("fts_indexed", { pageId, titleLen: indexTitle.length, bodyLen: bodyText.length });
+  const result = await indexer.indexPage(pageId, title, bodyText);
+  if (result.kind === "error") {
+    throw new Error(`WorkspaceIndexer.indexPage failed for ${pageId}: ${result.message}`);
+  }
+  log.info("fts_indexed", { pageId, titleLen: title.length, bodyLen: bodyText.length });
 }

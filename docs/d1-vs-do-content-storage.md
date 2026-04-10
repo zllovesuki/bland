@@ -78,31 +78,18 @@ The FTS table (`pages_fts` via `drizzle/0001_fts5_pages.sql`) stores title
 and body_text plus trigram index data. This roughly doubles the per-page
 footprint in D1 and may be worth re-examining before moving content out.
 
-## Decision
+## Decision (updated 2026-04-09)
 
-Keep `doc_snapshots` in D1. Build `DocSync.onLoad`/`onSave` against D1 as
-the spec describes. Measure actual `yjs_state` sizes and D1 growth after M2
-lands with real documents.
+Moved both `doc_snapshots` and `pages_fts` out of D1:
 
-## Escape hatch if needed later
-
-If D1 growth becomes a problem, the preferred approach is a lazy migration
-rather than a bulk backfill or flag day:
-
-```
-onLoad:
-  local = read from DO SQLite
-  if local exists -> return local
-  d1row = read from D1 doc_snapshots
-  if d1row exists -> write to DO SQLite, return it
-  return null
-```
-
-Pages migrate incrementally as they are opened. Keep D1 blobs until search
-and export no longer depend on them. Only then delete D1 snapshot rows.
-
-Before reaching for this, first re-examine the FTS storage shape in D1 --
-it may be the bigger contributor to D1 growth than the snapshots themselves.
+- **DocSync** stores Yjs snapshots in DO-local SQLite with chunking support
+  for documents exceeding 2MB. `snapshot_meta` + `snapshot_chunks` tables,
+  managed by drizzle-orm with `durable-sqlite` driver.
+- **WorkspaceIndexer** (new DO, one per workspace) owns the FTS5 virtual
+  table. Search queries go through Worker -> WorkspaceIndexer RPC, then
+  Worker post-filters against D1 `pages` table for archived/permission checks.
+- D1 retains `pages.title` (synced by DocSync.onSave) and all other
+  relational metadata. `doc_snapshots` table was dropped from D1.
 
 ## Sources
 

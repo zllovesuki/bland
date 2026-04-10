@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import type { Db } from "@/worker/db/client";
+import type { Db } from "@/worker/db/d1/client";
 
 type TestQueryRow = Record<string, unknown>;
 type TestQueryResult = TestQueryRow[];

@@ -1,4 +1,4 @@
-import { memberships } from "@/worker/db/schema";
+import { memberships } from "@/worker/db/d1/schema";
 
 export const TEST_TIMESTAMP = "2026-04-06T00:00:00.000Z";
 

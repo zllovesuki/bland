@@ -1,7 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { eq } from "drizzle-orm";
-import { users } from "@/worker/db/schema";
-import type { Db } from "@/worker/db/client";
+import { users } from "@/worker/db/d1/schema";
+import type { Db } from "@/worker/db/d1/client";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger } from "@/worker/lib/logger";
 

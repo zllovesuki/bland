@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 
-import { memberships } from "@/worker/db/schema";
-import type { Db } from "@/worker/db/client";
+import { memberships } from "@/worker/db/d1/schema";
+import type { Db } from "@/worker/db/d1/client";
 
 export async function checkMembership(
   db: Db,

@@ -4,6 +4,8 @@
 > **Domain:** bland.tools
 >
 > **Status note (April 8, 2026):** the live project uses a custom Tiptap/ProseMirror editor in `src/client/components/editor/`, not BlockNote. When this spec conflicts with the source tree on editor implementation details, the source tree wins.
+>
+> **Storage model note (April 9, 2026):** the live project has moved document snapshots and FTS data out of D1 into Durable Object local SQLite. `doc_snapshots` is stored in DocSync DO (chunked), `pages_fts` is stored in a per-workspace WorkspaceIndexer DO. D1 retains all relational metadata. See [docs/d1-vs-do-content-storage.md](./d1-vs-do-content-storage.md) for the rationale and current design. Where this spec references D1-resident snapshots or FTS, the source tree wins.
 
 ### Philosophy
 

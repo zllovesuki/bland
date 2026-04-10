@@ -11,6 +11,6 @@
       "@tests/*": ["./*"]
     }
   },
-  "include": ["./**/*", "../worker-configuration.d.ts"],
+  "include": ["./**/*", "../worker-configuration.d.ts", "../src/types/**/*.d.ts"],
   "exclude": ["../node_modules", "../dist"]
 }

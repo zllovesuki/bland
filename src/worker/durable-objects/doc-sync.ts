@@ -2,18 +2,26 @@ import { YServer } from "y-partyserver";
 import type { Connection, ConnectionContext } from "partyserver";
 import * as Y from "yjs";
 import { eq } from "drizzle-orm";
-import { createDb } from "@/worker/db/client";
-import { docSnapshots, pages } from "@/worker/db/schema";
+import { drizzle, type DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
+import { migrate } from "drizzle-orm/durable-sqlite/migrator";
+import { createDb } from "@/worker/db/d1/client";
+import { pages } from "@/worker/db/d1/schema";
+import * as docSyncSchema from "@/worker/db/docsync-do/schema";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { YJS_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
+import { extractPlaintext } from "@/worker/lib/yjs-text";
+import docSyncMigrations from "../../../drizzle/docsync-do/migrations.js";
 
 const MAX_CONNECTIONS_PER_DOC = 20;
+const CHUNK_SIZE = 1.5 * 1024 * 1024; // 1.5MB per chunk, under 2MB SQLite row limit
 const log = createLogger("doc-sync");
 
 const READONLY_TAG = "readonly";
 const MEMBER_EDIT_TAG = "member_edit";
+
+type DocSyncDb = DrizzleSqliteDODatabase<typeof docSyncSchema>;
 
 interface YpsConnectionState {
   __ypsAwarenessIds?: number[];
@@ -28,6 +36,35 @@ function getAwarenessIds(conn: Connection): readonly number[] {
   }
 }
 
+function chunkBuffer(buf: Uint8Array, chunkSize: number): Uint8Array[] {
+  if (buf.byteLength <= chunkSize) return [buf];
+  const chunks: Uint8Array[] = [];
+  for (let offset = 0; offset < buf.byteLength; offset += chunkSize) {
+    chunks.push(buf.slice(offset, offset + chunkSize));
+  }
+  return chunks;
+}
+
+interface ChunkRow {
+  chunk_index: number;
+  data: Uint8Array;
+}
+
+function reassembleChunks(rows: ChunkRow[]): Uint8Array | null {
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0].data;
+  const sorted = [...rows].sort((a, b) => a.chunk_index - b.chunk_index);
+  let totalLength = 0;
+  for (const r of sorted) totalLength += r.data.byteLength;
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const row of sorted) {
+    result.set(row.data, offset);
+    offset += row.data.byteLength;
+  }
+  return result;
+}
+
 export class DocSync extends YServer<Env> {
   static options = { hibernate: true };
 
@@ -36,7 +73,18 @@ export class DocSync extends YServer<Env> {
     debounceMaxWait: 10000,
   };
 
-  private get db() {
+  private readonly doDb: DocSyncDb;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.doDb = drizzle(ctx.storage, { schema: docSyncSchema });
+
+    ctx.blockConcurrencyWhile(async () => {
+      await migrate(this.doDb, docSyncMigrations);
+    });
+  }
+
+  private get d1Db() {
     return createDb(this.env.DB);
   }
 
@@ -108,7 +156,7 @@ export class DocSync extends YServer<Env> {
     if (connection.tags.includes(READONLY_TAG)) return;
 
     try {
-      const row = await this.db
+      const row = await this.d1Db
         .select({ icon: pages.icon, cover_url: pages.cover_url })
         .from(pages)
         .where(eq(pages.id, this.name))
@@ -131,56 +179,90 @@ export class DocSync extends YServer<Env> {
 
   async onLoad(): Promise<Y.Doc | void> {
     setLevel(this.env.LOG_LEVEL);
-    const row = await this.db
-      .select({ yjsState: docSnapshots.yjs_state })
-      .from(docSnapshots)
-      .where(eq(docSnapshots.page_id, this.name))
-      .get();
 
-    log.debug("snapshot_loaded", { pageId: this.name, hasSnapshot: !!row?.yjsState });
+    const chunkRows = await this.doDb
+      .select({ chunk_index: docSyncSchema.snapshotChunks.chunk_index, data: docSyncSchema.snapshotChunks.data })
+      .from(docSyncSchema.snapshotChunks)
+      .orderBy(docSyncSchema.snapshotChunks.chunk_index);
 
-    if (row?.yjsState) {
+    const state = reassembleChunks(chunkRows);
+    log.debug("snapshot_loaded", { pageId: this.name, hasSnapshot: !!state });
+
+    if (state) {
       const doc = new Y.Doc();
-      Y.applyUpdate(doc, row.yjsState);
+      Y.applyUpdate(doc, state);
       return doc;
     }
   }
 
   async onSave(): Promise<void> {
     const state = Y.encodeStateAsUpdate(this.document);
-
     const dl = log.child({ pageId: this.name });
 
-    // D1 BLOB limit is 2MB — warn if approaching
-    const WARN_THRESHOLD = 1.5 * 1024 * 1024;
-    if (state.byteLength > WARN_THRESHOLD) {
-      dl.warn("snapshot_size_warning", { sizeBytes: state.byteLength });
-    }
-
-    const title = this.document.getText(YJS_PAGE_TITLE).toString() || DEFAULT_PAGE_TITLE;
+    const chunks = chunkBuffer(state, CHUNK_SIZE);
     const now = new Date().toISOString();
 
+    // Persist to DO-local SQLite in a single transaction
     try {
-      await this.db.batch([
-        this.db
-          .insert(docSnapshots)
-          .values({ page_id: this.name, yjs_state: state, snapshot_at: now })
+      this.doDb.transaction((tx) => {
+        tx.delete(docSyncSchema.snapshotChunks).run();
+        for (let i = 0; i < chunks.length; i++) {
+          tx.insert(docSyncSchema.snapshotChunks).values({ chunk_index: i, data: chunks[i] }).run();
+        }
+        tx.insert(docSyncSchema.snapshotMeta)
+          .values({ id: 1, chunk_count: chunks.length, total_bytes: state.byteLength, snapshot_at: now })
           .onConflictDoUpdate({
-            target: docSnapshots.page_id,
-            set: { yjs_state: state, snapshot_at: now },
-          }),
-        this.db.update(pages).set({ title, updated_at: now }).where(eq(pages.id, this.name)),
-      ]);
-      dl.debug("snapshot_saved", { sizeBytes: state.byteLength });
+            target: docSyncSchema.snapshotMeta.id,
+            set: { chunk_count: chunks.length, total_bytes: state.byteLength, snapshot_at: now },
+          })
+          .run();
+      });
+      dl.debug("snapshot_saved", { sizeBytes: state.byteLength, chunks: chunks.length });
     } catch (e) {
       dl.error("snapshot_save_failed", errorContext(e));
     }
 
-    // FTS indexing must not break snapshot persistence (spec §7)
+    // Sync title to D1 (metadata stays authoritative in D1)
+    const title = this.document.getText(YJS_PAGE_TITLE).toString() || DEFAULT_PAGE_TITLE;
+    try {
+      await this.d1Db.update(pages).set({ title, updated_at: now }).where(eq(pages.id, this.name));
+    } catch (e) {
+      dl.error("title_sync_failed", errorContext(e));
+    }
+
+    // FTS indexing must not break snapshot persistence (spec S7)
     try {
       await this.env.SEARCH_QUEUE.send({ type: "index-page", pageId: this.name });
     } catch (e) {
       dl.error("queue_send_failed", errorContext(e));
+    }
+  }
+
+  /**
+   * RPC method for Worker to extract indexable text from the persisted snapshot.
+   * Does NOT use this.document or this.name (RPC bypasses partyserver init).
+   */
+  async getIndexPayload(
+    pageId: string,
+  ): Promise<{ kind: "found"; title: string; bodyText: string } | { kind: "missing" }> {
+    const chunkRows = await this.doDb
+      .select({ chunk_index: docSyncSchema.snapshotChunks.chunk_index, data: docSyncSchema.snapshotChunks.data })
+      .from(docSyncSchema.snapshotChunks)
+      .orderBy(docSyncSchema.snapshotChunks.chunk_index);
+
+    const state = reassembleChunks(chunkRows);
+    if (!state) {
+      log.debug("index_payload_missing", { pageId });
+      return { kind: "missing" };
+    }
+
+    const ydoc = new Y.Doc();
+    try {
+      Y.applyUpdate(ydoc, state);
+      const { title, bodyText } = extractPlaintext(ydoc);
+      return { kind: "found", title, bodyText };
+    } finally {
+      ydoc.destroy();
     }
   }
 }

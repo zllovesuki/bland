@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Hono } from "hono";
-import type { Db } from "@/worker/db/client";
+import type { Db } from "@/worker/db/d1/client";
 import type { AppContext } from "@/worker/router";
 import { TEST_TIMESTAMP } from "@tests/worker/util/fixtures";
 

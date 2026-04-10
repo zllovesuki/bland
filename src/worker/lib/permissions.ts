@@ -1,7 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import { checkMembership } from "@/worker/lib/membership";
 import { MAX_TREE_DEPTH } from "@/shared/constants";
-import type { Db } from "@/worker/db/client";
+import type { Db } from "@/worker/db/d1/client";
 
 export function canEdit(role: string): boolean {
   return role === "owner" || role === "admin" || role === "member";

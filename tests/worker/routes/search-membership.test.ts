@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { checkMembership } from "@/worker/lib/membership";
 import { SearchResult } from "@/shared/types";
-import { mockAuthMiddleware, mockRateLimitMiddleware, createAllMock, createTestApp } from "@tests/worker/util/mocks";
+import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
 import { createMembership } from "@tests/worker/util/fixtures";
 import { ApiErrorResponse } from "@tests/worker/util/schemas";
 
@@ -15,6 +15,16 @@ vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
 const checkMembershipMock = vi.mocked(checkMembership);
 
 const SearchResponse = z.object({ results: z.array(SearchResult) });
+
+function createMockWorkspaceIndexerEnv() {
+  const stubSearch = vi.fn().mockResolvedValue({ kind: "results", items: [] });
+  return {
+    WorkspaceIndexer: {
+      idFromName: vi.fn().mockReturnValue("mock-id"),
+      get: vi.fn().mockReturnValue({ search: stubSearch }),
+    },
+  };
+}
 
 describe("search: membership gating", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -34,7 +44,7 @@ describe("search: membership gating", () => {
     checkMembershipMock.mockResolvedValue(createMembership("member"));
 
     const { searchRouter } = await import("@/worker/routes/search");
-    const app = await createTestApp(searchRouter, "/api/v1", { db: createAllMock([]) });
+    const app = await createTestApp(searchRouter, "/api/v1", { env: createMockWorkspaceIndexerEnv() });
 
     const res = await app.request("/api/v1/workspaces/ws-1/search?q=test");
     expect(res.status).toBe(200);
@@ -45,7 +55,7 @@ describe("search: membership gating", () => {
     checkMembershipMock.mockResolvedValue(createMembership("guest"));
 
     const { searchRouter } = await import("@/worker/routes/search");
-    const app = await createTestApp(searchRouter, "/api/v1", { db: createAllMock([]) });
+    const app = await createTestApp(searchRouter, "/api/v1", { env: createMockWorkspaceIndexerEnv() });
 
     const res = await app.request("/api/v1/workspaces/ws-1/search?q=test");
     expect(res.status).toBe(200);

@@ -18,11 +18,11 @@
 - The production spec is ambitious and intentionally ahead of the current implementation in several areas.
 - Write changes against the live source tree, not the spec alone.
 - Expect core architecture to remain stable:
-  React SPA + Cloudflare Worker API + D1 as primary structured store + Durable Objects for doc sync + R2 for uploads + Queues for derived search indexing.
+  React SPA + Cloudflare Worker API + D1 as primary structured store + Durable Objects for doc sync and search indexing + R2 for uploads + Queues for derived search indexing.
 - Expect many v1 features to be partially implemented or stubbed today.
-  `DocSync` is implemented in [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts) as a `YServer` subclass with snapshot persistence (`onLoad`/`onSave`).
-  Queue consumption is implemented for FTS5 search indexing (`src/worker/queues/search-indexer.ts`).
-  The schema already includes tables for snapshots, shares, and uploads even where full behavior is not wired yet.
+  `DocSync` is implemented in [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts) as a `YServer` subclass with DO-local SQLite snapshot persistence (`onLoad`/`onSave`) and a `getIndexPayload` RPC for search indexing.
+  `WorkspaceIndexer` is implemented in [src/worker/durable-objects/workspace-indexer.ts](/home/vendetta/code/bland/src/worker/durable-objects/workspace-indexer.ts) as a per-workspace Durable Object owning FTS5 search data.
+  Queue consumption is implemented for search indexing (`src/worker/queues/search-indexer.ts`), orchestrating DocSync and WorkspaceIndexer RPCs.
 - The live editor is a custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Treat older BlockNote references in docs as stale unless they are explicitly called out as historical or planned.
 
 ## Source Of Truth
@@ -32,7 +32,7 @@
 - `docs/frontend-spec.md` is the frontend reference design to keep consistent across `devbin.tools` products.
 - `src/shared/types.ts` is the shared client/worker contract surface for public API shapes.
 - `src/shared/doc-messages.ts` is the shared client/worker contract surface for DocSync custom messages. Update it when changing custom message payloads.
-- `src/worker/db/schema.ts` is the schema source of truth. Do not hand-edit generated SQL in `drizzle/`.
+- `src/worker/db/d1/schema.ts` is the D1 schema source of truth. `src/worker/db/docsync-do/schema.ts` and `src/worker/db/workspace-indexer/schema.ts` own DO-local schemas. Do not hand-edit generated SQL in `drizzle/`.
 - `wrangler.jsonc` is the runtime binding contract for D1, R2, Queues, Durable Objects, and rate limits.
 
 ## Working Rules
@@ -121,11 +121,15 @@ Before writing new code, check these files for reusable pieces:
 
 ### Worker
 
-- `src/worker/index.ts` is the Worker entrypoint, routes Partyserver WebSocket connections to `DocSync`, exports the `DocSync` Durable Object, and handles queue consumption.
+- `src/worker/index.ts` is the Worker entrypoint, routes Partyserver WebSocket connections to `DocSync`, exports the `DocSync` and `WorkspaceIndexer` Durable Objects, and handles queue consumption.
 - `src/worker/router.ts` wires Hono, CORS, D1 session handling, route registration, 404s, and top-level error handling.
 - `src/worker/routes/` contains the current HTTP surface for auth, invites, workspaces, pages, page-tree, page-context, shares, uploads, search, and health.
 - `src/worker/middleware/` owns auth, rate limiting, and Turnstile verification.
-- `src/worker/db/schema.ts` defines the Drizzle schema for D1.
+- `src/worker/db/d1/schema.ts` defines the Drizzle schema for D1 (app-global metadata).
+- `src/worker/db/docsync-do/schema.ts` defines the DocSync DO-local SQLite schema (snapshot chunking).
+- `src/worker/db/workspace-indexer/schema.ts` defines the WorkspaceIndexer DO-local SQLite schema (index state companion table; FTS5 is created manually).
+- `src/worker/durable-objects/doc-sync.ts` owns per-page Yjs snapshot persistence and a `getIndexPayload` RPC.
+- `src/worker/durable-objects/workspace-indexer.ts` owns per-workspace FTS5 search data with `indexPage`, `removePage`, `search`, and `clear` RPCs.
 
 ### Platform bindings
 
@@ -135,14 +139,22 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 - `R2`: upload bucket
 - `SEARCH_QUEUE`: queue producer/consumer for derived indexing work
 - `DocSync`: Durable Object namespace for per-document sync (PascalCase name required by partyserver routing)
+- `WorkspaceIndexer`: Durable Object namespace for per-workspace search indexing
 - `RL_AUTH`, `RL_API`: Cloudflare rate limiting bindings
 
 ## Important Invariants
 
-- D1 is the source of truth for users, workspaces, memberships, page tree metadata, invites, shares, uploads, and persisted document snapshots.
-- Live collaborative document state belongs in the per-document Durable Object when that feature is implemented. Do not move authoritative live document content into ad hoc worker globals or the client.
+- D1 is the source of truth for users, workspaces, memberships, page tree metadata (including `pages.title`), invites, shares, and uploads.
+- Document content (Yjs snapshots) is persisted in each DocSync DO's local SQLite, not in D1. DocSync syncs `pages.title` back to D1 in `onSave`.
+- Full-text search data lives in each WorkspaceIndexer DO's local SQLite (FTS5). One WorkspaceIndexer per workspace.
+- Live collaborative document state belongs in the per-document Durable Object. Do not move authoritative live document content into ad hoc worker globals or the client.
 - Presence/cursor state is ephemeral. Do not persist it in D1 or R2.
 - Search is a derived projection. Treat queue-driven indexing as rebuildable.
+- Keep cross-runtime boundaries to a single hop from the Worker. Worker → D1, Worker → DocSync DO, Worker → WorkspaceIndexer DO are all allowed. Do NOT chain transitively (e.g. Worker → DO → D1 is not allowed except for DocSync's `onSave` title sync which is DO → D1, a known single hop).
+- Do not add DO → DO calls. The Worker orchestrates across DOs.
+- Durable Objects should not throw in RPC methods. Use tagged union return types (`{ kind: "found"; ... } | { kind: "missing" }`) to communicate outcomes. Reserve `throw` for truly unrecoverable errors.
+- `blockConcurrencyWhile` should only be used in the DO constructor for migration, never in RPC methods.
+- Do not use `this.ctx.id.name` inside Durable Objects — it is not guaranteed to be populated. DocSync uses `this.name` (from partyserver) in WebSocket paths only; RPC methods accept explicit IDs.
 - R2 stores blobs, not authorization state. Access control must continue to come from D1-backed checks.
 - D1 bookmark propagation is intentional. Preserve the `x-d1-bookmark` flow in [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts) and [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts) when changing request handling.
 - Mutating requests should continue to prefer primary D1 reads. Do not accidentally regress read-after-write behavior.
@@ -161,10 +173,16 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 
 ## Database And Generated Files
 
-- Update [src/worker/db/schema.ts](/home/vendetta/code/bland/src/worker/db/schema.ts) first for schema changes.
-- Then run `npm run db:generate` to update `drizzle/`.
-- Do not manually edit `drizzle/*.sql` unless the user explicitly asks for a hand-written migration.
-- Review generated SQL before finishing. `drizzle/0000_watery_tattoo.sql` is the initial schema. `drizzle/0001_fts5_pages.sql` is a hand-written FTS5 migration outside Drizzle Kit's journal — see `src/worker/db/fts.ts` for the type-safe query shim.
+- Three separate drizzle configs and output dirs, following the anvil pattern:
+  - `drizzle-d1.config.ts` → `drizzle/d1/` — D1 relational schema
+  - `drizzle-docsync-do.config.ts` → `drizzle/docsync-do/` — DocSync DO-local SQLite (snapshot chunking)
+  - `drizzle-workspace-indexer.config.ts` → `drizzle/workspace-indexer/` — WorkspaceIndexer DO-local SQLite
+- Update the appropriate schema in `src/worker/db/{d1,docsync-do,workspace-indexer}/schema.ts` first.
+- Then run `npm run db:generate` (runs all three) or `npm run db:generate:d1` / `db:generate:docsync-do` / `db:generate:workspace-indexer` individually.
+- Do not manually edit `drizzle/**/*.sql` unless the user explicitly asks for a hand-written migration.
+- DO configs use `driver: "durable-sqlite"` and generate a `migrations.js` file used by the DO constructor's `blockConcurrencyWhile` → `migrate()` pattern.
+- D1 migrations are applied via `npm run db:migrate` (`wrangler d1 migrations apply`).
+- FTS5 in WorkspaceIndexer is created via raw SQL in the constructor after drizzle migration (drizzle cannot manage FTS5 virtual tables).
 
 ## Validation
 
@@ -225,7 +243,9 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 
 - **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.
 - **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
-- **Orphaned upload garbage collection**: There is no delete uploads API. R2 objects are never removed — replacing or deleting an image from a document leaves the old blob in R2. Needs a periodic GC job that scans `doc_snapshots` for referenced upload URLs and deletes R2 objects not referenced by any document.
+- **Orphaned upload garbage collection**: There is no delete uploads API. R2 objects are never removed — replacing or deleting an image from a document leaves the old blob in R2. Needs a periodic GC job that scans DocSync DOs for referenced upload URLs and deletes R2 objects not referenced by any document.
+- **DocSync DO storage cleanup on workspace delete**: Workspace deletion calls `WorkspaceIndexer.clear()` but does not explicitly clean DocSync DO storage for each page. DO auto-eviction handles this eventually.
+- **DocSync `getSnapshot` RPC**: Only `getIndexPayload` (text extraction) is implemented. A generic `getSnapshot` returning the raw Yjs blob is deferred until a real caller needs it (e.g. export, non-WebSocket page loads).
 
 ## Coupled Components
 
@@ -261,8 +281,11 @@ When modifying cover rendering, error states, loading skeletons, or mobile drawe
 - [src/shared/doc-messages.ts](/home/vendetta/code/bland/src/shared/doc-messages.ts)
 - [src/shared/types.ts](/home/vendetta/code/bland/src/shared/types.ts)
 - [src/worker/router.ts](/home/vendetta/code/bland/src/worker/router.ts)
-- [src/worker/db/schema.ts](/home/vendetta/code/bland/src/worker/db/schema.ts)
+- [src/worker/db/d1/schema.ts](/home/vendetta/code/bland/src/worker/db/d1/schema.ts)
+- [src/worker/db/docsync-do/schema.ts](/home/vendetta/code/bland/src/worker/db/docsync-do/schema.ts)
+- [src/worker/db/workspace-indexer/schema.ts](/home/vendetta/code/bland/src/worker/db/workspace-indexer/schema.ts)
 - [src/worker/durable-objects/doc-sync.ts](/home/vendetta/code/bland/src/worker/durable-objects/doc-sync.ts)
+- [src/worker/durable-objects/workspace-indexer.ts](/home/vendetta/code/bland/src/worker/durable-objects/workspace-indexer.ts)
 - [src/worker/routes/auth.ts](/home/vendetta/code/bland/src/worker/routes/auth.ts)
 - [src/worker/routes/workspaces.ts](/home/vendetta/code/bland/src/worker/routes/workspaces.ts)
 - [src/worker/routes/pages.ts](/home/vendetta/code/bland/src/worker/routes/pages.ts)

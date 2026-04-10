@@ -21,7 +21,7 @@
 			"binding": "DB",
 			"database_name": "bland-prod",
 			"database_id": "6002a99f-fd84-43d3-846a-707e12b3ec24",
-			"migrations_dir": "drizzle/",
+			"migrations_dir": "drizzle/d1",
 		},
 	],
 	"r2_buckets": [
@@ -51,6 +51,10 @@
 				"name": "DocSync",
 				"class_name": "DocSync",
 			},
+			{
+				"name": "WorkspaceIndexer",
+				"class_name": "WorkspaceIndexer",
+			},
 		],
 	},
 	"ratelimits": [
@@ -75,6 +79,10 @@
 		{
 			"tag": "v1",
 			"new_sqlite_classes": ["DocSync"],
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": ["WorkspaceIndexer"],
 		},
 	],
 }

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { invites, memberships, users, workspaces } from "@/worker/db/schema";
+import { invites, memberships, users, workspaces } from "@/worker/db/d1/schema";
 import { requireAuth, extractBearerToken } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { verifyTurnstileToken } from "@/worker/middleware/turnstile";

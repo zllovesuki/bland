@@ -1,8 +1,8 @@
 import { routePartykitRequest } from "partyserver";
 import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
-import { createDb } from "@/worker/db/client";
-import { pages } from "@/worker/db/schema";
+import { createDb } from "@/worker/db/d1/client";
+import { pages } from "@/worker/db/d1/schema";
 import { resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
@@ -10,6 +10,7 @@ import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
+export { WorkspaceIndexer } from "@/worker/durable-objects/workspace-indexer";
 
 const log = createLogger("websocket");
 

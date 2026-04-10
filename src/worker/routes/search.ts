@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import { sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
+import { pages } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
@@ -32,33 +33,43 @@ searchRouter.get("/workspaces/:wid/search", requireAuth, rateLimit("RL_API"), as
   }
   const needsFilter = membership.role === "guest";
 
-  // FTS5 trigram query — joined with pages to scope to workspace + non-archived.
-  // Double-quote wrapping escapes FTS5 operators in user input.
-  // Guests need post-filtering by canAccess, so fetch more to compensate.
-  const escaped = '"' + query.replace(/"/g, '""') + '"';
-  const ftsLimit = needsFilter ? 50 : MAX_RESULTS;
-  const ftsResults = await db.all<{
-    page_id: string;
-    title: string;
-    icon: string | null;
-    snippet: string;
-  }>(sql`SELECT f.page_id, p.title, p.icon,
-            snippet(pages_fts, 2, '<mark>', '</mark>', '…', 32) as snippet
-     FROM pages_fts f
-     JOIN pages p ON p.id = f.page_id
-     WHERE pages_fts MATCH ${escaped}
-       AND p.workspace_id = ${workspaceId}
-       AND p.archived_at IS NULL
-     LIMIT ${ftsLimit}`);
+  // Overfetch from WorkspaceIndexer to compensate for post-filtering
+  const overfetchLimit = needsFilter ? 100 : 50;
 
-  let results = ftsResults.map((r) => ({
-    page_id: r.page_id,
-    title: r.title,
-    icon: r.icon,
-    snippet: sanitizeSnippet(r.snippet),
-  }));
+  const indexer = c.env.WorkspaceIndexer.getByName(workspaceId);
+  const searchResult = await indexer.search(query, overfetchLimit);
 
-  // §20.2: post-filter by canAccess for guests and non-members
+  if (searchResult.items.length === 0) {
+    return c.json({ results: [] });
+  }
+
+  // Build snippet lookup and page ID list
+  const snippetByPageId = new Map(searchResult.items.map((item) => [item.pageId, item.snippet]));
+  const pageIds = searchResult.items.map((item) => item.pageId);
+
+  // Load page metadata from D1 (title, icon, archived_at filtering)
+  const pageRows = await db
+    .select({ id: pages.id, title: pages.title, icon: pages.icon, archived_at: pages.archived_at })
+    .from(pages)
+    .where(inArray(pages.id, pageIds));
+
+  // Index by page ID and filter archived pages
+  const pageById = new Map(pageRows.filter((p) => !p.archived_at).map((p) => [p.id, p]));
+
+  // Reconstruct results preserving DO rank order
+  let results = searchResult.items
+    .filter((item) => pageById.has(item.pageId))
+    .map((item) => {
+      const page = pageById.get(item.pageId)!;
+      return {
+        page_id: item.pageId,
+        title: page.title,
+        icon: page.icon,
+        snippet: sanitizeSnippet(item.snippet),
+      };
+    });
+
+  // Post-filter by canAccess for guests
   if (needsFilter) {
     const accessByPage = await canAccessPages(
       db,
@@ -75,6 +86,8 @@ searchRouter.get("/workspaces/:wid/search", requireAuth, rateLimit("RL_API"), as
       }
     }
     results = filtered;
+  } else {
+    results = results.slice(0, MAX_RESULTS);
   }
 
   log.debug("search_executed", { workspaceId, query, resultCount: results.length });

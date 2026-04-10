@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { jwtVerify } from "jose";
 
-import { users } from "@/worker/db/schema";
+import { users } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { verifyTurnstileToken } from "@/worker/middleware/turnstile";

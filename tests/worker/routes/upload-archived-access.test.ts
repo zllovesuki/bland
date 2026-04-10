@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { pages, uploads } from "@/worker/db/schema";
+import { pages, uploads } from "@/worker/db/d1/schema";
 import { getPage } from "@/worker/lib/page-access";
 import { checkMembership } from "@/worker/lib/membership";
 import {

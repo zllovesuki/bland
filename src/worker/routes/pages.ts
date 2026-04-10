@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, and, isNull, asc } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { pages } from "@/worker/db/schema";
+import { pages } from "@/worker/db/d1/schema";
 import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";

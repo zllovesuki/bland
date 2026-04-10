@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import { MAX_TREE_DEPTH } from "@/shared/constants";
-import type { Db } from "@/worker/db/client";
+import type { Db } from "@/worker/db/d1/client";
 
 export type PageAncestorRow = {
   id: string;

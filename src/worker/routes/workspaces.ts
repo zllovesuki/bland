@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { workspaces, memberships, users, pages, invites, docSnapshots, pageShares, uploads } from "@/worker/db/schema";
+import { workspaces, memberships, users, pages, invites, pageShares, uploads } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
@@ -149,12 +149,17 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
   const workspacePages = await db.select({ id: pages.id }).from(pages).where(eq(pages.workspace_id, workspaceId));
   const pageIds = workspacePages.map((p) => p.id);
 
+  // Clear search index from WorkspaceIndexer DO before D1 cleanup
+  try {
+    const indexer = c.env.WorkspaceIndexer.getByName(workspaceId);
+    await indexer.clear();
+  } catch (e) {
+    log.error("workspace_indexer_clear_failed", { workspaceId, error: e instanceof Error ? e.message : String(e) });
+  }
+
   const batchOps = [
     db.delete(uploads).where(eq(uploads.workspace_id, workspaceId)),
-    ...pageIds.flatMap((pid) => [
-      db.delete(docSnapshots).where(eq(docSnapshots.page_id, pid)),
-      db.delete(pageShares).where(eq(pageShares.page_id, pid)),
-    ]),
+    ...pageIds.flatMap((pid) => [db.delete(pageShares).where(eq(pageShares.page_id, pid))]),
     db.delete(pages).where(eq(pages.workspace_id, workspaceId)),
     db.delete(memberships).where(eq(memberships.workspace_id, workspaceId)),
     db.delete(invites).where(eq(invites.workspace_id, workspaceId)),

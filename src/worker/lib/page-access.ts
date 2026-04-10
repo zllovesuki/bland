@@ -1,6 +1,6 @@
 import { eq, and, isNull } from "drizzle-orm";
-import { pages } from "@/worker/db/schema";
-import type { Db } from "@/worker/db/client";
+import { pages } from "@/worker/db/d1/schema";
+import type { Db } from "@/worker/db/d1/client";
 
 /**
  * Look up a non-archived page by id, optionally scoped to a workspace.

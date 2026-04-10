@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { sqliteBytes } from "./sqlite";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -103,16 +102,6 @@ export const pages = sqliteTable(
     index("idx_pages_workspace").on(table.workspace_id, table.archived_at),
   ],
 );
-
-export const docSnapshots = sqliteTable("doc_snapshots", {
-  page_id: text("page_id")
-    .primaryKey()
-    .references(() => pages.id),
-  yjs_state: sqliteBytes("yjs_state").notNull(),
-  snapshot_at: text("snapshot_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
-});
 
 export const pageShares = sqliteTable(
   "page_shares",

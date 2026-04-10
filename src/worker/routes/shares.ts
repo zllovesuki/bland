@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, and, isNull } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { pageShares, pages, users } from "@/worker/db/schema";
+import { pageShares, pages, users } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";

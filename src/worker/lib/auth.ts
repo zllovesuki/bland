@@ -4,7 +4,7 @@ import { argon2id } from "@noble/hashes/argon2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
 
-import { users } from "@/worker/db/schema";
+import { users } from "@/worker/db/d1/schema";
 import { JWT_ALGORITHM, REFRESH_COOKIE_MAX_AGE } from "@/worker/lib/constants";
 
 function base64Encode(bytes: Uint8Array): string {
