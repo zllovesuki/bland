@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu } from "lucide-react";
+import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
@@ -23,6 +23,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = location.pathname === "/login";
+  const isSharedWithMePage = location.pathname === "/shared-with-me";
 
   useClickOutside(
     menuRef,
@@ -72,6 +73,20 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
             >
               {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
+          )}
+          {hasLocalSession && (
+            <Link
+              to="/shared-with-me"
+              className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${
+                isSharedWithMePage
+                  ? "bg-accent-500/10 text-accent-400"
+                  : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+              }`}
+              aria-label="Shared with me"
+              title="Shared with me"
+            >
+              <Inbox className="h-4 w-4" />
+            </Link>
           )}
 
           {hasLocalSession ? (

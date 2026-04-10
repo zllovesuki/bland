@@ -62,11 +62,35 @@ export function EmptyWorkspaceView() {
 
       if (decision.kind === "empty") {
         store.clearWorkspaceContext();
+
+        // Check shared inbox: if user has pages shared with them, redirect there
+        let sharedItems = store.sharedInbox;
+        try {
+          sharedItems = await api.shares.sharedWithMe();
+          store.setSharedInbox(sharedItems);
+        } catch {
+          // Fall back to cached inbox
+        }
+
+        if (cancelled) return;
+
+        if (sharedItems.length > 0) {
+          navigate({ to: "/shared-with-me", replace: true });
+          return;
+        }
+
         setView("empty");
         return;
       }
 
       store.clearWorkspaceContext();
+
+      // Offline with no cached member workspaces: check cached shared inbox
+      if (store.sharedInbox.length > 0) {
+        navigate({ to: "/shared-with-me", replace: true });
+        return;
+      }
+
       setView("unavailable");
     }
 

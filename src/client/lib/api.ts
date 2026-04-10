@@ -12,6 +12,7 @@ import type {
   SearchResult,
   PageShare,
   SharedPageInfo,
+  SharedWithMeItem,
   AncestorInfo,
   PageContext,
 } from "@/shared/types";
@@ -285,6 +286,10 @@ export const api = {
     resolve: async (token: string) => {
       const res = await apiFetch<SharedPageInfo>(`/share/${token}`);
       return res;
+    },
+    sharedWithMe: async () => {
+      const res = await apiFetch<{ items: SharedWithMeItem[] }>("/me/shared-pages");
+      return res.items;
     },
   },
 

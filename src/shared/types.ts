@@ -134,7 +134,7 @@ export const AcceptInviteRequest = z.object({
 export type AcceptInviteRequest = z.infer<typeof AcceptInviteRequest>;
 
 // Reserved slugs that conflict with frontend routes
-const RESERVED_SLUGS = new Set(["s", "login", "invite", "profile", "api", "uploads", "ws"]);
+const RESERVED_SLUGS = new Set(["s", "login", "invite", "profile", "shared-with-me", "api", "uploads", "ws"]);
 
 const workspaceSlug = z
   .string()
@@ -253,6 +253,25 @@ export const UpdateProfileRequest = z.object({
   avatar_url: avatarUrl,
 });
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequest>;
+
+export const SharedWithMeItem = z.object({
+  page_id: z.string(),
+  title: z.string(),
+  icon: z.string().nullable(),
+  cover_url: z.string().nullable(),
+  workspace: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    icon: z.string().nullable(),
+    role: WorkspaceRole.nullable(),
+  }),
+  permission: SharePermission,
+  shared_by: z.string(),
+  shared_by_name: z.string(),
+  shared_at: z.string(),
+});
+export type SharedWithMeItem = z.infer<typeof SharedWithMeItem>;
 
 export interface PageWithAccess {
   page: Page;

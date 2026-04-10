@@ -28,10 +28,8 @@ searchRouter.get("/workspaces/:wid/search", requireAuth, rateLimit("RL_API"), as
   }
 
   const membership = await checkMembership(db, user.id, workspaceId);
-  if (!membership) {
-    return c.json({ error: "forbidden", message: "Search requires workspace membership" }, 403);
-  }
-  const needsFilter = membership.role === "guest";
+  // Guests and non-members with page-level shares get post-filtered results
+  const needsFilter = !membership || membership.role === "guest";
 
   // Overfetch from WorkspaceIndexer to compensate for post-filtering
   const overfetchLimit = needsFilter ? 100 : 50;

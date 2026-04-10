@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
-import { Plus, Search, ChevronsLeft, ChevronsRight, Loader2, Settings } from "lucide-react";
+import { Plus, Search, ChevronsLeft, ChevronsRight, Loader2, Settings, ArrowLeft } from "lucide-react";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { STORAGE_KEYS } from "@/client/lib/constants";
@@ -116,7 +116,15 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
       ) : (
         <>
           {isSharedMode ? (
-            <div className="flex h-10 items-center border-b border-zinc-800/60 px-3">
+            <div className="flex h-10 items-center gap-2 border-b border-zinc-800/60 px-3">
+              <Link
+                to="/"
+                className="flex shrink-0 items-center justify-center rounded-md p-0.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+                aria-label="Back to your workspaces"
+                title="Back to your workspaces"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </Link>
               <span className="truncate text-sm font-medium text-zinc-300">
                 {currentWorkspace?.icon && (
                   <span className="mr-1.5 inline-flex items-center align-middle">

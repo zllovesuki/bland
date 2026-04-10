@@ -15,6 +15,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -24,6 +25,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     if (open) {
       setQuery("");
       setResults([]);
+      setHasError(false);
       setSelectedIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     } else {
@@ -35,10 +37,12 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     (q: string) => {
       if (!workspace || q.trim().length < 3) {
         setResults([]);
+        setHasError(false);
         setIsSearching(false);
         return;
       }
       setIsSearching(true);
+      setHasError(false);
       const id = ++requestIdRef.current;
       api
         .search(workspace.id, q.trim())
@@ -48,7 +52,10 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           setSelectedIndex(0);
         })
         .catch(() => {
-          if (id === requestIdRef.current) setResults([]);
+          if (id === requestIdRef.current) {
+            setResults([]);
+            setHasError(true);
+          }
         })
         .finally(() => {
           if (id === requestIdRef.current) setIsSearching(false);
@@ -123,7 +130,10 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
         </div>
 
         <div className="max-h-80 overflow-y-auto p-1">
-          {results.length === 0 && query.trim().length >= 3 && !isSearching && (
+          {results.length === 0 && query.trim().length >= 3 && !isSearching && hasError && (
+            <div className="px-4 py-8 text-center text-sm text-zinc-500">Search unavailable</div>
+          )}
+          {results.length === 0 && query.trim().length >= 3 && !isSearching && !hasError && (
             <div className="px-4 py-8 text-center text-sm text-zinc-500">No results found</div>
           )}
           {results.length === 0 && query.trim().length > 0 && query.trim().length < 3 && !isSearching && (

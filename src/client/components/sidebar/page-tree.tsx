@@ -10,6 +10,7 @@ import { PageTreeItem } from "./page-tree-item";
 export function PageTree() {
   const pages = useWorkspaceStore((s) => s.pages);
   const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const accessMode = useWorkspaceStore((s) => s.accessMode);
   const updatePage = useWorkspaceStore((s) => s.updatePage);
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
@@ -102,7 +103,7 @@ export function PageTree() {
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDragEnd={onDragEnd}
-            canDrag={online}
+            canDrag={online && accessMode !== "shared"}
           />
         </div>
       ))}

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { ulid } from "ulidx";
 
-import { pageShares, pages, users } from "@/worker/db/d1/schema";
+import { pageShares, pages, users, workspaces, memberships } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";
@@ -18,6 +18,58 @@ const log = createLogger("shares");
 
 // Share CRUD — mounted under /api/v1
 export const sharesRouter = new Hono<AppContext>();
+
+// GET /me/shared-pages - List pages shared with the current user
+sharesRouter.get("/me/shared-pages", requireAuth, rateLimit("RL_API"), async (c) => {
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const sharedByUser = db.select({ id: users.id, name: users.name }).from(users).as("shared_by_user");
+
+  const rows = await db
+    .select({
+      page_id: pages.id,
+      title: pages.title,
+      icon: pages.icon,
+      cover_url: pages.cover_url,
+      workspace_id: workspaces.id,
+      workspace_name: workspaces.name,
+      workspace_slug: workspaces.slug,
+      workspace_icon: workspaces.icon,
+      workspace_role: memberships.role,
+      permission: pageShares.permission,
+      shared_by: pageShares.created_by,
+      shared_by_name: sharedByUser.name,
+      shared_at: pageShares.created_at,
+    })
+    .from(pageShares)
+    .innerJoin(pages, eq(pageShares.page_id, pages.id))
+    .innerJoin(workspaces, eq(pages.workspace_id, workspaces.id))
+    .leftJoin(sharedByUser, eq(pageShares.created_by, sharedByUser.id))
+    .leftJoin(memberships, and(eq(memberships.workspace_id, pages.workspace_id), eq(memberships.user_id, user.id)))
+    .where(and(eq(pageShares.grantee_type, "user"), eq(pageShares.grantee_id, user.id), isNull(pages.archived_at)))
+    .orderBy(desc(pageShares.created_at));
+
+  const items = rows.map((r) => ({
+    page_id: r.page_id,
+    title: r.title,
+    icon: r.icon,
+    cover_url: r.cover_url,
+    workspace: {
+      id: r.workspace_id,
+      name: r.workspace_name,
+      slug: r.workspace_slug,
+      icon: r.workspace_icon,
+      role: r.workspace_role ?? null,
+    },
+    permission: r.permission,
+    shared_by: r.shared_by,
+    shared_by_name: r.shared_by_name ?? "Unknown",
+    shared_at: r.shared_at,
+  }));
+
+  return c.json({ items });
+});
 
 // POST /pages/:id/share - Create share
 sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c) => {

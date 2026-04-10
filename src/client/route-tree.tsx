@@ -73,6 +73,18 @@ const profileRoute = createRoute({
   component: lazyRouteComponent(() => import("@/client/components/profile-settings"), "ProfileSettings"),
 });
 
+const sharedWithMeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shared-with-me",
+  beforeLoad: async () => {
+    const { hasLocalSession } = useAuthStore.getState();
+    if (!hasLocalSession) {
+      throw redirect({ to: "/login", search: { redirect: "/shared-with-me" } });
+    }
+  },
+  component: lazyRouteComponent(() => import("@/client/components/shared-with-me-view"), "SharedWithMeView"),
+});
+
 // Static /s prefix takes priority over dynamic /$workspaceSlug
 const shareRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -144,6 +156,7 @@ export const routeTree = rootRoute.addChildren([
   loginRoute,
   inviteRoute,
   profileRoute,
+  sharedWithMeRoute,
   shareRoute,
   workspaceRoute.addChildren([workspaceIndexRoute, settingsRoute, pageRoute]),
 ]);

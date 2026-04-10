@@ -59,7 +59,8 @@ export function AppShell() {
 
   if (isShareView) return <Outlet />;
 
-  const showSidebar = hasLocalSession && (location.pathname !== "/" || currentWorkspace !== null);
+  const isInboxPage = location.pathname === "/shared-with-me";
+  const showSidebar = hasLocalSession && !isInboxPage && (location.pathname !== "/" || currentWorkspace !== null);
 
   return (
     <div className="flex h-screen flex-col">

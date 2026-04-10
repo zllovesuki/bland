@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Workspace, Page, WorkspaceMember } from "@/shared/types";
+import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
 
@@ -10,12 +10,14 @@ interface WorkspaceState {
   pages: Page[];
   members: WorkspaceMember[];
   accessMode: "member" | "shared" | null;
+  sharedInbox: SharedWithMeItem[];
   cacheUserId: string | null;
   setWorkspaces(ws: Workspace[]): void;
   setCurrentWorkspace(ws: Workspace | null): void;
   setPages(pages: Page[]): void;
   setMembers(members: WorkspaceMember[]): void;
   setAccessMode(mode: "member" | "shared" | null): void;
+  setSharedInbox(items: SharedWithMeItem[]): void;
   clearWorkspaceContext(): void;
   resetWorkspaceState(cacheUserId?: string | null): void;
   addWorkspace(ws: Workspace): void;
@@ -40,6 +42,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     (set, get) => ({
       workspaces: [],
       ...getClearedWorkspaceContext(),
+      sharedInbox: [],
       cacheUserId: null as string | null,
 
       setWorkspaces(workspaces) {
@@ -62,6 +65,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ accessMode: mode });
       },
 
+      setSharedInbox(items) {
+        set({ sharedInbox: items });
+      },
+
       clearWorkspaceContext() {
         set(getClearedWorkspaceContext());
       },
@@ -69,6 +76,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       resetWorkspaceState(cacheUserId) {
         const nextState = {
           workspaces: [],
+          sharedInbox: [],
           ...getClearedWorkspaceContext(),
         };
         set(cacheUserId === undefined ? nextState : { ...nextState, cacheUserId });
@@ -120,6 +128,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         pages: state.pages,
         members: state.members,
         accessMode: state.accessMode,
+        sharedInbox: state.sharedInbox,
         cacheUserId: state.cacheUserId,
       }),
     },
