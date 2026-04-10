@@ -130,6 +130,15 @@ export function SharedWithMeView() {
           </div>
           <h2 className="text-lg font-semibold text-zinc-200">No pages shared with you yet</h2>
           <p className="mt-1 text-sm text-zinc-500">When someone shares a page with you, it will appear here.</p>
+          {memberWorkspaces.length > 0 && (
+            <Link
+              to="/"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to workspaces
+            </Link>
+          )}
         </div>
       </div>
     );
