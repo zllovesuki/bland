@@ -2,11 +2,10 @@ import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tan
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { AppShell } from "@/client/components/app-shell";
-import { bootstrapWorkspaceData } from "@/client/lib/workspace-data";
+import { loadWorkspaceRouteData, loadPageRouteData } from "@/client/lib/workspace-data";
 import { WorkspaceLayout } from "@/client/components/workspace-layout";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import { api } from "@/client/lib/api";
 
 function RouteErrorFallback() {
   return (
@@ -93,33 +92,7 @@ const workspaceRoute = createRoute({
       throw redirect({ to: "/login", search: { redirect: location.pathname } });
     }
 
-    const store = useWorkspaceStore.getState();
-
-    // Always refresh workspaces to avoid stale membership cache
-    let workspaces = store.workspaces;
-    let gotRemoteResponse = false;
-    try {
-      workspaces = await api.workspaces.list();
-      store.setWorkspaces(workspaces);
-      gotRemoteResponse = true;
-    } catch {
-      // Fall back to cached list
-    }
-
-    // Resolve slug to workspace
-    const workspace = workspaces.find((w) => w.slug === params.workspaceSlug);
-    if (workspace) {
-      store.setCurrentWorkspace(workspace);
-      try {
-        await bootstrapWorkspaceData(store, workspace.id, "member");
-      } catch {
-        // Component handles empty state
-      }
-    } else if (gotRemoteResponse && isAuthenticated) {
-      // We got a real server response -- user isn't a member of this workspace
-      store.clearWorkspaceContext();
-    }
-    // else: local-only / expired with no remote response -- keep cached state
+    await loadWorkspaceRouteData(useWorkspaceStore.getState(), params.workspaceSlug, isAuthenticated);
   },
   component: WorkspaceLayout,
 });
@@ -150,19 +123,12 @@ const pageRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/$pageId",
   beforeLoad: async ({ params }) => {
-    const store = useWorkspaceStore.getState();
-    if (store.accessMode !== null) return; // already bootstrapped
-
-    // Non-member: bootstrap via context API
     try {
-      const ctx = await api.pages.context(params.pageId);
-      store.setCurrentWorkspace(ctx.workspace);
-      await bootstrapWorkspaceData(store, ctx.workspace.id, ctx.access_mode);
-      // Redirect to canonical slug if stale
-      if (ctx.workspace.slug !== params.workspaceSlug) {
+      const result = await loadPageRouteData(useWorkspaceStore.getState(), params.workspaceSlug, params.pageId);
+      if (result.canonicalWorkspaceSlug) {
         throw redirect({
           to: "/$workspaceSlug/$pageId",
-          params: { workspaceSlug: ctx.workspace.slug, pageId: params.pageId },
+          params: { workspaceSlug: result.canonicalWorkspaceSlug, pageId: params.pageId },
         });
       }
     } catch (err) {
