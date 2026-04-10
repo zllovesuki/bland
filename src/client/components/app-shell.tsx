@@ -88,7 +88,9 @@ export function AppShell() {
           to resume editing.
         </div>
       )}
-      <div className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl"}`}>
+      <div
+        className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl border-l border-zinc-800/60"}`}
+      >
         {showSidebar && (
           <Suspense fallback={<SidebarFallback />}>
             <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />

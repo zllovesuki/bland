@@ -177,7 +177,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
                   setCollapsed(true);
                   localStorage.setItem(STORAGE_KEYS.SIDEBAR, "true");
                 }}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
                 aria-label="Collapse sidebar"
               >
                 <ChevronsLeft className="h-4 w-4" />
