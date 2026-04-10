@@ -1,20 +1,122 @@
-import { useState } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { slugify } from "@/lib/slugify";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { api } from "@/client/lib/api";
+import { resolveRootWorkspaceDecision } from "@/client/lib/root-workspace-gateway";
+import { SESSION_MODES } from "@/client/lib/constants";
+import { useAuthStore } from "@/client/stores/auth-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
+
+type RootViewState = "loading" | "empty" | "unavailable";
 
 export function EmptyWorkspaceView() {
   useDocumentTitle(undefined);
+  const navigate = useNavigate();
+  const sessionMode = useAuthStore((s) => s.sessionMode);
+  const [view, setView] = useState<RootViewState>("loading");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const { createWorkspace, isCreating } = useCreateWorkspace();
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadWorkspaceGateway() {
+      setView("loading");
+
+      const store = useWorkspaceStore.getState();
+      let liveWorkspaces: Awaited<ReturnType<typeof api.workspaces.list>> | null = null;
+
+      try {
+        liveWorkspaces = await api.workspaces.list();
+      } catch {
+        liveWorkspaces = null;
+      }
+
+      if (cancelled) return;
+
+      const decision = resolveRootWorkspaceDecision({
+        currentWorkspace: store.currentWorkspace,
+        cachedWorkspaces: store.workspaces,
+        liveWorkspaces,
+      });
+
+      if (liveWorkspaces !== null) {
+        store.setWorkspaces(liveWorkspaces);
+      }
+
+      if (decision.kind === "redirect") {
+        store.setCurrentWorkspace(decision.workspace);
+        navigate({
+          to: "/$workspaceSlug",
+          params: { workspaceSlug: decision.workspace.slug },
+          replace: true,
+        });
+        return;
+      }
+
+      if (decision.kind === "empty") {
+        store.clearWorkspaceContext();
+        setView("empty");
+        return;
+      }
+
+      store.clearWorkspaceContext();
+      setView("unavailable");
+    }
+
+    loadWorkspaceGateway();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  if (view === "loading") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="animate-slide-up text-center">
+          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-zinc-500" />
+          <p className="text-sm text-zinc-400">Loading workspaces...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "unavailable") {
+    const isExpired = sessionMode === SESSION_MODES.EXPIRED;
+
+    return (
+      <div className="flex h-full items-center justify-center px-4">
+        <div className="animate-slide-up text-center">
+          <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-400" />
+          <h2 className="text-lg font-semibold text-zinc-200">Couldn't load your workspaces</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            {isExpired ? "Sign in again to refresh your workspaces." : "Check your connection and try again."}
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+            {isExpired && (
+              <Button variant="primary" size="sm" onClick={() => navigate({ to: "/login", search: { redirect: "/" } })}>
+                Sign in
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="text-center">
+      <div className="animate-slide-up text-center">
         <h2 className="text-lg font-semibold text-zinc-200">No workspaces found</h2>
         <p className="mt-1 text-sm text-zinc-500">Create a workspace or accept an invite to get started.</p>
 

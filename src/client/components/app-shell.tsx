@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Outlet, useLocation, useRouterState, Link } from "@tanstack/react-router";
 import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import { ConfirmContainer } from "./confirm";
@@ -22,6 +23,7 @@ export function AppShell() {
   const isShareView = location.pathname.startsWith("/s/");
   const hasLocalSession = useAuthStore((s) => s.hasLocalSession);
   const sessionMode = useAuthStore((s) => s.sessionMode);
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
@@ -57,6 +59,8 @@ export function AppShell() {
 
   if (isShareView) return <Outlet />;
 
+  const showSidebar = hasLocalSession && (location.pathname !== "/" || currentWorkspace !== null);
+
   return (
     <div className="flex h-screen flex-col">
       <a
@@ -65,7 +69,11 @@ export function AppShell() {
       >
         Skip to content
       </a>
-      <Header expanded={expanded} onToggleLayout={toggleLayout} onToggleMobileSidebar={toggleMobileDrawer} />
+      <Header
+        expanded={expanded}
+        onToggleLayout={toggleLayout}
+        onToggleMobileSidebar={showSidebar ? toggleMobileDrawer : undefined}
+      />
       {!online && (
         <div className="animate-slide-up border-b border-amber-500/20 bg-amber-500/10 py-1.5 text-center text-xs text-amber-400">
           Offline — changes will sync when you reconnect
@@ -81,7 +89,7 @@ export function AppShell() {
         </div>
       )}
       <div className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl"}`}>
-        {hasLocalSession && (
+        {showSidebar && (
           <Suspense fallback={<SidebarFallback />}>
             <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
           </Suspense>

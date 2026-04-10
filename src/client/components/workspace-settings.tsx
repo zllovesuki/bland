@@ -197,7 +197,9 @@ export function WorkspaceSettings() {
     setDeleting(true);
     try {
       await api.workspaces.delete(currentWorkspace.id);
-      useWorkspaceStore.getState().setWorkspaces(workspaces.filter((w) => w.id !== currentWorkspace.id));
+      const store = useWorkspaceStore.getState();
+      store.setWorkspaces(workspaces.filter((w) => w.id !== currentWorkspace.id));
+      store.clearWorkspaceContext();
       navigate({ to: "/" });
     } catch {
       toast.error("Failed to delete workspace");

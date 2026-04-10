@@ -35,23 +35,6 @@ const indexRoute = createRoute({
     if (!hasLocalSession) {
       throw redirect({ to: "/login", search: { redirect: undefined } });
     }
-    try {
-      const store = useWorkspaceStore.getState();
-      const workspaces = await api.workspaces.list();
-      store.setWorkspaces(workspaces);
-      if (workspaces.length > 0) {
-        const preferred = store.currentWorkspace;
-        const target = preferred && workspaces.find((w) => w.id === preferred.id) ? preferred.slug : workspaces[0].slug;
-        throw redirect({
-          to: "/$workspaceSlug",
-          params: { workspaceSlug: target },
-        });
-      }
-    } catch (err) {
-      if (err !== null && typeof err === "object" && "to" in (err as object)) {
-        throw err;
-      }
-    }
   },
   component: lazyRouteComponent(() => import("@/client/components/empty-workspace-view"), "EmptyWorkspaceView"),
 });
