@@ -89,12 +89,16 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
 function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
   const workspace = useWorkspaceStore(selectActiveWorkspace);
   const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
+  const workspaceId = workspace?.id;
 
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspaceId) {
+      setAncestors([]);
+      return;
+    }
     let cancelled = false;
     api.pages
-      .ancestors(workspace.id, page.id)
+      .ancestors(workspaceId, page.id)
       .then((a) => {
         if (!cancelled) setAncestors(a);
       })
@@ -102,7 +106,7 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
     return () => {
       cancelled = true;
     };
-  }, [workspace, page.id]);
+  }, [workspaceId, page.id]);
 
   const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
 
@@ -236,7 +240,7 @@ function PageViewContent() {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, params.pageId, updatePage]);
+  }, [workspaceId, params.pageId, updatePage, addPage]);
 
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;

@@ -62,6 +62,7 @@ export function WorkspaceSettings() {
   const [icon, setIcon] = useState(currentWorkspace?.icon ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const previousWorkspaceRef = useRef<{ id: string; name: string; icon: string } | null>(null);
 
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const iconPickerRef = useRef<HTMLDivElement>(null);
@@ -91,11 +92,29 @@ export function WorkspaceSettings() {
   );
 
   useEffect(() => {
-    if (currentWorkspace) {
-      setName(currentWorkspace.name);
-      setIcon(currentWorkspace.icon ?? "");
+    if (!currentWorkspace) {
+      previousWorkspaceRef.current = null;
+      return;
     }
-  }, [currentWorkspace]);
+
+    const nextWorkspace = {
+      id: currentWorkspace.id,
+      name: currentWorkspace.name,
+      icon: currentWorkspace.icon ?? "",
+    };
+    const previousWorkspace = previousWorkspaceRef.current;
+    const isNewWorkspace = previousWorkspace?.id !== currentWorkspace.id;
+
+    if (isNewWorkspace || !previousWorkspace || name === previousWorkspace.name) {
+      setName(nextWorkspace.name);
+    }
+
+    if (isNewWorkspace || !previousWorkspace || icon === previousWorkspace.icon) {
+      setIcon(nextWorkspace.icon);
+    }
+
+    previousWorkspaceRef.current = nextWorkspace;
+  }, [currentWorkspace?.id, currentWorkspace?.name, currentWorkspace?.icon, name, icon]);
 
   const handleSave = useCallback(async () => {
     if (!currentWorkspace || saving) return;
@@ -108,6 +127,8 @@ export function WorkspaceSettings() {
       });
       patchWorkspace(currentWorkspace.id, updated);
       useWorkspaceStore.getState().upsertMemberWorkspace(updated);
+      setName(updated.name);
+      setIcon(updated.icon ?? "");
     } catch (err) {
       setSaveError(toApiError(err).message);
     } finally {
@@ -254,7 +275,9 @@ export function WorkspaceSettings() {
                   </button>
                   {icon && (
                     <button
-                      onClick={() => setIcon("")}
+                      onClick={() => {
+                        setIcon("");
+                      }}
                       className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/wsicon:opacity-100"
                       aria-label="Remove icon"
                     >
@@ -266,7 +289,9 @@ export function WorkspaceSettings() {
                   id="ws-name"
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                  }}
                   className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
                   placeholder="Workspace name"
                 />

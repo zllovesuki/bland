@@ -2,9 +2,10 @@ import { useEffect } from "react";
 import { requestSessionRefresh } from "@/client/lib/api";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore, selectActiveWorkspace, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import { useOnline } from "./use-online";
 import { api } from "@/client/lib/api";
+import type { Page, WorkspaceMember } from "@/shared/types";
 
 /**
  * When the user transitions from local-only back to online,
@@ -33,30 +34,36 @@ export function useSessionRehydration() {
           useAuthStore.getState().setAuth(data.accessToken, data.user);
 
           // Background re-bootstrap: refresh workspace data without blocking UI.
-          const store = useWorkspaceStore.getState();
-          const activeWsId = store.activeWorkspaceId;
-          const accessMode = store.activeAccessMode;
-          if (activeWsId && accessMode) {
+          const { activeWorkspaceId: targetWorkspaceId, activeAccessMode: targetAccessMode } =
+            useWorkspaceStore.getState();
+          if (targetWorkspaceId && targetAccessMode) {
             try {
-              const fetchMode: WorkspaceAccessMode = accessMode;
+              const fetchMode: WorkspaceAccessMode = targetAccessMode;
+              let pages: Page[];
+              let members: WorkspaceMember[];
+
               if (fetchMode === "shared") {
-                const pages = await api.pages.list(activeWsId);
-                if (!cancelled) {
-                  const snap = store.snapshotsByWorkspaceId[activeWsId];
-                  if (snap) {
-                    store.replaceWorkspaceSnapshot(activeWsId, { ...snap, pages, members: [] });
-                  }
-                }
+                pages = await api.pages.list(targetWorkspaceId);
+                members = [];
               } else {
-                const [pages, members] = await Promise.all([
-                  api.pages.list(activeWsId),
-                  api.workspaces.members(activeWsId),
+                [pages, members] = await Promise.all([
+                  api.pages.list(targetWorkspaceId),
+                  api.workspaces.members(targetWorkspaceId),
                 ]);
-                if (!cancelled) {
-                  const snap = store.snapshotsByWorkspaceId[activeWsId];
-                  if (snap) {
-                    store.replaceWorkspaceSnapshot(activeWsId, { ...snap, pages, members });
-                  }
+              }
+
+              if (!cancelled) {
+                const latestStore = useWorkspaceStore.getState();
+                if (
+                  latestStore.activeWorkspaceId !== targetWorkspaceId ||
+                  latestStore.activeAccessMode !== targetAccessMode
+                ) {
+                  return;
+                }
+
+                const snap = latestStore.snapshotsByWorkspaceId[targetWorkspaceId];
+                if (snap) {
+                  latestStore.replaceWorkspaceSnapshot(targetWorkspaceId, { ...snap, pages, members });
                 }
               }
             } catch {

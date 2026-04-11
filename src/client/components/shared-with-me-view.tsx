@@ -10,7 +10,7 @@ import { api } from "@/client/lib/api";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import type { SharedWithMeItem } from "@/shared/types";
 
-type ViewState = "loading" | "loaded" | "error";
+type RequestState = "idle" | "loading" | "error";
 
 function groupByWorkspace(items: SharedWithMeItem[]) {
   const groups: Map<string, { workspace: SharedWithMeItem["workspace"]; pages: SharedWithMeItem[] }> = new Map();
@@ -43,46 +43,41 @@ export function SharedWithMeView() {
   useDocumentTitle("Shared with me");
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const cachedInbox = useWorkspaceStore((s) => s.sharedInbox);
+  const sharedInbox = useWorkspaceStore((s) => s.sharedInbox);
   const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
   const memberWorkspaces = useWorkspaceStore((s) => s.memberWorkspaces);
-  const [items, setItems] = useState<SharedWithMeItem[]>(cachedInbox);
-  const [viewState, setViewState] = useState<ViewState>(cachedInbox.length > 0 ? "loaded" : "loading");
+  const [requestState, setRequestState] = useState<RequestState>(
+    sharedInbox.length > 0 ? "idle" : isAuthenticated ? "loading" : "error",
+  );
 
   useEffect(() => {
     if (!isAuthenticated) {
-      if (cachedInbox.length > 0) {
-        setItems(cachedInbox);
-        setViewState("loaded");
-      } else {
-        setViewState("error");
-      }
+      setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "error");
       return;
     }
     let cancelled = false;
+
+    setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "loading");
 
     api.shares
       .sharedWithMe()
       .then((result) => {
         if (cancelled) return;
-        setItems(result);
         setSharedInbox(result);
-        setViewState("loaded");
+        setRequestState("idle");
       })
       .catch(() => {
         if (cancelled) return;
-        if (cachedInbox.length > 0) {
-          setItems(cachedInbox);
-          setViewState("loaded");
-        } else {
-          setViewState("error");
-        }
+        setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "error");
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, setSharedInbox, cachedInbox.length]);
+  }, [isAuthenticated, setSharedInbox]);
+
+  const showLoading = requestState === "loading" && sharedInbox.length === 0;
+  const showError = sharedInbox.length === 0 && (!isAuthenticated || requestState === "error");
 
   const handlePageClick = useCallback(
     (item: SharedWithMeItem) => {
@@ -95,7 +90,7 @@ export function SharedWithMeView() {
     [navigate],
   );
 
-  if (viewState === "loading") {
+  if (showLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="animate-slide-up text-center">
@@ -106,7 +101,7 @@ export function SharedWithMeView() {
     );
   }
 
-  if (viewState === "error") {
+  if (showError) {
     return (
       <div className="flex h-full items-center justify-center px-4">
         <div className="animate-slide-up text-center">
@@ -121,7 +116,7 @@ export function SharedWithMeView() {
     );
   }
 
-  if (items.length === 0) {
+  if (sharedInbox.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="animate-slide-up text-center">
@@ -144,7 +139,7 @@ export function SharedWithMeView() {
     );
   }
 
-  const groups = groupByWorkspace(items);
+  const groups = groupByWorkspace(sharedInbox);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
