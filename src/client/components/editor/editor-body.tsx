@@ -11,6 +11,7 @@ import { DragHandle } from "./controllers/drag-handle";
 import { FormattingToolbar } from "./controllers/formatting-toolbar";
 import { LinkToolbar } from "./controllers/link-toolbar";
 import { ImageToolbar } from "./controllers/image-toolbar";
+import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
 
 interface EditorBodyProps {
   fragment: Y.XmlFragment;
@@ -48,6 +49,7 @@ export const EditorBody = memo(function EditorBody({
         shareToken,
       }),
       editable: !readOnly,
+      coreExtensionOptions: EDITOR_CORE_EXTENSION_OPTIONS,
       editorProps: {
         attributes: {
           class: "tiptap",
