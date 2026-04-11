@@ -1,10 +1,16 @@
 # AGENTS.md
 
-## One Rule To Remember
+## Rules To Remember
 
 "Can we do more with less code?"
 
-`docs/bland-production-spec.md` is explicit about this and the repo should follow it. Prefer the smallest correct implementation that preserves correctness, performance, and security. If a larger abstraction or refactor is optional, present it as an option instead of making it the default.
+"Do the hard things now, or be forced to do harder things in the future."
+
+`docs/bland-production-spec.md` is explicit about the first rule and the repo should follow it. Prefer the smallest correct implementation that preserves correctness, performance, and security.
+
+The second rule is the check against false simplicity. Do not choose a design just because it is smaller today if it is likely to become an architectural dead end, force predictable refactors, or make the next layer of features harder to add safely. Pay necessary structural costs early when the alternative is known fragility.
+
+If a larger abstraction or refactor is optional, present it as an option instead of making it the default. If the current design is obviously too weak for the feature pressure already visible in the repo, fix the design instead of layering another shortcut on top.
 
 ## Naming
 
@@ -38,6 +44,7 @@
 ## Working Rules
 
 - Keep edits scoped and minimal.
+- Do not trade a small diff for a fragile design. When a structural fix is clearly required to keep the next features from causing churn, do the structural fix.
 - Prefer explicit code over clever code. Small duplication is acceptable when it keeps ownership and behavior obvious.
 - Reuse existing helpers, stores, contracts, and route patterns before adding new ones. When adding new code, check the lists below and use what exists before introducing anything new.
 - Do not broaden the implementation toward the full production spec unless the task requires it.

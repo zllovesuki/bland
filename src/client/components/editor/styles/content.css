@@ -2,6 +2,7 @@
 
 /* Tiptap editor content styling */
 .tiptap {
+  position: relative;
   padding-inline-start: 16px;
   padding-inline-end: 0;
   padding-bottom: clamp(5rem, 10vh, 8rem);
@@ -449,4 +450,14 @@
 .tiptap-code-block-lang-item.is-active:hover {
   background-color: rgba(139, 92, 246, 0.18);
   color: #ddd6fe;
+}
+
+.tiptap-toolbar button.is-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tiptap-toolbar button.is-disabled:hover {
+  background-color: transparent;
+  color: #d4d4d8;
 }

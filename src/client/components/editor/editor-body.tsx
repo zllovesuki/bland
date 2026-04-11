@@ -11,6 +11,7 @@ import { DragHandle } from "./controllers/drag-handle";
 import { FormattingToolbar } from "./controllers/formatting-toolbar";
 import { LinkToolbar } from "./controllers/link-toolbar";
 import { ImageToolbar } from "./controllers/image-toolbar";
+import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
 
 interface EditorBodyProps {
@@ -109,6 +110,7 @@ export const EditorBody = memo(function EditorBody({
         {editor && !readOnly && <FormattingToolbar editor={editor} />}
         {editor && !readOnly && <LinkToolbar editor={editor} />}
         {editor && !readOnly && <ImageToolbar editor={editor} />}
+        {editor && !readOnly && <TableMenu editor={editor} />}
       </div>
     </EditorContext.Provider>
   );

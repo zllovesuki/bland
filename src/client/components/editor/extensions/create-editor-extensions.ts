@@ -13,6 +13,7 @@ import type { Awareness } from "y-protocols/awareness";
 import { ShareAwareImage } from "./image-node";
 import { HighlightedCodeBlock } from "./code-block-extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
+import { createTableExtensions } from "./table-extensions";
 import { SlashCommands } from "../controllers/slash-menu-extension";
 import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
 
@@ -81,5 +82,6 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       },
     }),
     SlashCommands,
+    ...createTableExtensions(),
   ] as AnyExtension[];
 }

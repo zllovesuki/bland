@@ -11,6 +11,7 @@ import {
   Code2,
   Minus,
   ImageIcon,
+  Table,
 } from "lucide-react";
 export interface SlashMenuItem {
   title: string;
@@ -110,6 +111,20 @@ export function getSlashMenuItems(): SlashMenuItem[] {
       aliases: ["hr", "divider", "separator"],
       command: ({ editor, range }) => {
         editor.chain().focus(null, { scrollIntoView: false }).deleteRange(range).setHorizontalRule().run();
+      },
+    },
+    {
+      title: "Table",
+      group: "Basic blocks",
+      icon: Table,
+      aliases: ["tbl", "grid"],
+      command: ({ editor, range }) => {
+        editor
+          .chain()
+          .focus(null, { scrollIntoView: false })
+          .deleteRange(range)
+          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+          .run();
       },
     },
     {

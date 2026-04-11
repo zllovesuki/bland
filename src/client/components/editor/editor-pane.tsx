@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import "./styles/content.css";
 import "./styles/overlays.css";
+import "./styles/table.css";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
