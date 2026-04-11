@@ -1,7 +1,6 @@
 import { Extension } from "@tiptap/core";
 import type { Slice } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from "@tiptap/pm/state";
-import { dropPoint } from "@tiptap/pm/transform";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import "../styles/block-drag-drop.css";
 
@@ -90,11 +89,34 @@ export function resolveTopLevelDropTarget(blocks: TopLevelBlockRect[], y: number
   return blocks[blocks.length - 1]?.end ?? null;
 }
 
-function resolveMovedBlockDropPos(view: EditorView, event: DragEvent): number | null {
-  return resolveTopLevelDropTarget(getTopLevelBlockRects(view), event.clientY);
+export function resolveMovedTopLevelDropTarget(
+  blocks: TopLevelBlockRect[],
+  y: number,
+  previousTarget: number | null,
+): number | null {
+  if (!blocks.length || !Number.isFinite(y)) return null;
+
+  const firstBlock = blocks[0];
+  if (previousTarget === firstBlock?.pos && y <= firstBlock.bottom) {
+    return firstBlock.pos;
+  }
+
+  return resolveTopLevelDropTarget(blocks, y);
+}
+
+function resolveMovedBlockDropPos(
+  view: EditorView,
+  event: DragEvent,
+  previousTarget: number | null = null,
+): number | null {
+  return resolveMovedTopLevelDropTarget(getTopLevelBlockRects(view), event.clientY, previousTarget);
 }
 
 function resolveDropCursorTarget(view: EditorView, event: DragEvent): number | null {
+  if (view.dragging?.slice) {
+    return resolveMovedBlockDropPos(view, event);
+  }
+
   const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
   if (!pos) return null;
 
@@ -103,11 +125,6 @@ function resolveDropCursorTarget(view: EditorView, event: DragEvent): number | n
   const disabled = typeof disableDropCursor === "function" ? disableDropCursor(view, pos, event) : disableDropCursor;
 
   if (disabled) return null;
-
-  if (view.dragging?.slice) {
-    return resolveMovedBlockDropPos(view, event) ?? dropPoint(view.state.doc, pos.pos, view.dragging.slice) ?? pos.pos;
-  }
-
   return pos.pos;
 }
 
@@ -187,7 +204,9 @@ class BlockDragPreviewView {
   dragover(event: Event) {
     if (!this.editorView.editable) return;
 
-    const target = resolveDropCursorTarget(this.editorView, event as DragEvent);
+    const target = this.editorView.dragging?.slice
+      ? resolveMovedBlockDropPos(this.editorView, event as DragEvent, this.target)
+      : resolveDropCursorTarget(this.editorView, event as DragEvent);
     if (target === null) return;
 
     dragTargets.set(this.editorView, target);
@@ -206,6 +225,8 @@ class BlockDragPreviewView {
   }
 
   dragleave(event: Event) {
+    if (dragPreviews.has(this.editorView)) return;
+
     if (!this.editorView.dom.contains((event as DragEvent).relatedTarget as Node | null)) {
       dragTargets.delete(this.editorView);
       this.setTarget(null);

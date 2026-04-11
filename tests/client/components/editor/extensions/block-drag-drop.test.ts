@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveMovedTopLevelDropTarget,
   resolveTopLevelDropTarget,
   type TopLevelBlockRect,
 } from "@/client/components/editor/extensions/block-drag-drop";
@@ -32,5 +33,14 @@ describe("drag-drop boundary resolution", () => {
 
   it("drops after the last block when hovering below it", () => {
     expect(resolveTopLevelDropTarget(blocks, 260)).toBe(9);
+  });
+
+  it("keeps the first slot sticky for internal block moves until the pointer clears the first block", () => {
+    expect(resolveMovedTopLevelDropTarget(blocks, 138, 0)).toBe(0);
+    expect(resolveMovedTopLevelDropTarget(blocks, 141, 0)).toBe(3);
+  });
+
+  it("does not make later slots sticky", () => {
+    expect(resolveMovedTopLevelDropTarget(blocks, 186, 3)).toBe(6);
   });
 });
