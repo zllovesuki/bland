@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 import { createPage, createWorkspace, createMember } from "@tests/client/util/fixtures";
+import { STORAGE_KEYS } from "@/client/lib/constants";
 
 let useWorkspaceStore: typeof import("@/client/stores/workspace-store").useWorkspaceStore;
 let selectActiveWorkspace: typeof import("@/client/stores/workspace-store").selectActiveWorkspace;
@@ -49,6 +50,68 @@ describe("workspace-store", () => {
       const state = useWorkspaceStore.getState();
       expect(state.activeWorkspaceId).toBeNull();
       expect(state.activeAccessMode).toBeNull();
+    });
+
+    it("rehydrates the persisted cache slice without restoring route state", async () => {
+      const workspace = createWorkspace({ id: "ws-1" });
+      const page = createPage({ id: "p1", workspace_id: "ws-1" });
+      const member = createMember({ workspace_id: "ws-1" });
+      const hadWindow = "window" in globalThis;
+      const originalWindow = (globalThis as Record<string, unknown>).window;
+
+      localStorage.setItem(
+        STORAGE_KEYS.WORKSPACE,
+        JSON.stringify({
+          state: {
+            memberWorkspaces: [workspace],
+            sharedInbox: [],
+            snapshotsByWorkspaceId: {
+              "ws-1": {
+                workspace,
+                accessMode: "member",
+                pages: [page],
+                members: [member],
+              },
+            },
+            pageMetaById: { p1: page },
+            lastVisitedWorkspaceId: "ws-1",
+            cacheUserId: "user-1",
+          },
+          version: 2,
+        }),
+      );
+
+      Object.defineProperty(globalThis, "window", {
+        value: { localStorage },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        vi.resetModules();
+        const mod = await import("@/client/stores/workspace-store");
+        await vi.dynamicImportSettled();
+        const state = mod.useWorkspaceStore.getState();
+
+        expect(state.memberWorkspaces).toEqual([workspace]);
+        expect(state.snapshotsByWorkspaceId["ws-1"]?.pages).toEqual([page]);
+        expect(state.snapshotsByWorkspaceId["ws-1"]?.members).toEqual([member]);
+        expect(state.pageMetaById).toEqual({ p1: page });
+        expect(state.lastVisitedWorkspaceId).toBe("ws-1");
+        expect(state.cacheUserId).toBe("user-1");
+        expect(state.activeWorkspaceId).toBeNull();
+        expect(state.activeAccessMode).toBeNull();
+      } finally {
+        if (hadWindow) {
+          Object.defineProperty(globalThis, "window", {
+            value: originalWindow,
+            writable: true,
+            configurable: true,
+          });
+        } else {
+          delete (globalThis as Record<string, unknown>).window;
+        }
+      }
     });
   });
 

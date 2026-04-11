@@ -14,7 +14,6 @@ export interface WorkspaceSnapshot {
 }
 
 interface WorkspaceState {
-  // --- Persisted cache slice ---
   memberWorkspaces: Workspace[];
   sharedInbox: SharedWithMeItem[];
   snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
@@ -22,11 +21,9 @@ interface WorkspaceState {
   lastVisitedWorkspaceId: string | null;
   cacheUserId: string | null;
 
-  // --- Volatile route slice (NOT persisted) ---
   activeWorkspaceId: string | null;
   activeAccessMode: WorkspaceAccessMode | null;
 
-  // --- Cache mutations ---
   setMemberWorkspaces(ws: Workspace[]): void;
   upsertMemberWorkspace(ws: Workspace): void;
   removeMemberWorkspace(workspaceId: string): void;
@@ -44,16 +41,12 @@ interface WorkspaceState {
 
   setLastVisitedWorkspaceId(id: string | null): void;
 
-  // --- Route slice ---
   setActiveRoute(workspaceId: string, accessMode: WorkspaceAccessMode): void;
   clearActiveRoute(): void;
 
-  // --- Lifecycle ---
   validateCacheOwner(userId: string | null): void;
   resetStore(cacheUserId?: string | null): void;
 }
-
-// --- Selectors ---
 
 const EMPTY_PAGES: Page[] = [];
 const EMPTY_MEMBERS: WorkspaceMember[] = [];
@@ -79,8 +72,6 @@ export function selectWorkspaceSnapshot(state: WorkspaceState, workspaceId: stri
   if (!workspaceId) return null;
   return state.snapshotsByWorkspaceId[workspaceId] ?? null;
 }
-
-// --- Helpers ---
 
 function buildPageMetaById(snapshots: Record<string, WorkspaceSnapshot>): Record<string, Page> {
   const index: Record<string, Page> = {};
@@ -124,53 +115,9 @@ function scrubPageMetaForWorkspace(existing: Record<string, Page>, workspaceId: 
   return next;
 }
 
-// --- v1 -> v2 migration ---
-
-interface V1State {
-  workspaces?: Workspace[];
-  currentWorkspace?: Workspace | null;
-  pages?: Page[];
-  members?: WorkspaceMember[];
-  accessMode?: "member" | "shared" | null;
-  sharedInbox?: SharedWithMeItem[];
-  cacheUserId?: string | null;
-}
-
-function migrateV1ToV2(persisted: V1State): Partial<WorkspaceState> {
-  const snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot> = {};
-  const pageMetaById: Record<string, Page> = {};
-  let lastVisitedWorkspaceId: string | null = null;
-
-  if (persisted.currentWorkspace) {
-    const wsId = persisted.currentWorkspace.id;
-    lastVisitedWorkspaceId = wsId;
-    snapshotsByWorkspaceId[wsId] = {
-      workspace: persisted.currentWorkspace,
-      accessMode: persisted.accessMode === "shared" ? "shared" : "member",
-      pages: persisted.pages ?? [],
-      members: persisted.members ?? [],
-    };
-    for (const page of persisted.pages ?? []) {
-      pageMetaById[page.id] = page;
-    }
-  }
-
-  return {
-    memberWorkspaces: persisted.workspaces ?? [],
-    sharedInbox: persisted.sharedInbox ?? [],
-    snapshotsByWorkspaceId,
-    pageMetaById,
-    lastVisitedWorkspaceId,
-    cacheUserId: persisted.cacheUserId ?? null,
-  };
-}
-
-// --- Store ---
-
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
-      // Cache slice defaults
       memberWorkspaces: [],
       sharedInbox: [],
       snapshotsByWorkspaceId: {},
@@ -178,11 +125,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       lastVisitedWorkspaceId: null,
       cacheUserId: null,
 
-      // Route slice defaults
       activeWorkspaceId: null,
       activeAccessMode: null,
-
-      // --- Cache mutations ---
 
       setMemberWorkspaces(workspaces) {
         set({ memberWorkspaces: workspaces });
@@ -334,8 +278,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ lastVisitedWorkspaceId: id });
       },
 
-      // --- Route slice ---
-
       setActiveRoute(workspaceId, accessMode) {
         set({ activeWorkspaceId: workspaceId, activeAccessMode: accessMode });
       },
@@ -343,8 +285,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       clearActiveRoute() {
         set({ activeWorkspaceId: null, activeAccessMode: null });
       },
-
-      // --- Lifecycle ---
 
       validateCacheOwner(userId) {
         const state = get();
@@ -372,12 +312,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     {
       name: STORAGE_KEYS.WORKSPACE,
       version: 2,
-      migrate(persisted, version) {
-        if (version < 2) {
-          return migrateV1ToV2(persisted as V1State) as WorkspaceState;
-        }
-        return persisted as WorkspaceState;
-      },
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
         sharedInbox: state.sharedInbox,
