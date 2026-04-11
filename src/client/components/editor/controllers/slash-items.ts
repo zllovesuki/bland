@@ -15,6 +15,7 @@ import {
   Table,
 } from "lucide-react";
 import { insertDetailsBlock } from "./details-block";
+
 export interface SlashMenuItem {
   title: string;
   group: string;
@@ -23,7 +24,15 @@ export interface SlashMenuItem {
   command: (props: { editor: Editor; range: Range }) => void;
 }
 
-export function getSlashMenuItems(): SlashMenuItem[] {
+export interface SlashMenuImageConfig {
+  insertImage: (props: { editor: Editor; range: Range }) => void;
+}
+
+export interface SlashMenuItemsOpts {
+  image: SlashMenuImageConfig;
+}
+
+export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
   return [
     {
       title: "Heading 1",
@@ -144,18 +153,7 @@ export function getSlashMenuItems(): SlashMenuItem[] {
       icon: ImageIcon,
       aliases: ["img", "picture", "photo"],
       command: ({ editor, range }) => {
-        editor
-          .chain()
-          .focus(null, { scrollIntoView: false })
-          .deleteRange(range)
-          .insertContent({
-            type: "image",
-            attrs: {
-              src: "",
-              pendingInsertId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            },
-          })
-          .run();
+        opts.image.insertImage({ editor, range });
       },
     },
   ];

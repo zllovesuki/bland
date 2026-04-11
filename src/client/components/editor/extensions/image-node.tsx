@@ -4,13 +4,13 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
 import { EditorContext } from "../editor-context";
-import { resolveShareUrl } from "../lib/media-actions";
+import { createImageNodeTarget, resolveShareUrl } from "../lib/media-actions";
 import { showImageInsertPanel } from "../controllers/image-insert-panel";
 import "../styles/image-node.css";
 
-function ImageView({ node, selected, updateAttributes, deleteNode, editor }: NodeViewProps) {
+function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useContext(EditorContext);
-  const { src, alt = "", title, align = "left", width, pendingInsertId = null } = node.attrs;
+  const { src, alt = "", title, align = "left", width } = node.attrs;
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -26,19 +26,6 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor }: Nod
   }, []);
 
   useEffect(() => () => finishDrag(), [finishDrag]);
-
-  useEffect(() => {
-    if (resolvedSrc || !editor.isEditable || !pendingInsertId) return;
-
-    updateAttributes({ pendingInsertId: null });
-    const id = window.setTimeout(() => {
-      showImageInsertPanel(editor, { workspaceId, pageId, shareToken });
-    }, 0);
-
-    return () => {
-      window.clearTimeout(id);
-    };
-  }, [resolvedSrc, editor, pendingInsertId, updateAttributes, workspaceId, pageId, shareToken]);
 
   const handleResizeStart = useCallback(
     (side: "left" | "right", e: React.PointerEvent) => {
@@ -89,13 +76,22 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor }: Nod
         : "tiptap-image-node--align-left";
 
   const uploadCtx = { workspaceId, pageId, shareToken };
+  const openImagePanel = useCallback(() => {
+    if (!editor.isEditable) return;
+    const pos = getPos();
+    if (typeof pos !== "number") return;
+    showImageInsertPanel(editor, {
+      uploadContext: uploadCtx,
+      target: createImageNodeTarget(editor, pos),
+    });
+  }, [editor, getPos, pageId, shareToken, workspaceId]);
 
   if (!resolvedSrc) {
     return (
       <NodeViewWrapper>
         <div
           className="tiptap-image-placeholder"
-          onClick={editor.isEditable ? () => showImageInsertPanel(editor, uploadCtx) : undefined}
+          onClick={editor.isEditable ? openImagePanel : undefined}
           style={editor.isEditable ? undefined : { cursor: "default" }}
         >
           <ImageIcon size={20} />

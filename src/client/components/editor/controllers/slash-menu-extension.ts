@@ -2,19 +2,35 @@ import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
-import { getSlashMenuItems, filterItems, type SlashMenuItem } from "./slash-items";
+import { getSlashMenuItems, filterItems, type SlashMenuImageConfig, type SlashMenuItem } from "./slash-items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
 
-export const SlashCommands = Extension.create({
+interface SlashCommandsOptions {
+  image: SlashMenuImageConfig;
+}
+
+export const SlashCommands = Extension.create<SlashCommandsOptions>({
   name: "slashCommands",
 
+  addOptions() {
+    return {
+      image: {
+        insertImage: () => {
+          throw new Error("slash image config missing");
+        },
+      },
+    };
+  },
+
   addProseMirrorPlugins() {
+    const image = this.options.image;
+
     return [
       Suggestion<SlashMenuItem, SlashMenuItem>({
         editor: this.editor,
         char: "/",
         shouldShow: ({ transaction }) => !isChangeOrigin(transaction),
-        items: ({ query }) => filterItems(getSlashMenuItems(), query),
+        items: ({ query }) => filterItems(getSlashMenuItems({ image }), query),
         command: ({ editor, range, props: item }) => {
           item.command({ editor, range });
         },

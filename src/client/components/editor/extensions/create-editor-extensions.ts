@@ -18,6 +18,8 @@ import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
 import { SlashCommands } from "../controllers/slash-menu-extension";
+import { insertImageFromSlashMenu } from "../controllers/image-insert-panel";
+import type { SlashMenuImageConfig } from "../controllers/slash-items";
 import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
 
 interface CreateEditorExtensionsOpts {
@@ -41,6 +43,12 @@ function countCharacters(text: string): number {
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
   const { fragment, provider, user, workspaceId, pageId, shareToken } = opts;
   const ctx = { workspaceId, pageId, shareToken };
+
+  const imageSlashConfig: SlashMenuImageConfig = {
+    insertImage: ({ editor, range }) => {
+      insertImageFromSlashMenu(editor, range, ctx);
+    },
+  };
 
   return [
     StarterKit.configure({
@@ -123,7 +131,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
         })();
       },
     }),
-    SlashCommands,
+    SlashCommands.configure({ image: imageSlashConfig }),
     ...createTableExtensions(),
   ] as AnyExtension[];
 }

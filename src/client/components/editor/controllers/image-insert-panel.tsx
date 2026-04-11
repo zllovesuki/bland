@@ -1,10 +1,20 @@
 import { useState, useEffect, useRef } from "react";
-import type { Editor } from "@tiptap/core";
+import type { Editor, Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import { computePosition, offset, shift, flip } from "@floating-ui/dom";
 import { Upload } from "lucide-react";
 import { toast } from "@/client/components/toast";
-import { IMAGE_MIME_TYPES, triggerFileUpload, type UploadContext } from "../lib/media-actions";
+import {
+  IMAGE_MIME_TYPES,
+  IMAGE_TARGET_MISSING_MESSAGE,
+  getImageTargetDom,
+  insertImagePlaceholderAtRange,
+  replaceImageSourceAtTarget,
+  resolveImageTargetPos,
+  triggerFileUploadAtTarget,
+  type ImageNodeTarget,
+  type UploadContext,
+} from "../lib/media-actions";
 import "../styles/floating-controls.css";
 import "../styles/slash-menu.css";
 
@@ -104,10 +114,12 @@ function validateImageUrl(url: string): Promise<string> {
 export function ImageInsertPanel({
   editor,
   uploadContext,
+  target,
   onClose,
 }: {
   editor: Editor;
   uploadContext: UploadContext;
+  target: ImageNodeTarget;
   onClose: () => void;
 }) {
   const [embedUrl, setEmbedUrl] = useState("");
@@ -122,18 +134,34 @@ export function ImageInsertPanel({
   }, []);
 
   useEffect(() => {
-    const coords = editor.view.coordsAtPos(editor.state.selection.from);
     const panel = panelRef.current;
     if (!panel) return;
-    void computePosition(
-      { getBoundingClientRect: () => new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top) },
-      panel,
-      { placement: "bottom-start", middleware: [offset(10), shift({ padding: 10 }), flip({ padding: 10 })] },
-    ).then(({ x, y }) => {
+
+    const targetDom = getImageTargetDom(editor, target);
+    let rect: DOMRect | null = null;
+
+    if (targetDom) {
+      const anchor = targetDom.querySelector<HTMLElement>(".tiptap-image-container, .tiptap-image-placeholder");
+      rect = (anchor ?? targetDom).getBoundingClientRect();
+    } else {
+      try {
+        const coords = editor.view.coordsAtPos(resolveImageTargetPos(editor, target) ?? target.pos);
+        rect = new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top);
+      } catch {
+        rect = null;
+      }
+    }
+
+    if (!rect) return;
+
+    void computePosition({ getBoundingClientRect: () => rect }, panel, {
+      placement: "bottom-start",
+      middleware: [offset(10), shift({ padding: 10 }), flip({ padding: 10 })],
+    }).then(({ x, y }) => {
       panel.style.left = `${x}px`;
       panel.style.top = `${y}px`;
     });
-  }, [editor]);
+  }, [editor, target]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -142,16 +170,19 @@ export function ImageInsertPanel({
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    document.addEventListener("mousedown", handleClick);
+    const timeoutId = window.setTimeout(() => {
+      document.addEventListener("mousedown", handleClick);
+    }, 0);
     document.addEventListener("keydown", handleEsc);
     return () => {
+      window.clearTimeout(timeoutId);
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleEsc);
     };
   }, [onClose]);
 
   const handleUpload = () => {
-    triggerFileUpload(editor, uploadContext, onClose);
+    triggerFileUploadAtTarget(editor, uploadContext, target, onClose);
   };
 
   const handleEmbed = async () => {
@@ -168,7 +199,9 @@ export function ImageInsertPanel({
     try {
       setValidatingEmbed(true);
       const validUrl = await validateImageUrl(url);
-      editor.chain().focus(null, { scrollIntoView: false }).setImage({ src: validUrl }).run();
+      if (!replaceImageSourceAtTarget(editor, target, validUrl)) {
+        toast.error(IMAGE_TARGET_MISSING_MESSAGE);
+      }
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Invalid image URL");
@@ -192,7 +225,7 @@ export function ImageInsertPanel({
         <div className="tiptap-slash-menu-label px-2 py-1">Insert image</div>
         <button
           type="button"
-          disabled={validatingEmbed}
+          disabled={validatingEmbed || !uploadContext.workspaceId}
           className="tiptap-slash-menu-item disabled:opacity-40"
           onMouseDown={(e) => {
             e.preventDefault();
@@ -233,9 +266,21 @@ export function ImageInsertPanel({
   );
 }
 
-export function showImageInsertPanel(editor: Editor, uploadContext: UploadContext) {
-  let renderer: ReactRenderer<unknown, { editor: Editor; uploadContext: UploadContext; onClose: () => void }> | null =
-    null;
+export function insertImageFromSlashMenu(editor: Editor, range: Range, uploadContext: UploadContext) {
+  const target = insertImagePlaceholderAtRange(editor, range);
+  if (!target) return;
+
+  queueMicrotask(() => {
+    if (editor.isDestroyed) return;
+    showImageInsertPanel(editor, { uploadContext, target });
+  });
+}
+
+export function showImageInsertPanel(editor: Editor, opts: { uploadContext: UploadContext; target: ImageNodeTarget }) {
+  let renderer: ReactRenderer<
+    unknown,
+    { editor: Editor; uploadContext: UploadContext; target: ImageNodeTarget; onClose: () => void }
+  > | null = null;
 
   const cleanup = () => {
     editor.off("destroy", cleanup);
@@ -245,7 +290,7 @@ export function showImageInsertPanel(editor: Editor, uploadContext: UploadContex
   };
 
   renderer = new ReactRenderer(ImageInsertPanel, {
-    props: { editor, uploadContext, onClose: cleanup },
+    props: { editor, uploadContext: opts.uploadContext, target: opts.target, onClose: cleanup },
     editor,
   });
   document.body.appendChild(renderer.element);

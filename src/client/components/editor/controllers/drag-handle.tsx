@@ -1,10 +1,12 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useContext, useRef } from "react";
 import { DragHandle as DragHandleReact } from "@tiptap/extension-drag-handle-react";
 import { offset } from "@floating-ui/dom";
 import type { Node } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { MoveVertical, Plus } from "lucide-react";
+import { EditorContext } from "../editor-context";
 import { clearDraggedBlockPreview, setDraggedBlockPreview } from "../extensions/block-drag-drop";
+import { insertImageFromSlashMenu } from "./image-insert-panel";
 import { getSlashMenuItems } from "./slash-items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
 import "../styles/drag-handle.css";
@@ -27,6 +29,7 @@ function getTransparentImg() {
 
 export function DragHandle({ editor }: { editor: Editor }) {
   const nodePos = useRef(-1);
+  const { workspaceId, pageId, shareToken } = useContext(EditorContext);
 
   const onNodeChange = useCallback(({ pos }: { node: Node | null; editor: Editor; pos: number }) => {
     nodePos.current = pos;
@@ -67,7 +70,13 @@ export function DragHandle({ editor }: { editor: Editor }) {
     editor.chain().insertContentAt(insertPos, { type: "paragraph" }).setTextSelection(cursorPos).run();
     editor.commands.focus(null, { scrollIntoView: false });
 
-    const items = getSlashMenuItems();
+    const items = getSlashMenuItems({
+      image: {
+        insertImage: ({ editor: currentEditor, range }) => {
+          insertImageFromSlashMenu(currentEditor, range, { workspaceId, pageId, shareToken });
+        },
+      },
+    });
     const range = { from: cursorPos, to: cursorPos };
 
     let handle: SlashMenuOverlayHandle | null = null;
@@ -112,7 +121,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
       handle?.destroy();
       handle = null;
     }
-  }, [editor]);
+  }, [editor, pageId, shareToken, workspaceId]);
 
   return (
     <DragHandleReact

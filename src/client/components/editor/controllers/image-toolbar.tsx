@@ -5,7 +5,12 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { useFloating, offset, shift, autoUpdate, FloatingPortal } from "@floating-ui/react";
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { EditorContext } from "../editor-context";
-import { triggerFileUpload } from "../lib/media-actions";
+import {
+  createImageNodeTarget,
+  deleteImageAtTarget,
+  triggerFileUploadAtTarget,
+  updateImageAttributesAtTarget,
+} from "../lib/media-actions";
 import "../styles/floating-controls.css";
 
 interface ImageState {
@@ -80,20 +85,14 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
   const updateImageAttr = useCallback(
     (attrs: Record<string, unknown>) => {
       if (!imageState) return;
-      const node = editor.state.doc.nodeAt(imageState.pos);
-      if (!node) return;
-      const tr = editor.state.tr.setNodeMarkup(imageState.pos, undefined, { ...node.attrs, ...attrs });
-      editor.view.dispatch(tr);
+      updateImageAttributesAtTarget(editor, createImageNodeTarget(editor, imageState.pos), attrs);
     },
     [editor, imageState],
   );
 
   const deleteImage = useCallback(() => {
     if (!imageState) return;
-    const node = editor.state.doc.nodeAt(imageState.pos);
-    if (!node) return;
-    const tr = editor.state.tr.delete(imageState.pos, imageState.pos + node.nodeSize);
-    editor.view.dispatch(tr);
+    deleteImageAtTarget(editor, createImageNodeTarget(editor, imageState.pos));
   }, [editor, imageState]);
 
   const handleAltEdit = () => {
@@ -160,7 +159,8 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
               title="Replace image"
               onMouseDown={(e) => {
                 e.preventDefault();
-                triggerFileUpload(editor, uploadCtx);
+                if (!imageState) return;
+                triggerFileUploadAtTarget(editor, uploadCtx, createImageNodeTarget(editor, imageState.pos));
               }}
             >
               <Replace size={16} />
