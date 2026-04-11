@@ -2,7 +2,7 @@ import type { AnyExtension } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
 import { TableKit } from "@tiptap/extension-table";
 import { TableMap } from "@tiptap/pm/tables";
-import { TableHandles } from "./table-handles";
+import { TableHandles } from "./table/overlay-extension";
 import { TableWidthNormalization } from "./table/normalization-extension";
 import { TABLE_CELL_MIN_WIDTH } from "./table/constants";
 import {

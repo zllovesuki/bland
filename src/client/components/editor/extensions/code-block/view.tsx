@@ -2,9 +2,9 @@ import { useContext, useRef, useState, useCallback } from "react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
-import { EditorContext } from "../editor-context";
-import { CODE_LANGUAGES, resolveLanguage } from "./code-block-shared";
-import "../styles/code-block.css";
+import { EditorContext } from "../../editor-context";
+import { CODE_LANGUAGES, resolveLanguage } from "./shared";
+import "../../styles/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const { readOnly } = useContext(EditorContext);

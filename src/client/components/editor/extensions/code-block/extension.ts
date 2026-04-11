@@ -20,9 +20,9 @@ import shell from "highlight.js/lib/languages/shell";
 import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import yaml from "highlight.js/lib/languages/yaml";
-import { resolveCodeBlockLineRange } from "./code-block-selection";
-import { CodeBlockView } from "./code-block-view";
-import { resolveLanguage } from "./code-block-shared";
+import { resolveCodeBlockLineRange } from "./selection";
+import { CodeBlockView } from "./view";
+import { resolveLanguage } from "./shared";
 
 const lowlight = createLowlight({
   text: plaintext,

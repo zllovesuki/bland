@@ -18,7 +18,7 @@ import {
   Split,
   Trash2,
 } from "lucide-react";
-import type { OpenMenuState } from "../extensions/table-handles";
+import type { OpenMenuState } from "../extensions/table/state";
 
 export interface TableMenuAction {
   key: string;

@@ -11,7 +11,7 @@ import {
   type TableMenuAction,
   type TableMenuSection,
 } from "./table-menu-actions";
-import { tableHandleSelector, tableHandlesKey, type OpenMenuState } from "../extensions/table-handles";
+import { tableHandleSelector, tableHandlesKey, type OpenMenuState } from "../extensions/table/state";
 import { hasExplicitColumnWidths } from "../extensions/table/widths";
 
 interface TableMenuProps {

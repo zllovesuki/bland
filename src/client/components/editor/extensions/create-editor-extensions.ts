@@ -13,7 +13,7 @@ import { FileHandler } from "@tiptap/extension-file-handler";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { ShareAwareImage } from "./image-node";
-import { HighlightedCodeBlock } from "./code-block-extension";
+import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
