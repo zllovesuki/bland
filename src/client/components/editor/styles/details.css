@@ -1,0 +1,103 @@
+/* Content: details blocks */
+.tiptap .tiptap-details,
+.tiptap [data-type="details"] {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0.75rem 0;
+  margin-right: auto;
+  padding: 0.4rem 0.875rem 0.5rem 0.75rem;
+  border: 1px solid #3f3f46;
+  border-radius: 0.75rem;
+  background: #18181b;
+  overflow: clip;
+}
+
+.tiptap .tiptap-details > button,
+.tiptap [data-type="details"] > button {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  justify-self: start;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #a1a1aa;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tiptap .tiptap-details > button:hover,
+.tiptap [data-type="details"] > button:hover {
+  color: #f4f4f5;
+  background: #27272a;
+}
+
+.tiptap .tiptap-details > button:focus-visible,
+.tiptap [data-type="details"] > button:focus-visible {
+  outline: 1px solid #8b5cf6;
+  outline-offset: 1px;
+}
+
+.tiptap .tiptap-details > button::before,
+.tiptap [data-type="details"] > button::before {
+  content: "▸";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.tiptap .tiptap-details.is-open > button::before,
+.tiptap [data-type="details"].is-open > button::before {
+  transform: rotate(90deg);
+}
+
+.tiptap .tiptap-details > div,
+.tiptap [data-type="details"] > div {
+  grid-column: 2;
+  min-width: 0;
+  padding: 0.05rem 0 0 0;
+}
+
+.tiptap .tiptap-details > div > summary,
+.tiptap [data-type="details"] > div > summary {
+  display: flex;
+  align-items: center;
+  min-height: 1.75rem;
+  margin: 0;
+  color: #f4f4f5;
+  font-weight: 600;
+  line-height: 1.4;
+  list-style: none;
+  outline: none;
+}
+
+.tiptap .tiptap-details > div > summary::-webkit-details-marker,
+.tiptap [data-type="details"] > div > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tiptap .tiptap-details > div > summary:empty::before,
+.tiptap [data-type="details"] > div > summary:empty::before {
+  content: attr(data-placeholder);
+  color: #71717a;
+}
+
+.tiptap .tiptap-details > div > [data-type="detailsContent"],
+.tiptap [data-type="details"] > div > [data-type="detailsContent"] {
+  margin-top: 0.6rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #27272a;
+}
+
+.tiptap .tiptap-details > div > [data-type="detailsContent"][hidden],
+.tiptap [data-type="details"] > div > [data-type="detailsContent"][hidden] {
+  display: none;
+}

@@ -3,6 +3,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  ChevronDown,
   List,
   ListOrdered,
   ListChecks,
@@ -13,6 +14,7 @@ import {
   ImageIcon,
   Table,
 } from "lucide-react";
+import { insertDetailsBlock } from "./details-block";
 export interface SlashMenuItem {
   title: string;
   group: string;
@@ -75,6 +77,15 @@ export function getSlashMenuItems(): SlashMenuItem[] {
       aliases: ["todo", "checklist"],
       command: ({ editor, range }) => {
         editor.chain().focus(null, { scrollIntoView: false }).deleteRange(range).toggleTaskList().run();
+      },
+    },
+    {
+      title: "Details",
+      group: "Basic blocks",
+      icon: ChevronDown,
+      aliases: ["details", "spoiler", "collapse"],
+      command: ({ editor, range }) => {
+        insertDetailsBlock(editor, range);
       },
     },
     {

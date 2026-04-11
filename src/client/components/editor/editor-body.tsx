@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo } from "react";
+import type { Editor as TiptapEditor } from "@tiptap/core";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
@@ -15,6 +16,7 @@ import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
 import "./styles/content.css";
 import "./styles/table.css";
+import "./styles/details.css";
 
 interface EditorBodyProps {
   fragment: Y.XmlFragment;
@@ -23,6 +25,7 @@ interface EditorBodyProps {
   readOnly?: boolean;
   shareToken?: string;
   workspaceId?: string;
+  onEditor?: (editor: TiptapEditor | null) => void;
 }
 
 export const EditorBody = memo(function EditorBody({
@@ -32,6 +35,7 @@ export const EditorBody = memo(function EditorBody({
   readOnly,
   shareToken,
   workspaceId: workspaceIdProp,
+  onEditor,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const workspace = useWorkspaceStore(selectActiveWorkspace);
@@ -98,6 +102,11 @@ export const EditorBody = memo(function EditorBody({
   useEffect(() => {
     if (editor) editor.setEditable(!readOnly);
   }, [editor, readOnly]);
+
+  useEffect(() => {
+    onEditor?.(editor ?? null);
+    return () => onEditor?.(null);
+  }, [editor, onEditor]);
 
   const ctxValue = useMemo(
     () => ({ workspaceId, pageId, shareToken, readOnly: !!readOnly }),

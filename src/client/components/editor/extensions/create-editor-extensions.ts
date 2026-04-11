@@ -1,4 +1,6 @@
 import type { AnyExtension } from "@tiptap/core";
+import Typography from "@tiptap/extension-typography";
+import CharacterCount from "@tiptap/extension-character-count";
 import { StarterKit } from "@tiptap/starter-kit";
 import { TextStyle, Color, BackgroundColor } from "@tiptap/extension-text-style";
 import { TextAlign } from "@tiptap/extension-text-align";
@@ -13,6 +15,7 @@ import type { Awareness } from "y-protocols/awareness";
 import { ShareAwareImage } from "./image-node";
 import { HighlightedCodeBlock } from "./code-block-extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
+import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
 import { SlashCommands } from "../controllers/slash-menu-extension";
 import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
@@ -26,6 +29,15 @@ interface CreateEditorExtensionsOpts {
   shareToken: string | undefined;
 }
 
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === "" ? 0 : trimmed.split(/\s+/).length;
+}
+
+function countCharacters(text: string): number {
+  return Array.from(text).length;
+}
+
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
   const { fragment, provider, user, workspaceId, pageId, shareToken } = opts;
   const ctx = { workspaceId, pageId, shareToken };
@@ -37,10 +49,40 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       link: { openOnClick: false, autolink: true },
       codeBlock: false,
     }),
+    // Keep quote and ellipsis fixes for prose, but avoid operator-style
+    // rewrites that are risky in technical and code-adjacent writing.
+    Typography.configure({
+      emDash: false,
+      openDoubleQuote: false,
+      closeDoubleQuote: false,
+      openSingleQuote: false,
+      closeSingleQuote: false,
+      leftArrow: false,
+      rightArrow: false,
+      copyright: false,
+      trademark: false,
+      servicemark: false,
+      registeredTrademark: false,
+      oneHalf: false,
+      plusMinus: false,
+      notEqual: false,
+      laquo: false,
+      raquo: false,
+      multiplication: false,
+      superscriptTwo: false,
+      superscriptThree: false,
+      oneQuarter: false,
+      threeQuarters: false,
+    }),
+    CharacterCount.configure({
+      textCounter: countCharacters,
+      wordCounter: countWords,
+    }),
     TextStyle,
     Color,
     BackgroundColor,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
+    ...DetailsBlockExtensions,
     HighlightedCodeBlock.configure({
       defaultLanguage: "text",
       enableTabIndentation: true,
