@@ -1,0 +1,44 @@
+/* Overlay: slash menu */
+.tiptap-slash-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  background-color: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.35),
+    0 4px 6px -4px rgba(0, 0, 0, 0.35);
+  min-width: 220px;
+}
+
+.tiptap-slash-menu-label {
+  color: #71717a;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px 4px;
+}
+
+.tiptap-slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  color: #d4d4d8;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.1s;
+}
+
+.tiptap-slash-menu-item:hover,
+.tiptap-slash-menu-item[aria-selected="true"] {
+  background-color: #27272a;
+  color: #f4f4f5;
+}

@@ -1,0 +1,114 @@
+/* Content: image node */
+.tiptap-image-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed #3f3f46;
+  border-radius: 0.5rem;
+  color: #71717a;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.tiptap-image-placeholder:hover {
+  background-color: #27272a;
+  border-color: #52525b;
+  color: #a1a1aa;
+}
+
+.tiptap-image-placeholder-close {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 0.25rem;
+  color: #52525b;
+  transition:
+    color 0.1s,
+    background-color 0.1s;
+}
+
+.tiptap-image-placeholder-close:hover {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.tiptap-image-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.tiptap-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.tiptap-image-container.is-selected .tiptap-image {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Overlay: image resize handles */
+.tiptap-image-resize-handle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 56px;
+  max-height: 50%;
+  border-radius: 3px;
+  background-color: #8b5cf6;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: ew-resize;
+  touch-action: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s;
+}
+
+.tiptap-image-resize-handle.left {
+  left: 8px;
+}
+
+.tiptap-image-resize-handle.right {
+  right: 8px;
+}
+
+.tiptap-image-container:hover .tiptap-image-resize-handle,
+.tiptap-image-container.is-selected .tiptap-image-resize-handle {
+  opacity: 1;
+}
+
+.tiptap-image-resize-handle:hover {
+  background-color: #a78bfa;
+}
+
+.tiptap-image-alt {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-gray-500);
+  text-align: left;
+}
+
+.tiptap-image-node--align-left {
+  text-align: left;
+}
+
+.tiptap-image-node--align-center {
+  text-align: center;
+}
+
+.tiptap-image-node--align-right {
+  text-align: right;
+}

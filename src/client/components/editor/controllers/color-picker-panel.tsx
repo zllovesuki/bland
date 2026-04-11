@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFloating, offset, shift, autoUpdate } from "@floating-ui/react";
 import { type ColorEntry } from "./colors";
+import "../styles/color-picker.css";
 
 interface ColorPickerPanelProps {
   colors: ColorEntry[];

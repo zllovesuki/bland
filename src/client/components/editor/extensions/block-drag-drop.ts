@@ -3,6 +3,7 @@ import type { Slice } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from "@tiptap/pm/state";
 import { dropPoint } from "@tiptap/pm/transform";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import "../styles/block-drag-drop.css";
 
 export interface TopLevelBlockRect {
   pos: number;

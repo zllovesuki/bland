@@ -6,6 +6,7 @@ import { useFloating, offset, shift, autoUpdate, FloatingPortal } from "@floatin
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { EditorContext } from "../editor-context";
 import { triggerFileUpload } from "../lib/media-actions";
+import "../styles/floating-controls.css";
 
 interface ImageState {
   pos: number;

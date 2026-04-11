@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { computePosition, offset, shift, size, flip } from "@floating-ui/dom";
 import type { SlashMenuItem } from "./slash-items";
+import "../styles/slash-menu.css";
 
 export interface SlashMenuPanelProps {
   items: SlashMenuItem[];

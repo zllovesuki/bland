@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ColorPickerPanel } from "./color-picker-panel";
 import { TEXT_COLORS, BG_COLORS } from "./colors";
+import "../styles/floating-controls.css";
 
 export function FormattingToolbar({ editor }: { editor: Editor }) {
   const [linkMode, setLinkMode] = useState(false);

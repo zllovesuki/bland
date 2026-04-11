@@ -7,6 +7,7 @@ import { MoveVertical, Plus } from "lucide-react";
 import { clearDraggedBlockPreview, setDraggedBlockPreview } from "../extensions/block-drag-drop";
 import { getSlashMenuItems } from "./slash-items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
+import "../styles/drag-handle.css";
 
 const positionConfig = {
   placement: "left-start" as const,
@@ -115,6 +116,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
 
   return (
     <DragHandleReact
+      className="drag-handle"
       editor={editor}
       computePositionConfig={positionConfig}
       onNodeChange={onNodeChange}

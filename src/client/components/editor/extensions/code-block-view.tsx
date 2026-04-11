@@ -4,6 +4,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { EditorContext } from "../editor-context";
 import { CODE_LANGUAGES, resolveLanguage } from "./code-block-shared";
+import "../styles/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const { readOnly } = useContext(EditorContext);

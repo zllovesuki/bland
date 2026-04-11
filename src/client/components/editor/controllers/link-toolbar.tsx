@@ -12,6 +12,8 @@ import {
 } from "@floating-ui/react";
 import { ExternalLink, Pencil, Unlink, Check, X } from "lucide-react";
 import { EditorContext } from "../editor-context";
+import "../styles/floating-controls.css";
+import "../styles/link-toolbar.css";
 
 interface LinkState {
   href: string;

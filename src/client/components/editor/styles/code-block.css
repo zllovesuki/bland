@@ -1,0 +1,94 @@
+@import "highlight.js/styles/github-dark.css";
+
+/* Content: code block node */
+.tiptap-code-block-wrapper {
+  position: relative;
+  margin: 0.75em 0;
+}
+
+.tiptap-code-block-lang-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  color: #71717a;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  user-select: none;
+  line-height: 1.4;
+}
+
+.tiptap-code-block-lang-btn:hover {
+  color: #a1a1aa;
+  border-color: #3f3f46;
+}
+
+.tiptap-code-block-pre {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  white-space: pre;
+  color: #d4d4d8;
+}
+
+.tiptap-code-block-content {
+  display: block;
+  min-width: 100%;
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+  white-space: inherit;
+}
+
+/* Overlay: code block language menu */
+.tiptap-code-block-lang-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.tiptap-code-block-lang-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: #d4d4d8;
+  background: none;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.tiptap-code-block-lang-item:hover {
+  background-color: #3f3f46;
+  color: #f4f4f5;
+}
+
+.tiptap-code-block-lang-item.is-active {
+  background-color: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+}
+
+.tiptap-code-block-lang-item.is-active:hover {
+  background-color: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe;
+}

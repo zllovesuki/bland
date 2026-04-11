@@ -6,6 +6,7 @@ import { ImageIcon, X } from "lucide-react";
 import { EditorContext } from "../editor-context";
 import { resolveShareUrl } from "../lib/media-actions";
 import { showImageInsertPanel } from "../controllers/image-insert-panel";
+import "../styles/image-node.css";
 
 function ImageView({ node, selected, updateAttributes, deleteNode, editor }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useContext(EditorContext);
@@ -80,6 +81,12 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor }: Nod
     [updateAttributes, finishDrag],
   );
   const displayWidth = liveWidth ?? (typeof width === "number" ? width : undefined);
+  const alignClass =
+    align === "center"
+      ? "tiptap-image-node--align-center"
+      : align === "right"
+        ? "tiptap-image-node--align-right"
+        : "tiptap-image-node--align-left";
 
   const uploadCtx = { workspaceId, pageId, shareToken };
 
@@ -112,12 +119,13 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor }: Nod
   }
 
   return (
-    <NodeViewWrapper data-align={align}>
+    <NodeViewWrapper className={`tiptap-image-node ${alignClass}`}>
       <div
         className={`tiptap-image-container${selected ? " is-selected" : ""}`}
         style={displayWidth ? { width: `${displayWidth}px` } : undefined}
       >
         <img
+          className="tiptap-image"
           ref={imgRef}
           src={resolvedSrc}
           alt={alt ?? undefined}

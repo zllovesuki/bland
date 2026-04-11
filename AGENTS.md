@@ -226,7 +226,8 @@ Notes:
 - Preserve the existing Zustand store split unless there is a concrete reason to change it.
 - [src/client/components/editor/editor-body.tsx](/home/vendetta/code/bland/src/client/components/editor/editor-body.tsx) wires the shared Tiptap editor instance and mounts the floating controllers. Update it instead of creating one-off editor shells in page views.
 - [src/client/components/editor/extensions/create-editor-extensions.ts](/home/vendetta/code/bland/src/client/components/editor/extensions/create-editor-extensions.ts) owns the shared Tiptap extension list. Extend it instead of duplicating editor configuration in callers.
-- [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css), [src/client/components/editor/styles/overlays.css](/home/vendetta/code/bland/src/client/components/editor/styles/overlays.css), and [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css) own shared editor and emoji-picker styling overrides. Keep styling changes centralized there.
+- Editor styles are split under `src/client/components/editor/styles/`. Keep shared editor-surface rules in [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css) and [src/client/components/editor/styles/table.css](/home/vendetta/code/bland/src/client/components/editor/styles/table.css), keep owner-specific editor styles in their focused files there, and keep emoji-picker overrides in [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css).
+- When moving or splitting CSS, verify the extracted build CSS ordering and selector specificity. Do not assume local import order will survive Vite/Tailwind bundling; if two rules target the same element, prefer explicit selectors that win without relying on load order, or keep the dependent override in the same stylesheet.
 - When adding editor behavior, prefer composing existing Tiptap/ProseMirror extensions and controllers over introducing another editor framework or parallel abstraction.
 - When debugging hover, focus, or pointer bugs in frontend UI, verify first whether the interactive state is actually being lost or only rendered invisibly. Use DevTools to inspect `:hover`/computed styles before changing JavaScript; a visual bug can still be a CSS contrast or layering issue even when it feels event-related.
 
@@ -283,7 +284,7 @@ When modifying cover rendering, error states, loading skeletons, or mobile drawe
 - [src/client/route-tree.tsx](/home/vendetta/code/bland/src/client/route-tree.tsx)
 - [src/client/lib/api.ts](/home/vendetta/code/bland/src/client/lib/api.ts)
 - [src/client/components/editor/styles/content.css](/home/vendetta/code/bland/src/client/components/editor/styles/content.css)
-- [src/client/components/editor/styles/overlays.css](/home/vendetta/code/bland/src/client/components/editor/styles/overlays.css)
+- [src/client/components/editor/styles/table.css](/home/vendetta/code/bland/src/client/components/editor/styles/table.css)
 - [src/client/styles/emoji-picker.css](/home/vendetta/code/bland/src/client/styles/emoji-picker.css)
 - [src/shared/doc-messages.ts](/home/vendetta/code/bland/src/shared/doc-messages.ts)
 - [src/shared/types.ts](/home/vendetta/code/bland/src/shared/types.ts)

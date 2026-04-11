@@ -5,6 +5,8 @@ import { computePosition, offset, shift, flip } from "@floating-ui/dom";
 import { Upload } from "lucide-react";
 import { toast } from "@/client/components/toast";
 import { IMAGE_MIME_TYPES, triggerFileUpload, type UploadContext } from "../lib/media-actions";
+import "../styles/floating-controls.css";
+import "../styles/slash-menu.css";
 
 const IMAGE_EMBED_TIMEOUT_MS = 8000;
 const ALLOWED_EMBED_MIME_SET = new Set(IMAGE_MIME_TYPES);

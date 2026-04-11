@@ -1,4 +1,4 @@
-/* Tables */
+/* Content: tables */
 .tiptap .tableWrapper {
   position: relative;
   overflow-x: auto;
@@ -68,7 +68,7 @@
   cursor: col-resize;
 }
 
-/* Table handles overlay */
+/* Overlay: table handles */
 .tiptap-table-handles {
   position: absolute;
   top: 0;
@@ -226,7 +226,7 @@
   cursor: grabbing;
 }
 
-/* Contextual table menu */
+/* Overlay: contextual table menu */
 .tiptap-table-menu {
   display: flex;
   flex-direction: column;

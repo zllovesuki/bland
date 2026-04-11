@@ -13,6 +13,8 @@ import { LinkToolbar } from "./controllers/link-toolbar";
 import { ImageToolbar } from "./controllers/image-toolbar";
 import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
+import "./styles/content.css";
+import "./styles/table.css";
 
 interface EditorBodyProps {
   fragment: Y.XmlFragment;
