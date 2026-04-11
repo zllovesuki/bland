@@ -9,7 +9,6 @@ import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
-import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import type { DropTarget } from "@/client/hooks/use-page-drag";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
@@ -75,17 +74,12 @@ export function PageTreeItem({
     setIsExpanded((v) => !v);
   }, []);
 
-  useClickOutside(
-    menuRef,
-    useCallback(() => setMenuOpen(false), []),
-    menuOpen,
-  );
-
   const handleArchive = useCallback(
     async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!currentWorkspace || archiving) return;
+      setMenuOpen(false);
       const ok = await confirm({
         title: "Archive page",
         message: getArchivePageConfirmMessage(page.title, childPages.length),
@@ -192,7 +186,7 @@ export function PageTreeItem({
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {menuOpen && (
-              <DropdownPortal triggerRef={menuRef}>
+              <DropdownPortal triggerRef={menuRef} onClose={() => setMenuOpen(false)}>
                 <button
                   onClick={handleArchive}
                   disabled={archiving}
