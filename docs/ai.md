@@ -77,6 +77,90 @@ Both research agents independently agreed these are poor fits for bland right no
 - Summarization with `bart-large-cnn` is free.
 - Total AI infra cost should be modest relative to bland's current ~$40/month baseline, assuming moderate opt-in adoption. Exact figures depend on prompt size, streaming length, and user adoption rate.
 
+### Cost estimation
+
+Rough planning estimate based on current Cloudflare docs as of April 11, 2026. This is for feature planning, not a budget guarantee.
+
+**Assumptions used in the calculation**:
+
+- Workers Paid includes `10,000` Workers AI neurons per day before overage billing starts.
+- Rewrite / proofread uses `@cf/meta/llama-4-scout-17b-16e-instruct`.
+- Generate, ask-page, and ask-workspace use `@cf/qwen/qwen3-30b-a3b-fp8`.
+- Summarization uses `@cf/facebook/bart-large-cnn`, which currently shows `$0.00 / M input tokens` on its model page.
+- Semantic search and indexing use `@cf/baai/bge-base-en-v1.5`.
+- Per-call token assumptions:
+  - Rewrite / proofread: `~600` input tokens, `~120` output tokens.
+  - Generate / continue: `~500` input tokens, `~180` output tokens.
+  - Ask current page: `~2,000` input tokens, `~180` output tokens.
+  - Ask workspace: `~1,600` input tokens, `~180` output tokens after retrieval.
+  - Semantic query embedding: `~12` input tokens per search query.
+- Page indexing: `~3` chunks per page at `~400` tokens each, or `~1,200` embedded input tokens per indexed page.
+- The table assumes one monthly active user. Costs are variable inference/storage costs only; it does not include the base `$5/month` Workers Paid plan.
+
+**Method of calculation**:
+
+- Per-call neuron estimate:
+
+  ```text
+  neurons_for_call =
+    (input_tokens * model_input_neurons_per_million / 1_000_000) +
+    (output_tokens * model_output_neurons_per_million / 1_000_000)
+  ```
+
+- Monthly user estimate:
+
+  ```text
+  total_neurons_per_month =
+    sum(monthly_call_count_for_each_text_feature * neurons_for_call) +
+    (semantic_query_count * query_embedding_neurons) +
+    (indexed_page_count * page_index_embedding_neurons)
+  ```
+
+- Dollar estimate:
+
+  ```text
+  ai_cost_per_month = (total_neurons_per_month / 1_000) * $0.011
+  ```
+
+- Free-headroom estimate on Workers Paid:
+
+  ```text
+  free_users_per_day = 10_000 / (total_neurons_per_month / 30)
+  ```
+
+- Model rates used from current Cloudflare pricing:
+  - `llama-4-scout-17b-16e-instruct`: `24,545` neurons / M input tokens, `77,273` neurons / M output tokens.
+  - `qwen3-30b-a3b-fp8`: `4,625` neurons / M input tokens, `30,475` neurons / M output tokens.
+  - `gemma-4-26b-a4b-it`: `9,091` neurons / M input tokens, `27,273` neurons / M output tokens.
+  - `bge-base-en-v1.5`: `6,058` neurons / M input tokens.
+- Worked examples from those assumptions:
+  - Rewrite / proofread call: `(600 * 24,545 + 120 * 77,273) / 1,000,000 = 23.99976` neurons.
+  - Generate / continue call: `(500 * 4,625 + 180 * 30,475) / 1,000,000 = 7.798` neurons.
+  - Ask-page call: `(2,000 * 4,625 + 180 * 30,475) / 1,000,000 = 14.7355` neurons.
+  - Ask-workspace call: `(1,600 * 4,625 + 180 * 30,475) / 1,000,000 = 12.8855` neurons.
+  - Semantic query embedding: `(12 * 6,058) / 1,000,000 = 0.072696` neurons.
+  - Page indexing embedding: `(1,200 * 6,058) / 1,000,000 = 7.2696` neurons.
+
+| Profile | Monthly workflow                                                                                                    | 1st-wave neurons | 2nd-wave neurons | Total neurons/mo | AI cost/mo | If rewrites use `@cf/google/gemma-4-26b-a4b-it` |
+| ------- | ------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------- | ---------------- | ---------- | ----------------------------------------------- |
+| Light   | `4` rewrites, `2` generate, `2` summaries, `1` ask-page, `0` semantic, `0` ask-workspace, `4` pages indexed         | `126.3`          | `29.1`           | `155.4`          | `$0.0017`  | `$0.0010`                                       |
+| Average | `12` rewrites, `6` generate, `4` summaries, `3` ask-page, `8` semantic, `2` ask-workspace, `10` pages indexed       | `379.0`          | `99.0`           | `478.0`          | `$0.0053`  | `$0.0032`                                       |
+| Heavy   | `30` rewrites, `12` generate, `8` summaries, `8` ask-page, `20` semantic, `6` ask-workspace, `25` pages indexed     | `931.5`          | `260.5`          | `1192.0`         | `$0.0131`  | `$0.0081`                                       |
+| Abusive | `120` rewrites, `40` generate, `20` summaries, `30` ask-page, `80` semantic, `20` ask-workspace, `80` pages indexed | `3634.0`         | `845.1`          | `4479.1`         | `$0.0493`  | `$0.0291`                                       |
+
+**Free-plan headroom on Workers Paid (`10,000` free neurons/day)**:
+
+- Light: about `1,930` such daily-active users before AI overage.
+- Average: about `628` such daily-active users before AI overage.
+- Heavy: about `252` such daily-active users before AI overage.
+- Abusive: about `67` such daily-active users before AI overage.
+
+**Interpretation**:
+
+- First-wave editing features dominate cost. Semantic search/indexing adds some usage, but much less than text generation.
+- The average AI-active user is effectively negligible in cost terms at bland's likely early scale.
+- Model choice matters more than platform overhead. Swapping rewrite traffic from Llama 4 Scout to Gemma 4 26B lowers per-user cost materially.
+
 ## Feature details
 
 ### Rank 1: Selection rewrite / proofread / tone change
