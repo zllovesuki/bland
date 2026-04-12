@@ -444,6 +444,7 @@ function PageViewContent() {
           onTitleChange={handleTitleChange}
           onProvider={setWsProvider}
           readOnly={page.can_edit === false}
+          workspaceId={workspace.id}
         />
       </ErrorBoundary>
     </div>
