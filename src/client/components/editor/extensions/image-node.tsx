@@ -64,12 +64,13 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
 
       const startX = e.clientX;
       const startWidth = img.offsetWidth;
+      const minWidth = Math.min(40, startWidth);
       const dir = side === "right" ? 1 : -1;
 
       document.addEventListener(
         "pointermove",
         (ev: PointerEvent) => {
-          const newWidth = Math.max(80, startWidth + dir * (ev.clientX - startX));
+          const newWidth = Math.max(minWidth, startWidth + dir * (ev.clientX - startX));
           dragRef.current = newWidth;
           setLiveWidth(newWidth);
         },
@@ -150,6 +151,7 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
           title={title ?? undefined}
           draggable={false}
           data-drag-handle={editable ? "" : undefined}
+          style={displayWidth ? { width: "100%" } : undefined}
         />
         {editable && (
           <>

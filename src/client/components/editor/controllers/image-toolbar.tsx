@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -20,10 +20,19 @@ interface ImageState {
   align: string;
 }
 
+const IMAGE_TOOLBAR_MIN_INSET_WIDTH = 236;
+const IMAGE_TOOLBAR_MIN_INSET_HEIGHT = 88;
+
+function canInsetImageToolbar(rect: Pick<DOMRectReadOnly, "width" | "height">, editingAlt: boolean) {
+  return !editingAlt && rect.width >= IMAGE_TOOLBAR_MIN_INSET_WIDTH && rect.height >= IMAGE_TOOLBAR_MIN_INSET_HEIGHT;
+}
+
 export function ImageToolbar({ editor }: { editor: Editor }) {
   const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
   const [editingAlt, setEditingAlt] = useState(false);
   const [altText, setAltText] = useState("");
+  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
+  const [useInsetPosition, setUseInsetPosition] = useState(false);
   const forcedPosRef = useRef<number | null>(null);
 
   const imageState = useEditorState({
@@ -58,16 +67,24 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
 
   const open = imageState !== null;
 
+  const placement = useInsetPosition ? "top-end" : "top";
+  const middleware = useMemo(
+    () => [offset(useInsetPosition ? { mainAxis: -50, crossAxis: -8 } : 10), shift({ padding: 10 })],
+    [useInsetPosition],
+  );
+
   const { floatingStyles, refs } = useFloating({
     open,
-    placement: "top-end",
-    middleware: [offset({ mainAxis: -50, crossAxis: -8 }), shift({ padding: 10 })],
+    placement,
+    middleware,
     whileElementsMounted: autoUpdate,
   });
 
   useEffect(() => {
     if (!imageState) {
       setEditingAlt(false);
+      setReferenceEl(null);
+      setUseInsetPosition(false);
       forcedPosRef.current = null;
       return;
     }
@@ -75,8 +92,21 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
     if (dom instanceof HTMLElement) {
       const container = dom.querySelector(".tiptap-image-container") ?? dom;
       refs.setReference(container);
+      setReferenceEl(container instanceof HTMLElement ? container : null);
     }
   }, [imageState?.pos, editor, refs]);
+
+  useEffect(() => {
+    if (!referenceEl) return;
+
+    const updatePlacement = () =>
+      setUseInsetPosition(canInsetImageToolbar(referenceEl.getBoundingClientRect(), editingAlt));
+    updatePlacement();
+
+    const observer = new ResizeObserver(updatePlacement);
+    observer.observe(referenceEl);
+    return () => observer.disconnect();
+  }, [editingAlt, referenceEl]);
 
   useEffect(() => {
     if (!imageState) setEditingAlt(false);
