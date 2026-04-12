@@ -13,15 +13,22 @@ import {
   Minus,
   ImageIcon,
   Table,
+  FileText,
 } from "lucide-react";
 import { insertDetailsBlock } from "./details-block";
+import { canInsertPageMentionAtRange } from "../lib/can-insert-page-mentions";
 
 export interface SlashMenuItem {
   title: string;
   group: string;
   icon: React.FC<{ size?: number; className?: string }>;
   aliases?: string[];
+  isAvailable?: (props: { editor: Editor }) => boolean;
   command: (props: { editor: Editor; range: Range }) => void;
+}
+
+export interface SlashMenuPageMentionConfig {
+  openPicker: (props: { editor: Editor; range: Range }) => void;
 }
 
 export interface SlashMenuImageConfig {
@@ -29,11 +36,12 @@ export interface SlashMenuImageConfig {
 }
 
 export interface SlashMenuItemsOpts {
+  pageMention: SlashMenuPageMentionConfig | null;
   image: SlashMenuImageConfig;
 }
 
 export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
-  return [
+  const items: SlashMenuItem[] = [
     {
       title: "Heading 1",
       group: "Headings",
@@ -157,12 +165,29 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
       },
     },
   ];
+
+  if (opts.pageMention) {
+    const { openPicker } = opts.pageMention;
+    items.push({
+      title: "Link page",
+      group: "Insert",
+      icon: FileText,
+      aliases: ["mention", "page", "reference"],
+      isAvailable: ({ editor }) => canInsertPageMentionAtRange(editor),
+      command: ({ editor, range }) => {
+        openPicker({ editor, range });
+      },
+    });
+  }
+
+  return items;
 }
 
-export function filterItems(items: SlashMenuItem[], query: string): SlashMenuItem[] {
+export function filterItems(items: SlashMenuItem[], query: string, props?: { editor: Editor }): SlashMenuItem[] {
   const q = query.toLowerCase();
   return items.filter(
-    ({ title, aliases }) =>
-      title.toLowerCase().includes(q) || (aliases && aliases.some((a) => a.toLowerCase().includes(q))),
+    ({ title, aliases, isAvailable }) =>
+      (!props?.editor || !isAvailable || isAvailable({ editor: props.editor })) &&
+      (title.toLowerCase().includes(q) || (aliases && aliases.some((a) => a.toLowerCase().includes(q)))),
   );
 }

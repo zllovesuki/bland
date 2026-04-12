@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
 
 export const WorkspaceRole = z.enum(["owner", "admin", "member", "guest"]);
 export type WorkspaceRole = z.infer<typeof WorkspaceRole>;
@@ -300,3 +301,22 @@ export interface PageContext {
   can_edit: boolean;
   viewer: ResolvedViewerContext;
 }
+
+export const ResolvePageMentionsRequest = z.object({
+  page_ids: z.array(z.string().min(1)).min(1).max(MAX_PAGE_MENTION_BATCH),
+});
+export type ResolvePageMentionsRequest = z.infer<typeof ResolvePageMentionsRequest>;
+
+export const ResolvedPageMentionItem = z.object({
+  page_id: z.string(),
+  accessible: z.boolean(),
+  title: z.string().nullable(),
+  icon: z.string().nullable(),
+});
+export type ResolvedPageMentionItem = z.infer<typeof ResolvedPageMentionItem>;
+
+export const ResolvePageMentionsResponse = z.object({
+  viewer: ResolvedViewerContext,
+  mentions: z.array(ResolvedPageMentionItem),
+});
+export type ResolvePageMentionsResponse = z.infer<typeof ResolvePageMentionsResponse>;

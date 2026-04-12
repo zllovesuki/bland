@@ -6,8 +6,10 @@ import type { Editor } from "@tiptap/react";
 import { MoveVertical, Plus } from "lucide-react";
 import { EditorContext } from "../editor-context";
 import { clearDraggedBlockPreview, setDraggedBlockPreview } from "../extensions/block-drag-drop";
+import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
+import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { insertImageFromSlashMenu } from "./image-insert-panel";
-import { getSlashMenuItems } from "./slash-items";
+import { getSlashMenuItems, type SlashMenuPageMentionConfig } from "./slash-items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
 import "../styles/drag-handle.css";
 
@@ -29,7 +31,15 @@ function getTransparentImg() {
 
 export function DragHandle({ editor }: { editor: Editor }) {
   const nodePos = useRef(-1);
-  const { workspaceId, pageId, shareToken } = useContext(EditorContext);
+  const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
+  const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
+  pageMentionRef.current = canInsertPageMentions({ editable: !readOnly, workspaceId, shareToken })
+    ? {
+        openPicker: ({ editor: currentEditor, range }) => {
+          launchPageMentionPicker(currentEditor, { range, currentPageId: pageId });
+        },
+      }
+    : null;
 
   const onNodeChange = useCallback(({ pos }: { node: Node | null; editor: Editor; pos: number }) => {
     nodePos.current = pos;
@@ -71,12 +81,13 @@ export function DragHandle({ editor }: { editor: Editor }) {
     editor.commands.focus(null, { scrollIntoView: false });
 
     const items = getSlashMenuItems({
+      pageMention: pageMentionRef.current,
       image: {
         insertImage: ({ editor: currentEditor, range }) => {
           insertImageFromSlashMenu(currentEditor, range, { workspaceId, pageId, shareToken });
         },
       },
-    });
+    }).filter((item) => !item.isAvailable || item.isAvailable({ editor }));
     const range = { from: cursorPos, to: cursorPos };
 
     let handle: SlashMenuOverlayHandle | null = null;

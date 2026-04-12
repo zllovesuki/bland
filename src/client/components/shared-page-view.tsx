@@ -5,6 +5,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { EditorPane } from "@/client/components/editor/editor-pane";
+import { PageMentionScopeProvider } from "@/client/components/editor/page-mention-scope-provider";
 import { Footer } from "@/client/components/footer";
 import { SharedPageTree } from "@/client/components/shared-page-tree";
 import type { SharedPageInfo, AncestorInfo } from "@/shared/types";
@@ -16,6 +17,7 @@ import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { useAuthStore } from "@/client/stores/auth-store";
 import { ToastContainer } from "./toast";
 
 function SharedBreadcrumbs({
@@ -64,6 +66,8 @@ function SharedBreadcrumbs({
 
 export function SharedPageView({ token, activePage }: { token: string; activePage?: string }) {
   const navigate = useNavigate();
+  const sessionMode = useAuthStore((s) => s.sessionMode);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const [info, setInfo] = useState<SharedPageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +97,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     return () => wsProvider.off("custom-message", handler);
   }, [wsProvider]);
 
-  // Resolve share info once per token
+  // Resolve share info whenever token or authenticated viewer identity changes.
   useEffect(() => {
     let cancelled = false;
 
@@ -122,7 +126,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [sessionMode, token, userId]);
 
   // Load page-specific title, icon, and ancestors when active page changes
   useEffect(() => {
@@ -217,95 +221,104 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const displayPageId = currentPageId ?? info.page_id;
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
-          <button
-            onClick={() => setMobileTreeOpen((o) => !o)}
-            className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:hidden"
-            aria-label="Toggle outline"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
-              <FileText className="h-5 w-5 text-white" />
-            </div>
-          </Link>
+    // Keep mention scope above the keyed EditorPane so navigating between
+    // `?page=` values on the same share token reuses mention metadata.
+    <PageMentionScopeProvider
+      workspaceId={info.workspace_id}
+      viewer={info.viewer}
+      shareToken={token}
+      routeSource="live"
+    >
+      <div className="flex h-screen flex-col">
+        <header className="z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
+            <button
+              onClick={() => setMobileTreeOpen((o) => !o)}
+              className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:hidden"
+              aria-label="Toggle outline"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+              <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
+                <FileText className="h-5 w-5 text-white" />
+              </div>
+            </Link>
 
-          <span className="ml-4 flex items-center gap-1.5 truncate text-sm text-zinc-400">
-            {icon && <EmojiIcon emoji={icon} size={16} />}
-            {title || DEFAULT_PAGE_TITLE}
-          </span>
-
-          <div className="flex-1" />
-
-          {isViewOnly && (
-            <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-              <Eye className="h-3 w-3" />
-              View only
+            <span className="ml-4 flex items-center gap-1.5 truncate text-sm text-zinc-400">
+              {icon && <EmojiIcon emoji={icon} size={16} />}
+              {title || DEFAULT_PAGE_TITLE}
             </span>
-          )}
-        </div>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <MobileDrawer open={mobileTreeOpen} onClose={() => setMobileTreeOpen(false)}>
-          <SharedPageTree
-            workspaceId={info.workspace_id}
-            rootPageId={info.page_id}
-            rootTitle={info.title}
-            rootIcon={info.icon}
-            shareToken={token}
-            activePageId={displayPageId}
-            onNavigate={(pageId) => {
-              handleNavigate(pageId);
-              setMobileTreeOpen(false);
-            }}
-          />
-        </MobileDrawer>
+            <div className="flex-1" />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
-            {coverUrl && (
-              <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
-                <PageCover coverUrl={coverUrl} shareToken={token} />
-              </div>
+            {isViewOnly && (
+              <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+                <Eye className="h-3 w-3" />
+                View only
+              </span>
             )}
-
-            {ancestors.length > 0 && (
-              <div className="mb-4">
-                <SharedBreadcrumbs
-                  ancestors={ancestors}
-                  currentTitle={title}
-                  currentIcon={icon}
-                  onNavigate={handleNavigate}
-                />
-              </div>
-            )}
-
-            {icon && (
-              <div className="mb-2 pl-7">
-                <EmojiIcon emoji={icon} size={36} />
-              </div>
-            )}
-
-            <EditorPane
-              key={displayPageId}
-              pageId={displayPageId}
-              initialTitle={activePage ? title : info.title}
-              onTitleChange={setTitle}
-              onProvider={setWsProvider}
-              shareToken={token}
-              readOnly={isViewOnly}
-              workspaceId={info.workspace_id}
-            />
           </div>
-        </main>
-      </div>
+        </header>
 
-      <Footer expanded={false} />
-      <ToastContainer />
-    </div>
+        <div className="flex flex-1 overflow-hidden">
+          <MobileDrawer open={mobileTreeOpen} onClose={() => setMobileTreeOpen(false)}>
+            <SharedPageTree
+              workspaceId={info.workspace_id}
+              rootPageId={info.page_id}
+              rootTitle={info.title}
+              rootIcon={info.icon}
+              shareToken={token}
+              activePageId={displayPageId}
+              onNavigate={(pageId) => {
+                handleNavigate(pageId);
+                setMobileTreeOpen(false);
+              }}
+            />
+          </MobileDrawer>
+
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
+              {coverUrl && (
+                <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
+                  <PageCover coverUrl={coverUrl} shareToken={token} />
+                </div>
+              )}
+
+              {ancestors.length > 0 && (
+                <div className="mb-4">
+                  <SharedBreadcrumbs
+                    ancestors={ancestors}
+                    currentTitle={title}
+                    currentIcon={icon}
+                    onNavigate={handleNavigate}
+                  />
+                </div>
+              )}
+
+              {icon && (
+                <div className="mb-2 pl-7">
+                  <EmojiIcon emoji={icon} size={36} />
+                </div>
+              )}
+
+              <EditorPane
+                key={displayPageId}
+                pageId={displayPageId}
+                initialTitle={activePage ? title : info.title}
+                onTitleChange={setTitle}
+                onProvider={setWsProvider}
+                shareToken={token}
+                readOnly={isViewOnly}
+                workspaceId={info.workspace_id}
+              />
+            </div>
+          </main>
+        </div>
+
+        <Footer expanded={false} />
+        <ToastContainer />
+      </div>
+    </PageMentionScopeProvider>
   );
 }

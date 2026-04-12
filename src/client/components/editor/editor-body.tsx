@@ -4,7 +4,6 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 import { userColor } from "@/client/hooks/use-sync";
 import { EditorContext } from "./editor-context";
 import { createEditorExtensions } from "./extensions/create-editor-extensions";
@@ -14,9 +13,12 @@ import { LinkToolbar } from "./controllers/link-toolbar";
 import { ImageToolbar } from "./controllers/image-toolbar";
 import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
+import { PageMentionContext } from "./page-mention-context";
+import { usePageMentionScope } from "./page-mention-scope-context";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
+import "./styles/page-mention.css";
 
 interface EditorBodyProps {
   fragment: Y.XmlFragment;
@@ -34,12 +36,11 @@ export const EditorBody = memo(function EditorBody({
   pageId,
   readOnly,
   shareToken,
-  workspaceId: workspaceIdProp,
+  workspaceId,
   onEditor,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
-  const workspace = useWorkspaceStore(selectActiveWorkspace);
-  const workspaceId = workspaceIdProp ?? workspace?.id;
+  const pageMentionScope = usePageMentionScope();
 
   const editor = useEditor(
     {
@@ -115,14 +116,20 @@ export const EditorBody = memo(function EditorBody({
 
   return (
     <EditorContext.Provider value={ctxValue}>
-      <div className="relative">
-        <EditorContent editor={editor} />
-        {editor && !readOnly && <DragHandle key={pageId} editor={editor} />}
-        {editor && !readOnly && <FormattingToolbar editor={editor} />}
-        {editor && !readOnly && <LinkToolbar editor={editor} />}
-        {editor && !readOnly && <ImageToolbar editor={editor} />}
-        {editor && !readOnly && <TableMenu editor={editor} />}
-      </div>
+      {/* Tiptap node views are rendered through EditorContent's React bridge.
+          Re-providing the existing mention scope here keeps the stable
+          route-level resolver lifetime while ensuring node views can still
+          consume PageMentionContext. */}
+      <PageMentionContext.Provider value={pageMentionScope}>
+        <div className="relative">
+          <EditorContent editor={editor} />
+          {editor && !readOnly && <DragHandle key={pageId} editor={editor} />}
+          {editor && !readOnly && <FormattingToolbar editor={editor} />}
+          {editor && !readOnly && <LinkToolbar editor={editor} />}
+          {editor && !readOnly && <ImageToolbar editor={editor} />}
+          {editor && !readOnly && <TableMenu editor={editor} />}
+        </div>
+      </PageMentionContext.Provider>
     </EditorContext.Provider>
   );
 });

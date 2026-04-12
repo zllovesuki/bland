@@ -17,9 +17,13 @@ import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
+import { PageMentionNode } from "./page-mention-node";
+import { PageMentionSuggestion } from "./page-mention-suggestion";
 import { SlashCommands } from "../controllers/slash-menu-extension";
 import { insertImageFromSlashMenu } from "../controllers/image-insert-panel";
-import type { SlashMenuImageConfig } from "../controllers/slash-items";
+import type { SlashMenuImageConfig, SlashMenuPageMentionConfig } from "../controllers/slash-items";
+import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
+import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
 
 interface CreateEditorExtensionsOpts {
@@ -43,6 +47,18 @@ function countCharacters(text: string): number {
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
   const { fragment, provider, user, workspaceId, pageId, shareToken } = opts;
   const ctx = { workspaceId, pageId, shareToken };
+
+  // Editable flag is not known statically; gate only on the stable fields.
+  // The command itself guards on editor.isEditable at insert time.
+  const mayInsertMentions = canInsertPageMentions({ editable: true, workspaceId, shareToken });
+
+  const pageMentionSlashConfig: SlashMenuPageMentionConfig | null = mayInsertMentions
+    ? {
+        openPicker: ({ editor, range }) => {
+          launchPageMentionPicker(editor, { range, currentPageId: pageId });
+        },
+      }
+    : null;
 
   const imageSlashConfig: SlashMenuImageConfig = {
     insertImage: ({ editor, range }) => {
@@ -131,7 +147,9 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
         })();
       },
     }),
-    SlashCommands.configure({ image: imageSlashConfig }),
+    SlashCommands.configure({ pageMention: pageMentionSlashConfig, image: imageSlashConfig }),
+    PageMentionNode,
+    ...(mayInsertMentions ? [PageMentionSuggestion.configure({ currentPageId: pageId })] : []),
     ...createTableExtensions(),
   ] as AnyExtension[];
 }

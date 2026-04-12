@@ -15,6 +15,7 @@ import type {
   SharedWithMeItem,
   AncestorInfo,
   PageContext,
+  ResolvePageMentionsResponse,
 } from "@/shared/types";
 
 const API_BASE = "/api/v1";
@@ -264,6 +265,16 @@ export const api = {
       `/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
     );
     return res.results;
+  },
+
+  pageMentions: {
+    resolve: async (workspaceId: string, pageIds: string[], shareToken?: string) => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
+      return apiFetch<ResolvePageMentionsResponse>(`/workspaces/${workspaceId}/page-mentions/resolve${qs}`, {
+        method: "POST",
+        body: JSON.stringify({ page_ids: pageIds }),
+      });
+    },
   },
 
   shares: {

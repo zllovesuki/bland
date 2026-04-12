@@ -1,0 +1,102 @@
+.tiptap-page-mention {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin: 0 1px;
+  border-radius: 4px;
+  background-color: rgba(113, 113, 122, 0.15);
+  color: #e4e4e7;
+  font-size: 0.95em;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.tiptap-page-mention:hover {
+  background-color: rgba(113, 113, 122, 0.3);
+  color: #f4f4f5;
+}
+
+.tiptap-page-mention:focus-visible {
+  outline: 2px solid rgb(var(--accent-500) / 0.6);
+  outline-offset: 1px;
+}
+
+.tiptap-page-mention-label {
+  border-bottom: 1px dashed rgba(161, 161, 170, 0.5);
+}
+
+.tiptap-page-mention:hover .tiptap-page-mention-label {
+  border-bottom-color: rgba(228, 228, 231, 0.7);
+}
+
+.tiptap-page-mention-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.tiptap-page-mention--pending {
+  color: #71717a;
+  cursor: default;
+}
+
+.tiptap-page-mention--pending .tiptap-page-mention-label {
+  border-bottom-color: transparent;
+}
+
+.tiptap-page-mention--pending:hover {
+  background-color: rgba(113, 113, 122, 0.15);
+  color: #71717a;
+}
+
+.tiptap-page-mention--restricted {
+  color: #71717a;
+  cursor: default;
+}
+
+.tiptap-page-mention--restricted .tiptap-page-mention-label {
+  border-bottom-color: transparent;
+}
+
+.tiptap-page-mention--restricted:hover {
+  background-color: rgba(113, 113, 122, 0.15);
+  color: #71717a;
+}
+
+.ProseMirror-selectednode.tiptap-page-mention,
+.tiptap-page-mention.ProseMirror-selectednode {
+  background-color: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+}
+
+.tiptap-page-mention-picker-search {
+  padding: 8px 8px 4px;
+  border-bottom: 1px solid rgba(113, 113, 122, 0.25);
+}
+
+.tiptap-page-mention-picker-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(113, 113, 122, 0.3);
+  border-radius: 4px;
+  background-color: rgba(24, 24, 27, 0.8);
+  color: #e4e4e7;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.tiptap-page-mention-picker-input::placeholder {
+  color: #71717a;
+}
+
+.tiptap-page-mention-picker-input:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  background-color: rgba(24, 24, 27, 1);
+}
