@@ -1,15 +1,9 @@
 import type { EditorView } from "@tiptap/pm/view";
 import { TableMap, moveTableColumn, moveTableRow } from "@tiptap/pm/tables";
 import { DRAG_THRESHOLD_PX } from "./constants";
-import {
-  buildColumnEntries,
-  columnCellSelection,
-  findTableForWrapper,
-  rowDropIndex,
-  columnDropIndex,
-  setCaretInCell,
-} from "./dom";
-import { tableKeyFromPos, type OpenMenuState } from "./state";
+import { buildColumnEntries, findTableForWrapper, rowDropIndex, columnDropIndex } from "./dom";
+import { columnCellSelection, setCaretInCell } from "./selection";
+import { createOpenMenuState, type OpenMenuState } from "./state";
 
 export type DragState =
   | {
@@ -174,12 +168,9 @@ export function updateDragState(
 
 export function completeDrag(view: EditorView, state: DragState): OpenMenuState | null {
   if (!state.moved) {
-    return {
-      kind: state.kind === "reorder-row" ? "row" : "col",
-      index: state.sourceIndex,
-      tablePos: state.tablePos,
-      tableKey: tableKeyFromPos(state.tablePos),
-    };
+    const table = view.state.doc.nodeAt(state.tablePos);
+    if (!table || table.type.spec.tableRole !== "table") return null;
+    return createOpenMenuState(state.kind === "reorder-row" ? "row" : "col", state.sourceIndex, state.tablePos, table);
   }
 
   const dropIndex = state.dropIndex;

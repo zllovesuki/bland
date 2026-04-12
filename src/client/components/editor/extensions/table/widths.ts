@@ -90,6 +90,12 @@ export function measureAutoColumnWidths(view: EditorView, tablePos: number): num
   }
 }
 
+export function measureRenderedTableWidth(view: EditorView, tablePos: number): number | null {
+  const tableEl = findTableElement(view, tablePos);
+  if (!tableEl) return null;
+  return Math.max(TABLE_CELL_MIN_WIDTH, Math.round(tableEl.getBoundingClientRect().width));
+}
+
 export function measureWrapperContentWidth(view: EditorView, tablePos: number): number | null {
   const tableEl = findTableElement(view, tablePos);
   const wrapper = tableEl?.closest(".tableWrapper");
@@ -99,6 +105,33 @@ export function measureWrapperContentWidth(view: EditorView, tablePos: number): 
   const paddingLeft = parseFloat(styles.paddingLeft) || 0;
   const paddingRight = parseFloat(styles.paddingRight) || 0;
   return Math.max(0, wrapper.clientWidth - paddingLeft - paddingRight - 1);
+}
+
+export function deriveCanonicalColumnWidths(doc: PMNode, table: PMNode, tablePos: number): number[] | null {
+  const map = TableMap.get(table);
+  const widths = new Array<number | null>(map.width).fill(null);
+  let hasWidths = false;
+
+  visitTableCells(doc, table, tablePos, (node, _nodePos, col, colspan) => {
+    const colwidth = node.attrs.colwidth as number[] | null | undefined;
+    if (!colwidth) return;
+
+    for (let index = 0; index < colspan; index++) {
+      const width = colwidth[index];
+      if (typeof width !== "number" || width <= 0) continue;
+      if (widths[col + index] != null) continue;
+      widths[col + index] = Math.max(TABLE_CELL_MIN_WIDTH, Math.round(width));
+      hasWidths = true;
+    }
+  });
+
+  if (!hasWidths) return null;
+  return widths.map((width, index) => width ?? nearestExplicitWidth(widths, index));
+}
+
+export function measureCanonicalTableWidth(doc: PMNode, table: PMNode, tablePos: number): number | null {
+  const widths = deriveCanonicalColumnWidths(doc, table, tablePos);
+  return widths ? widths.reduce((sum, width) => sum + width, 0) : null;
 }
 
 export function buildEvenWidths(columnCount: number, totalWidth: number): number[] {
@@ -198,4 +231,21 @@ function equalWidths(a: number[] | null | undefined, b: number[]): boolean {
     if (a[index] !== b[index]) return false;
   }
   return true;
+}
+
+function nearestExplicitWidth(widths: Array<number | null>, index: number): number {
+  let leftIndex = index - 1;
+  while (leftIndex >= 0 && widths[leftIndex] == null) leftIndex -= 1;
+
+  let rightIndex = index + 1;
+  while (rightIndex < widths.length && widths[rightIndex] == null) rightIndex += 1;
+
+  const leftWidth = leftIndex >= 0 ? widths[leftIndex] : null;
+  const rightWidth = rightIndex < widths.length ? widths[rightIndex] : null;
+  if (leftWidth != null && rightWidth != null) {
+    return index - leftIndex <= rightIndex - index ? leftWidth : rightWidth;
+  }
+  if (leftWidth != null) return leftWidth;
+  if (rightWidth != null) return rightWidth;
+  return TABLE_CELL_MIN_WIDTH;
 }

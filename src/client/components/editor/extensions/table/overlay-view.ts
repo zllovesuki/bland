@@ -8,13 +8,14 @@ import {
   createLocalRectConverter,
   findTableForWrapper,
   findLogicalCellElement,
-  setCaretInCell,
   type ColumnEntry,
   type LocalRect,
 } from "./dom";
 import { completeDrag, createColumnDragState, createRowDragState, type DragState, updateDragState } from "./reorder";
+import { setCaretInCell } from "./selection";
 import {
   activeCellInfo,
+  createOpenMenuState,
   createTableHandlesPluginState,
   tableHandlesKey,
   tableKeyFromPos,
@@ -87,6 +88,10 @@ export class TableOverlayView implements PluginView {
 
   update(view: EditorView, _prevState?: EditorState) {
     this.view = view;
+    if (this.dragState && _prevState && _prevState.doc !== view.state.doc) {
+      this.endDrag();
+    }
+
     const prevActive = this.activeCell;
     const nextActive = activeCellInfo(view.state);
     this.activeCell = nextActive;
@@ -270,7 +275,7 @@ export class TableOverlayView implements PluginView {
       handle.style.height = `${rect.height}px`;
       handle.addEventListener("pointerdown", (event) => this.onRowHandlePointerDown(event, ctx.wrapper, rowIndex));
       handle.addEventListener("keydown", (event) =>
-        this.onHandleKeyDown(event, "row", rowIndex, ctx.info.pos, ctx.tableKey),
+        this.onHandleKeyDown(event, "row", rowIndex, ctx.info.pos, ctx.info.node),
       );
       ctx.overlay.appendChild(handle);
     });
@@ -305,7 +310,7 @@ export class TableOverlayView implements PluginView {
         this.onColHandlePointerDown(event, ctx.wrapper, entry.logicalCol),
       );
       handle.addEventListener("keydown", (event) =>
-        this.onHandleKeyDown(event, "col", entry.logicalCol, ctx.info.pos, ctx.tableKey),
+        this.onHandleKeyDown(event, "col", entry.logicalCol, ctx.info.pos, ctx.info.node),
       );
       ctx.overlay.appendChild(handle);
     });
@@ -324,10 +329,10 @@ export class TableOverlayView implements PluginView {
     corner.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      this.openMenuFromHandle("corner", null, ctx.info.pos, ctx.tableKey);
+      this.openMenuFromHandle("corner", null, ctx.info.pos, ctx.info.node);
     });
     corner.addEventListener("keydown", (event) =>
-      this.onHandleKeyDown(event, "corner", null, ctx.info.pos, ctx.tableKey),
+      this.onHandleKeyDown(event, "corner", null, ctx.info.pos, ctx.info.node),
     );
     ctx.overlay.appendChild(corner);
   }
@@ -364,7 +369,7 @@ export class TableOverlayView implements PluginView {
       addCol.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.addColumnAtEnd(ctx.info.pos, ctx.wrapper);
+        this.addColumnAtEnd(ctx.wrapper);
       });
       ctx.overlay.appendChild(addCol);
     }
@@ -386,7 +391,7 @@ export class TableOverlayView implements PluginView {
       addRow.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.addRowAtEnd(ctx.info.pos);
+        this.addRowAtEnd(ctx.wrapper);
       });
       ctx.overlay.appendChild(addRow);
     }
@@ -401,8 +406,10 @@ export class TableOverlayView implements PluginView {
     return button;
   }
 
-  private openMenuFromHandle(kind: OpenMenuState["kind"], index: number | null, tablePos: number, tableKey: string) {
-    this.dispatchMeta({ openMenu: { kind, index, tablePos, tableKey } });
+  private openMenuFromHandle(kind: OpenMenuState["kind"], index: number | null, tablePos: number, table: PMNode) {
+    const openMenu = createOpenMenuState(kind, index, tablePos, table);
+    if (!openMenu) return;
+    this.dispatchMeta({ openMenu });
   }
 
   private onHandleKeyDown(
@@ -410,44 +417,44 @@ export class TableOverlayView implements PluginView {
     kind: OpenMenuState["kind"],
     index: number | null,
     tablePos: number,
-    tableKey: string,
+    table: PMNode,
   ) {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     event.stopPropagation();
-    this.openMenuFromHandle(kind, index, tablePos, tableKey);
+    this.openMenuFromHandle(kind, index, tablePos, table);
   }
 
-  private addColumnAtEnd(tablePos: number, wrapper: HTMLElement) {
-    const table = this.view.state.doc.nodeAt(tablePos);
-    if (!table || table.type.spec.tableRole !== "table") return;
+  private addColumnAtEnd(wrapper: HTMLElement) {
+    const info = findTableForWrapper(this.view, wrapper);
+    if (!info) return;
 
-    const map = TableMap.get(table);
-    setCaretInCell(this.view, table, tablePos, map.height - 1, map.width - 1);
+    const map = TableMap.get(info.node);
+    setCaretInCell(this.view, info.node, info.pos, map.height - 1, map.width - 1);
     addColumnAfter(this.view.state, this.view.dispatch.bind(this.view));
-    const nextTable = this.view.state.doc.nodeAt(tablePos);
+    const nextTable = this.view.state.doc.nodeAt(info.pos);
     if (!nextTable || nextTable.type.spec.tableRole !== "table") return;
 
     const nextMap = TableMap.get(nextTable);
-    setCaretInCell(this.view, nextTable, tablePos, nextMap.height - 1, nextMap.width - 1);
+    setCaretInCell(this.view, nextTable, info.pos, nextMap.height - 1, nextMap.width - 1);
     requestAnimationFrame(() => {
       wrapper.scrollLeft = wrapper.scrollWidth;
       this.scheduleSync();
     });
   }
 
-  private addRowAtEnd(tablePos: number) {
-    const table = this.view.state.doc.nodeAt(tablePos);
-    if (!table || table.type.spec.tableRole !== "table") return;
+  private addRowAtEnd(wrapper: HTMLElement) {
+    const info = findTableForWrapper(this.view, wrapper);
+    if (!info) return;
 
-    const map = TableMap.get(table);
-    setCaretInCell(this.view, table, tablePos, map.height - 1, map.width - 1);
+    const map = TableMap.get(info.node);
+    setCaretInCell(this.view, info.node, info.pos, map.height - 1, map.width - 1);
     addRowAfter(this.view.state, this.view.dispatch.bind(this.view));
-    const nextTable = this.view.state.doc.nodeAt(tablePos);
+    const nextTable = this.view.state.doc.nodeAt(info.pos);
     if (!nextTable || nextTable.type.spec.tableRole !== "table") return;
 
     const nextMap = TableMap.get(nextTable);
-    setCaretInCell(this.view, nextTable, tablePos, nextMap.height - 1, nextMap.width - 1);
+    setCaretInCell(this.view, nextTable, info.pos, nextMap.height - 1, nextMap.width - 1);
   }
 
   private onRowHandlePointerDown(event: PointerEvent, wrapper: HTMLElement, rowIndex: number) {
@@ -549,7 +556,9 @@ export class TableOverlayView implements PluginView {
     const openMenu = completeDrag(this.view, state);
     this.endDrag();
     if (openMenu) {
-      this.openMenuFromHandle(openMenu.kind, openMenu.index, openMenu.tablePos, openMenu.tableKey);
+      const table = this.view.state.doc.nodeAt(openMenu.tablePos);
+      if (!table || table.type.spec.tableRole !== "table") return;
+      this.openMenuFromHandle(openMenu.kind, openMenu.index, openMenu.tablePos, table);
     }
   }
 }

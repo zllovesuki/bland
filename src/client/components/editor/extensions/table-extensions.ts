@@ -1,6 +1,6 @@
 import type { AnyExtension } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
-import { TableKit } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import { TableMap } from "@tiptap/pm/tables";
 import { TableHandles } from "./table/overlay-extension";
 import { TableWidthNormalization } from "./table/normalization-extension";
@@ -9,9 +9,20 @@ import {
   applyExplicitColumnWidths,
   buildEvenWidths,
   clearExplicitColumnWidths,
+  measureCanonicalTableWidth,
   measureAutoColumnWidths,
+  measureRenderedTableWidth,
   measureWrapperContentWidth,
 } from "./table/widths";
+
+const CollaborationSafeTable = Table.extend({
+  addNodeView() {
+    const View = this.options.View;
+    if (this.editor.isEditable || !View) return null;
+
+    return ({ node, view }) => new View(node, this.options.cellMinWidth, view);
+  },
+});
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -93,12 +104,15 @@ const TableWidthCommands = Extension.create({
           const table = state.doc.nodeAt(tablePos);
           if (!table || table.type.spec.tableRole !== "table") return false;
 
-          const availableWidth = measureWrapperContentWidth(this.editor.view, tablePos);
-          if (!availableWidth) return false;
+          const totalWidth =
+            measureWrapperContentWidth(this.editor.view, tablePos) ??
+            measureCanonicalTableWidth(state.doc, table, tablePos) ??
+            measureRenderedTableWidth(this.editor.view, tablePos);
+          if (!totalWidth) return false;
           if (!dispatch) return true;
 
           const map = TableMap.get(table);
-          const widths = buildEvenWidths(map.width, availableWidth);
+          const widths = buildEvenWidths(map.width, totalWidth);
           if (!applyExplicitColumnWidths(state, tr, tablePos, widths)) return false;
           dispatch(tr);
           return true;
@@ -109,15 +123,17 @@ const TableWidthCommands = Extension.create({
 
 export function createTableExtensions(): AnyExtension[] {
   return [
-    TableKit.configure({
-      table: {
-        resizable: true,
-        allowTableNodeSelection: true,
-        cellMinWidth: TABLE_CELL_MIN_WIDTH,
-        lastColumnResizable: true,
-        renderWrapper: true,
-      },
+    CollaborationSafeTable.configure({
+      resizable: true,
+      allowTableNodeSelection: true,
+      cellMinWidth: TABLE_CELL_MIN_WIDTH,
+      lastColumnResizable: true,
+      renderWrapper: true,
+      View: TableView,
     }),
+    TableRow,
+    TableCell,
+    TableHeader,
     TableRowHeightAttribute,
     TableWidthCommands,
     TableWidthNormalization,

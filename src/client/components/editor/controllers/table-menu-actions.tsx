@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { moveTableColumn, moveTableRow } from "@tiptap/pm/tables";
 import { TableMap } from "@tiptap/pm/tables";
 import {
@@ -19,8 +20,9 @@ import {
   Split,
   Trash2,
 } from "lucide-react";
-import { findTableElement, setCaretInCell } from "../extensions/table/dom";
-import { activeCellInfo } from "../extensions/table/state";
+import { findTableElement } from "../extensions/table/dom";
+import { columnCellSelection, rowCellSelection, setCaretInCell } from "../extensions/table/selection";
+import { activeCellInfo, resolveOpenMenuState } from "../extensions/table/state";
 import type { OpenMenuState } from "../extensions/table/state";
 
 export interface TableMenuAction {
@@ -34,31 +36,50 @@ export interface TableMenuAction {
 
 export type TableMenuSection = TableMenuAction[];
 
+interface BaseResolvedTarget {
+  table: PMNode;
+  tablePos: number;
+  tableKey: string;
+  rowCount: number;
+  colCount: number;
+}
+
+interface ResolvedRowTarget extends BaseResolvedTarget {
+  kind: "row";
+  index: number;
+  anchorCellPos: number;
+  row: number;
+  col: number;
+}
+
+interface ResolvedColumnTarget extends BaseResolvedTarget {
+  kind: "col";
+  index: number;
+  anchorCellPos: number;
+  row: number;
+  col: number;
+}
+
+interface ResolvedCornerTarget extends BaseResolvedTarget {
+  kind: "corner";
+  index: null;
+}
+
 export function buildRowMenuSections({
   editor,
   openMenu,
-  rowCount,
   onDone,
 }: {
   editor: Editor;
   openMenu: OpenMenuState;
-  rowCount: number;
   onDone: () => void;
 }): TableMenuSection[] {
-  const { index, tablePos } = openMenu;
-  if (index === null) return [];
+  const target = resolveRowTarget(editor, openMenu);
+  if (!target) return [];
 
-  const run = (fn: () => boolean) => {
-    fn();
-    onDone();
-  };
-  const moveRow = (delta: number) => {
-    const target = index + delta;
-    if (target < 0 || target >= rowCount) return;
-    moveTableRow({ from: index, to: target, pos: tablePos + 1, select: true })(
-      editor.state,
-      editor.view.dispatch.bind(editor.view),
-    );
+  const run = (fn: (resolved: ResolvedRowTarget) => boolean) => {
+    const current = resolveRowTarget(editor, openMenu);
+    if (current) fn(current);
     onDone();
   };
 
@@ -68,13 +89,21 @@ export function buildRowMenuSections({
         key: "row-insert-above",
         icon: <ChevronUp size={14} />,
         label: "Insert row above",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).addRowBefore().run()),
+        onSelect: () =>
+          run((resolved) => {
+            focusRowTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).addRowBefore().run();
+          }),
       },
       {
         key: "row-insert-below",
         icon: <ChevronDown size={14} />,
         label: "Insert row below",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).addRowAfter().run()),
+        onSelect: () =>
+          run((resolved) => {
+            focusRowTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).addRowAfter().run();
+          }),
       },
     ],
     [
@@ -82,15 +111,31 @@ export function buildRowMenuSections({
         key: "row-move-up",
         icon: <ArrowUp size={14} />,
         label: "Move row up",
-        disabled: index === 0,
-        onSelect: () => moveRow(-1),
+        disabled: target.index === 0,
+        onSelect: () =>
+          run((resolved) => {
+            if (resolved.index <= 0) return false;
+            moveTableRow({ from: resolved.index, to: resolved.index - 1, pos: resolved.tablePos + 1, select: true })(
+              editor.state,
+              editor.view.dispatch.bind(editor.view),
+            );
+            return true;
+          }),
       },
       {
         key: "row-move-down",
         icon: <ArrowDown size={14} />,
         label: "Move row down",
-        disabled: index >= rowCount - 1,
-        onSelect: () => moveRow(1),
+        disabled: target.index >= target.rowCount - 1,
+        onSelect: () =>
+          run((resolved) => {
+            if (resolved.index >= resolved.rowCount - 1) return false;
+            moveTableRow({ from: resolved.index, to: resolved.index + 1, pos: resolved.tablePos + 1, select: true })(
+              editor.state,
+              editor.view.dispatch.bind(editor.view),
+            );
+            return true;
+          }),
       },
     ],
     [
@@ -99,8 +144,12 @@ export function buildRowMenuSections({
         icon: <Trash2 size={14} />,
         label: "Delete row",
         danger: true,
-        disabled: rowCount <= 1,
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).deleteRow().run()),
+        disabled: target.rowCount <= 1,
+        onSelect: () =>
+          run((resolved) => {
+            focusRowTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).deleteRow().run();
+          }),
       },
     ],
   ];
@@ -109,58 +158,18 @@ export function buildRowMenuSections({
 export function buildColumnMenuSections({
   editor,
   openMenu,
-  colCount,
   onDone,
 }: {
   editor: Editor;
   openMenu: OpenMenuState;
-  colCount: number;
   onDone: () => void;
 }): TableMenuSection[] {
-  const { index, tablePos } = openMenu;
-  if (index === null) return [];
+  const target = resolveColumnTarget(editor, openMenu);
+  if (!target) return [];
 
-  const run = (fn: () => boolean) => {
-    fn();
-    onDone();
-  };
-  const moveCol = (delta: number) => {
-    const target = index + delta;
-    if (target < 0 || target >= colCount) return;
-    moveTableColumn({ from: index, to: target, pos: tablePos + 1, select: true })(
-      editor.state,
-      editor.view.dispatch.bind(editor.view),
-    );
-    onDone();
-  };
-  const deleteColumn = () => {
-    const active = activeCellInfo(editor.state);
-    const activeRow = active?.tablePos === tablePos ? active.row : 0;
-    const didDelete = editor.chain().focus(null, { scrollIntoView: false }).deleteColumn().run();
-    if (!didDelete) {
-      onDone();
-      return;
-    }
-
-    const nextTable = editor.state.doc.nodeAt(tablePos);
-    if (!nextTable || nextTable.type.spec.tableRole !== "table") {
-      onDone();
-      return;
-    }
-
-    const nextMap = TableMap.get(nextTable);
-    const targetRow = Math.min(activeRow, nextMap.height - 1);
-    const targetCol = Math.min(index, nextMap.width - 1);
-    setCaretInCell(editor.view, nextTable, tablePos, targetRow, targetCol);
-
-    if (targetCol === nextMap.width - 1) {
-      requestAnimationFrame(() => {
-        const wrapper = findTableElement(editor.view, tablePos)?.closest<HTMLElement>(".tableWrapper");
-        if (!wrapper) return;
-        wrapper.scrollLeft = wrapper.scrollWidth;
-      });
-    }
-
+  const run = (fn: (resolved: ResolvedColumnTarget) => boolean) => {
+    const current = resolveColumnTarget(editor, openMenu);
+    if (current) fn(current);
     onDone();
   };
 
@@ -170,13 +179,21 @@ export function buildColumnMenuSections({
         key: "col-insert-left",
         icon: <ChevronLeft size={14} />,
         label: "Insert column left",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).addColumnBefore().run()),
+        onSelect: () =>
+          run((resolved) => {
+            if (!focusColumnTarget(editor, resolved)) return false;
+            return editor.chain().focus(null, { scrollIntoView: false }).addColumnBefore().run();
+          }),
       },
       {
         key: "col-insert-right",
         icon: <ChevronRight size={14} />,
         label: "Insert column right",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).addColumnAfter().run()),
+        onSelect: () =>
+          run((resolved) => {
+            if (!focusColumnTarget(editor, resolved)) return false;
+            return editor.chain().focus(null, { scrollIntoView: false }).addColumnAfter().run();
+          }),
       },
     ],
     [
@@ -184,15 +201,31 @@ export function buildColumnMenuSections({
         key: "col-move-left",
         icon: <ArrowLeft size={14} />,
         label: "Move column left",
-        disabled: index === 0,
-        onSelect: () => moveCol(-1),
+        disabled: target.index === 0,
+        onSelect: () =>
+          run((resolved) => {
+            if (resolved.index <= 0) return false;
+            moveTableColumn({ from: resolved.index, to: resolved.index - 1, pos: resolved.tablePos + 1, select: true })(
+              editor.state,
+              editor.view.dispatch.bind(editor.view),
+            );
+            return true;
+          }),
       },
       {
         key: "col-move-right",
         icon: <ArrowRight size={14} />,
         label: "Move column right",
-        disabled: index >= colCount - 1,
-        onSelect: () => moveCol(1),
+        disabled: target.index >= target.colCount - 1,
+        onSelect: () =>
+          run((resolved) => {
+            if (resolved.index >= resolved.colCount - 1) return false;
+            moveTableColumn({ from: resolved.index, to: resolved.index + 1, pos: resolved.tablePos + 1, select: true })(
+              editor.state,
+              editor.view.dispatch.bind(editor.view),
+            );
+            return true;
+          }),
       },
     ],
     [
@@ -201,8 +234,34 @@ export function buildColumnMenuSections({
         icon: <Trash2 size={14} />,
         label: "Delete column",
         danger: true,
-        disabled: colCount <= 1,
-        onSelect: deleteColumn,
+        disabled: target.colCount <= 1,
+        onSelect: () =>
+          run((resolved) => {
+            const active = activeCellInfo(editor.state);
+            const activeRow = active?.tablePos === resolved.tablePos ? active.row : resolved.row;
+            if (!focusColumnTarget(editor, resolved)) return false;
+
+            const didDelete = editor.chain().focus(null, { scrollIntoView: false }).deleteColumn().run();
+            if (!didDelete) return false;
+
+            const nextTable = editor.state.doc.nodeAt(resolved.tablePos);
+            if (!nextTable || nextTable.type.spec.tableRole !== "table") return true;
+
+            const nextMap = TableMap.get(nextTable);
+            const targetRow = Math.min(activeRow, nextMap.height - 1);
+            const targetCol = Math.min(resolved.col, nextMap.width - 1);
+            setCaretInCell(editor.view, nextTable, resolved.tablePos, targetRow, targetCol);
+
+            if (targetCol === nextMap.width - 1) {
+              requestAnimationFrame(() => {
+                const wrapper = findTableElement(editor.view, resolved.tablePos)?.closest<HTMLElement>(".tableWrapper");
+                if (!wrapper) return;
+                wrapper.scrollLeft = wrapper.scrollWidth;
+              });
+            }
+
+            return true;
+          }),
       },
     ],
   ];
@@ -223,8 +282,12 @@ export function buildTableMenuSections({
   canResetWidths: boolean;
   onDone: () => void;
 }): TableMenuSection[] {
-  const run = (fn: () => boolean) => {
-    fn();
+  const target = resolveCornerTarget(editor, openMenu);
+  if (!target) return [];
+
+  const run = (fn: (resolved: ResolvedCornerTarget) => boolean) => {
+    const current = resolveCornerTarget(editor, openMenu);
+    if (current) fn(current);
     onDone();
   };
 
@@ -234,13 +297,21 @@ export function buildTableMenuSections({
         key: "table-toggle-header-row",
         icon: <Heading size={14} />,
         label: "Toggle header row",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).toggleHeaderRow().run()),
+        onSelect: () =>
+          run((resolved) => {
+            focusTableTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).toggleHeaderRow().run();
+          }),
       },
       {
         key: "table-toggle-header-column",
         icon: <Heading size={14} />,
         label: "Toggle header column",
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).toggleHeaderColumn().run()),
+        onSelect: () =>
+          run((resolved) => {
+            focusTableTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).toggleHeaderColumn().run();
+          }),
       },
     ],
     [
@@ -266,8 +337,8 @@ export function buildTableMenuSections({
         label: "Reset column widths",
         disabled: !canResetWidths,
         onSelect: () =>
-          run(() =>
-            editor.chain().focus(null, { scrollIntoView: false }).resetTableColumnWidths(openMenu.tablePos).run(),
+          run((resolved) =>
+            editor.chain().focus(null, { scrollIntoView: false }).resetTableColumnWidths(resolved.tablePos).run(),
           ),
       },
       {
@@ -275,8 +346,8 @@ export function buildTableMenuSections({
         icon: <EqualApproximately size={14} />,
         label: "Distribute columns evenly",
         onSelect: () =>
-          run(() =>
-            editor.chain().focus(null, { scrollIntoView: false }).distributeTableColumnsEvenly(openMenu.tablePos).run(),
+          run((resolved) =>
+            editor.chain().focus(null, { scrollIntoView: false }).distributeTableColumnsEvenly(resolved.tablePos).run(),
           ),
       },
       {
@@ -284,8 +355,8 @@ export function buildTableMenuSections({
         icon: <ArrowLeftRight size={14} />,
         label: "Fit all columns to content",
         onSelect: () =>
-          run(() =>
-            editor.chain().focus(null, { scrollIntoView: false }).fitTableColumnsToContent(openMenu.tablePos).run(),
+          run((resolved) =>
+            editor.chain().focus(null, { scrollIntoView: false }).fitTableColumnsToContent(resolved.tablePos).run(),
           ),
       },
     ],
@@ -295,8 +366,47 @@ export function buildTableMenuSections({
         icon: <Trash2 size={14} />,
         label: "Delete table",
         danger: true,
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).deleteTable().run()),
+        onSelect: () =>
+          run((resolved) => {
+            focusTableTarget(editor, resolved);
+            return editor.chain().focus(null, { scrollIntoView: false }).deleteTable().run();
+          }),
       },
     ],
   ];
+}
+
+function resolveRowTarget(editor: Editor, openMenu: OpenMenuState): ResolvedRowTarget | null {
+  const resolved = resolveOpenMenuState(editor.state.doc, openMenu);
+  return resolved?.kind === "row" ? (resolved as ResolvedRowTarget) : null;
+}
+
+function resolveColumnTarget(editor: Editor, openMenu: OpenMenuState): ResolvedColumnTarget | null {
+  const resolved = resolveOpenMenuState(editor.state.doc, openMenu);
+  return resolved?.kind === "col" ? (resolved as ResolvedColumnTarget) : null;
+}
+
+function resolveCornerTarget(editor: Editor, openMenu: OpenMenuState): ResolvedCornerTarget | null {
+  const resolved = resolveOpenMenuState(editor.state.doc, openMenu);
+  return resolved?.kind === "corner" ? (resolved as ResolvedCornerTarget) : null;
+}
+
+function focusRowTarget(editor: Editor, target: ResolvedRowTarget) {
+  const selection = rowCellSelection(editor.state.doc, target.tablePos, target.table, target.row);
+  if (selection) {
+    editor.view.dispatch(editor.state.tr.setSelection(selection));
+    return;
+  }
+  setCaretInCell(editor.view, target.table, target.tablePos, target.row, 0);
+}
+
+function focusColumnTarget(editor: Editor, target: ResolvedColumnTarget): boolean {
+  const selection = columnCellSelection(editor.state.doc, target.tablePos, target.table, target.col);
+  if (!selection) return false;
+  editor.view.dispatch(editor.state.tr.setSelection(selection));
+  return true;
+}
+
+function focusTableTarget(editor: Editor, target: ResolvedCornerTarget) {
+  setCaretInCell(editor.view, target.table, target.tablePos, 0, 0);
 }

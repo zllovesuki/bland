@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { useFloating, autoUpdate, flip, offset, shift, type VirtualElement } from "@floating-ui/react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
-import { TableMap } from "@tiptap/pm/tables";
 import {
   buildColumnMenuSections,
   buildRowMenuSections,
@@ -11,7 +10,13 @@ import {
   type TableMenuAction,
   type TableMenuSection,
 } from "./table-menu-actions";
-import { tableHandleSelector, tableHandlesKey, type OpenMenuState } from "../extensions/table/state";
+import {
+  activeCellInfo,
+  resolveOpenMenuState,
+  tableHandleSelector,
+  tableHandlesKey,
+  type OpenMenuState,
+} from "../extensions/table/state";
 import { hasExplicitColumnWidths } from "../extensions/table/widths";
 
 interface TableMenuProps {
@@ -37,21 +42,20 @@ export function TableMenu({ editor }: TableMenuProps) {
       let rowCount = 0;
       let colCount = 0;
       let canResetWidths = false;
-      if (openMenu) {
-        const table = e.state.doc.nodeAt(openMenu.tablePos);
-        if (table && table.type.spec.tableRole === "table") {
-          const map = TableMap.get(table);
-          rowCount = map.height;
-          colCount = map.width;
-          canResetWidths = hasExplicitColumnWidths(table);
-        }
+      const resolved = openMenu ? resolveOpenMenuState(e.state.doc, openMenu) : null;
+      if (resolved) {
+        rowCount = resolved.rowCount;
+        colCount = resolved.colCount;
+        canResetWidths = hasExplicitColumnWidths(resolved.table);
       }
+      const active = activeCellInfo(e.state);
+      const selectionInOpenTable = !!resolved && active?.tablePos === resolved.tablePos;
       return {
         openMenu,
         rowCount,
         colCount,
-        canMerge: e.can().mergeCells(),
-        canSplit: e.can().splitCell(),
+        canMerge: selectionInOpenTable && e.can().mergeCells(),
+        canSplit: selectionInOpenTable && e.can().splitCell(),
         canResetWidths,
       };
     },
@@ -94,10 +98,10 @@ export function TableMenu({ editor }: TableMenuProps) {
   const sections = useMemo<TableMenuSection[]>(() => {
     if (!openMenu) return [];
     if (openMenu.kind === "row") {
-      return buildRowMenuSections({ editor, openMenu, rowCount: state.rowCount, onDone: close });
+      return buildRowMenuSections({ editor, openMenu, onDone: close });
     }
     if (openMenu.kind === "col") {
-      return buildColumnMenuSections({ editor, openMenu, colCount: state.colCount, onDone: close });
+      return buildColumnMenuSections({ editor, openMenu, onDone: close });
     }
     return buildTableMenuSections({
       editor,
