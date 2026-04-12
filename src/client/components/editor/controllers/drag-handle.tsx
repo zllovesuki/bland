@@ -9,6 +9,7 @@ import { prepareBlockDragPreview } from "../lib/block-drag-preview";
 import { canMoveTopLevelBlock, deleteTopLevelBlock, moveTopLevelBlock } from "../lib/block-actions";
 import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
+import { launchEmojiPicker } from "./emoji-insert-panel";
 import { insertImageFromSlashMenu } from "./image-insert-panel";
 import { getSlashMenuItems, type SlashMenuPageMentionConfig } from "./slash-items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
@@ -77,6 +78,11 @@ export function DragHandle({ editor }: { editor: Editor }) {
       image: {
         insertImage: ({ editor: currentEditor, range }) => {
           insertImageFromSlashMenu(currentEditor, range, { workspaceId, pageId, shareToken });
+        },
+      },
+      emoji: {
+        openPicker: ({ editor: currentEditor, range }) => {
+          launchEmojiPicker(currentEditor, range);
         },
       },
     }).filter((item) => !item.isAvailable || item.isAvailable({ editor }));

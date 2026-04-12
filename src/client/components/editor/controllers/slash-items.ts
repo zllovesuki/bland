@@ -14,6 +14,7 @@ import {
   ImageIcon,
   Table,
   FileText,
+  SmilePlus,
 } from "lucide-react";
 import { insertDetailsBlock } from "./details-block";
 import { canInsertPageMentionAtRange } from "../lib/can-insert-page-mentions";
@@ -35,9 +36,14 @@ export interface SlashMenuImageConfig {
   insertImage: (props: { editor: Editor; range: Range }) => void;
 }
 
+export interface SlashMenuEmojiConfig {
+  openPicker: (props: { editor: Editor; range: Range }) => void;
+}
+
 export interface SlashMenuItemsOpts {
   pageMention: SlashMenuPageMentionConfig | null;
   image: SlashMenuImageConfig;
+  emoji: SlashMenuEmojiConfig;
 }
 
 export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
@@ -162,6 +168,15 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
       aliases: ["img", "picture", "photo"],
       command: ({ editor, range }) => {
         opts.image.insertImage({ editor, range });
+      },
+    },
+    {
+      title: "Emoji",
+      group: "Insert",
+      icon: SmilePlus,
+      aliases: ["smile", "smiley", "face"],
+      command: ({ editor, range }) => {
+        opts.emoji.openPicker({ editor, range });
       },
     },
   ];

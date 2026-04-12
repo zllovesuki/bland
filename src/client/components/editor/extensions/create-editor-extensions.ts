@@ -13,6 +13,7 @@ import { FileHandler } from "@tiptap/extension-file-handler";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { ShareAwareImage } from "./image-node";
+import { EditorEmoji } from "./emoji";
 import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
@@ -20,8 +21,13 @@ import { createTableExtensions } from "./table-extensions";
 import { PageMentionNode } from "./page-mention-node";
 import { PageMentionSuggestion } from "./page-mention-suggestion";
 import { SlashCommands } from "../controllers/slash-menu-extension";
+import { launchEmojiPicker } from "../controllers/emoji-insert-panel";
 import { insertImageFromSlashMenu } from "../controllers/image-insert-panel";
-import type { SlashMenuImageConfig, SlashMenuPageMentionConfig } from "../controllers/slash-items";
+import type {
+  SlashMenuEmojiConfig,
+  SlashMenuImageConfig,
+  SlashMenuPageMentionConfig,
+} from "../controllers/slash-items";
 import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
@@ -66,6 +72,12 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     },
   };
 
+  const emojiSlashConfig: SlashMenuEmojiConfig = {
+    openPicker: ({ editor, range }) => {
+      launchEmojiPicker(editor, range);
+    },
+  };
+
   return [
     StarterKit.configure({
       undoRedo: false,
@@ -98,6 +110,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       oneQuarter: false,
       threeQuarters: false,
     }),
+    EditorEmoji,
     CharacterCount.configure({
       textCounter: countCharacters,
       wordCounter: countWords,
@@ -147,7 +160,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
         })();
       },
     }),
-    SlashCommands.configure({ pageMention: pageMentionSlashConfig, image: imageSlashConfig }),
+    SlashCommands.configure({ pageMention: pageMentionSlashConfig, image: imageSlashConfig, emoji: emojiSlashConfig }),
     PageMentionNode,
     ...(mayInsertMentions ? [PageMentionSuggestion.configure({ currentPageId: pageId })] : []),
     ...createTableExtensions(),

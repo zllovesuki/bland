@@ -18,6 +18,7 @@ import { usePageMentionScope } from "./page-mention-scope-context";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
+import "./styles/emoji.css";
 import "./styles/page-mention.css";
 
 interface EditorBodyProps {

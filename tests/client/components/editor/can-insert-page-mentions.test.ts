@@ -64,6 +64,7 @@ describe("page mention insertion availability", () => {
     const items = getSlashMenuItems({
       pageMention: { openPicker: vi.fn() },
       image: { insertImage: vi.fn() },
+      emoji: { openPicker: vi.fn() },
     });
 
     const paragraphTitles = filterItems(items, "", { editor: paragraphEditor }).map((item) => item.title);

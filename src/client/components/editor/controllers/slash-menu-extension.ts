@@ -5,6 +5,7 @@ import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import {
   getSlashMenuItems,
   filterItems,
+  type SlashMenuEmojiConfig,
   type SlashMenuImageConfig,
   type SlashMenuItem,
   type SlashMenuPageMentionConfig,
@@ -14,6 +15,7 @@ import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overla
 interface SlashCommandsOptions {
   pageMention: SlashMenuPageMentionConfig | null;
   image: SlashMenuImageConfig;
+  emoji: SlashMenuEmojiConfig;
 }
 
 export const SlashCommands = Extension.create<SlashCommandsOptions>({
@@ -27,19 +29,25 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
           throw new Error("slash image config missing");
         },
       },
+      emoji: {
+        openPicker: () => {
+          throw new Error("slash emoji config missing");
+        },
+      },
     };
   },
 
   addProseMirrorPlugins() {
     const pageMention = this.options.pageMention;
     const image = this.options.image;
+    const emoji = this.options.emoji;
 
     return [
       Suggestion<SlashMenuItem, SlashMenuItem>({
         editor: this.editor,
         char: "/",
         shouldShow: ({ transaction }) => !isChangeOrigin(transaction),
-        items: ({ query, editor }) => filterItems(getSlashMenuItems({ pageMention, image }), query, { editor }),
+        items: ({ query, editor }) => filterItems(getSlashMenuItems({ pageMention, image, emoji }), query, { editor }),
         command: ({ editor, range, props: item }) => {
           item.command({ editor, range });
         },
