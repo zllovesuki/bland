@@ -1,6 +1,7 @@
 /* Content: shared editor surface */
 .tiptap {
   position: relative;
+  padding-top: 1rem;
   padding-inline-start: 16px;
   padding-inline-end: 0;
   padding-bottom: clamp(5rem, 10vh, 8rem);

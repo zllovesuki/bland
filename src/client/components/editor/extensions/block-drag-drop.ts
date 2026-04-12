@@ -310,6 +310,20 @@ export const BlockDragDropBehavior = Extension.create({
           },
         },
         props: {
+          handleDOMEvents: {
+            dragstart(view: EditorView, event: Event) {
+              if (!view.editable) return false;
+              // Image blocks own their drag via a document-level capture
+              // listener in image-node.tsx — let those through.
+              const el = event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
+              if (el?.closest(".react-renderer.node-image")) return false;
+              // Suppress everything else (text-selection drags, details
+              // summary drags, etc.). Drag-handle drags are unaffected —
+              // the handle lives outside view.dom.
+              event.preventDefault();
+              return true;
+            },
+          },
           handleDrop: handleMovedDrop,
           decorations(state) {
             const pluginState = blockDragDropKey.getState(state);

@@ -5,6 +5,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { ArrowDown, ArrowUp, Menu, Plus, Trash2 } from "lucide-react";
 import { EditorContext } from "../editor-context";
+import { primeTopLevelBlockDragState } from "../lib/block-drag-state";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
 import { canMoveTopLevelBlock, deleteTopLevelBlock, moveTopLevelBlock } from "../lib/block-actions";
 import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
@@ -56,7 +57,12 @@ export function DragHandle({ editor }: { editor: Editor }) {
     (e: DragEvent) => {
       if (!e.dataTransfer) return;
       closeMenu();
-      prepareBlockDragPreview(editor, nodePos.current, e.dataTransfer);
+      const pos = nodePos.current;
+      prepareBlockDragPreview(editor, pos, e.dataTransfer);
+      queueMicrotask(() => {
+        if (editor.isDestroyed || editor.view.dragging || pos < 0) return;
+        primeTopLevelBlockDragState(editor.view, pos);
+      });
     },
     [closeMenu, editor],
   );
