@@ -50,7 +50,6 @@ export function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): Pag
   let handle: PageMentionPickerHandle | null = null;
 
   function cleanup() {
-    document.removeEventListener("mousedown", onMouseDown);
     editor.off("destroy", cleanup);
     handle?.destroy();
     handle = null;
@@ -66,22 +65,9 @@ export function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): Pag
     filterMode: "internal",
     command,
     clientRect: opts.clientRect,
+    contextElement: editor.view.dom,
     onCancel: cleanup,
   });
-
-  const onMouseDown = (e: MouseEvent) => {
-    const target = e.target as HTMLElement | null;
-    if (!target) return;
-    const picker = document.querySelector(".tiptap-page-mention-picker");
-    if (picker && picker.contains(target)) return;
-    cleanup();
-  };
-
-  // Defer attaching the outside-click listener to the next tick so the click
-  // that opened the picker cannot be the click that dismisses it.
-  setTimeout(() => {
-    if (handle) document.addEventListener("mousedown", onMouseDown);
-  }, 0);
 
   editor.on("destroy", cleanup);
 

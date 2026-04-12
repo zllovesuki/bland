@@ -1,0 +1,109 @@
+.tiptap-menu-surface,
+.tiptap-slash-menu {
+  display: flex;
+  flex-direction: column;
+  background-color: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.35),
+    0 4px 6px -4px rgba(0, 0, 0, 0.35);
+}
+
+.tiptap-slash-menu {
+  gap: 1px;
+  padding: 6px;
+  max-height: 320px;
+  min-width: 220px;
+  overflow-y: auto;
+}
+
+.tiptap-menu-label,
+.tiptap-slash-menu-label {
+  color: #71717a;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px 4px;
+}
+
+.tiptap-menu-item,
+.tiptap-slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: #d4d4d8;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  text-align: left;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+}
+
+.tiptap-menu-item:hover:not(:disabled),
+.tiptap-menu-item:focus-visible,
+.tiptap-menu-item[aria-selected="true"],
+.tiptap-slash-menu-item:hover:not(:disabled),
+.tiptap-slash-menu-item:focus-visible,
+.tiptap-slash-menu-item[aria-selected="true"] {
+  background-color: #27272a;
+  color: #f4f4f5;
+  outline: none;
+}
+
+.tiptap-menu-item:disabled,
+.tiptap-slash-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tiptap-menu-item.is-danger {
+  color: #f87171;
+}
+
+.tiptap-menu-item.is-danger:hover:not(:disabled),
+.tiptap-menu-item.is-danger:focus-visible {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.tiptap-menu-item.is-active {
+  background-color: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+}
+
+.tiptap-menu-item.is-active:hover:not(:disabled),
+.tiptap-menu-item.is-active:focus-visible {
+  background-color: rgba(139, 92, 246, 0.18);
+  color: #ddd6fe;
+}
+
+.tiptap-menu-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: #a1a1aa;
+}
+
+.tiptap-menu-item:hover .tiptap-menu-item-icon,
+.tiptap-menu-item:focus-visible .tiptap-menu-item-icon {
+  color: inherit;
+}
+
+.tiptap-menu-item-label {
+  flex: 1;
+}
+
+.tiptap-menu-separator {
+  height: 1px;
+  background-color: #27272a;
+  margin: 4px 0;
+}

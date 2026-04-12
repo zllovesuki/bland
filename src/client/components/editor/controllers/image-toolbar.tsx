@@ -1,8 +1,18 @@
-import { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useContext,
+  useMemo,
+  useLayoutEffect,
+  type CSSProperties,
+} from "react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
-import { useFloating, offset, shift, autoUpdate, FloatingPortal } from "@floating-ui/react";
+import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
+import { FloatingPortal } from "@floating-ui/react";
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import { EditorContext } from "../editor-context";
 import {
@@ -27,13 +37,25 @@ function canInsetImageToolbar(rect: Pick<DOMRectReadOnly, "width" | "height">, e
   return !editingAlt && rect.width >= IMAGE_TOOLBAR_MIN_INSET_WIDTH && rect.height >= IMAGE_TOOLBAR_MIN_INSET_HEIGHT;
 }
 
+function hiddenToolbarStyles(): CSSProperties {
+  return {
+    position: "fixed",
+    left: 0,
+    top: 0,
+    visibility: "hidden",
+  };
+}
+
 export function ImageToolbar({ editor }: { editor: Editor }) {
   const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
   const [editingAlt, setEditingAlt] = useState(false);
   const [altText, setAltText] = useState("");
   const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
   const [useInsetPosition, setUseInsetPosition] = useState(false);
+  const [floatingElement, setFloatingElement] = useState<HTMLDivElement | null>(null);
+  const [floatingStyles, setFloatingStyles] = useState<CSSProperties>(() => hiddenToolbarStyles());
   const forcedPosRef = useRef<number | null>(null);
+  const lastStylesRef = useRef<CSSProperties>(hiddenToolbarStyles());
 
   const imageState = useEditorState({
     editor,
@@ -73,14 +95,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
     [useInsetPosition],
   );
 
-  const { floatingStyles, refs } = useFloating({
-    open,
-    placement,
-    middleware,
-    whileElementsMounted: autoUpdate,
-  });
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!imageState) {
       setEditingAlt(false);
       setReferenceEl(null);
@@ -88,13 +103,74 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
       forcedPosRef.current = null;
       return;
     }
+
     const dom = editor.view.nodeDOM(imageState.pos);
     if (dom instanceof HTMLElement) {
       const container = dom.querySelector(".tiptap-image-container") ?? dom;
-      refs.setReference(container);
       setReferenceEl(container instanceof HTMLElement ? container : null);
+      return;
     }
-  }, [imageState?.pos, editor, refs]);
+
+    setReferenceEl(null);
+  }, [imageState?.pos, editor]);
+
+  useEffect(() => {
+    if (!open || !referenceEl || !floatingElement) {
+      const nextHiddenStyles = hiddenToolbarStyles();
+      if (
+        lastStylesRef.current.left !== nextHiddenStyles.left ||
+        lastStylesRef.current.top !== nextHiddenStyles.top ||
+        lastStylesRef.current.position !== nextHiddenStyles.position ||
+        lastStylesRef.current.visibility !== nextHiddenStyles.visibility
+      ) {
+        lastStylesRef.current = nextHiddenStyles;
+        setFloatingStyles(nextHiddenStyles);
+      }
+      return;
+    }
+
+    let active = true;
+
+    // The image toolbar anchors to a selected node view owned outside this
+    // component tree. Position it from the resolved DOM node directly instead
+    // of useFloating's reference lifecycle; otherwise it can render at (0, 0)
+    // even though the image selection is correct.
+    const updatePosition = async () => {
+      const next = await computePosition(referenceEl, floatingElement, {
+        placement,
+        strategy: "fixed",
+        middleware,
+      });
+
+      if (!active) return;
+
+      const nextStyles: CSSProperties = {
+        position: "fixed",
+        left: next.x,
+        top: next.y,
+      };
+
+      if (
+        lastStylesRef.current.left === nextStyles.left &&
+        lastStylesRef.current.top === nextStyles.top &&
+        lastStylesRef.current.position === nextStyles.position &&
+        lastStylesRef.current.visibility === nextStyles.visibility
+      ) {
+        return;
+      }
+
+      lastStylesRef.current = nextStyles;
+      setFloatingStyles(nextStyles);
+    };
+
+    const cleanup = autoUpdateDom(referenceEl, floatingElement, updatePosition);
+    void updatePosition();
+
+    return () => {
+      active = false;
+      cleanup();
+    };
+  }, [floatingElement, middleware, open, placement, referenceEl]);
 
   useEffect(() => {
     if (!referenceEl) return;
@@ -145,12 +221,15 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
 
   const uploadCtx = { workspaceId, pageId, shareToken };
 
-  if (readOnly || !open) return null;
+  // Resolve the selected image container before rendering the toolbar. If we
+  // render with an unresolved anchor, floating-ui falls back to (0, 0) and the
+  // toolbar looks like it disappeared even though selection is correct.
+  if (readOnly || !open || !referenceEl) return null;
 
   return (
     <FloatingPortal>
       <div
-        ref={refs.setFloating}
+        ref={setFloatingElement}
         style={{ ...floatingStyles, zIndex: 50 }}
         className="tiptap-toolbar tiptap-image-toolbar"
         onMouseDownCapture={(e) => {

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useFloating, autoUpdate, flip, offset, shift, type VirtualElement } from "@floating-ui/react";
+import {
+  FloatingPortal,
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  type VirtualElement,
+} from "@floating-ui/react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import {
@@ -18,6 +27,7 @@ import {
   type OpenMenuState,
 } from "../extensions/table/state";
 import { hasExplicitColumnWidths } from "../extensions/table/widths";
+import { preserveEditorSelectionOnMouseDown } from "./menu/popover";
 
 interface TableMenuProps {
   editor: Editor;
@@ -125,11 +135,14 @@ export function TableMenu({ editor }: TableMenuProps) {
       get contextElement() {
         return resolveTriggerEl() ?? undefined;
       },
-    } as VirtualElement;
+    };
   }, [resolveTriggerEl, selector]);
 
-  const { refs, floatingStyles } = useFloating({
-    open: !!openMenu,
+  const { context, refs, floatingStyles } = useFloating({
+    open: !!openMenu && hasTrigger,
+    onOpenChange(nextOpen) {
+      if (!nextOpen) close();
+    },
     placement: openMenu?.kind === "row" ? "right-start" : openMenu?.kind === "col" ? "bottom-start" : "bottom-end",
     strategy: "fixed",
     middleware: [offset(6), flip({ padding: 8 }), shift({ padding: 8 })],
@@ -137,31 +150,25 @@ export function TableMenu({ editor }: TableMenuProps) {
   });
 
   useLayoutEffect(() => {
+    // Keep the table menu's virtual reference stable and local to this component.
+    // Table handles are real DOM affordances, so useFloating works well here, but
+    // feeding it a freshly created virtual element every render causes internal
+    // React state churn and can recurse into a maximum update depth error.
     refs.setReference(virtualReference);
   }, [refs, virtualReference]);
 
-  useEffect(() => {
-    if (!openMenu) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close();
-      }
-    }
-    function onPointerDown(e: PointerEvent) {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (menuRef.current?.contains(target)) return;
-      if (resolveTriggerEl()?.contains(target)) return;
-      close();
-    }
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [openMenu, close, resolveTriggerEl]);
+  const dismiss = useDismiss(context, {
+    enabled: !!openMenu && hasTrigger,
+    escapeKey: true,
+    outsidePress: (event) => {
+      const target = event.target as Node | null;
+      if (!target) return false;
+      if (menuRef.current?.contains(target)) return false;
+      if (resolveTriggerEl()?.contains(target)) return false;
+      return true;
+    },
+  });
+  const { getFloatingProps } = useInteractions([dismiss]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -174,27 +181,27 @@ export function TableMenu({ editor }: TableMenuProps) {
 
   if (!openMenu || !hasTrigger) return null;
 
-  return createPortal(
-    <div
-      key={`${openMenu.kind}:${openMenu.tableKey}:${openMenu.index ?? "corner"}`}
-      ref={(node) => {
-        refs.setFloating(node);
-        menuRef.current = node;
-      }}
-      role="menu"
-      aria-orientation="vertical"
-      className="tiptap-table-menu"
-      style={floatingStyles}
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest("button")) return;
-        e.preventDefault();
-      }}
-    >
-      {sections.map((section, index) => (
-        <SectionRenderer key={index} section={section} showSeparator={index > 0} />
-      ))}
-    </div>,
-    document.body,
+  return (
+    <FloatingPortal>
+      <div
+        key={`${openMenu.kind}:${openMenu.tableKey}:${openMenu.index ?? "corner"}`}
+        ref={(node) => {
+          refs.setFloating(node);
+          menuRef.current = node;
+        }}
+        role="menu"
+        aria-orientation="vertical"
+        className="tiptap-menu-surface tiptap-table-menu"
+        style={{ ...floatingStyles, zIndex: 60 }}
+        {...getFloatingProps({
+          onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
+        })}
+      >
+        {sections.map((section, index) => (
+          <SectionRenderer key={index} section={section} showSeparator={index > 0} />
+        ))}
+      </div>
+    </FloatingPortal>
   );
 }
 
@@ -212,7 +219,7 @@ function MenuItem({ icon, label, onSelect, disabled, danger }: MenuItemProps) {
       type="button"
       role="menuitem"
       disabled={disabled}
-      className={`tiptap-table-menu-item${danger ? " is-danger" : ""}`}
+      className={`tiptap-menu-item tiptap-table-menu-item${danger ? " is-danger" : ""}`}
       onMouseDown={(e) => {
         e.preventDefault();
       }}
@@ -222,14 +229,14 @@ function MenuItem({ icon, label, onSelect, disabled, danger }: MenuItemProps) {
         onSelect();
       }}
     >
-      <span className="tiptap-table-menu-item-icon">{icon}</span>
-      <span className="tiptap-table-menu-item-label">{label}</span>
+      <span className="tiptap-menu-item-icon tiptap-table-menu-item-icon">{icon}</span>
+      <span className="tiptap-menu-item-label tiptap-table-menu-item-label">{label}</span>
     </button>
   );
 }
 
 function MenuSeparator() {
-  return <div className="tiptap-table-menu-sep" role="separator" />;
+  return <div className="tiptap-menu-separator tiptap-table-menu-sep" role="separator" />;
 }
 
 function SectionRenderer({ section, showSeparator }: { section: TableMenuSection; showSeparator: boolean }) {

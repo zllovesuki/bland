@@ -105,6 +105,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
         const coords = editor.view.coordsAtPos(cursorPos);
         return new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top);
       },
+      onClose: cleanup,
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -118,20 +119,11 @@ export function DragHandle({ editor }: { editor: Editor }) {
       }
     };
 
-    const onMouseDown = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target || !document.querySelector(".tiptap-slash-menu")?.contains(target)) {
-        cleanup();
-      }
-    };
-
     document.addEventListener("keydown", onKeyDown, true);
-    document.addEventListener("mousedown", onMouseDown);
     editor.on("destroy", cleanup);
 
     function cleanup() {
       document.removeEventListener("keydown", onKeyDown, true);
-      document.removeEventListener("mousedown", onMouseDown);
       editor.off("destroy", cleanup);
       handle?.destroy();
       handle = null;

@@ -1,7 +1,8 @@
 import { useCallback, useContext, useLayoutEffect, useRef, useState } from "react";
+import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
+import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
 import { EditorContext } from "../../editor-context";
 import { CODE_LANGUAGES, resolveLanguage } from "./shared";
 import "../../styles/code-block.css";
@@ -15,6 +16,14 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
 
   const language = resolveLanguage(node.attrs.language);
   const displayName = CODE_LANGUAGES[language]?.name ?? "Plain Text";
+  const { floatingStyles, getFloatingProps, refs } = useEditorPopover({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: btnRef,
+    placement: "bottom-end",
+    offset: 4,
+    padding: 8,
+  });
 
   const selectLanguage = useCallback(
     (lang: string) => {
@@ -52,24 +61,38 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
       </button>
 
       {open && (
-        <DropdownPortal triggerRef={btnRef} align="right" width={160} onClose={() => setOpen(false)}>
-          <div ref={menuRef} className="tiptap-code-block-lang-dropdown" role="menu" aria-label="Code block language">
-            {Object.entries(CODE_LANGUAGES).map(([id, meta]) => (
-              <button
-                key={id}
-                ref={id === language ? activeItemRef : null}
-                type="button"
-                className={`tiptap-code-block-lang-item${id === language ? " is-active" : ""}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectLanguage(id)}
-                role="menuitemradio"
-                aria-checked={id === language}
-              >
-                {meta.name}
-              </button>
-            ))}
+        <FloatingPortal>
+          <div
+            ref={(node) => {
+              refs.setFloating(node);
+              menuRef.current = node;
+            }}
+            className="animate-fade-in origin-top-right tiptap-menu-surface"
+            role="menu"
+            aria-label="Code block language"
+            style={{ ...floatingStyles, width: 160, zIndex: 50 }}
+            {...getFloatingProps({
+              onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
+            })}
+          >
+            <div className="tiptap-code-block-lang-dropdown">
+              {Object.entries(CODE_LANGUAGES).map(([id, meta]) => (
+                <button
+                  key={id}
+                  ref={id === language ? activeItemRef : null}
+                  type="button"
+                  className={`tiptap-menu-item tiptap-code-block-lang-item${id === language ? " is-active" : ""}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selectLanguage(id)}
+                  role="menuitemradio"
+                  aria-checked={id === language}
+                >
+                  {meta.name}
+                </button>
+              ))}
+            </div>
           </div>
-        </DropdownPortal>
+        </FloatingPortal>
       )}
 
       <pre className="tiptap-code-block-pre" spellCheck={false}>

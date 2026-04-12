@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
+import { FloatingPortal } from "@floating-ui/react";
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
-import { computePosition, offset, shift, size, flip } from "@floating-ui/dom";
+import { useMenuNavigation } from "./menu/navigation";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
 import type { SlashMenuItem } from "./slash-items";
-import "../styles/slash-menu.css";
 
 export interface SlashMenuPanelProps {
   items: SlashMenuItem[];
   command: (item: SlashMenuItem) => void;
   clientRect: (() => DOMRect | null) | null;
+  contextElement?: HTMLElement | null;
+  onClose?: () => void;
 }
 
 export interface SlashMenuPanelHandle {
@@ -15,66 +18,24 @@ export interface SlashMenuPanelHandle {
 }
 
 export const SlashMenuPanel = forwardRef<SlashMenuPanelHandle, SlashMenuPanelProps>(
-  ({ items, command, clientRect }, ref) => {
-    const [selectedIndex, setSelectedIndex] = useState(0);
+  ({ items, command, clientRect, contextElement, onClose }, ref) => {
     const panelRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      setSelectedIndex(0);
-    }, [items]);
-
-    useEffect(() => {
-      const panel = panelRef.current;
-      if (!panel || !clientRect) return;
-
-      const virtualEl = {
-        getBoundingClientRect: () => clientRect() ?? new DOMRect(),
-      };
-
-      void computePosition(virtualEl, panel, {
-        placement: "bottom-start",
-        middleware: [
-          offset(10),
-          shift({ padding: 10 }),
-          flip({ padding: 10 }),
-          size({
-            apply({ elements, availableHeight }) {
-              elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
-            },
-            padding: 10,
-          }),
-        ],
-      }).then(({ x, y }) => {
-        panel.style.left = `${x}px`;
-        panel.style.top = `${y}px`;
-      });
-    }, [items, clientRect]);
-
-    useEffect(() => {
-      const el = panelRef.current?.querySelector(`[data-index="${selectedIndex}"]`);
-      el?.scrollIntoView({ block: "nearest" });
-    }, [selectedIndex]);
+    const navigation = useMenuNavigation({
+      items,
+      listRef: panelRef,
+      onSelect: command,
+    });
+    const { floatingStyles, setFloating } = useEditorRectPopover({
+      open: items.length > 0,
+      onClose,
+      getAnchorRect: () => clientRect?.() ?? null,
+      contextElement,
+      maxHeight: true,
+      deferOutsidePress: true,
+    });
 
     useImperativeHandle(ref, () => ({
-      onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          setSelectedIndex((i) => (i <= 0 ? items.length - 1 : i - 1));
-          return true;
-        }
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          setSelectedIndex((i) => (i >= items.length - 1 ? 0 : i + 1));
-          return true;
-        }
-        if (event.key === "Enter") {
-          event.preventDefault();
-          const item = items[selectedIndex];
-          if (item) command(item);
-          return true;
-        }
-        return false;
-      },
+      onKeyDown: ({ event }: SuggestionKeyDownProps) => navigation.onKeyDown(event),
     }));
 
     if (items.length === 0) return null;
@@ -95,10 +56,10 @@ export const SlashMenuPanel = forwardRef<SlashMenuPanelHandle, SlashMenuPanelPro
         <button
           key={i}
           type="button"
-          data-index={i}
+          data-menu-index={i}
           className="tiptap-slash-menu-item"
-          aria-selected={i === selectedIndex}
-          onMouseEnter={() => setSelectedIndex(i)}
+          aria-selected={i === navigation.selectedIndex}
+          onMouseEnter={() => navigation.setSelectedIndex(i)}
           onMouseDown={(e) => {
             e.preventDefault();
             command(item);
@@ -111,14 +72,19 @@ export const SlashMenuPanel = forwardRef<SlashMenuPanelHandle, SlashMenuPanelPro
     }
 
     return (
-      <div
-        ref={panelRef}
-        className="tiptap-slash-menu"
-        style={{ position: "fixed", zIndex: 80 }}
-        onMouseDownCapture={(e) => e.preventDefault()}
-      >
-        {rows}
-      </div>
+      <FloatingPortal>
+        <div
+          ref={(node) => {
+            setFloating(node);
+            panelRef.current = node;
+          }}
+          className="tiptap-slash-menu"
+          style={{ ...floatingStyles, zIndex: 80 }}
+          onMouseDownCapture={(e) => preserveEditorSelectionOnMouseDown(e)}
+        >
+          {rows}
+        </div>
+      </FloatingPortal>
     );
   },
 );

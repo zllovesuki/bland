@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { useFloating, offset, shift, autoUpdate } from "@floating-ui/react";
+import { FloatingPortal } from "@floating-ui/react";
+import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "./menu/popover";
 import { type ColorEntry } from "./colors";
 import "../styles/color-picker.css";
 
@@ -21,53 +20,40 @@ export function ColorPickerPanel({
   triggerRef,
   onClose,
 }: ColorPickerPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  const { floatingStyles, refs } = useFloating({
+  const { floatingStyles, getFloatingProps, refs } = useEditorPopover({
     open: true,
-    placement: "bottom-start",
-    middleware: [offset(6), shift({ padding: 10 })],
-    elements: { reference: triggerRef.current },
-    whileElementsMounted: autoUpdate,
+    onClose,
+    anchorRef: triggerRef,
+    offset: 6,
   });
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target)) return;
-      if (triggerRef.current?.contains(target)) return;
-      onClose();
-    }
-    document.addEventListener("mousedown", handler, true);
-    return () => document.removeEventListener("mousedown", handler, true);
-  }, [onClose, triggerRef]);
-
-  return createPortal(
-    <div
-      ref={(node) => {
-        refs.setFloating(node);
-        panelRef.current = node;
-      }}
-      className="tiptap-color-panel"
-      style={floatingStyles}
-    >
-      {colors.map((c) => (
-        <button
-          key={c.label}
-          type="button"
-          title={c.label}
-          className={`tiptap-color-swatch${(activeColor ?? null) === c.value ? " is-active" : ""}`}
-          style={{
-            backgroundColor: c.value ?? nullFallback,
-            ...(c.value === null ? { backgroundImage: "linear-gradient(135deg, #71717a 25%, transparent 25%)" } : {}),
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onSelect(c.value);
-          }}
-        />
-      ))}
-    </div>,
-    document.body,
+  return (
+    <FloatingPortal>
+      <div
+        ref={refs.setFloating}
+        className="tiptap-menu-surface tiptap-color-panel"
+        style={{ ...floatingStyles, zIndex: 60 }}
+        {...getFloatingProps({
+          onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
+        })}
+      >
+        {colors.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            title={c.label}
+            className={`tiptap-color-swatch${(activeColor ?? null) === c.value ? " is-active" : ""}`}
+            style={{
+              backgroundColor: c.value ?? nullFallback,
+              ...(c.value === null ? { backgroundImage: "linear-gradient(135deg, #71717a 25%, transparent 25%)" } : {}),
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSelect(c.value);
+            }}
+          />
+        ))}
+      </div>
+    </FloatingPortal>
   );
 }
