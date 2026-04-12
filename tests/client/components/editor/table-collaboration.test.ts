@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getSchema } from "@tiptap/core";
 import { TableKit } from "@tiptap/extension-table";
 import { StarterKit } from "@tiptap/starter-kit";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
-import { addColumnBefore, addRowBefore, TableMap } from "@tiptap/pm/tables";
+import { addColumnBefore, addRowBefore, CellSelection, TableMap } from "@tiptap/pm/tables";
+import {
+  buildColumnMenuSections,
+  buildRowMenuSections,
+} from "@/client/components/editor/controllers/table-menu-actions";
 import { applyTableHandlesState, createOpenMenuState } from "@/client/components/editor/extensions/table/state";
 import { deriveCanonicalColumnWidths, snapshotTableWidths } from "@/client/components/editor/extensions/table/widths";
 
@@ -114,6 +118,82 @@ describe("table collaboration helpers", () => {
     expect(nextTable).not.toBeNull();
     expect(snapshotTableWidths(nextTable!)).toEqual({ hasSome: true, hasAll: false });
     expect(deriveCanonicalColumnWidths(nextDoc, nextTable!, 0)).toEqual([120, 120, 240]);
+  });
+
+  it("offers explicit row selection from the row menu without restoring trigger focus", () => {
+    const doc = createThreeRowTableDoc();
+    const table = doc.firstChild;
+    expect(table).not.toBeNull();
+
+    const openMenu = createOpenMenuState("row", 1, 0, table!);
+    expect(openMenu?.kind).toBe("row");
+
+    const state = EditorState.create({ schema, doc });
+    let dispatchedSelection: EditorState["selection"] | null = null;
+    const focus = vi.fn();
+    const onDone = vi.fn();
+    const editor = {
+      state,
+      view: {
+        dispatch: vi.fn((tr: typeof state.tr) => {
+          dispatchedSelection = tr.selection;
+        }),
+        focus,
+      },
+    };
+
+    const action = buildRowMenuSections({
+      editor: editor as any,
+      openMenu: openMenu!,
+      onDone,
+    })
+      .flat()
+      .find((item) => item.key === "row-select");
+
+    expect(action).toBeDefined();
+    action?.onSelect();
+
+    expect(dispatchedSelection).toBeInstanceOf(CellSelection);
+    expect(focus).toHaveBeenCalledOnce();
+    expect(onDone).toHaveBeenCalledWith(false);
+  });
+
+  it("offers explicit column selection from the column menu without restoring trigger focus", () => {
+    const doc = createThreeRowTableDoc();
+    const table = doc.firstChild;
+    expect(table).not.toBeNull();
+
+    const openMenu = createOpenMenuState("col", 1, 0, table!);
+    expect(openMenu?.kind).toBe("col");
+
+    const state = EditorState.create({ schema, doc });
+    let dispatchedSelection: EditorState["selection"] | null = null;
+    const focus = vi.fn();
+    const onDone = vi.fn();
+    const editor = {
+      state,
+      view: {
+        dispatch: vi.fn((tr: typeof state.tr) => {
+          dispatchedSelection = tr.selection;
+        }),
+        focus,
+      },
+    };
+
+    const action = buildColumnMenuSections({
+      editor: editor as any,
+      openMenu: openMenu!,
+      onDone,
+    })
+      .flat()
+      .find((item) => item.key === "col-select");
+
+    expect(action).toBeDefined();
+    action?.onSelect();
+
+    expect(dispatchedSelection).toBeInstanceOf(CellSelection);
+    expect(focus).toHaveBeenCalledOnce();
+    expect(onDone).toHaveBeenCalledWith(false);
   });
 });
 

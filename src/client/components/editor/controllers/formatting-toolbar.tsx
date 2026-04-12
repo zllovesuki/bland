@@ -3,7 +3,6 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { NodeSelection } from "@tiptap/pm/state";
-import { CellSelection } from "@tiptap/pm/tables";
 import {
   Bold,
   Italic,
@@ -50,7 +49,6 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
   const shouldShow = useCallback(({ editor: e, from, to }: { editor: Editor; from: number; to: number }) => {
     if (from === to || e.view.dragging) return false;
     if (e.state.selection instanceof NodeSelection) return false;
-    if (e.state.selection instanceof CellSelection) return false;
     if (e.isActive("codeBlock")) return false;
     return true;
   }, []);

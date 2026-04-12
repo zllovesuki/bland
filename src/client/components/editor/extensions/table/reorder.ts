@@ -2,7 +2,6 @@ import type { EditorView } from "@tiptap/pm/view";
 import { TableMap, moveTableColumn, moveTableRow } from "@tiptap/pm/tables";
 import { DRAG_THRESHOLD_PX } from "./constants";
 import { buildColumnEntries, findTableForWrapper, rowDropIndex, columnDropIndex } from "./dom";
-import { columnCellSelection, setCaretInCell } from "./selection";
 import { createOpenMenuState, type OpenMenuState } from "./state";
 
 export type DragState =
@@ -48,7 +47,6 @@ export function createRowDragState(
   const info = findTableForWrapper(view, wrapper);
   if (!info) return null;
 
-  setCaretInCell(view, info.node, info.pos, rowIndex, 0);
   return {
     kind: "reorder-row",
     sourceIndex: rowIndex,
@@ -73,10 +71,6 @@ export function createColumnDragState(
   const info = findTableForWrapper(view, wrapper);
   if (!info) return null;
 
-  const selection = columnCellSelection(view.state.doc, info.pos, info.node, logicalCol);
-  if (!selection) return null;
-
-  view.dispatch(view.state.tr.setSelection(selection));
   return {
     kind: "reorder-column",
     sourceIndex: logicalCol,

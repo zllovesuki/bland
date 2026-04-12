@@ -1,4 +1,4 @@
-import { addColumnAfter, addRowAfter, TableMap } from "@tiptap/pm/tables";
+import { addColumnAfter, addRowAfter, CellSelection, TableMap } from "@tiptap/pm/tables";
 import type { EditorState, PluginView } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -221,6 +221,7 @@ export class TableOverlayView implements PluginView {
     const activeInThisTable = this.activeCell?.tableKey === tableKey ? this.activeCell : null;
     const menuOnThisTable = pluginState.openMenu?.tableKey === tableKey ? pluginState.openMenu : null;
     if (!activeInThisTable && !menuOnThisTable && !this.dragState) return;
+    if (this.view.state.selection instanceof CellSelection && !menuOnThisTable && !this.dragState) return;
 
     const toLocal = createLocalRectConverter(this.overlayHost());
     const wrapperLocal = toLocal(wrapper.getBoundingClientRect());

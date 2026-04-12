@@ -1,6 +1,7 @@
 /* Overlay: block drag handle */
 .drag-handle {
   display: none;
+  z-index: 70;
 }
 
 @media (min-width: 640px) {
@@ -10,6 +11,7 @@
 }
 
 .tiptap-drag-handle-group {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -21,9 +23,12 @@
   justify-content: center;
   width: 20px;
   height: 20px;
+  padding: 0;
+  border: none;
   border-radius: 0.25rem;
   color: #71717a;
   background-color: #27272a;
+  font: inherit;
   cursor: grab;
   transition:
     opacity 75ms,
@@ -35,6 +40,11 @@
   opacity: 1;
   color: #a1a1aa;
   background-color: #27272a;
+}
+
+.tiptap-drag-handle.is-active {
+  color: #c4b5fd;
+  background-color: rgba(139, 92, 246, 0.14);
 }
 
 .tiptap-drag-handle:active {
@@ -49,4 +59,84 @@
 
 .tiptap-drag-handle-add:active {
   cursor: pointer;
+}
+
+.tiptap-block-menu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  background-color: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.tiptap-block-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: #d4d4d8;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.1s,
+    color 0.1s;
+}
+
+.tiptap-block-menu-item:hover:not(:disabled),
+.tiptap-block-menu-item:focus-visible {
+  color: #f4f4f5;
+  background-color: #27272a;
+  outline: none;
+}
+
+.tiptap-block-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tiptap-block-menu-item.is-danger {
+  color: #f87171;
+}
+
+.tiptap-block-menu-item.is-danger:hover:not(:disabled),
+.tiptap-block-menu-item.is-danger:focus-visible {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.tiptap-block-menu-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: #a1a1aa;
+}
+
+.tiptap-block-menu-item:hover .tiptap-block-menu-item-icon,
+.tiptap-block-menu-item:focus-visible .tiptap-block-menu-item-icon {
+  color: inherit;
+}
+
+.tiptap-block-menu-item-label {
+  flex: 1;
+}
+
+.tiptap-block-menu-sep {
+  height: 1px;
+  background-color: #27272a;
+  margin: 4px 0;
 }

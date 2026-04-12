@@ -1,5 +1,11 @@
+import { Extension } from "@tiptap/core";
 import Details, { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
-import { DEFAULT_DETAILS_SUMMARY } from "../controllers/details-block";
+import { Plugin } from "@tiptap/pm/state";
+import {
+  applyMoveToDetailsContent,
+  DEFAULT_DETAILS_SUMMARY,
+  DETAILS_SUMMARY_PLACEHOLDER,
+} from "../controllers/details-block";
 
 export const DetailsBlock = Details.configure({
   persist: true,
@@ -14,7 +20,7 @@ export const DetailsBlock = Details.configure({
 export const DetailsBlockSummary = DetailsSummary.configure({
   HTMLAttributes: {
     class: "tiptap-details-summary",
-    "data-placeholder": DEFAULT_DETAILS_SUMMARY,
+    "data-placeholder": DETAILS_SUMMARY_PLACEHOLDER,
   },
 });
 
@@ -22,4 +28,35 @@ export const DetailsBlockContent = DetailsContent.configure({
   HTMLAttributes: { class: "tiptap-details-content" },
 });
 
-export const DetailsBlockExtensions = [DetailsBlock, DetailsBlockSummary, DetailsBlockContent] as const;
+const DetailsBlockKeyboardNavigation = Extension.create({
+  name: "detailsBlockKeyboardNavigation",
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handleDOMEvents: {
+            keydown: (view, event) => {
+              if (event.key !== "Tab" || event.shiftKey) return false;
+
+              const tr = view.state.tr;
+              if (!applyMoveToDetailsContent(tr)) return false;
+
+              event.preventDefault();
+              view.dispatch(tr.scrollIntoView());
+              view.focus();
+              return true;
+            },
+          },
+        },
+      }),
+    ];
+  },
+});
+
+export const DetailsBlockExtensions = [
+  DetailsBlock,
+  DetailsBlockSummary,
+  DetailsBlockContent,
+  DetailsBlockKeyboardNavigation,
+] as const;

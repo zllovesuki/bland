@@ -71,10 +71,15 @@ export function TableMenu({ editor }: TableMenuProps) {
     return document.querySelector<HTMLElement>(selector);
   }, [selector]);
 
-  const close = useCallback(() => {
-    editor.view.dispatch(editor.view.state.tr.setMeta(tableHandlesKey, { openMenu: "close" }));
-    resolveTriggerEl()?.focus();
-  }, [editor, resolveTriggerEl]);
+  const close = useCallback(
+    (focusTrigger = true) => {
+      editor.view.dispatch(editor.view.state.tr.setMeta(tableHandlesKey, { openMenu: "close" }));
+      if (focusTrigger) {
+        resolveTriggerEl()?.focus();
+      }
+    },
+    [editor, resolveTriggerEl],
+  );
 
   useEffect(() => {
     if (!selector) {

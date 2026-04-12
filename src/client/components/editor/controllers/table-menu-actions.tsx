@@ -13,10 +13,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Columns3,
   EqualApproximately,
   Heading,
   Merge,
   RotateCcw,
+  Rows3,
   Split,
   Trash2,
 } from "lucide-react";
@@ -65,6 +67,16 @@ interface ResolvedCornerTarget extends BaseResolvedTarget {
   index: null;
 }
 
+type TableWidthCommandChain = ReturnType<Editor["chain"]> & {
+  resetTableColumnWidths: (tablePos: number) => TableWidthCommandChain;
+  distributeTableColumnsEvenly: (tablePos: number) => TableWidthCommandChain;
+  fitTableColumnsToContent: (tablePos: number) => TableWidthCommandChain;
+};
+
+function withTableWidthCommands(editor: Editor): TableWidthCommandChain {
+  return editor.chain().focus(null, { scrollIntoView: false }) as TableWidthCommandChain;
+}
+
 export function buildRowMenuSections({
   editor,
   openMenu,
@@ -72,7 +84,7 @@ export function buildRowMenuSections({
 }: {
   editor: Editor;
   openMenu: OpenMenuState;
-  onDone: () => void;
+  onDone: (focusTrigger?: boolean) => void;
 }): TableMenuSection[] {
   const target = resolveRowTarget(editor, openMenu);
   if (!target) return [];
@@ -80,10 +92,21 @@ export function buildRowMenuSections({
   const run = (fn: (resolved: ResolvedRowTarget) => boolean) => {
     const current = resolveRowTarget(editor, openMenu);
     if (current) fn(current);
-    onDone();
+    onDone(false);
   };
 
   return [
+    [
+      {
+        key: "row-select",
+        icon: <Rows3 size={14} />,
+        label: "Select row",
+        onSelect: () =>
+          run((resolved) => {
+            return selectRowTarget(editor, resolved);
+          }),
+      },
+    ],
     [
       {
         key: "row-insert-above",
@@ -162,7 +185,7 @@ export function buildColumnMenuSections({
 }: {
   editor: Editor;
   openMenu: OpenMenuState;
-  onDone: () => void;
+  onDone: (focusTrigger?: boolean) => void;
 }): TableMenuSection[] {
   const target = resolveColumnTarget(editor, openMenu);
   if (!target) return [];
@@ -170,10 +193,21 @@ export function buildColumnMenuSections({
   const run = (fn: (resolved: ResolvedColumnTarget) => boolean) => {
     const current = resolveColumnTarget(editor, openMenu);
     if (current) fn(current);
-    onDone();
+    onDone(false);
   };
 
   return [
+    [
+      {
+        key: "col-select",
+        icon: <Columns3 size={14} />,
+        label: "Select column",
+        onSelect: () =>
+          run((resolved) => {
+            return selectColumnTarget(editor, resolved);
+          }),
+      },
+    ],
     [
       {
         key: "col-insert-left",
@@ -280,7 +314,7 @@ export function buildTableMenuSections({
   canMerge: boolean;
   canSplit: boolean;
   canResetWidths: boolean;
-  onDone: () => void;
+  onDone: (focusTrigger?: boolean) => void;
 }): TableMenuSection[] {
   const target = resolveCornerTarget(editor, openMenu);
   if (!target) return [];
@@ -288,7 +322,7 @@ export function buildTableMenuSections({
   const run = (fn: (resolved: ResolvedCornerTarget) => boolean) => {
     const current = resolveCornerTarget(editor, openMenu);
     if (current) fn(current);
-    onDone();
+    onDone(false);
   };
 
   return [
@@ -337,27 +371,21 @@ export function buildTableMenuSections({
         label: "Reset column widths",
         disabled: !canResetWidths,
         onSelect: () =>
-          run((resolved) =>
-            editor.chain().focus(null, { scrollIntoView: false }).resetTableColumnWidths(resolved.tablePos).run(),
-          ),
+          run((resolved) => withTableWidthCommands(editor).resetTableColumnWidths(resolved.tablePos).run()),
       },
       {
         key: "table-distribute-widths",
         icon: <EqualApproximately size={14} />,
         label: "Distribute columns evenly",
         onSelect: () =>
-          run((resolved) =>
-            editor.chain().focus(null, { scrollIntoView: false }).distributeTableColumnsEvenly(resolved.tablePos).run(),
-          ),
+          run((resolved) => withTableWidthCommands(editor).distributeTableColumnsEvenly(resolved.tablePos).run()),
       },
       {
         key: "table-fit-widths",
         icon: <ArrowLeftRight size={14} />,
         label: "Fit all columns to content",
         onSelect: () =>
-          run((resolved) =>
-            editor.chain().focus(null, { scrollIntoView: false }).fitTableColumnsToContent(resolved.tablePos).run(),
-          ),
+          run((resolved) => withTableWidthCommands(editor).fitTableColumnsToContent(resolved.tablePos).run()),
       },
     ],
     [
@@ -404,6 +432,22 @@ function focusColumnTarget(editor: Editor, target: ResolvedColumnTarget): boolea
   const selection = columnCellSelection(editor.state.doc, target.tablePos, target.table, target.col);
   if (!selection) return false;
   editor.view.dispatch(editor.state.tr.setSelection(selection));
+  return true;
+}
+
+function selectRowTarget(editor: Editor, target: ResolvedRowTarget): boolean {
+  const selection = rowCellSelection(editor.state.doc, target.tablePos, target.table, target.row);
+  if (!selection) return false;
+  editor.view.dispatch(editor.state.tr.setSelection(selection));
+  editor.view.focus();
+  return true;
+}
+
+function selectColumnTarget(editor: Editor, target: ResolvedColumnTarget): boolean {
+  const selection = columnCellSelection(editor.state.doc, target.tablePos, target.table, target.col);
+  if (!selection) return false;
+  editor.view.dispatch(editor.state.tr.setSelection(selection));
+  editor.view.focus();
   return true;
 }
 

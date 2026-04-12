@@ -1,11 +1,12 @@
-import { useCallback, useContext, useRef } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { DragHandle as DragHandleReact } from "@tiptap/extension-drag-handle-react";
 import { offset } from "@floating-ui/dom";
-import type { Node } from "@tiptap/pm/model";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
-import { MoveVertical, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Menu, Plus, Trash2 } from "lucide-react";
 import { EditorContext } from "../editor-context";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
+import { canMoveTopLevelBlock, deleteTopLevelBlock, moveTopLevelBlock } from "../lib/block-actions";
 import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { insertImageFromSlashMenu } from "./image-insert-panel";
@@ -16,12 +17,14 @@ import "../styles/drag-handle.css";
 const positionConfig = {
   placement: "left-start" as const,
   strategy: "absolute" as const,
-  middleware: [offset({ mainAxis: 8 })],
+  middleware: [offset({ mainAxis: 8, crossAxis: 2 })],
 };
 
 export function DragHandle({ editor }: { editor: Editor }) {
   const nodePos = useRef(-1);
+  const groupRef = useRef<HTMLDivElement>(null);
   const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
+  const [menuPos, setMenuPos] = useState<number | null>(null);
   const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
   pageMentionRef.current = canInsertPageMentions({ editable: !readOnly, workspaceId, shareToken })
     ? {
@@ -31,19 +34,34 @@ export function DragHandle({ editor }: { editor: Editor }) {
       }
     : null;
 
-  const onNodeChange = useCallback(({ pos }: { node: Node | null; editor: Editor; pos: number }) => {
+  const onNodeChange = useCallback(({ pos }: { node: PMNode | null; editor: Editor; pos: number }) => {
     nodePos.current = pos;
   }, []);
 
-  const onDragStart = useCallback(
-    (e: DragEvent) => {
-      if (!e.dataTransfer) return;
-      prepareBlockDragPreview(editor, nodePos.current, e.dataTransfer);
+  const setHandleLocked = useCallback(
+    (locked: boolean) => {
+      if (editor.isDestroyed) return;
+      editor.view.dispatch(editor.state.tr.setMeta("lockDragHandle", locked).setMeta("addToHistory", false));
     },
     [editor],
   );
 
+  const closeMenu = useCallback(() => {
+    setMenuPos(null);
+    setHandleLocked(false);
+  }, [setHandleLocked]);
+
+  const onDragStart = useCallback(
+    (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      closeMenu();
+      prepareBlockDragPreview(editor, nodePos.current, e.dataTransfer);
+    },
+    [closeMenu, editor],
+  );
+
   const onAddBlock = useCallback(() => {
+    closeMenu();
     const pos = nodePos.current;
     if (pos < 0) return;
     const node = editor.state.doc.nodeAt(pos);
@@ -106,7 +124,58 @@ export function DragHandle({ editor }: { editor: Editor }) {
       handle?.destroy();
       handle = null;
     }
-  }, [editor, pageId, shareToken, workspaceId]);
+  }, [closeMenu, editor, pageId, shareToken, workspaceId]);
+
+  useEffect(() => () => setHandleLocked(false), [setHandleLocked]);
+
+  useEffect(() => {
+    if (menuPos === null) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeMenu();
+      }
+    };
+
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as globalThis.Node | null;
+      if (target && groupRef.current?.contains(target)) return;
+      closeMenu();
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("mousedown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("mousedown", onPointerDown, true);
+    };
+  }, [closeMenu, menuPos]);
+
+  const toggleMenu = useCallback(() => {
+    if (menuPos !== null) {
+      closeMenu();
+      return;
+    }
+
+    const pos = nodePos.current;
+    if (pos < 0) return;
+    setMenuPos(pos);
+    setHandleLocked(true);
+  }, [closeMenu, menuPos, setHandleLocked]);
+
+  const runBlockAction = useCallback(
+    (action: (pos: number) => boolean) => {
+      const pos = menuPos;
+      if (pos === null) return;
+      closeMenu();
+      action(pos);
+    },
+    [closeMenu, menuPos],
+  );
+
+  const canMoveUp = menuPos !== null && canMoveTopLevelBlock(editor.state.doc, menuPos, -1);
+  const canMoveDown = menuPos !== null && canMoveTopLevelBlock(editor.state.doc, menuPos, 1);
 
   return (
     <DragHandleReact
@@ -116,7 +185,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
       onNodeChange={onNodeChange}
       onElementDragStart={onDragStart}
     >
-      <div className="tiptap-drag-handle-group">
+      <div ref={groupRef} className="tiptap-drag-handle-group">
         <button
           type="button"
           className="tiptap-drag-handle tiptap-drag-handle-add"
@@ -127,9 +196,62 @@ export function DragHandle({ editor }: { editor: Editor }) {
         >
           <Plus size={14} />
         </button>
-        <div className="tiptap-drag-handle">
-          <MoveVertical size={14} strokeWidth={2.25} />
-        </div>
+
+        <button
+          type="button"
+          className={`tiptap-drag-handle tiptap-drag-handle-toggle${menuPos !== null ? " is-active" : ""}`}
+          aria-label="Block actions"
+          aria-expanded={menuPos !== null}
+          aria-haspopup="menu"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={toggleMenu}
+        >
+          <Menu size={14} strokeWidth={2.25} />
+        </button>
+
+        {menuPos !== null && (
+          <div className="tiptap-block-menu" role="menu" aria-label="Block actions">
+            <button
+              type="button"
+              role="menuitem"
+              className="tiptap-block-menu-item"
+              disabled={!canMoveUp}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => runBlockAction((pos) => moveTopLevelBlock(editor, pos, -1))}
+            >
+              <span className="tiptap-block-menu-item-icon">
+                <ArrowUp size={14} />
+              </span>
+              <span className="tiptap-block-menu-item-label">Move up</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="tiptap-block-menu-item"
+              disabled={!canMoveDown}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => runBlockAction((pos) => moveTopLevelBlock(editor, pos, 1))}
+            >
+              <span className="tiptap-block-menu-item-icon">
+                <ArrowDown size={14} />
+              </span>
+              <span className="tiptap-block-menu-item-label">Move down</span>
+            </button>
+            <div className="tiptap-block-menu-sep" role="separator" />
+            <button
+              type="button"
+              role="menuitem"
+              className="tiptap-block-menu-item is-danger"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => runBlockAction((pos) => deleteTopLevelBlock(editor, pos))}
+            >
+              <span className="tiptap-block-menu-item-icon">
+                <Trash2 size={14} />
+              </span>
+              <span className="tiptap-block-menu-item-label">Delete</span>
+            </button>
+          </div>
+        )}
       </div>
     </DragHandleReact>
   );
