@@ -79,7 +79,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
     <aside
       className={`relative flex h-full shrink-0 flex-col border-r border-zinc-800/60 transition-[width] duration-200 ${
         showCollapsed ? "w-12" : "w-[260px]"
-      } ${mobileOpen ? "bg-zinc-950" : "bg-zinc-950/50"}`}
+      } ${mobileOpen ? "bg-zinc-950" : "bg-gradient-to-b from-zinc-950 to-zinc-900/30"}`}
     >
       {showCollapsed ? (
         <div className="flex flex-1 flex-col items-center gap-2 pt-2">

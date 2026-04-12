@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Share2, FileText, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Share2, FileText, AlertCircle, ArrowLeft } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { Button } from "@/client/components/ui/button";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
@@ -92,10 +93,30 @@ export function SharedWithMeView() {
 
   if (showLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="animate-slide-up text-center">
-          <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-zinc-500" />
-          <p className="text-sm text-zinc-400">Loading shared pages...</p>
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6" aria-busy="true">
+        <div className="mb-6 flex items-center gap-3">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-5 w-40" />
+        </div>
+        <div className="space-y-6">
+          {[0, 1].map((g) => (
+            <div key={g}>
+              <div className="mb-2 px-1">
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <div className="divide-y divide-zinc-800/60 rounded-lg border border-zinc-800/60 bg-zinc-900/50">
+                {[0, 1].map((r) => (
+                  <div key={r} className="flex items-center gap-3 px-3 py-2.5">
+                    <Skeleton className="h-4 w-4 shrink-0 rounded" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );

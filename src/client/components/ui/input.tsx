@@ -30,7 +30,7 @@ export function Input({ label, error, helperText, icon, id, className, ...rest }
           aria-describedby={describedBy}
           aria-invalid={error ? true : undefined}
           className={[
-            "w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30",
+            "w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 read-only:cursor-default read-only:opacity-60 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30",
             icon ? "pl-10" : "",
             error ? "border-red-500/40" : "",
             className,

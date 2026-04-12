@@ -11,7 +11,10 @@ export function PageCover({ coverUrl, shareToken }: PageCoverProps) {
       {coverUrl.startsWith("linear-gradient") ? (
         <div className="h-full w-full" style={{ background: coverUrl }} />
       ) : (
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <div className="relative h-full w-full">
+          <img src={src} alt="" className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-zinc-950/70 to-transparent" />
+        </div>
       )}
     </div>
   );

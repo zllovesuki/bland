@@ -8,13 +8,36 @@ import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
 import { useOnline } from "@/client/hooks/use-online";
 import { useSessionRehydration } from "@/client/hooks/use-session-rehydration";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import type { ChromeMode } from "@/client/route-tree";
 
 const Sidebar = lazy(() => import("./sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
 
 function SidebarFallback() {
   return (
-    <div className="hidden w-[260px] shrink-0 border-r border-zinc-800/60 bg-zinc-950/50 md:block" aria-hidden="true" />
+    <div
+      className="hidden w-[260px] shrink-0 flex-col border-r border-zinc-800/60 bg-gradient-to-b from-zinc-950 to-zinc-900/30 md:flex"
+      aria-hidden="true"
+    >
+      <div className="flex h-10 items-center border-b border-zinc-800/60 px-3">
+        <Skeleton className="h-3.5 w-28" />
+      </div>
+      <div className="flex items-center gap-1 px-2 py-2">
+        <Skeleton className="h-7 flex-1 rounded-md" />
+        <Skeleton className="h-7 w-12 rounded-md" />
+      </div>
+      <div className="flex-1 space-y-1 px-1 py-1">
+        <Skeleton className="h-7 w-full rounded-md" />
+        <Skeleton className="ml-4 h-7 w-4/5 rounded-md" />
+        <Skeleton className="ml-4 h-7 w-3/5 rounded-md" />
+        <Skeleton className="h-7 w-full rounded-md" />
+        <Skeleton className="h-7 w-4/5 rounded-md" />
+      </div>
+      <div className="space-y-1 border-t border-zinc-800/60 px-2 py-2">
+        <Skeleton className="h-7 w-24 rounded-md" />
+        <Skeleton className="h-7 w-20 rounded-md" />
+      </div>
+    </div>
   );
 }
 

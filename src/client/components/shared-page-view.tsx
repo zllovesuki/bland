@@ -286,7 +286,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
               )}
 
               {ancestors.length > 0 && (
-                <div className="mb-4">
+                <div className="mb-6">
                   <SharedBreadcrumbs
                     ancestors={ancestors}
                     currentTitle={title}
@@ -297,7 +297,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
               )}
 
               {icon && (
-                <div className="mb-2 pl-7">
+                <div className="mb-4 pl-7">
                   <EmojiIcon emoji={icon} size={36} />
                 </div>
               )}

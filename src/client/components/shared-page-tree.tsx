@@ -58,17 +58,24 @@ function TreeNode({
         </button>
       </div>
       {node.expanded &&
-        node.children?.map((child) => (
-          <TreeNode
-            key={child.page.id}
-            node={child}
-            depth={depth + 1}
-            activePageId={activePageId}
-            shareToken={shareToken}
-            workspaceId={workspaceId}
-            onNavigate={onNavigate}
-            onToggle={onToggle}
-          />
+        (node.children === null ? (
+          <div className="space-y-1 py-0.5" style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        ) : (
+          node.children.map((child) => (
+            <TreeNode
+              key={child.page.id}
+              node={child}
+              depth={depth + 1}
+              activePageId={activePageId}
+              shareToken={shareToken}
+              workspaceId={workspaceId}
+              onNavigate={onNavigate}
+              onToggle={onToggle}
+            />
+          ))
         ))}
     </div>
   );

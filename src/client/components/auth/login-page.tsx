@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
+import { Input } from "@/client/components/ui/input";
 import { useAuth } from "@/client/hooks/use-auth";
 import { toApiError } from "@/client/lib/api";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
@@ -46,7 +47,7 @@ export function LoginPage() {
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4">
       <div className="animate-slide-up w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-zinc-100">Welcome back</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">Welcome back</h1>
           <p className="mt-2 text-sm text-zinc-400">Sign in to your bland account</p>
         </div>
 
@@ -62,45 +63,29 @@ export function LoginPage() {
             </div>
           )}
 
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                aria-describedby={error ? "login-error" : undefined}
-                className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
-              />
-            </div>
-          </div>
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            icon={<Mail className="h-4 w-4" />}
+            label="Email"
+          />
 
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-zinc-300">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                aria-describedby={error ? "login-error" : undefined}
-                className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
-              />
-            </div>
-          </div>
+          <Input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            icon={<Lock className="h-4 w-4" />}
+            label="Password"
+          />
 
           <TurnstileWidget
             siteKey={TURNSTILE_SITE_KEY}

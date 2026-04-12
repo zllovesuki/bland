@@ -390,7 +390,7 @@ function PageViewContent() {
         </div>
       )}
 
-      <div className="mb-4 flex min-h-6 items-center justify-between">
+      <div className="mb-6 flex min-h-6 items-center justify-between">
         {useRestrictedBreadcrumbs ? (
           <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
         ) : (
@@ -406,8 +406,8 @@ function PageViewContent() {
         </div>
       </div>
 
-      <div className="group/actions mb-2 flex items-start justify-between pl-7">
-        <div className="flex items-center gap-2">
+      <div className="group/actions mb-4 flex items-start justify-between pl-7">
+        <div className="flex items-center gap-3">
           {page.can_edit !== false && online ? (
             <>
               <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
+import { Input } from "@/client/components/ui/input";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -129,7 +130,7 @@ export function InvitePage() {
       <div className="animate-slide-up w-full max-w-sm">
         <div className="mb-8 text-center">
           <CheckCircle className="mx-auto mb-3 h-10 w-10 text-accent-500" />
-          <h1 className="text-2xl font-bold text-zinc-100">You&apos;re invited</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-100">You&apos;re invited</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Join <span className="font-medium text-zinc-200">{invite?.workspace_name}</span> as a {invite?.role}
           </p>
@@ -149,66 +150,42 @@ export function InvitePage() {
 
           {!isAuthenticated && (
             <>
-              <div>
-                <label htmlFor="invite-name" className="mb-1.5 block text-sm font-medium text-zinc-300">
-                  Name
-                </label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    id="invite-name"
-                    type="text"
-                    required
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    aria-describedby={error ? "invite-error" : undefined}
-                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
-                  />
-                </div>
-              </div>
+              <Input
+                id="invite-name"
+                type="text"
+                required
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                icon={<User className="h-4 w-4" />}
+                label="Name"
+              />
 
-              <div>
-                <label htmlFor="invite-email" className="mb-1.5 block text-sm font-medium text-zinc-300">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    id="invite-email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    readOnly={!!invite?.email}
-                    aria-describedby={error ? "invite-error" : undefined}
-                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors read-only:opacity-60 focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
-                  />
-                </div>
-              </div>
+              <Input
+                id="invite-email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                readOnly={!!invite?.email}
+                icon={<Mail className="h-4 w-4" />}
+                label="Email"
+              />
 
-              <div>
-                <label htmlFor="invite-password" className="mb-1.5 block text-sm font-medium text-zinc-300">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    id="invite-password"
-                    type="password"
-                    required
-                    autoComplete="new-password"
-                    placeholder="Create a password"
-                    minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    aria-describedby={error ? "invite-error" : undefined}
-                    className="w-full rounded-xl border border-zinc-700/60 bg-zinc-800/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-accent-500/50 focus:outline-none focus:ring-1 focus:ring-accent-500/30"
-                  />
-                </div>
-              </div>
+              <Input
+                id="invite-password"
+                type="password"
+                required
+                autoComplete="new-password"
+                placeholder="Create a password"
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                icon={<Lock className="h-4 w-4" />}
+                label="Password"
+              />
             </>
           )}
 

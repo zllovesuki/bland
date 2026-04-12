@@ -56,7 +56,7 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/60" />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
       <div
         ref={panelRef}
         role="dialog"

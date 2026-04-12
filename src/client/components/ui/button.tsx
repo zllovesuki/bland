@@ -48,7 +48,9 @@ export const Button = ({
       .join(" ")}
     {...rest}
   >
-    {icon}
-    {loading ? "Loading..." : children}
+    {loading
+      ? (icon ?? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />)
+      : icon}
+    {children}
   </button>
 );

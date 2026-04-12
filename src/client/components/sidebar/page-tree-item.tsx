@@ -71,7 +71,9 @@ export function PageTreeItem({
   const [archiving, setArchiving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasChildren = childPages.length > 0;
-  const actionVisibilityClass = alwaysShowActions || menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100";
+  const moreVisibility =
+    alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-40 group-hover:opacity-100";
+  const addVisibility = alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -168,7 +170,7 @@ export function PageTreeItem({
           <button
             onClick={handleCreateSubpage}
             disabled={creating}
-            className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-zinc-700 ${actionVisibilityClass} disabled:opacity-50`}
+            className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-zinc-700 ${addVisibility} disabled:opacity-50`}
             tabIndex={-1}
             aria-label="Create subpage"
           >
@@ -184,7 +186,7 @@ export function PageTreeItem({
                 e.stopPropagation();
                 setMenuOpen((v) => !v);
               }}
-              className={`flex h-6 w-6 items-center justify-center rounded hover:bg-zinc-700 ${actionVisibilityClass}`}
+              className={`flex h-6 w-6 items-center justify-center rounded hover:bg-zinc-700 ${moreVisibility}`}
               tabIndex={-1}
               aria-label="Page options"
             >

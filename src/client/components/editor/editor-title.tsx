@@ -28,7 +28,7 @@ export function EditorTitle({ title, onInput, disabled, readOnly }: EditorTitleP
       readOnly={readOnly}
       placeholder="Untitled"
       rows={1}
-      className="w-full resize-none overflow-hidden border-none bg-transparent pl-4 text-3xl font-bold tracking-tight text-zinc-100 placeholder-zinc-600 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 read-only:cursor-default sm:pl-7 sm:text-4xl"
+      className="w-full resize-none overflow-hidden border-none bg-transparent pl-4 font-display text-3xl font-bold tracking-[-0.03em] text-zinc-100 placeholder-zinc-600 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50 read-only:cursor-default sm:pl-7 sm:text-4xl"
       onKeyDown={(e) => {
         if (e.key === "Enter") e.preventDefault();
       }}

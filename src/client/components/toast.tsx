@@ -6,6 +6,7 @@ interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
+  exiting?: boolean;
 }
 
 let nextId = 0;
@@ -20,6 +21,10 @@ function add(message: string, variant: ToastVariant) {
   const id = ++nextId;
   toasts = [{ id, message, variant }, ...toasts].slice(0, 3);
   emit();
+  setTimeout(() => {
+    toasts = toasts.map((t) => (t.id === id ? { ...t, exiting: true } : t));
+    emit();
+  }, 3800);
   setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);
     emit();
@@ -53,7 +58,7 @@ export function ToastContainer() {
         <div
           key={t.id}
           aria-live={t.variant === "error" ? "assertive" : undefined}
-          className={`animate-slide-up rounded-lg border px-4 py-2.5 text-sm shadow-lg ${VARIANT_CLASSES[t.variant]}`}
+          className={`${t.exiting ? "translate-y-2 opacity-0" : "animate-slide-up"} rounded-lg border px-4 py-2.5 text-sm shadow-lg transition-[opacity,transform] duration-200 ${VARIANT_CLASSES[t.variant]}`}
         >
           {t.message}
         </div>
