@@ -3,10 +3,10 @@ import { eq, and, isNull, desc } from "drizzle-orm";
 import { ulid } from "ulidx";
 
 import { pageShares, pages, users, workspaces, memberships } from "@/worker/db/d1/schema";
-import { requireAuth } from "@/worker/middleware/auth";
+import { optionalAuth, requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";
-import { isAdminOrOwner, canAccessPage } from "@/worker/lib/permissions";
+import { isAdminOrOwner, canAccessPage, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
 import { generateSecureToken } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
@@ -346,10 +346,11 @@ sharesRouter.delete("/pages/:id/share/:shareId", requireAuth, rateLimit("RL_API"
 // Share link resolution — mounted under /api/v1
 export const shareLinkRouter = new Hono<AppContext>();
 
-// GET /share/:token - Resolve share link (no auth required)
-shareLinkRouter.get("/share/:token", rateLimit("RL_API"), async (c) => {
+// GET /share/:token - Resolve share link
+shareLinkRouter.get("/share/:token", optionalAuth, rateLimit("RL_API"), async (c) => {
   const token = c.req.param("token");
   const db = c.get("db");
+  const user = c.get("user");
 
   const share = await db
     .select()
@@ -366,6 +367,20 @@ shareLinkRouter.get("/share/:token", rateLimit("RL_API"), async (c) => {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
+  const workspace = await db
+    .select({ slug: workspaces.slug })
+    .from(workspaces)
+    .where(eq(workspaces.id, page.workspace_id))
+    .get();
+  if (!workspace) {
+    return c.json({ error: "not_found", message: "Workspace not found" }, 404);
+  }
+
+  const resolved = await resolvePrincipal(db, user, page.workspace_id, token);
+  if (!resolved) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  }
+
   return c.json({
     page_id: page.id,
     workspace_id: page.workspace_id,
@@ -374,5 +389,6 @@ shareLinkRouter.get("/share/:token", rateLimit("RL_API"), async (c) => {
     cover_url: page.cover_url,
     permission: share.permission,
     token,
+    viewer: toResolvedViewerContext(resolved, workspace.slug, "shared"),
   });
 });

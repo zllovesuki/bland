@@ -4,8 +4,7 @@ import { eq } from "drizzle-orm";
 import { workspaces } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { checkMembership } from "@/worker/lib/membership";
-import { canEdit, resolvePageAccessLevels } from "@/worker/lib/permissions";
+import { resolvePageAccessLevels, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
 import { getPage } from "@/worker/lib/page-access";
 import type { AppContext } from "@/worker/router";
 
@@ -27,22 +26,33 @@ pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), as
     return c.json({ error: "not_found", message: "Workspace not found" }, 404);
   }
 
-  const membership = await checkMembership(db, user.id, workspace.id);
-
-  if (membership && canEdit(membership.role)) {
-    return c.json({ workspace, page, access_mode: "member", can_edit: true });
+  const resolved = await resolvePrincipal(db, user, workspace.id);
+  if (!resolved) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
-  // Guest or non-member: resolve via page-level shares
-  const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId: user.id }, [pageId], workspace.id);
+  if (resolved.fullMember) {
+    return c.json({
+      workspace,
+      page,
+      can_edit: true,
+      viewer: toResolvedViewerContext(resolved, workspace.slug, "canonical"),
+    });
+  }
+
+  const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspace.id);
   const level = accessLevels.get(pageId) ?? "none";
 
   if (level === "none") {
     return c.json({ error: "forbidden", message: "You do not have access to this page" }, 403);
   }
 
-  const accessMode = membership ? "member" : "shared";
-  return c.json({ workspace, page, access_mode: accessMode, can_edit: level === "edit" });
+  return c.json({
+    workspace,
+    page,
+    can_edit: level === "edit",
+    viewer: toResolvedViewerContext(resolved, workspace.slug, "canonical"),
+  });
 });
 
 export { pageContextRouter };

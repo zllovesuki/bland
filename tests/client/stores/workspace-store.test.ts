@@ -37,19 +37,25 @@ describe("workspace-store", () => {
       expect(useWorkspaceStore.getState().activeAccessMode).toBeNull();
     });
 
+    it("activeRouteSource defaults to null", () => {
+      expect(useWorkspaceStore.getState().activeRouteSource).toBeNull();
+    });
+
     it("setActiveRoute sets both fields", () => {
-      useWorkspaceStore.getState().setActiveRoute("ws-1", "member");
+      useWorkspaceStore.getState().setActiveRoute("ws-1", "member", "live");
       const state = useWorkspaceStore.getState();
       expect(state.activeWorkspaceId).toBe("ws-1");
       expect(state.activeAccessMode).toBe("member");
+      expect(state.activeRouteSource).toBe("live");
     });
 
     it("clearActiveRoute resets both fields", () => {
-      useWorkspaceStore.getState().setActiveRoute("ws-1", "member");
+      useWorkspaceStore.getState().setActiveRoute("ws-1", "member", "live");
       useWorkspaceStore.getState().clearActiveRoute();
       const state = useWorkspaceStore.getState();
       expect(state.activeWorkspaceId).toBeNull();
       expect(state.activeAccessMode).toBeNull();
+      expect(state.activeRouteSource).toBeNull();
     });
 
     it("rehydrates the persisted cache slice without restoring route state", async () => {
@@ -101,6 +107,7 @@ describe("workspace-store", () => {
         expect(state.cacheUserId).toBe("user-1");
         expect(state.activeWorkspaceId).toBeNull();
         expect(state.activeAccessMode).toBeNull();
+        expect(state.activeRouteSource).toBeNull();
       } finally {
         if (hadWindow) {
           Object.defineProperty(globalThis, "window", {
@@ -128,7 +135,7 @@ describe("workspace-store", () => {
         pages: [],
         members: [],
       });
-      useWorkspaceStore.getState().setActiveRoute("ws-1", "member");
+      useWorkspaceStore.getState().setActiveRoute("ws-1", "member", "live");
       expect(selectActiveWorkspace(useWorkspaceStore.getState())).toEqual(ws);
     });
 
@@ -140,7 +147,7 @@ describe("workspace-store", () => {
         pages,
         members: [],
       });
-      useWorkspaceStore.getState().setActiveRoute("ws-1", "member");
+      useWorkspaceStore.getState().setActiveRoute("ws-1", "member", "live");
       expect(selectActivePages(useWorkspaceStore.getState())).toEqual(pages);
     });
   });
@@ -280,7 +287,7 @@ describe("workspace-store", () => {
   describe("resetStore", () => {
     it("clears all cache and route state", () => {
       useWorkspaceStore.getState().setMemberWorkspaces([createWorkspace()]);
-      useWorkspaceStore.getState().setActiveRoute("ws-1", "member");
+      useWorkspaceStore.getState().setActiveRoute("ws-1", "member", "cache");
 
       useWorkspaceStore.getState().resetStore();
 
@@ -290,6 +297,7 @@ describe("workspace-store", () => {
       expect(state.pageMetaById).toEqual({});
       expect(state.activeWorkspaceId).toBeNull();
       expect(state.activeAccessMode).toBeNull();
+      expect(state.activeRouteSource).toBeNull();
     });
 
     it("updates cacheUserId when provided", () => {

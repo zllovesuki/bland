@@ -230,6 +230,14 @@ export const CreateShareRequest = z.object({
 });
 export type CreateShareRequest = z.infer<typeof CreateShareRequest>;
 
+export const ResolvedViewerContext = z.object({
+  access_mode: z.enum(["member", "shared"]),
+  principal_type: z.enum(["user", "link"]),
+  route_kind: z.enum(["canonical", "shared"]),
+  workspace_slug: z.string().nullable(),
+});
+export type ResolvedViewerContext = z.infer<typeof ResolvedViewerContext>;
+
 export const SharedPageInfo = z.object({
   page_id: z.string(),
   workspace_id: z.string(),
@@ -238,6 +246,7 @@ export const SharedPageInfo = z.object({
   cover_url: z.string().nullable(),
   permission: SharePermission,
   token: z.string(),
+  viewer: ResolvedViewerContext,
 });
 export type SharedPageInfo = z.infer<typeof SharedPageInfo>;
 
@@ -288,6 +297,6 @@ export interface AncestorInfo {
 export interface PageContext {
   workspace: Workspace;
   page: Page;
-  access_mode: "member" | "shared";
   can_edit: boolean;
+  viewer: ResolvedViewerContext;
 }

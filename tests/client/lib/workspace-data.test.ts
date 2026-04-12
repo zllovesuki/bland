@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPage, createMember, createWorkspace } from "@tests/client/util/fixtures";
-import type { Workspace, Page, WorkspaceMember } from "@/shared/types";
+import type { Workspace, Page, WorkspaceMember, ResolvedViewerContext } from "@/shared/types";
 import type { WorkspaceAccessMode, WorkspaceSnapshot } from "@/client/stores/workspace-store";
 
 let resolveWorkspaceRoute: typeof import("@/client/lib/workspace-data").resolveWorkspaceRoute;
@@ -54,6 +54,16 @@ function createCache(
     memberWorkspaces: [],
     snapshotsByWorkspaceId: {},
     activeAccessMode: null,
+    ...overrides,
+  };
+}
+
+function createViewer(overrides: Partial<ResolvedViewerContext> = {}): ResolvedViewerContext {
+  return {
+    access_mode: "member",
+    principal_type: "user",
+    route_kind: "canonical",
+    workspace_slug: "ws-slug",
     ...overrides,
   };
 }
@@ -129,8 +139,8 @@ describe("resolvePageRoute", () => {
     pageContextMock.mockResolvedValue({
       workspace: ws,
       page: createPage({ id: "page-1", workspace_id: ws.id }),
-      access_mode: "member",
       can_edit: true,
+      viewer: createViewer(),
     });
     const cache = createCache({
       activeAccessMode: "member",
@@ -173,8 +183,8 @@ describe("resolvePageRoute", () => {
     pageContextMock.mockResolvedValue({
       workspace: ws,
       page: createPage({ id: "page-7", workspace_id: ws.id }),
-      access_mode: "shared",
       can_edit: false,
+      viewer: createViewer({ access_mode: "shared", workspace_slug: "shared-ws" }),
     });
 
     const result = await resolvePageRoute("shared-ws", "page-7", createCache());
@@ -193,8 +203,8 @@ describe("resolvePageRoute", () => {
     pageContextMock.mockResolvedValue({
       workspace: ws,
       page: createPage({ id: "page-8", workspace_id: ws.id }),
-      access_mode: "member",
       can_edit: true,
+      viewer: createViewer({ workspace_slug: "canonical-slug" }),
     });
 
     const result = await resolvePageRoute("stale-slug", "page-8", createCache());
@@ -269,6 +279,7 @@ describe("applyResolvedRoute", () => {
         workspaceId: "ws-1",
         workspace: ws,
         accessMode: "member",
+        source: "live",
         pages: mockPages,
         members: mockWorkspaceMembers,
       },
@@ -281,7 +292,7 @@ describe("applyResolvedRoute", () => {
       pages: mockPages,
       members: mockWorkspaceMembers,
     });
-    expect(store.setActiveRoute).toHaveBeenCalledWith("ws-1", "member");
+    expect(store.setActiveRoute).toHaveBeenCalledWith("ws-1", "member", "live");
     expect(store.setLastVisitedWorkspaceId).toHaveBeenCalledWith("ws-1");
   });
 

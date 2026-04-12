@@ -25,6 +25,8 @@ const ACCESS_RANK: Record<AccessLevel, number> = {
  * Either an authenticated user or a link share token.
  */
 export type Principal = { type: "user"; userId: string } | { type: "link"; token: string };
+export type ResolvedPrincipal = { principal: Principal; fullMember: boolean };
+export type ViewerSurface = "canonical" | "shared";
 
 /**
  * Resolve the access principal from an optionalAuth context.
@@ -35,7 +37,7 @@ export async function resolvePrincipal(
   user: { id: string } | null,
   workspaceId: string,
   shareToken?: string,
-): Promise<{ principal: Principal; fullMember: boolean } | null> {
+): Promise<ResolvedPrincipal | null> {
   if (user) {
     const membership = await checkMembership(db, user.id, workspaceId);
     if (membership && membership.role !== "guest") {
@@ -49,6 +51,27 @@ export async function resolvePrincipal(
     return { principal: { type: "link", token: shareToken }, fullMember: false };
   }
   return null;
+}
+
+export function toResolvedViewerContext(
+  resolved: ResolvedPrincipal,
+  workspaceSlug: string,
+  surface: ViewerSurface,
+): {
+  access_mode: "member" | "shared";
+  principal_type: "user" | "link";
+  route_kind: "canonical" | "shared";
+  workspace_slug: string | null;
+} {
+  const accessMode = resolved.fullMember ? "member" : "shared";
+  const routeKind = surface === "shared" && !resolved.fullMember ? "shared" : "canonical";
+
+  return {
+    access_mode: accessMode,
+    principal_type: resolved.principal.type,
+    route_kind: routeKind,
+    workspace_slug: routeKind === "canonical" ? workspaceSlug : null,
+  };
 }
 
 /**

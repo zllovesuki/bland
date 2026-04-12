@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from "@/client/lib/constants";
 import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
 
 export type WorkspaceAccessMode = "member" | "shared";
+export type WorkspaceRouteSource = "live" | "cache";
 
 export interface WorkspaceSnapshot {
   workspace: Workspace;
@@ -23,6 +24,7 @@ interface WorkspaceState {
 
   activeWorkspaceId: string | null;
   activeAccessMode: WorkspaceAccessMode | null;
+  activeRouteSource: WorkspaceRouteSource | null;
 
   setMemberWorkspaces(ws: Workspace[]): void;
   upsertMemberWorkspace(ws: Workspace): void;
@@ -41,7 +43,7 @@ interface WorkspaceState {
 
   setLastVisitedWorkspaceId(id: string | null): void;
 
-  setActiveRoute(workspaceId: string, accessMode: WorkspaceAccessMode): void;
+  setActiveRoute(workspaceId: string, accessMode: WorkspaceAccessMode, source: WorkspaceRouteSource): void;
   clearActiveRoute(): void;
 
   validateCacheOwner(userId: string | null): void;
@@ -127,6 +129,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       activeWorkspaceId: null,
       activeAccessMode: null,
+      activeRouteSource: null,
 
       setMemberWorkspaces(workspaces) {
         set({ memberWorkspaces: workspaces });
@@ -278,12 +281,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ lastVisitedWorkspaceId: id });
       },
 
-      setActiveRoute(workspaceId, accessMode) {
-        set({ activeWorkspaceId: workspaceId, activeAccessMode: accessMode });
+      setActiveRoute(workspaceId, accessMode, source) {
+        set({ activeWorkspaceId: workspaceId, activeAccessMode: accessMode, activeRouteSource: source });
       },
 
       clearActiveRoute() {
-        set({ activeWorkspaceId: null, activeAccessMode: null });
+        set({ activeWorkspaceId: null, activeAccessMode: null, activeRouteSource: null });
       },
 
       validateCacheOwner(userId) {
@@ -305,6 +308,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           lastVisitedWorkspaceId: null,
           activeWorkspaceId: null,
           activeAccessMode: null,
+          activeRouteSource: null,
         };
         set(cacheUserId === undefined ? nextState : { ...nextState, cacheUserId });
       },

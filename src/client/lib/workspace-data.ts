@@ -1,6 +1,6 @@
 import { api } from "@/client/lib/api";
 import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
-import type { WorkspaceAccessMode, WorkspaceSnapshot } from "@/client/stores/workspace-store";
+import type { WorkspaceAccessMode, WorkspaceRouteSource, WorkspaceSnapshot } from "@/client/stores/workspace-store";
 
 /**
  * Returns true only when the server definitively rejected page access.
@@ -20,6 +20,7 @@ export interface ResolvedWorkspace {
   workspaceId: string;
   workspace: Workspace;
   accessMode: WorkspaceAccessMode;
+  source: WorkspaceRouteSource;
   pages: Page[];
   members: WorkspaceMember[];
   canonicalSlug?: string;
@@ -84,6 +85,7 @@ export async function resolveWorkspaceRoute(
           workspaceId: snap.workspace.id,
           workspace: snap.workspace,
           accessMode: snap.accessMode,
+          source: "cache",
           pages: snap.pages,
           members: snap.members,
         },
@@ -109,6 +111,7 @@ export async function resolveWorkspaceRoute(
         workspaceId: workspace.id,
         workspace,
         accessMode: "member",
+        source: liveWorkspaces ? "live" : "cache",
         pages,
         members,
       },
@@ -124,6 +127,7 @@ export async function resolveWorkspaceRoute(
         workspaceId: workspace.id,
         workspace,
         accessMode: snap?.accessMode ?? "member",
+        source: "cache",
         pages: snap?.pages ?? [],
         members: snap?.members ?? [],
       },
@@ -147,14 +151,15 @@ export async function resolvePageRoute(
   // belongs to the workspace and enables slug canonicalization.
   try {
     const ctx = await api.pages.context(pageId);
-    const { pages, members } = await fetchWorkspaceData(ctx.workspace.id, ctx.access_mode);
+    const { pages, members } = await fetchWorkspaceData(ctx.workspace.id, ctx.viewer.access_mode);
     return {
       kind: "resolved",
       source: "live",
       data: {
         workspaceId: ctx.workspace.id,
         workspace: ctx.workspace,
-        accessMode: ctx.access_mode,
+        accessMode: ctx.viewer.access_mode,
+        source: "live",
         pages,
         members,
         canonicalSlug: ctx.workspace.slug !== workspaceSlug ? ctx.workspace.slug : undefined,
@@ -177,6 +182,7 @@ export async function resolvePageRoute(
           workspaceId: snap.workspace.id,
           workspace: snap.workspace,
           accessMode: snap.accessMode,
+          source: "cache",
           pages: snap.pages,
           members: snap.members,
         },
@@ -189,7 +195,7 @@ export async function resolvePageRoute(
 interface StoreApply {
   setMemberWorkspaces(ws: Workspace[]): void;
   replaceWorkspaceSnapshot(workspaceId: string, snapshot: WorkspaceSnapshot): void;
-  setActiveRoute(workspaceId: string, accessMode: WorkspaceAccessMode): void;
+  setActiveRoute(workspaceId: string, accessMode: WorkspaceAccessMode, source: WorkspaceRouteSource): void;
   clearActiveRoute(): void;
   setLastVisitedWorkspaceId(id: string | null): void;
 }
@@ -206,7 +212,7 @@ export function applyResolvedRoute(store: StoreApply, result: ResolvedResult): v
       pages: data.pages,
       members: data.members,
     });
-    store.setActiveRoute(data.workspaceId, data.accessMode);
+    store.setActiveRoute(data.workspaceId, data.accessMode, data.source);
     store.setLastVisitedWorkspaceId(data.workspaceId);
   } else {
     const liveWorkspaces = "liveWorkspaces" in result ? result.liveWorkspaces : undefined;

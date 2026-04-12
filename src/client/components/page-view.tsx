@@ -4,6 +4,7 @@ import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
+import { applyResolvedRoute, resolvePageRoute } from "@/client/lib/workspace-data";
 import { confirm } from "@/client/components/confirm";
 import { toast } from "@/client/components/toast";
 import { getCachedDocKey, SESSION_MODES } from "@/client/lib/constants";
@@ -162,10 +163,12 @@ function PageViewContent() {
   const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
   const members = useWorkspaceStore(selectActiveMembers);
   const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
+  const routeSource = useWorkspaceStore((s) => s.activeRouteSource);
   const isSharedMode = accessMode === "shared";
   const { role } = useMyRole();
   const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
   const currentUser = useAuthStore((s) => s.user);
+  const sessionMode = useAuthStore((s) => s.sessionMode);
   const [page, setPage] = useState<(Page & { can_edit?: boolean }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +244,33 @@ function PageViewContent() {
       cancelled = true;
     };
   }, [workspaceId, params.pageId, updatePage, addPage]);
+
+  useEffect(() => {
+    if (!online || sessionMode !== SESSION_MODES.AUTHENTICATED || routeSource !== "cache") return;
+
+    let cancelled = false;
+
+    async function revalidateRoute() {
+      const store = useWorkspaceStore.getState();
+      const result = await resolvePageRoute(params.workspaceSlug, params.pageId, store);
+      if (cancelled || result.kind !== "resolved") return;
+
+      applyResolvedRoute(useWorkspaceStore.getState(), result);
+
+      if (result.data.canonicalSlug) {
+        navigate({
+          to: "/$workspaceSlug/$pageId",
+          params: { workspaceSlug: result.data.canonicalSlug, pageId: params.pageId },
+          replace: true,
+        });
+      }
+    }
+
+    void revalidateRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, online, params.pageId, params.workspaceSlug, routeSource, sessionMode]);
 
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;
