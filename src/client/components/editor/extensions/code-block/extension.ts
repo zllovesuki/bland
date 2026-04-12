@@ -12,6 +12,7 @@ import ini from "highlight.js/lib/languages/ini";
 import java from "highlight.js/lib/languages/java";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
+import markdown from "highlight.js/lib/languages/markdown";
 import php from "highlight.js/lib/languages/php";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import python from "highlight.js/lib/languages/python";
@@ -27,24 +28,25 @@ import { resolveLanguage } from "./shared";
 const lowlight = createLowlight({
   text: plaintext,
   plaintext,
-  javascript,
-  typescript,
-  python,
-  java,
+  c,
   csharp,
   cpp,
-  c,
-  go,
-  sql,
-  php,
-  rust,
-  hcl: ini,
-  shell,
   dockerfile,
-  yaml,
+  go,
+  hcl: ini,
+  java,
+  javascript,
   json,
   jsonc: json,
+  markdown,
+  php,
+  python,
+  rust,
+  shell,
+  sql,
   toml: ini,
+  typescript,
+  yaml,
 });
 
 function createCodeBlockDoubleClickPlugin(codeBlockName: string) {

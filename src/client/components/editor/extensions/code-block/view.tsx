@@ -1,4 +1,4 @@
-import { useContext, useRef, useState, useCallback } from "react";
+import { useCallback, useContext, useLayoutEffect, useRef, useState } from "react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
@@ -10,6 +10,8 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const { readOnly } = useContext(EditorContext);
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
 
   const language = resolveLanguage(node.attrs.language);
   const displayName = CODE_LANGUAGES[language]?.name ?? "Plain Text";
@@ -21,6 +23,17 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
     },
     [updateAttributes],
   );
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const menu = menuRef.current;
+    const activeItem = activeItemRef.current;
+    if (!menu || !activeItem) return;
+
+    const targetScrollTop = activeItem.offsetTop - (menu.clientHeight - activeItem.offsetHeight) / 2;
+    menu.scrollTop = Math.max(0, targetScrollTop);
+  }, [language, open]);
 
   return (
     <NodeViewWrapper className="tiptap-code-block-wrapper">
@@ -40,10 +53,11 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
 
       {open && (
         <DropdownPortal triggerRef={btnRef} align="right" width={160} onClose={() => setOpen(false)}>
-          <div className="tiptap-code-block-lang-dropdown" role="menu" aria-label="Code block language">
+          <div ref={menuRef} className="tiptap-code-block-lang-dropdown" role="menu" aria-label="Code block language">
             {Object.entries(CODE_LANGUAGES).map(([id, meta]) => (
               <button
                 key={id}
+                ref={id === language ? activeItemRef : null}
                 type="button"
                 className={`tiptap-code-block-lang-item${id === language ? " is-active" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
