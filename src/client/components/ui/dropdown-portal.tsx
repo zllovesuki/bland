@@ -8,6 +8,7 @@ interface DropdownPortalProps {
   triggerRef: React.RefObject<HTMLElement | null>;
   align?: Align;
   width?: number;
+  zIndex?: number;
   className?: string;
   children: React.ReactNode;
   onClose?: () => void;
@@ -17,6 +18,7 @@ export function DropdownPortal({
   triggerRef,
   align = "right",
   width = 128,
+  zIndex = 50,
   className,
   children,
   onClose,
@@ -59,8 +61,8 @@ export function DropdownPortal({
         refs.setFloating(node);
         panelRef.current = node;
       }}
-      className={`animate-fade-in z-50 ${align === "right" ? "origin-top-right" : "origin-top-left"} rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
-      style={{ ...floatingStyles, width }}
+      className={`animate-fade-in ${align === "right" ? "origin-top-right" : "origin-top-left"} rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
+      style={{ ...floatingStyles, width, zIndex }}
     >
       {children}
     </div>,

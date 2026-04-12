@@ -7,7 +7,12 @@ import { api } from "@/client/lib/api";
 import { toast } from "@/client/components/toast";
 import { PageTreeItem } from "./page-tree-item";
 
-export function PageTree() {
+interface PageTreeProps {
+  alwaysShowActions?: boolean;
+  menuZIndex?: number;
+}
+
+export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProps) {
   const pages = useWorkspaceStore(selectActivePages);
   const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
   const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
@@ -96,9 +101,11 @@ export function PageTree() {
             depth={0}
             childPages={activePages.filter((p) => p.parent_id === page.id)}
             allPages={activePages}
+            alwaysShowActions={alwaysShowActions}
             activeAncestorIds={activeAncestorIds}
             draggedId={draggedId}
             dropTarget={dropTarget}
+            menuZIndex={menuZIndex}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}

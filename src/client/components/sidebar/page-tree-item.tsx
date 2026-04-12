@@ -20,9 +20,11 @@ interface PageTreeItemProps {
   depth: number;
   childPages: Page[];
   allPages: Page[];
+  alwaysShowActions: boolean;
   activeAncestorIds: Set<string>;
   draggedId: string | null;
   dropTarget: DropTarget | null;
+  menuZIndex?: number;
   onDragStart: (e: React.DragEvent, pageId: string) => void;
   onDragOver: (e: React.DragEvent, pageId: string) => void;
   onDragLeave: (e: React.DragEvent) => void;
@@ -35,9 +37,11 @@ export function PageTreeItem({
   depth,
   childPages,
   allPages,
+  alwaysShowActions,
   activeAncestorIds,
   draggedId,
   dropTarget,
+  menuZIndex,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -67,6 +71,7 @@ export function PageTreeItem({
   const [archiving, setArchiving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasChildren = childPages.length > 0;
+  const actionVisibilityClass = alwaysShowActions || menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -163,7 +168,7 @@ export function PageTreeItem({
           <button
             onClick={handleCreateSubpage}
             disabled={creating}
-            className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 hover:bg-zinc-700 group-hover:opacity-100 disabled:opacity-50"
+            className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-zinc-700 ${actionVisibilityClass} disabled:opacity-50`}
             tabIndex={-1}
             aria-label="Create subpage"
           >
@@ -179,14 +184,14 @@ export function PageTreeItem({
                 e.stopPropagation();
                 setMenuOpen((v) => !v);
               }}
-              className="flex h-6 w-6 items-center justify-center rounded opacity-0 hover:bg-zinc-700 group-hover:opacity-100"
+              className={`flex h-6 w-6 items-center justify-center rounded hover:bg-zinc-700 ${actionVisibilityClass}`}
               tabIndex={-1}
               aria-label="Page options"
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {menuOpen && (
-              <DropdownPortal triggerRef={menuRef} onClose={() => setMenuOpen(false)}>
+              <DropdownPortal triggerRef={menuRef} zIndex={menuZIndex} onClose={() => setMenuOpen(false)}>
                 <button
                   onClick={handleArchive}
                   disabled={archiving}
@@ -214,9 +219,11 @@ export function PageTreeItem({
               depth={depth + 1}
               childPages={allPages.filter((p) => p.parent_id === child.id && !p.archived_at)}
               allPages={allPages}
+              alwaysShowActions={alwaysShowActions}
               activeAncestorIds={activeAncestorIds}
               draggedId={draggedId}
               dropTarget={dropTarget}
+              menuZIndex={menuZIndex}
               onDragStart={onDragStart}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}

@@ -73,6 +73,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   }, [manualToggle]);
 
   const showCollapsed = collapsed && !mobileOpen;
+  const sidebarMenuZIndex = mobileOpen ? 70 : undefined;
 
   const sidebarContent = (
     <aside
@@ -164,7 +165,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
 
           <nav className="flex-1 overflow-y-auto px-1">
             {isSharedMode && <div className="px-2 py-1 text-xs text-zinc-500">Shared with you</div>}
-            <PageTree />
+            <PageTree alwaysShowActions={!!mobileOpen} menuZIndex={sidebarMenuZIndex} />
           </nav>
 
           <div className="border-t border-zinc-800/60 px-2 py-2">
