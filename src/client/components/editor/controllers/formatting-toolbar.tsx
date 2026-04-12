@@ -2,7 +2,6 @@ import { useState, useCallback, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { NodeSelection } from "@tiptap/pm/state";
 import {
   Bold,
   Italic,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import { ColorPickerPanel } from "./color-picker-panel";
 import { TEXT_COLORS, BG_COLORS } from "./colors";
+import { shouldShowFormattingToolbar } from "./formatting-toolbar-state";
 import "../styles/floating-controls.css";
 
 export function FormattingToolbar({ editor }: { editor: Editor }) {
@@ -46,12 +46,11 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
     }),
   });
 
-  const shouldShow = useCallback(({ editor: e, from, to }: { editor: Editor; from: number; to: number }) => {
-    if (from === to || e.view.dragging) return false;
-    if (e.state.selection instanceof NodeSelection) return false;
-    if (e.isActive("codeBlock")) return false;
-    return true;
-  }, []);
+  const shouldShow = useCallback(
+    ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>
+      shouldShowFormattingToolbar({ editor: e, from, to }),
+    [],
+  );
 
   const handleLinkToggle = () => {
     if (editorState.isLink) {
