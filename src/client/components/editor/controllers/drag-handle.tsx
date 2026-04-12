@@ -5,7 +5,7 @@ import type { Node } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/react";
 import { MoveVertical, Plus } from "lucide-react";
 import { EditorContext } from "../editor-context";
-import { clearDraggedBlockPreview, setDraggedBlockPreview } from "../extensions/block-drag-drop";
+import { prepareBlockDragPreview } from "../lib/block-drag-preview";
 import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { insertImageFromSlashMenu } from "./image-insert-panel";
@@ -18,16 +18,6 @@ const positionConfig = {
   strategy: "absolute" as const,
   middleware: [offset({ mainAxis: 8 })],
 };
-
-let transparentImg: HTMLCanvasElement | null = null;
-function getTransparentImg() {
-  if (!transparentImg) {
-    transparentImg = document.createElement("canvas");
-    transparentImg.width = 1;
-    transparentImg.height = 1;
-  }
-  return transparentImg;
-}
 
 export function DragHandle({ editor }: { editor: Editor }) {
   const nodePos = useRef(-1);
@@ -48,23 +38,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
   const onDragStart = useCallback(
     (e: DragEvent) => {
       if (!e.dataTransfer) return;
-
-      const original = e.dataTransfer.setDragImage.bind(e.dataTransfer);
-      e.dataTransfer.setDragImage = () => original(getTransparentImg(), 0, 0);
-
-      const dom = editor.view.nodeDOM(nodePos.current);
-      const node = editor.state.doc.nodeAt(nodePos.current);
-      if (!(dom instanceof HTMLElement) || !node) return;
-
-      const cleanup = () => {
-        clearDraggedBlockPreview(editor.view);
-        document.removeEventListener("dragend", cleanup);
-        document.removeEventListener("drop", cleanup);
-      };
-
-      setDraggedBlockPreview(editor.view, dom, nodePos.current, nodePos.current + node.nodeSize);
-      document.addEventListener("dragend", cleanup);
-      document.addEventListener("drop", cleanup);
+      prepareBlockDragPreview(editor, nodePos.current, e.dataTransfer);
     },
     [editor],
   );

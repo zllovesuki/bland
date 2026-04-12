@@ -4,6 +4,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
 import { EditorContext } from "../editor-context";
+import { prepareBlockDragPreview } from "../lib/block-drag-preview";
 import { createImageNodeTarget, resolveShareUrl } from "../lib/media-actions";
 import { showImageInsertPanel } from "../controllers/image-insert-panel";
 import "../styles/image-node.css";
@@ -15,6 +16,7 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
   const dragRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const editable = editor.isEditable;
 
   const resolvedSrc = resolveShareUrl(typeof src === "string" ? src : "", shareToken);
 
@@ -26,6 +28,26 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
   }, []);
 
   useEffect(() => () => finishDrag(), [finishDrag]);
+  useEffect(() => {
+    if (!editable) return;
+
+    const handleDocumentDragStart = (event: DragEvent) => {
+      if (!event.dataTransfer || liveWidth !== null) return;
+
+      const imageDom = imgRef.current;
+      const dragSource = imageDom?.closest(".react-renderer.node-image");
+      const target = event.target;
+      if (!(dragSource instanceof HTMLElement) || !(target instanceof Node) || !dragSource.contains(target)) return;
+
+      const pos = getPos();
+      if (typeof pos !== "number") return;
+
+      prepareBlockDragPreview(editor, pos, event.dataTransfer);
+    };
+
+    document.addEventListener("dragstart", handleDocumentDragStart, true);
+    return () => document.removeEventListener("dragstart", handleDocumentDragStart, true);
+  }, [editable, editor, getPos, liveWidth]);
 
   const handleResizeStart = useCallback(
     (side: "left" | "right", e: React.PointerEvent) => {
@@ -126,9 +148,10 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
           src={resolvedSrc}
           alt={alt ?? undefined}
           title={title ?? undefined}
-          draggable={liveWidth === null}
+          draggable={false}
+          data-drag-handle={editable ? "" : undefined}
         />
-        {editor.isEditable && (
+        {editable && (
           <>
             <div className="tiptap-image-resize-handle left" onPointerDown={(e) => handleResizeStart("left", e)} />
             <div className="tiptap-image-resize-handle right" onPointerDown={(e) => handleResizeStart("right", e)} />
