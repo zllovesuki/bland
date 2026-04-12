@@ -4,3 +4,4 @@ export const DRAG_THRESHOLD_PX = 4;
 export const TABLE_HANDLE_SIZE_PX = 12;
 export const TABLE_HANDLE_GAP_PX = 1;
 export const TABLE_HANDLE_OFFSET_PX = TABLE_HANDLE_SIZE_PX + TABLE_HANDLE_GAP_PX;
+export const TABLE_ADD_PILL_SIZE_PX = 20;

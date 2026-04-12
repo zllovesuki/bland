@@ -4,8 +4,6 @@
   overflow-x: auto;
   overflow-y: hidden;
   margin: 0.75em 0;
-  padding-right: 24px;
-  padding-bottom: 24px;
 }
 
 .tiptap table {
@@ -15,6 +13,14 @@
   margin: 0;
   background-color: #18181b;
   border: 1px solid #3f3f46;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.editor-content-shell[data-editor-mode="editable"] .tiptap .tableWrapper.has-table-handles > table {
+  border-color: #52525b;
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.3);
 }
 
 .tiptap td,
@@ -54,7 +60,7 @@
 
 .tiptap .column-resize-handle {
   position: absolute;
-  right: -2px;
+  right: 0;
   top: 0;
   bottom: 0;
   width: 4px;
@@ -175,42 +181,47 @@
 
 .tiptap-table-add-col,
 .tiptap-table-add-row {
-  background-color: rgba(24, 24, 27, 0.28);
-  border: 1px dashed rgba(82, 82, 91, 0.45);
-  color: rgba(161, 161, 170, 0.62);
-  border-radius: 4px;
-  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(24, 24, 27, 0.96);
+  border: 1px solid #3f3f46;
+  color: #a1a1aa;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  opacity: 0.72;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  opacity: 0.94;
+  transform: scale(0.96);
   transition:
+    transform 0.12s,
     background-color 0.12s,
     border-color 0.12s,
     color 0.12s,
     opacity 0.12s;
 }
 
-.tiptap-table-add-col {
-  width: 16px;
-}
-
-.tiptap-table-add-row {
-  height: 16px;
-}
-
 .tiptap-table-add-col:hover,
 .tiptap-table-add-row:hover,
 .tiptap-table-add-col:focus-visible,
 .tiptap-table-add-row:focus-visible {
-  background-color: rgba(139, 92, 246, 0.18);
+  background-color: #27272a;
   border-color: #8b5cf6;
-  border-style: solid;
   color: #c4b5fd;
   opacity: 1;
+  transform: scale(1);
   outline: none;
+}
+
+@media (pointer: coarse) {
+  .tiptap-table-add-col,
+  .tiptap-table-add-row {
+    display: none;
+  }
 }
 
 .tiptap-table-drop-indicator {

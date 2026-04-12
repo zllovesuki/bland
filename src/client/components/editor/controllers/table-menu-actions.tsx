@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { moveTableColumn, moveTableRow } from "@tiptap/pm/tables";
+import { TableMap } from "@tiptap/pm/tables";
 import {
   ArrowDown,
   ArrowLeft,
@@ -18,6 +19,8 @@ import {
   Split,
   Trash2,
 } from "lucide-react";
+import { findTableElement, setCaretInCell } from "../extensions/table/dom";
+import { activeCellInfo } from "../extensions/table/state";
 import type { OpenMenuState } from "../extensions/table/state";
 
 export interface TableMenuAction {
@@ -130,6 +133,36 @@ export function buildColumnMenuSections({
     );
     onDone();
   };
+  const deleteColumn = () => {
+    const active = activeCellInfo(editor.state);
+    const activeRow = active?.tablePos === tablePos ? active.row : 0;
+    const didDelete = editor.chain().focus(null, { scrollIntoView: false }).deleteColumn().run();
+    if (!didDelete) {
+      onDone();
+      return;
+    }
+
+    const nextTable = editor.state.doc.nodeAt(tablePos);
+    if (!nextTable || nextTable.type.spec.tableRole !== "table") {
+      onDone();
+      return;
+    }
+
+    const nextMap = TableMap.get(nextTable);
+    const targetRow = Math.min(activeRow, nextMap.height - 1);
+    const targetCol = Math.min(index, nextMap.width - 1);
+    setCaretInCell(editor.view, nextTable, tablePos, targetRow, targetCol);
+
+    if (targetCol === nextMap.width - 1) {
+      requestAnimationFrame(() => {
+        const wrapper = findTableElement(editor.view, tablePos)?.closest<HTMLElement>(".tableWrapper");
+        if (!wrapper) return;
+        wrapper.scrollLeft = wrapper.scrollWidth;
+      });
+    }
+
+    onDone();
+  };
 
   return [
     [
@@ -169,7 +202,7 @@ export function buildColumnMenuSections({
         label: "Delete column",
         danger: true,
         disabled: colCount <= 1,
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).deleteColumn().run()),
+        onSelect: deleteColumn,
       },
     ],
   ];

@@ -2,13 +2,15 @@ import { addColumnAfter, addRowAfter, TableMap } from "@tiptap/pm/tables";
 import type { EditorState, PluginView } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { TABLE_HANDLE_OFFSET_PX } from "./constants";
+import { TABLE_ADD_PILL_SIZE_PX, TABLE_HANDLE_OFFSET_PX } from "./constants";
 import {
   buildColumnEntries,
   createLocalRectConverter,
   findTableForWrapper,
+  findLogicalCellElement,
   setCaretInCell,
   type ColumnEntry,
+  type LocalRect,
 } from "./dom";
 import { completeDrag, createColumnDragState, createRowDragState, type DragState, updateDragState } from "./reorder";
 import {
@@ -46,6 +48,16 @@ interface OverlayContext {
   isTyping: boolean;
   tableWidth: number;
   tableHeight: number;
+  activeCellLocal: LocalRect | null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max <= min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function intersectsAxis(start: number, end: number, visibleStart: number, visibleEnd: number): boolean {
+  return end > visibleStart && start < visibleEnd;
 }
 
 export class TableOverlayView implements PluginView {
@@ -208,6 +220,10 @@ export class TableOverlayView implements PluginView {
     const toLocal = createLocalRectConverter(this.overlayHost());
     const wrapperLocal = toLocal(wrapper.getBoundingClientRect());
     const tableLocal = toLocal(table.getBoundingClientRect());
+    const activeCellEl = activeInThisTable
+      ? findLogicalCellElement(rows, activeInThisTable.row, activeInThisTable.col)
+      : null;
+    const activeCellLocal = activeCellEl ? toLocal(activeCellEl.getBoundingClientRect()) : null;
     const map = TableMap.get(info.node);
     const ctx: OverlayContext = {
       wrapper,
@@ -228,6 +244,7 @@ export class TableOverlayView implements PluginView {
       isTyping: pluginState.isTyping,
       tableWidth: map.width,
       tableHeight: map.height,
+      activeCellLocal,
     };
 
     this.renderRowHandles(ctx);
@@ -249,7 +266,7 @@ export class TableOverlayView implements PluginView {
       handle.dataset.tableKey = ctx.tableKey;
       handle.dataset.index = String(rowIndex);
       handle.style.top = `${rect.top}px`;
-      handle.style.left = `${ctx.tableLocal.left - TABLE_HANDLE_OFFSET_PX}px`;
+      handle.style.left = `${ctx.visibleTableLeft - TABLE_HANDLE_OFFSET_PX}px`;
       handle.style.height = `${rect.height}px`;
       handle.addEventListener("pointerdown", (event) => this.onRowHandlePointerDown(event, ctx.wrapper, rowIndex));
       handle.addEventListener("keydown", (event) =>
@@ -301,7 +318,7 @@ export class TableOverlayView implements PluginView {
     const corner = this.createHandleButton("tiptap-table-corner-handle", "Table actions", "Table actions");
     corner.dataset.tableHandleKind = "corner";
     corner.dataset.tableKey = ctx.tableKey;
-    corner.style.left = `${ctx.tableLocal.left - TABLE_HANDLE_OFFSET_PX}px`;
+    corner.style.left = `${ctx.visibleTableLeft - TABLE_HANDLE_OFFSET_PX}px`;
     corner.style.top = `${ctx.tableLocal.top - TABLE_HANDLE_OFFSET_PX}px`;
     corner.addEventListener("mousedown", (event) => event.preventDefault());
     corner.addEventListener("click", (event) => {
@@ -317,42 +334,54 @@ export class TableOverlayView implements PluginView {
 
   private renderAddButtons(ctx: OverlayContext) {
     const activeCell = ctx.activeInThisTable;
-    if (ctx.isTyping || this.dragState || !activeCell || ctx.menuOnThisTable) return;
+    const activeCellLocal = ctx.activeCellLocal;
+    if (ctx.isTyping || this.dragState || !activeCell || !activeCellLocal || ctx.menuOnThisTable) return;
+    if (
+      !intersectsAxis(activeCellLocal.left, activeCellLocal.right, ctx.visibleTableLeft, ctx.visibleTableRight) ||
+      !intersectsAxis(activeCellLocal.top, activeCellLocal.bottom, ctx.visibleTableTop, ctx.visibleTableBottom)
+    ) {
+      return;
+    }
 
     const showAddCol = activeCell.col === ctx.tableWidth - 1;
     const showAddRow = activeCell.row === ctx.tableHeight - 1;
-    const visibleTableWidth = Math.max(0, ctx.visibleTableRight - ctx.visibleTableLeft);
-    const visibleTableHeight = Math.max(0, ctx.visibleTableBottom - ctx.visibleTableTop);
+    const pillHalf = TABLE_ADD_PILL_SIZE_PX / 2;
 
-    if (showAddCol && visibleTableHeight > 0) {
+    if (showAddCol) {
       const addCol = document.createElement("button");
       addCol.type = "button";
       addCol.className = "tiptap-table-add-col";
       addCol.setAttribute("aria-label", "Add column");
       addCol.setAttribute("title", "Add column");
       addCol.textContent = "+";
-      addCol.style.left = `${Math.min(ctx.tableLocal.right + 6, ctx.wrapperLocal.right - 16)}px`;
-      addCol.style.top = `${ctx.visibleTableTop}px`;
-      addCol.style.height = `${visibleTableHeight}px`;
+      addCol.style.left = `${ctx.visibleTableRight - pillHalf}px`;
+      addCol.style.top = `${clamp(
+        activeCellLocal.top + activeCellLocal.height / 2 - pillHalf,
+        ctx.visibleTableTop,
+        ctx.visibleTableBottom - TABLE_ADD_PILL_SIZE_PX,
+      )}px`;
       addCol.addEventListener("mousedown", (event) => event.preventDefault());
       addCol.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.addColumnAtEnd(ctx.info.pos);
+        this.addColumnAtEnd(ctx.info.pos, ctx.wrapper);
       });
       ctx.overlay.appendChild(addCol);
     }
 
-    if (showAddRow && visibleTableWidth > 0) {
+    if (showAddRow) {
       const addRow = document.createElement("button");
       addRow.type = "button";
       addRow.className = "tiptap-table-add-row";
       addRow.setAttribute("aria-label", "Add row");
       addRow.setAttribute("title", "Add row");
       addRow.textContent = "+";
-      addRow.style.top = `${Math.min(ctx.tableLocal.bottom + 6, ctx.wrapperLocal.bottom - 16)}px`;
-      addRow.style.left = `${ctx.visibleTableLeft}px`;
-      addRow.style.width = `${visibleTableWidth}px`;
+      addRow.style.top = `${clamp(activeCellLocal.bottom - pillHalf, ctx.visibleTableTop, ctx.wrapperLocal.bottom)}px`;
+      addRow.style.left = `${clamp(
+        activeCellLocal.left + activeCellLocal.width / 2 - pillHalf,
+        ctx.visibleTableLeft,
+        ctx.visibleTableRight - TABLE_ADD_PILL_SIZE_PX,
+      )}px`;
       addRow.addEventListener("mousedown", (event) => event.preventDefault());
       addRow.addEventListener("click", (event) => {
         event.preventDefault();
@@ -389,13 +418,22 @@ export class TableOverlayView implements PluginView {
     this.openMenuFromHandle(kind, index, tablePos, tableKey);
   }
 
-  private addColumnAtEnd(tablePos: number) {
+  private addColumnAtEnd(tablePos: number, wrapper: HTMLElement) {
     const table = this.view.state.doc.nodeAt(tablePos);
     if (!table || table.type.spec.tableRole !== "table") return;
 
     const map = TableMap.get(table);
     setCaretInCell(this.view, table, tablePos, map.height - 1, map.width - 1);
     addColumnAfter(this.view.state, this.view.dispatch.bind(this.view));
+    const nextTable = this.view.state.doc.nodeAt(tablePos);
+    if (!nextTable || nextTable.type.spec.tableRole !== "table") return;
+
+    const nextMap = TableMap.get(nextTable);
+    setCaretInCell(this.view, nextTable, tablePos, nextMap.height - 1, nextMap.width - 1);
+    requestAnimationFrame(() => {
+      wrapper.scrollLeft = wrapper.scrollWidth;
+      this.scheduleSync();
+    });
   }
 
   private addRowAtEnd(tablePos: number) {
@@ -405,6 +443,11 @@ export class TableOverlayView implements PluginView {
     const map = TableMap.get(table);
     setCaretInCell(this.view, table, tablePos, map.height - 1, map.width - 1);
     addRowAfter(this.view.state, this.view.dispatch.bind(this.view));
+    const nextTable = this.view.state.doc.nodeAt(tablePos);
+    if (!nextTable || nextTable.type.spec.tableRole !== "table") return;
+
+    const nextMap = TableMap.get(nextTable);
+    setCaretInCell(this.view, nextTable, tablePos, nextMap.height - 1, nextMap.width - 1);
   }
 
   private onRowHandlePointerDown(event: PointerEvent, wrapper: HTMLElement, rowIndex: number) {

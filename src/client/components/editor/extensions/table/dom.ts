@@ -85,6 +85,26 @@ export function buildColumnEntries(firstRow: HTMLTableRowElement): ColumnEntry[]
   return entries;
 }
 
+export function findLogicalCellElement(
+  rows: HTMLTableRowElement[],
+  rowIndex: number,
+  colIndex: number,
+): HTMLTableCellElement | null {
+  const row = rows[rowIndex];
+  if (!row) return null;
+
+  let logicalCol = 0;
+  const cells = Array.from(row.querySelectorAll<HTMLTableCellElement>(":scope > td, :scope > th"));
+  for (const cell of cells) {
+    const colspanAttr = cell.getAttribute("colspan");
+    const colspan = colspanAttr ? Math.max(1, parseInt(colspanAttr, 10)) : 1;
+    if (colIndex >= logicalCol && colIndex < logicalCol + colspan) return cell;
+    logicalCol += colspan;
+  }
+
+  return null;
+}
+
 export function rowDropIndex(rows: HTMLTableRowElement[], y: number): number {
   if (rows.length === 0) return 0;
   for (let index = 0; index < rows.length; index++) {

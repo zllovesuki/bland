@@ -115,6 +115,7 @@ export function createTableExtensions(): AnyExtension[] {
         allowTableNodeSelection: true,
         cellMinWidth: TABLE_CELL_MIN_WIDTH,
         lastColumnResizable: true,
+        renderWrapper: true,
       },
     }),
     TableRowHeightAttribute,
