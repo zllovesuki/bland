@@ -18,7 +18,7 @@ import { health } from "@/worker/routes/health";
 import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import { createLogger, errorContext } from "@/worker/lib/logger";
-import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
+import { isAllowedOrigin } from "@/worker/lib/origins";
 
 type AppVariables = {
   db: Db;
@@ -34,7 +34,7 @@ const app = new Hono<AppContext>();
 app.use(
   "*",
   cors({
-    origin: ALLOWED_ORIGINS,
+    origin: (origin, c) => (isAllowedOrigin(origin, c.env) ? origin : null),
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", D1_BOOKMARK_HEADER],
     exposeHeaders: [D1_BOOKMARK_HEADER],

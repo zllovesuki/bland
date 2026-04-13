@@ -5,6 +5,7 @@
 	"compatibility_date": "2026-03-01",
 	"vars": {
 		"LOG_LEVEL": "info",
+		"ALLOWED_ORIGINS": "https://bland.tools,https://staging.bland.tools",
 	},
 	"assets": {
 		"not_found_handling": "single-page-application",

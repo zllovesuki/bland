@@ -6,7 +6,7 @@ import { pages } from "@/worker/db/d1/schema";
 import { resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
-import { ALLOWED_ORIGINS } from "@/worker/lib/constants";
+import { isAllowedOrigin } from "@/worker/lib/origins";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
@@ -24,9 +24,9 @@ export default {
         const pageId = lobby.name;
         log.debug("connection_attempt", { pageId });
 
-        // Validate origin
+        // Validate browser-provided origins before upgrading the socket.
         const origin = req.headers.get("origin");
-        if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+        if (origin && !isAllowedOrigin(origin, env)) {
           log.warn("origin_rejected", { origin, pageId });
           return new Response("Forbidden origin", { status: 403 });
         }

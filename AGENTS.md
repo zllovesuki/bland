@@ -59,11 +59,15 @@ Before writing new code, check these files for reusable pieces:
 
 ### Worker constants (`src/worker/lib/constants.ts`)
 
-- `ALLOWED_ORIGINS` — canonical origin list for CORS and WebSocket origin checks
 - `JWT_ALGORITHM` — `"HS256"`, used everywhere JWTs are signed or verified
 - `CF_IP_HEADER` — `"cf-connecting-ip"`, for rate limiting and Turnstile
 - `DEFAULT_PAGE_TITLE` — `"Untitled"`, used in page creation and doc-sync title extraction
 - `INVITE_EXPIRY_MS` — 7-day invite expiry duration
+
+### Worker origin helpers (`src/worker/lib/origins.ts`)
+
+- `getAllowedOrigins(env)` — parses the `ALLOWED_ORIGINS` env var into the canonical origin allowlist for CORS and WebSocket checks
+- `isAllowedOrigin(origin, env)` — exact origin allowlist check shared by HTTP CORS and WebSocket upgrades
 
 ### Worker auth helpers (`src/worker/lib/auth.ts`)
 
@@ -212,7 +216,7 @@ npm run db:seed-initial-user -- --email you@example.com --name "Your Name"
 
 Notes:
 
-- `.dev.vars.example` currently defines `LOG_LEVEL`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
+- `.dev.vars.example` currently defines `LOG_LEVEL`, `ALLOWED_ORIGINS`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
 - `npm run db:migrate` is currently wired to `wrangler d1 migrations apply bland-prod --local`.
 - `scripts/seed-initial-user.ts` seeds the initial local user, workspace, and owner membership. It refuses to run if users already exist.
 

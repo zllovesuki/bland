@@ -1,5 +1,3 @@
-export const ALLOWED_ORIGINS = ["https://bland.tools", "https://staging.bland.tools", "http://localhost:5173"];
-
 export const JWT_ALGORITHM = "HS256" as const;
 
 export const CF_IP_HEADER = "cf-connecting-ip";

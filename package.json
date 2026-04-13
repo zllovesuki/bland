@@ -10,6 +10,7 @@
     "typecheck:tests": "tsc -p tests/tsconfig.json --noEmit",
     "types:generate": "wrangler types --env-file .dev.vars.example",
     "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
     "deploy": "npm run db:migrate && npm run build && wrangler deploy",
     "db:generate:d1": "drizzle-kit generate --config=drizzle-d1.config.ts",
     "db:generate:docsync-do": "drizzle-kit generate --config=drizzle-docsync-do.config.ts",
@@ -70,6 +71,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.31.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^25.5.2",
     "@types/react": "^19.0.0",
