@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import { Link, useLocation, useMatches, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
 import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
 
 interface HeaderProps {
@@ -18,13 +19,12 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const matches = useMatches();
   const visible = useScrollVisibility("main-content");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isLoginPage = location.pathname === "/login";
-  const isSharedWithMePage = matches.at(-1)?.staticData?.nav === "shared-inbox";
+  const { canLeaveSharedInbox, isSharedInbox, toggleSharedInbox } = useSharedInboxNavigation();
 
   useClickOutside(
     menuRef,
@@ -76,18 +76,18 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
             </button>
           )}
           {hasLocalSession && (
-            <Link
-              to="/shared-with-me"
+            <button
+              onClick={toggleSharedInbox}
               className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${
-                isSharedWithMePage
+                isSharedInbox
                   ? "bg-accent-500/10 text-accent-400"
                   : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
               }`}
-              aria-label="Shared with me"
-              title="Shared with me"
+              aria-label={isSharedInbox && canLeaveSharedInbox ? "Back to previous view" : "Shared with me"}
+              title={isSharedInbox && canLeaveSharedInbox ? "Back to previous view" : "Shared with me"}
             >
               <Inbox className="h-4 w-4" />
-            </Link>
+            </button>
           )}
 
           {hasLocalSession ? (

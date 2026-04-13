@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Share2, FileText, AlertCircle, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { Button } from "@/client/components/ui/button";
@@ -7,7 +7,9 @@ import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
 import { api } from "@/client/lib/api";
+import { getSharedInboxReturnTo } from "@/client/lib/shared-inbox-navigation";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import type { SharedWithMeItem } from "@/shared/types";
 
@@ -43,10 +45,12 @@ function formatRelativeDate(iso: string): string {
 export function SharedWithMeView() {
   useDocumentTitle("Shared with me");
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const sharedInbox = useWorkspaceStore((s) => s.sharedInbox);
   const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
-  const memberWorkspaces = useWorkspaceStore((s) => s.memberWorkspaces);
+  const [entryReturnTo] = useState(() => getSharedInboxReturnTo(location.state));
+  const { backLabel, canLeaveSharedInbox, leaveSharedInbox } = useSharedInboxNavigation({ returnTo: entryReturnTo });
   const [requestState, setRequestState] = useState<RequestState>(
     sharedInbox.length > 0 ? "idle" : isAuthenticated ? "loading" : "error",
   );
@@ -146,14 +150,15 @@ export function SharedWithMeView() {
           </div>
           <h2 className="text-lg font-semibold text-zinc-200">No pages shared with you yet</h2>
           <p className="mt-1 text-sm text-zinc-500">When someone shares a page with you, it will appear here.</p>
-          {memberWorkspaces.length > 0 && (
-            <Link
-              to="/"
+          {canLeaveSharedInbox && backLabel && (
+            <button
+              onClick={leaveSharedInbox}
               className="mt-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+              type="button"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to workspaces
-            </Link>
+              {backLabel}
+            </button>
           )}
         </div>
       </div>
@@ -166,15 +171,16 @@ export function SharedWithMeView() {
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <div className="animate-slide-up">
         <div className="mb-6 flex items-center gap-3">
-          {memberWorkspaces.length > 0 && (
-            <Link
-              to="/"
+          {canLeaveSharedInbox && backLabel && (
+            <button
+              onClick={leaveSharedInbox}
               className="flex items-center justify-center rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-              aria-label="Back to workspaces"
-              title="Back to workspaces"
+              aria-label={backLabel}
+              title={backLabel}
+              type="button"
             >
               <ArrowLeft className="h-4 w-4" />
-            </Link>
+            </button>
           )}
           <Share2 className="h-5 w-5 text-zinc-400" />
           <h1 className="text-lg font-semibold text-zinc-200">Shared with me</h1>
