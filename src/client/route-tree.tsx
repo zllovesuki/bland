@@ -39,14 +39,8 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  staticData: { chrome: "standalone", nav: null },
-  beforeLoad: async () => {
-    const { hasLocalSession } = useAuthStore.getState();
-    if (!hasLocalSession) {
-      throw redirect({ to: "/login", search: { redirect: undefined } });
-    }
-  },
-  component: lazyRouteComponent(() => import("@/client/components/empty-workspace-view"), "EmptyWorkspaceView"),
+  staticData: { chrome: "share", nav: null },
+  component: lazyRouteComponent(() => import("@/client/components/index-gateway"), "IndexGateway"),
 });
 
 const loginRoute = createRoute({
