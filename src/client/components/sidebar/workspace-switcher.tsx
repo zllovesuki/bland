@@ -53,6 +53,7 @@ export function WorkspaceSwitcher() {
       <div className="flex h-10 items-center border-b border-zinc-800/60">
         <button
           onClick={() => setDropdownOpen((o) => !o)}
+          aria-expanded={dropdownOpen}
           className="flex h-full min-w-0 flex-1 items-center justify-between px-3 pr-3 transition-colors hover:bg-zinc-800/50"
         >
           <span className="truncate text-sm font-medium text-zinc-300">

@@ -103,6 +103,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Apply"
+              aria-label="Apply"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleLinkSubmit();
@@ -113,6 +114,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Cancel"
+              aria-label="Cancel"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleLinkCancel();
@@ -126,6 +128,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Bold"
+              aria-label="Bold"
               className={editorState.isBold ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -137,6 +140,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Italic"
+              aria-label="Italic"
               className={editorState.isItalic ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -148,6 +152,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Underline"
+              aria-label="Underline"
               className={editorState.isUnderline ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -159,6 +164,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Strikethrough"
+              aria-label="Strikethrough"
               className={editorState.isStrike ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -170,6 +176,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Code"
+              aria-label="Code"
               className={editorState.isCode ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -181,6 +188,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Link"
+              aria-label="Link"
               className={editorState.isLink ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -196,6 +204,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
               ref={textColorRef}
               type="button"
               title="Text color"
+              aria-label="Text color"
               className={editorState.textColor ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -209,6 +218,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
               ref={highlightRef}
               type="button"
               title="Highlight"
+              aria-label="Highlight"
               className={editorState.bgColor ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -224,6 +234,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Align left"
+              aria-label="Align left"
               className={!editorState.isAlignCenter && !editorState.isAlignRight ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -235,6 +246,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Align center"
+              aria-label="Align center"
               className={editorState.isAlignCenter ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -246,6 +258,7 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Align right"
+              aria-label="Align right"
               className={editorState.isAlignRight ? "is-active" : undefined}
               onMouseDown={(e) => {
                 e.preventDefault();

@@ -357,7 +357,7 @@ function PageViewContent() {
 
   if (isLoading || !workspace) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
         {knownHasCover && (
           <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
             <Skeleton className="h-48 w-full rounded-b-lg" />

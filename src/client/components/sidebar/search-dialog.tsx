@@ -106,8 +106,8 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/60" />
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" role="presentation" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
       <div
         className="animate-scale-fade relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}

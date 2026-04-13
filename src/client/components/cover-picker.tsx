@@ -90,6 +90,7 @@ export function CoverPicker({
             )}
             <button
               onClick={() => setOpen(false)}
+              aria-label="Close"
               className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
             >
               <X className="h-4 w-4" />

@@ -42,6 +42,7 @@ export function ColorPickerPanel({
             key={c.label}
             type="button"
             title={c.label}
+            aria-label={c.label}
             className={`tiptap-color-swatch${(activeColor ?? null) === c.value ? " is-active" : ""}`}
             style={{
               backgroundColor: c.value ?? nullFallback,

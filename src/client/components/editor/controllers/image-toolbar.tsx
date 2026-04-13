@@ -253,6 +253,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Save"
+              aria-label="Save"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleAltSave();
@@ -266,6 +267,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Replace image"
+              aria-label="Replace image"
               onMouseDown={(e) => {
                 e.preventDefault();
                 if (!imageState) return;
@@ -277,6 +279,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Alt text"
+              aria-label="Alt text"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleAltEdit();
@@ -287,6 +290,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Delete image"
+              aria-label="Delete image"
               className="text-red-400"
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -303,6 +307,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
                   key={a}
                   type="button"
                   title={`Align ${a}`}
+                  aria-label={`Align ${a}`}
                   className={imageState.align === a ? "is-active" : undefined}
                   onMouseDown={(e) => {
                     e.preventDefault();

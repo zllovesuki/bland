@@ -43,7 +43,7 @@ export function DropdownPortal({
     if (!onClose) return;
     const handleClose = onClose;
 
-    function handler(e: MouseEvent) {
+    function handleClick(e: PointerEvent) {
       const target = e.target as Node | null;
       if (!target) return;
       if (triggerRef.current?.contains(target)) return;
@@ -51,8 +51,16 @@ export function DropdownPortal({
       handleClose();
     }
 
-    document.addEventListener("mousedown", handler, true);
-    return () => document.removeEventListener("mousedown", handler, true);
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") handleClose();
+    }
+
+    document.addEventListener("pointerdown", handleClick, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleClick, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [onClose, triggerRef]);
 
   return createPortal(

@@ -203,7 +203,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
             <Skeleton className="h-5 w-3/4" />
           </nav>
           <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl px-8 py-10">
+            <div className="mx-auto max-w-3xl px-8 py-10" aria-busy="true">
               <PageLoadingSkeleton />
             </div>
           </main>

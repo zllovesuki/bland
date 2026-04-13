@@ -192,6 +192,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Save"
+              aria-label="Save"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleSave();
@@ -202,6 +203,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Cancel"
+              aria-label="Cancel"
               onMouseDown={(e) => {
                 e.preventDefault();
                 setEditing(false);
@@ -218,6 +220,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Edit link"
+              aria-label="Edit link"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleEdit();
@@ -228,6 +231,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Open link"
+              aria-label="Open link"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleOpen();
@@ -238,6 +242,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
             <button
               type="button"
               title="Remove link"
+              aria-label="Remove link"
               onMouseDown={(e) => {
                 e.preventDefault();
                 handleRemove();

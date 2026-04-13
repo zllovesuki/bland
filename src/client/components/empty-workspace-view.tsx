@@ -102,7 +102,7 @@ export function EmptyWorkspaceView() {
 
   if (view === "loading") {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full items-center justify-center" aria-busy="true">
         <div className="animate-slide-up text-center">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-zinc-500" />
           <p className="text-sm text-zinc-400">Loading workspaces...</p>
