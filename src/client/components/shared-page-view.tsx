@@ -6,6 +6,7 @@ import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { PageMentionScopeProvider } from "@/client/components/editor/page-mention-scope-provider";
+import { ErrorBoundary } from "@/client/components/error-boundary";
 import { Footer } from "@/client/components/footer";
 import { SharedPageTree } from "@/client/components/shared-page-tree";
 import type { SharedPageInfo, AncestorInfo } from "@/shared/types";
@@ -200,7 +201,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
-          <nav className="w-56 shrink-0 border-r border-zinc-800/50 px-2 py-4">
+          <nav className="w-56 shrink-0 border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
             <Skeleton className="h-5 w-3/4" />
           </nav>
           <main className="flex-1 overflow-y-auto">
@@ -290,7 +291,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </MobileDrawer>
 
           <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
+            <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
               <div className="min-w-0">
                 {coverUrl && (
                   <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
@@ -311,21 +312,23 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
 
                 {icon && (
                   <div className="mb-4 pl-7">
-                    <EmojiIcon emoji={icon} size={36} />
+                    <EmojiIcon emoji={icon} size={28} />
                   </div>
                 )}
 
-                <EditorPane
-                  key={displayPageId}
-                  pageId={displayPageId}
-                  initialTitle={activePage ? title : info.title}
-                  onTitleChange={setTitle}
-                  onProvider={setWsProvider}
-                  shareToken={token}
-                  readOnly={isViewOnly}
-                  workspaceId={info.workspace_id}
-                  outlinePortalTarget={outlineRailEl}
-                />
+                <ErrorBoundary key={displayPageId}>
+                  <EditorPane
+                    key={displayPageId}
+                    pageId={displayPageId}
+                    initialTitle={activePage ? title : info.title}
+                    onTitleChange={setTitle}
+                    onProvider={setWsProvider}
+                    shareToken={token}
+                    readOnly={isViewOnly}
+                    workspaceId={info.workspace_id}
+                    outlinePortalTarget={outlineRailEl}
+                  />
+                </ErrorBoundary>
               </div>
 
               <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">

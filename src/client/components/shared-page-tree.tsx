@@ -177,7 +177,7 @@ export function SharedPageTree({
   );
 
   return (
-    <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 px-2 py-4">
+    <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
       <button
         onClick={() => onNavigate(rootPageId)}
         className={`mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm font-medium transition-colors ${
