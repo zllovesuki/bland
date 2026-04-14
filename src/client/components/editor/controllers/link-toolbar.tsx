@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useContext } from "react";
-import type { Editor } from "@tiptap/react";
+import { useState, useEffect, useRef } from "react";
+import { useTiptap } from "@tiptap/react";
 import {
   useFloating,
   offset,
@@ -11,7 +11,7 @@ import {
   useHover,
 } from "@floating-ui/react";
 import { ExternalLink, Pencil, Unlink, Check, X } from "lucide-react";
-import { EditorContext } from "../editor-context";
+import { useEditorRuntime } from "../editor-runtime-context";
 import "../styles/floating-controls.css";
 import "../styles/link-toolbar.css";
 
@@ -21,8 +21,9 @@ interface LinkState {
   mode: "cursor" | "hover";
 }
 
-export function LinkToolbar({ editor }: { editor: Editor }) {
-  const { readOnly } = useContext(EditorContext);
+export function LinkToolbar() {
+  const { editor } = useTiptap();
+  const { readOnly } = useEditorRuntime();
   const [link, setLink] = useState<LinkState | null>(null);
   const [editing, setEditing] = useState(false);
   const [editHref, setEditHref] = useState("");
@@ -164,7 +165,7 @@ export function LinkToolbar({ editor }: { editor: Editor }) {
     if (link?.href) window.open(link.href, "_blank", "noopener");
   };
 
-  if (readOnly || !open) return null;
+  if (!editor || readOnly || !open) return null;
 
   return (
     <FloatingPortal>

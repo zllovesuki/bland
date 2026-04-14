@@ -4,6 +4,7 @@ import { Image } from "@tiptap/extension-image";
 import { StarterKit } from "@tiptap/starter-kit";
 import { NodeSelection } from "@tiptap/pm/state";
 import {
+  insertImagePlaceholderAtPos,
   insertImagePlaceholderAtRange,
   replaceImageSourceAtTarget,
   resolveImageTargetPos,
@@ -33,15 +34,39 @@ describe("image media actions", () => {
       const paragraph = editor.state.doc.firstChild;
       expect(paragraph).not.toBeNull();
 
-      const target = insertImagePlaceholderAtRange(editor, { from: 1, to: paragraph!.content.size + 1 });
+      const inserted = insertImagePlaceholderAtRange(editor, { from: 1, to: paragraph!.content.size + 1 });
 
-      expect(target).not.toBeNull();
-      const pos = resolveImageTargetPos(editor, target!);
+      expect(inserted).not.toBeNull();
+      const pos = resolveImageTargetPos(editor, inserted!.target);
 
       expect(pos).not.toBeNull();
       expect(editor.state.doc.nodeAt(pos!)?.type.name).toBe("image");
       expect(editor.state.selection).toBeInstanceOf(NodeSelection);
       expect(editor.state.selection.from).toBe(pos);
+      expect(inserted?.nextPos).toBe((pos ?? 0) + editor.state.doc.nodeAt(pos!)!.nodeSize);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it("inserts a second placeholder at an explicit position without retargeting the first one", () => {
+    const editor = createEditor({
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    });
+
+    try {
+      const first = insertImagePlaceholderAtRange(editor, { from: 1, to: 1 });
+      expect(first).not.toBeNull();
+
+      const second = insertImagePlaceholderAtPos(editor, first!.nextPos);
+      expect(second).not.toBeNull();
+
+      const firstPos = resolveImageTargetPos(editor, first!.target);
+      const secondPos = resolveImageTargetPos(editor, second!.target);
+
+      expect(firstPos).toBe(0);
+      expect(secondPos).toBeGreaterThan(firstPos!);
     } finally {
       editor.destroy();
     }

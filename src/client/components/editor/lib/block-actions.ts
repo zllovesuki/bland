@@ -1,39 +1,21 @@
 import type { Editor } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
 import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
+import { findTopLevelBlockByBid, getTopLevelBlocks } from "./top-level-blocks";
 
 type MoveDirection = -1 | 1;
 
-interface TopLevelBlockInfo {
-  index: number;
-  pos: number;
-  node: PMNode;
-}
-
-function getTopLevelBlocks(doc: PMNode): TopLevelBlockInfo[] {
-  const blocks: TopLevelBlockInfo[] = [];
-  doc.forEach((node, pos, index) => {
-    blocks.push({ index, pos, node });
-  });
-  return blocks;
-}
-
-function getTopLevelBlock(blocks: TopLevelBlockInfo[], pos: number): TopLevelBlockInfo | null {
-  return blocks.find((block) => block.pos === pos) ?? null;
-}
-
-export function canMoveTopLevelBlock(doc: PMNode, pos: number, direction: MoveDirection): boolean {
+export function canMoveTopLevelBlock(doc: Transaction["doc"], bid: string | null, direction: MoveDirection): boolean {
   const blocks = getTopLevelBlocks(doc);
-  const block = getTopLevelBlock(blocks, pos);
+  const block = blocks.find((candidate) => candidate.bid === bid) ?? null;
   if (!block) return false;
 
   const targetIndex = block.index + direction;
   return targetIndex >= 0 && targetIndex < blocks.length;
 }
 
-export function applyMoveTopLevelBlock(tr: Transaction, pos: number, direction: MoveDirection): boolean {
+export function applyMoveTopLevelBlock(tr: Transaction, bid: string | null, direction: MoveDirection): boolean {
   const blocks = getTopLevelBlocks(tr.doc);
-  const source = getTopLevelBlock(blocks, pos);
+  const source = blocks.find((candidate) => candidate.bid === bid) ?? null;
   if (!source) return false;
 
   const targetIndex = source.index + direction;
@@ -53,9 +35,9 @@ export function applyMoveTopLevelBlock(tr: Transaction, pos: number, direction: 
   return true;
 }
 
-export function applyDeleteTopLevelBlock(tr: Transaction, pos: number): boolean {
+export function applyDeleteTopLevelBlock(tr: Transaction, bid: string | null): boolean {
   const blocks = getTopLevelBlocks(tr.doc);
-  const block = getTopLevelBlock(blocks, pos);
+  const block = blocks.find((candidate) => candidate.bid === bid) ?? null;
   if (!block) return false;
 
   if (blocks.length === 1) {
@@ -73,18 +55,22 @@ export function applyDeleteTopLevelBlock(tr: Transaction, pos: number): boolean 
   return true;
 }
 
-export function moveTopLevelBlock(editor: Editor, pos: number, direction: MoveDirection): boolean {
+export function moveTopLevelBlock(editor: Editor, bid: string | null, direction: MoveDirection): boolean {
   const tr = editor.state.tr;
-  if (!applyMoveTopLevelBlock(tr, pos, direction)) return false;
+  if (!applyMoveTopLevelBlock(tr, bid, direction)) return false;
   editor.view.dispatch(tr);
   editor.view.focus();
   return true;
 }
 
-export function deleteTopLevelBlock(editor: Editor, pos: number): boolean {
+export function deleteTopLevelBlock(editor: Editor, bid: string | null): boolean {
   const tr = editor.state.tr;
-  if (!applyDeleteTopLevelBlock(tr, pos)) return false;
+  if (!applyDeleteTopLevelBlock(tr, bid)) return false;
   editor.view.dispatch(tr);
   editor.view.focus();
   return true;
+}
+
+export function getCurrentTopLevelBlock(editor: Editor, bid: string | null) {
+  return findTopLevelBlockByBid(editor.state.doc, bid);
 }

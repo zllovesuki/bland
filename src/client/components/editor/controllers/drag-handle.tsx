@@ -1,14 +1,18 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DragHandle as DragHandleReact } from "@tiptap/extension-drag-handle-react";
 import { offset } from "@floating-ui/dom";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import type { Editor } from "@tiptap/react";
+import { useTiptap } from "@tiptap/react";
 import { ArrowDown, ArrowUp, Menu, Plus, Trash2 } from "lucide-react";
-import { EditorContext } from "../editor-context";
+import { useEditorRuntime } from "../editor-runtime-context";
 import { primeTopLevelBlockDragState } from "../lib/block-drag-state";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
-import { canMoveTopLevelBlock, deleteTopLevelBlock, moveTopLevelBlock } from "../lib/block-actions";
-import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
+import {
+  canMoveTopLevelBlock,
+  deleteTopLevelBlock,
+  getCurrentTopLevelBlock,
+  moveTopLevelBlock,
+} from "../lib/block-actions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
 import { launchEmojiPicker } from "./emoji-insert-panel";
 import { insertImageFromSlashMenu } from "./image-insert-panel";
@@ -22,43 +26,47 @@ const positionConfig = {
   middleware: [offset({ mainAxis: 8, crossAxis: 2 })],
 };
 
-export function DragHandle({ editor }: { editor: Editor }) {
+export function DragHandle() {
+  const { editor } = useTiptap();
   const nodePos = useRef(-1);
+  const nodeBid = useRef<string | null>(null);
   const groupRef = useRef<HTMLDivElement>(null);
-  const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
-  const [menuPos, setMenuPos] = useState<number | null>(null);
+  const { workspaceId, pageId, shareToken, readOnly, canInsertPageMentions } = useEditorRuntime();
+  const [menuBid, setMenuBid] = useState<string | null>(null);
   const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
-  pageMentionRef.current = canInsertPageMentions({ editable: !readOnly, workspaceId, shareToken })
+  pageMentionRef.current = canInsertPageMentions()
     ? {
+        isAvailable: ({ editor: currentEditor }) => canInsertPageMentions() && currentEditor.isEditable,
         openPicker: ({ editor: currentEditor, range }) => {
           launchPageMentionPicker(currentEditor, { range, currentPageId: pageId });
         },
       }
     : null;
 
-  const onNodeChange = useCallback(({ pos }: { node: PMNode | null; editor: Editor; pos: number }) => {
+  const onNodeChange = useCallback(({ node, pos }: { node: PMNode | null; pos: number }) => {
     nodePos.current = pos;
+    nodeBid.current = node && typeof node.attrs.bid === "string" ? node.attrs.bid : null;
   }, []);
 
   const setHandleLocked = useCallback(
     (locked: boolean) => {
-      if (editor.isDestroyed) return;
+      if (!editor || editor.isDestroyed) return;
       editor.view.dispatch(editor.state.tr.setMeta("lockDragHandle", locked).setMeta("addToHistory", false));
     },
     [editor],
   );
 
   const closeMenu = useCallback(() => {
-    setMenuPos(null);
+    setMenuBid(null);
     setHandleLocked(false);
   }, [setHandleLocked]);
 
   const onDragStart = useCallback(
     (e: DragEvent) => {
-      if (!e.dataTransfer) return;
+      if (!editor || !e.dataTransfer) return;
       closeMenu();
       const pos = nodePos.current;
-      prepareBlockDragPreview(editor, pos, e.dataTransfer);
+      if (!prepareBlockDragPreview(editor, pos, e.dataTransfer)) return;
       queueMicrotask(() => {
         if (editor.isDestroyed || editor.view.dragging || pos < 0) return;
         primeTopLevelBlockDragState(editor.view, pos);
@@ -68,6 +76,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
   );
 
   const onAddBlock = useCallback(() => {
+    if (!editor) return;
     closeMenu();
     const pos = nodePos.current;
     if (pos < 0) return;
@@ -133,7 +142,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
   useEffect(() => () => setHandleLocked(false), [setHandleLocked]);
 
   useEffect(() => {
-    if (menuPos === null) return;
+    if (menuBid === null) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -154,32 +163,40 @@ export function DragHandle({ editor }: { editor: Editor }) {
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("mousedown", onPointerDown, true);
     };
-  }, [closeMenu, menuPos]);
+  }, [closeMenu, menuBid]);
+
+  useEffect(() => {
+    if (!editor || menuBid === null) return;
+    if (getCurrentTopLevelBlock(editor, menuBid)) return;
+    closeMenu();
+  }, [closeMenu, editor, menuBid]);
 
   const toggleMenu = useCallback(() => {
-    if (menuPos !== null) {
+    if (menuBid !== null) {
       closeMenu();
       return;
     }
 
-    const pos = nodePos.current;
-    if (pos < 0) return;
-    setMenuPos(pos);
+    const bid = nodeBid.current;
+    if (!bid) return;
+    setMenuBid(bid);
     setHandleLocked(true);
-  }, [closeMenu, menuPos, setHandleLocked]);
+  }, [closeMenu, menuBid, setHandleLocked]);
 
   const runBlockAction = useCallback(
-    (action: (pos: number) => boolean) => {
-      const pos = menuPos;
-      if (pos === null) return;
+    (action: (bid: string) => boolean) => {
+      const bid = menuBid;
+      if (bid === null) return;
       closeMenu();
-      action(pos);
+      action(bid);
     },
-    [closeMenu, menuPos],
+    [closeMenu, menuBid],
   );
 
-  const canMoveUp = menuPos !== null && canMoveTopLevelBlock(editor.state.doc, menuPos, -1);
-  const canMoveDown = menuPos !== null && canMoveTopLevelBlock(editor.state.doc, menuPos, 1);
+  if (!editor || readOnly) return null;
+
+  const canMoveUp = menuBid !== null && canMoveTopLevelBlock(editor.state.doc, menuBid, -1);
+  const canMoveDown = menuBid !== null && canMoveTopLevelBlock(editor.state.doc, menuBid, 1);
 
   return (
     <DragHandleReact
@@ -203,9 +220,9 @@ export function DragHandle({ editor }: { editor: Editor }) {
 
         <button
           type="button"
-          className={`tiptap-drag-handle tiptap-drag-handle-toggle${menuPos !== null ? " is-active" : ""}`}
+          className={`tiptap-drag-handle tiptap-drag-handle-toggle${menuBid !== null ? " is-active" : ""}`}
           aria-label="Block actions"
-          aria-expanded={menuPos !== null}
+          aria-expanded={menuBid !== null}
           aria-haspopup="menu"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={toggleMenu}
@@ -213,7 +230,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
           <Menu size={14} strokeWidth={2.25} />
         </button>
 
-        {menuPos !== null && (
+        {menuBid !== null && (
           <div className="tiptap-block-menu" role="menu" aria-label="Block actions">
             <button
               type="button"
@@ -221,7 +238,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
               className="tiptap-block-menu-item"
               disabled={!canMoveUp}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => runBlockAction((pos) => moveTopLevelBlock(editor, pos, -1))}
+              onClick={() => runBlockAction((bid) => moveTopLevelBlock(editor, bid, -1))}
             >
               <span className="tiptap-block-menu-item-icon">
                 <ArrowUp size={14} />
@@ -234,7 +251,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
               className="tiptap-block-menu-item"
               disabled={!canMoveDown}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => runBlockAction((pos) => moveTopLevelBlock(editor, pos, 1))}
+              onClick={() => runBlockAction((bid) => moveTopLevelBlock(editor, bid, 1))}
             >
               <span className="tiptap-block-menu-item-icon">
                 <ArrowDown size={14} />
@@ -247,7 +264,7 @@ export function DragHandle({ editor }: { editor: Editor }) {
               role="menuitem"
               className="tiptap-block-menu-item is-danger"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => runBlockAction((pos) => deleteTopLevelBlock(editor, pos))}
+              onClick={() => runBlockAction((bid) => deleteTopLevelBlock(editor, bid))}
             >
               <span className="tiptap-block-menu-item-icon">
                 <Trash2 size={14} />

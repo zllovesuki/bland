@@ -1,18 +1,18 @@
-import type { Editor } from "@tiptap/react";
+import { useTiptap, useTiptapState } from "@tiptap/react";
 import { ChevronRight, FileText } from "lucide-react";
-import { jumpToHeading, useHeadingOutline } from "./lib/heading-outline";
+import { getHeadingOutline, jumpToHeading } from "./lib/heading-outline";
 import "./styles/outline.css";
 
 interface EditorOutlineProps {
-  editor: Editor | null | undefined;
   className?: string;
   title?: string;
 }
 
-export function EditorOutline({ editor, className, title = "On this page" }: EditorOutlineProps) {
-  const headings = useHeadingOutline(editor);
+export function EditorOutline({ className, title = "On this page" }: EditorOutlineProps) {
+  const { editor } = useTiptap();
+  const headings = useTiptapState(({ editor: currentEditor }) => getHeadingOutline(currentEditor));
 
-  if (headings.length === 0) return null;
+  if (!editor || headings.length === 0) return null;
 
   return (
     <nav className={["tiptap-outline", className].filter(Boolean).join(" ")} aria-label={title}>
@@ -31,7 +31,6 @@ export function EditorOutline({ editor, className, title = "On this page" }: Edi
               title={heading.text}
               onMouseDown={(event) => {
                 event.preventDefault();
-                if (!editor) return;
                 jumpToHeading(editor, heading.pos);
               }}
               style={{ paddingInlineStart: `${Math.max(0, heading.level - 1) * 0.875}rem` }}

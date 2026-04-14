@@ -17,6 +17,11 @@ export interface ImageNodeTarget {
   dom: HTMLElement | null;
 }
 
+export interface InsertedImagePlaceholder {
+  target: ImageNodeTarget;
+  nextPos: number;
+}
+
 function findInsertedImagePos(doc: Editor["state"]["doc"], pendingInsertId: string | null): number | null {
   let foundPos: number | null = null;
 
@@ -125,7 +130,7 @@ export function deleteImageAtTarget(editor: Editor, target: ImageNodeTarget): bo
   return true;
 }
 
-export function insertImagePlaceholderAtRange(editor: Editor, range: Range): ImageNodeTarget | null {
+function createPendingImageContent(editor: Editor): { content: JSONContent; pendingInsertId: string | null } | null {
   if (!editor.isEditable) return null;
 
   const imageType = editor.state.schema.nodes.image;
@@ -138,51 +143,51 @@ export function insertImagePlaceholderAtRange(editor: Editor, range: Range): Ima
     attrs: pendingInsertId === null ? { src: "" } : { src: "", pendingInsertId },
   };
 
-  editor.chain().focus(null, { scrollIntoView: false }).deleteRange(range).insertContent(content).run();
+  return { content, pendingInsertId };
+}
 
+function finalizeInsertedImagePlaceholder(
+  editor: Editor,
+  pendingInsertId: string | null,
+): InsertedImagePlaceholder | null {
   const insertedPos = findInsertedImagePos(editor.state.doc, pendingInsertId);
   if (insertedPos === null) return null;
 
+  const node = editor.state.doc.nodeAt(insertedPos);
+  if (!node || node.type.name !== "image") return null;
+
   const tr = editor.state.tr;
   if (pendingInsertId !== null) {
-    const node = editor.state.doc.nodeAt(insertedPos);
-    if (node?.type.name === "image") {
-      tr.setNodeMarkup(insertedPos, undefined, { ...node.attrs, pendingInsertId: null });
-    }
+    tr.setNodeMarkup(insertedPos, undefined, { ...node.attrs, pendingInsertId: null });
   }
+
+  const resolvedNode = tr.doc.nodeAt(insertedPos);
+  if (!resolvedNode || resolvedNode.type.name !== "image") return null;
 
   tr.setSelection(NodeSelection.create(tr.doc, insertedPos));
   editor.view.dispatch(tr);
   editor.commands.focus(null, { scrollIntoView: false });
 
-  return createImageNodeTarget(editor, insertedPos);
+  return {
+    target: createImageNodeTarget(editor, insertedPos),
+    nextPos: insertedPos + resolvedNode.nodeSize,
+  };
 }
 
-export async function uploadAndInsertImage(editor: Editor, ctx: UploadContext, file: File): Promise<void> {
-  if (!ctx.workspaceId) return;
-  try {
-    const src = await uploadFile(ctx.workspaceId, file, ctx.pageId, ctx.shareToken);
-    editor.chain().focus(null, { scrollIntoView: false }).setImage({ src }).run();
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Upload failed");
-  }
+export function insertImagePlaceholderAtRange(editor: Editor, range: Range): InsertedImagePlaceholder | null {
+  const pending = createPendingImageContent(editor);
+  if (!pending) return null;
+
+  editor.chain().focus(null, { scrollIntoView: false }).deleteRange(range).insertContent(pending.content).run();
+  return finalizeInsertedImagePlaceholder(editor, pending.pendingInsertId);
 }
 
-export async function uploadAndInsertImageAtPos(
-  editor: Editor,
-  ctx: UploadContext,
-  file: File,
-  pos: number,
-): Promise<number> {
-  if (!ctx.workspaceId) return pos;
-  try {
-    const src = await uploadFile(ctx.workspaceId, file, ctx.pageId, ctx.shareToken);
-    editor.chain().focus(null, { scrollIntoView: false }).insertContentAt(pos, { type: "image", attrs: { src } }).run();
-    return editor.state.selection.to + 1;
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : "Upload failed");
-    return pos;
-  }
+export function insertImagePlaceholderAtPos(editor: Editor, pos: number): InsertedImagePlaceholder | null {
+  const pending = createPendingImageContent(editor);
+  if (!pending) return null;
+
+  editor.chain().focus(null, { scrollIntoView: false }).insertContentAt(pos, pending.content).run();
+  return finalizeInsertedImagePlaceholder(editor, pending.pendingInsertId);
 }
 
 export async function uploadAndReplaceImageAtTarget(
@@ -203,22 +208,6 @@ export async function uploadAndReplaceImageAtTarget(
     toast.error(e instanceof Error ? e.message : "Upload failed");
     return false;
   }
-}
-
-export function triggerFileUpload(editor: Editor, ctx: UploadContext, onComplete?: () => void): void {
-  if (!ctx.workspaceId) return;
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    void (async () => {
-      await uploadAndInsertImage(editor, ctx, file);
-      onComplete?.();
-    })();
-  };
-  input.click();
 }
 
 export function triggerFileUploadAtTarget(

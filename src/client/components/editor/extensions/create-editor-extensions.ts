@@ -18,6 +18,7 @@ import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
+import { TopLevelBlockIdentity } from "./top-level-block-identity";
 import { PageMentionNode } from "./page-mention-node";
 import { PageMentionSuggestion } from "./page-mention-suggestion";
 import { SlashCommands } from "../controllers/slash-menu-extension";
@@ -28,17 +29,22 @@ import type {
   SlashMenuImageConfig,
   SlashMenuPageMentionConfig,
 } from "../controllers/slash-items";
-import { canInsertPageMentions } from "../lib/can-insert-page-mentions";
+import { canInsertPageMentionAtRange, canInsertPageMentions } from "../lib/can-insert-page-mentions";
 import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
-import { IMAGE_MIME_TYPES, uploadAndInsertImage, uploadAndInsertImageAtPos } from "../lib/media-actions";
+import {
+  IMAGE_MIME_TYPES,
+  insertImagePlaceholderAtPos,
+  insertImagePlaceholderAtRange,
+  uploadAndReplaceImageAtTarget,
+  type ImageNodeTarget,
+} from "../lib/media-actions";
+import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
 
 interface CreateEditorExtensionsOpts {
   fragment: Y.XmlFragment;
   provider: { awareness: Awareness };
   user: { name: string; color: string; avatar_url: string | null };
-  workspaceId: string | undefined;
-  pageId: string;
-  shareToken: string | undefined;
+  getRuntime: () => EditorRuntimeSnapshot;
 }
 
 function countWords(text: string): number {
@@ -51,24 +57,35 @@ function countCharacters(text: string): number {
 }
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
-  const { fragment, provider, user, workspaceId, pageId, shareToken } = opts;
-  const ctx = { workspaceId, pageId, shareToken };
+  const { fragment, provider, user, getRuntime } = opts;
+  const getUploadContext = () => {
+    const runtime = getRuntime();
+    return {
+      workspaceId: runtime.workspaceId,
+      pageId: runtime.pageId,
+      shareToken: runtime.shareToken,
+    };
+  };
+  const canOpenMentions = (editable: boolean) => {
+    const runtime = getRuntime();
+    return canInsertPageMentions({
+      editable,
+      workspaceId: runtime.workspaceId,
+      shareToken: runtime.shareToken,
+    });
+  };
 
-  // Editable flag is not known statically; gate only on the stable fields.
-  // The command itself guards on editor.isEditable at insert time.
-  const mayInsertMentions = canInsertPageMentions({ editable: true, workspaceId, shareToken });
-
-  const pageMentionSlashConfig: SlashMenuPageMentionConfig | null = mayInsertMentions
-    ? {
-        openPicker: ({ editor, range }) => {
-          launchPageMentionPicker(editor, { range, currentPageId: pageId });
-        },
-      }
-    : null;
+  const pageMentionSlashConfig: SlashMenuPageMentionConfig = {
+    isAvailable: ({ editor }) => canOpenMentions(editor.isEditable) && canInsertPageMentionAtRange(editor),
+    openPicker: ({ editor, range }) => {
+      if (!canOpenMentions(editor.isEditable)) return;
+      launchPageMentionPicker(editor, { range, currentPageId: getRuntime().pageId });
+    },
+  };
 
   const imageSlashConfig: SlashMenuImageConfig = {
     insertImage: ({ editor, range }) => {
-      insertImageFromSlashMenu(editor, range, ctx);
+      insertImageFromSlashMenu(editor, range, getUploadContext());
     },
   };
 
@@ -136,6 +153,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     Placeholder.configure({
       placeholder: "Type '/' for commands...",
     }),
+    TopLevelBlockIdentity,
     BlockDragDropBehavior,
     ShareAwareImage.configure({ inline: false, allowBase64: false }),
     TaskList,
@@ -143,26 +161,54 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     FileHandler.configure({
       allowedMimeTypes: IMAGE_MIME_TYPES,
       onPaste: (currentEditor, files) => {
-        if (!currentEditor.isEditable || !workspaceId) return;
+        const runtime = getRuntime();
+        if (!currentEditor.isEditable || !runtime.workspaceId || files.length === 0) return;
+        const selection = currentEditor.state.selection;
+        const placeholders: ImageNodeTarget[] = [];
+        const first = insertImagePlaceholderAtRange(currentEditor, { from: selection.from, to: selection.to });
+        if (!first) return;
+        placeholders.push(first.target);
+        let insertPos = first.nextPos;
+        for (const _file of files.slice(1)) {
+          const placeholder = insertImagePlaceholderAtPos(currentEditor, insertPos);
+          if (!placeholder) break;
+          placeholders.push(placeholder.target);
+          insertPos = placeholder.nextPos;
+        }
         void (async () => {
-          for (const file of files) {
-            await uploadAndInsertImage(currentEditor, ctx, file);
+          for (const [index, file] of files.entries()) {
+            const target = placeholders[index];
+            if (!target) break;
+            await uploadAndReplaceImageAtTarget(currentEditor, getUploadContext(), file, target);
           }
         })();
       },
       onDrop: (currentEditor, files, pos) => {
-        if (!currentEditor.isEditable || !workspaceId) return;
+        const runtime = getRuntime();
+        if (!currentEditor.isEditable || !runtime.workspaceId || files.length === 0) return;
+        const placeholders: ImageNodeTarget[] = [];
+        let insertPos = pos;
+        for (const _file of files) {
+          const placeholder = insertImagePlaceholderAtPos(currentEditor, insertPos);
+          if (!placeholder) break;
+          placeholders.push(placeholder.target);
+          insertPos = placeholder.nextPos;
+        }
         void (async () => {
-          let insertPos = pos;
-          for (const file of files) {
-            insertPos = await uploadAndInsertImageAtPos(currentEditor, ctx, file, insertPos);
+          for (const [index, file] of files.entries()) {
+            const target = placeholders[index];
+            if (!target) break;
+            await uploadAndReplaceImageAtTarget(currentEditor, getUploadContext(), file, target);
           }
         })();
       },
     }),
     SlashCommands.configure({ pageMention: pageMentionSlashConfig, image: imageSlashConfig, emoji: emojiSlashConfig }),
     PageMentionNode,
-    ...(mayInsertMentions ? [PageMentionSuggestion.configure({ currentPageId: pageId })] : []),
+    PageMentionSuggestion.configure({
+      getCurrentPageId: () => getRuntime().pageId,
+      isAvailable: (editor) => canOpenMentions(editor.isEditable),
+    }),
     ...createTableExtensions(),
   ] as AnyExtension[];
 }

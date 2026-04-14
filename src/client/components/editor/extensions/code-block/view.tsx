@@ -1,14 +1,14 @@
-import { useCallback, useContext, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
-import { EditorContext } from "../../editor-context";
+import { useEditorRuntime } from "../../editor-runtime-context";
 import { CODE_LANGUAGES, resolveLanguage } from "./shared";
 import "../../styles/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
-  const { readOnly } = useContext(EditorContext);
+  const { readOnly } = useEditorRuntime();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);

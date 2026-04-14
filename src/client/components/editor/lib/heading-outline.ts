@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
 
 export interface HeadingOutlineItem {
@@ -40,26 +39,6 @@ export function getHeadingOutline(editor: Editor | null | undefined): HeadingOut
     ...heading,
     active: index === activeIndex,
   }));
-}
-
-export function useHeadingOutline(editor: Editor | null | undefined): HeadingOutlineItem[] {
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    if (!editor) return;
-
-    const bump = () => setRevision((value) => value + 1);
-
-    editor.on("update", bump);
-    editor.on("selectionUpdate", bump);
-
-    return () => {
-      editor.off("update", bump);
-      editor.off("selectionUpdate", bump);
-    };
-  }, [editor]);
-
-  return useMemo(() => getHeadingOutline(editor), [editor, revision]);
 }
 
 export function jumpToHeading(editor: Editor, pos: number) {

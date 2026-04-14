@@ -1,20 +1,10 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useContext,
-  useMemo,
-  useLayoutEffect,
-  type CSSProperties,
-} from "react";
-import type { Editor } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, type CSSProperties } from "react";
+import { useTiptap, useTiptapState } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
 import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
 import { FloatingPortal } from "@floating-ui/react";
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
-import { EditorContext } from "../editor-context";
+import { useEditorRuntime } from "../editor-runtime-context";
 import {
   createImageNodeTarget,
   deleteImageAtTarget,
@@ -46,8 +36,9 @@ function hiddenToolbarStyles(): CSSProperties {
   };
 }
 
-export function ImageToolbar({ editor }: { editor: Editor }) {
-  const { workspaceId, pageId, shareToken, readOnly } = useContext(EditorContext);
+export function ImageToolbar() {
+  const { editor } = useTiptap();
+  const { workspaceId, pageId, shareToken, readOnly } = useEditorRuntime();
   const [editingAlt, setEditingAlt] = useState(false);
   const [altText, setAltText] = useState("");
   const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
@@ -57,34 +48,31 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
   const forcedPosRef = useRef<number | null>(null);
   const lastStylesRef = useRef<CSSProperties>(hiddenToolbarStyles());
 
-  const imageState = useEditorState({
-    editor,
-    selector: (ctx): ImageState | null => {
-      const { selection } = ctx.editor.state;
+  const imageState = useTiptapState((ctx): ImageState | null => {
+    const { selection } = ctx.editor.state;
 
-      if (forcedPosRef.current !== null) {
-        const node = ctx.editor.state.doc.nodeAt(forcedPosRef.current);
-        if (node?.type.name === "image" && node.attrs.src) {
-          return {
-            pos: forcedPosRef.current,
-            src: node.attrs.src as string,
-            alt: (node.attrs.alt as string) ?? "",
-            align: (node.attrs.align as string) ?? "left",
-          };
-        }
-        forcedPosRef.current = null;
+    if (forcedPosRef.current !== null) {
+      const node = ctx.editor.state.doc.nodeAt(forcedPosRef.current);
+      if (node?.type.name === "image" && node.attrs.src) {
+        return {
+          pos: forcedPosRef.current,
+          src: node.attrs.src as string,
+          alt: (node.attrs.alt as string) ?? "",
+          align: (node.attrs.align as string) ?? "left",
+        };
       }
+      forcedPosRef.current = null;
+    }
 
-      if (!(selection instanceof NodeSelection)) return null;
-      const node = selection.node;
-      if (node.type.name !== "image" || !node.attrs.src) return null;
-      return {
-        pos: selection.from,
-        src: node.attrs.src as string,
-        alt: (node.attrs.alt as string) ?? "",
-        align: (node.attrs.align as string) ?? "left",
-      };
-    },
+    if (!(selection instanceof NodeSelection)) return null;
+    const node = selection.node;
+    if (node.type.name !== "image" || !node.attrs.src) return null;
+    return {
+      pos: selection.from,
+      src: node.attrs.src as string,
+      alt: (node.attrs.alt as string) ?? "",
+      align: (node.attrs.align as string) ?? "left",
+    };
   });
 
   const open = imageState !== null;
@@ -224,7 +212,7 @@ export function ImageToolbar({ editor }: { editor: Editor }) {
   // Resolve the selected image container before rendering the toolbar. If we
   // render with an unresolved anchor, floating-ui falls back to (0, 0) and the
   // toolbar looks like it disappeared even though selection is correct.
-  if (readOnly || !open || !referenceEl) return null;
+  if (!editor || readOnly || !open || !referenceEl) return null;
 
   return (
     <FloatingPortal>

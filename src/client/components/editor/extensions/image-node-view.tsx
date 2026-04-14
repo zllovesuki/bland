@@ -1,16 +1,15 @@
-import { useContext, useRef, useCallback, useState, useEffect } from "react";
-import { Image } from "@tiptap/extension-image";
-import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import { useRef, useCallback, useState, useEffect } from "react";
+import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
-import { EditorContext } from "../editor-context";
+import { useEditorRuntime } from "../editor-runtime-context";
+import { showImageInsertPanel } from "../controllers/image-insert-panel";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
 import { createImageNodeTarget, resolveShareUrl } from "../lib/media-actions";
-import { showImageInsertPanel } from "../controllers/image-insert-panel";
 import "../styles/image-node.css";
 
-function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
-  const { workspaceId, pageId, shareToken } = useContext(EditorContext);
+export function ImageNodeView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
+  const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const { src, alt = "", title, align = "left", width } = node.attrs;
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<number | null>(null);
@@ -164,17 +163,3 @@ function ImageView({ node, selected, updateAttributes, deleteNode, editor, getPo
     </NodeViewWrapper>
   );
 }
-
-export const ShareAwareImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      align: { default: "left" },
-      width: { default: null },
-      pendingInsertId: { default: null },
-    };
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(ImageView);
-  },
-});

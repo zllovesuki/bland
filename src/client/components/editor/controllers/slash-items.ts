@@ -29,6 +29,7 @@ export interface SlashMenuItem {
 }
 
 export interface SlashMenuPageMentionConfig {
+  isAvailable?: (props: { editor: Editor }) => boolean;
   openPicker: (props: { editor: Editor; range: Range }) => void;
 }
 
@@ -188,7 +189,9 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
       group: "Insert",
       icon: FileText,
       aliases: ["mention", "page", "reference"],
-      isAvailable: ({ editor }) => canInsertPageMentionAtRange(editor),
+      isAvailable: ({ editor }) =>
+        (!!opts.pageMention?.isAvailable ? opts.pageMention.isAvailable({ editor }) : true) &&
+        canInsertPageMentionAtRange(editor),
       command: ({ editor, range }) => {
         openPicker({ editor, range });
       },

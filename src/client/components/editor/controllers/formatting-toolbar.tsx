@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import type { Editor } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import { useTiptap, useTiptapState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import {
   Bold,
@@ -22,7 +22,8 @@ import { TEXT_COLORS, BG_COLORS } from "./colors";
 import { shouldShowFormattingToolbar } from "./formatting-toolbar-state";
 import "../styles/floating-controls.css";
 
-export function FormattingToolbar({ editor }: { editor: Editor }) {
+export function FormattingToolbar() {
+  const { editor } = useTiptap();
   const [linkMode, setLinkMode] = useState(false);
   const [linkHref, setLinkHref] = useState("");
   const [colorPanel, setColorPanel] = useState<"text" | "highlight" | null>(null);
@@ -30,21 +31,18 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
   const textColorRef = useRef<HTMLButtonElement>(null);
   const highlightRef = useRef<HTMLButtonElement>(null);
 
-  const editorState = useEditorState({
-    editor,
-    selector: (ctx) => ({
-      isBold: ctx.editor.isActive("bold"),
-      isItalic: ctx.editor.isActive("italic"),
-      isUnderline: ctx.editor.isActive("underline"),
-      isStrike: ctx.editor.isActive("strike"),
-      isCode: ctx.editor.isActive("code"),
-      isLink: ctx.editor.isActive("link"),
-      textColor: (ctx.editor.getAttributes("textStyle").color as string) ?? null,
-      bgColor: (ctx.editor.getAttributes("textStyle").backgroundColor as string) ?? null,
-      isAlignCenter: ctx.editor.isActive({ textAlign: "center" }),
-      isAlignRight: ctx.editor.isActive({ textAlign: "right" }),
-    }),
-  });
+  const editorState = useTiptapState((ctx) => ({
+    isBold: ctx.editor.isActive("bold"),
+    isItalic: ctx.editor.isActive("italic"),
+    isUnderline: ctx.editor.isActive("underline"),
+    isStrike: ctx.editor.isActive("strike"),
+    isCode: ctx.editor.isActive("code"),
+    isLink: ctx.editor.isActive("link"),
+    textColor: (ctx.editor.getAttributes("textStyle").color as string) ?? null,
+    bgColor: (ctx.editor.getAttributes("textStyle").backgroundColor as string) ?? null,
+    isAlignCenter: ctx.editor.isActive({ textAlign: "center" }),
+    isAlignRight: ctx.editor.isActive({ textAlign: "right" }),
+  }));
 
   const shouldShow = useCallback(
     ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>
@@ -74,9 +72,10 @@ export function FormattingToolbar({ editor }: { editor: Editor }) {
     editor.chain().focus(null, { scrollIntoView: false }).run();
   };
 
+  if (!editor) return null;
+
   return (
     <BubbleMenu
-      editor={editor}
       shouldShow={shouldShow}
       options={{
         placement: "top-start",

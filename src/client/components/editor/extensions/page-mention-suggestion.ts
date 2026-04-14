@@ -1,4 +1,4 @@
-import { Extension, type Range } from "@tiptap/core";
+import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
@@ -12,33 +12,37 @@ import type { PageMentionItem } from "../controllers/page-mention-picker-panel";
 const pageMentionSuggestionKey = new PluginKey("pageMentionSuggestion");
 
 interface PageMentionSuggestionOptions {
-  currentPageId: string;
+  getCurrentPageId: () => string;
+  isAvailable: (editor: Editor) => boolean;
 }
 
 export const PageMentionSuggestion = Extension.create<PageMentionSuggestionOptions>({
   name: "pageMentionSuggestion",
 
   addOptions() {
-    return { currentPageId: "" };
+    return {
+      getCurrentPageId: () => "",
+      isAvailable: () => false,
+    };
   },
 
   addProseMirrorPlugins() {
-    const currentPageId = this.options.currentPageId;
-
     return [
       Suggestion<PageMentionItem, PageMentionItem>({
         pluginKey: pageMentionSuggestionKey,
         editor: this.editor,
         char: "[[",
         allowSpaces: true,
-        allow: ({ editor, range }) => canInsertPageMentionAtRange(editor, range),
-        shouldShow: ({ transaction }) => !isChangeOrigin(transaction),
+        allow: ({ editor, range }) => this.options.isAvailable(editor) && canInsertPageMentionAtRange(editor, range),
+        shouldShow: ({ editor, transaction }) => this.options.isAvailable(editor) && !isChangeOrigin(transaction),
         items: ({ query }) => {
+          if (!this.options.isAvailable(this.editor)) return [];
           const state = useWorkspaceStore.getState();
           const pages = selectActivePages(state);
-          return filterPageMentionItems(pages, query, currentPageId);
+          return filterPageMentionItems(pages, query, this.options.getCurrentPageId());
         },
         command: ({ editor, range, props: item }) => {
+          if (!this.options.isAvailable(editor)) return;
           editor.commands.insertPageMention({ pageId: item.pageId, range: range as Range });
         },
         render: () => {

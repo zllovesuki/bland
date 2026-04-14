@@ -4,12 +4,12 @@ import { type ImageNodeTarget, type UploadContext, insertImagePlaceholderAtRange
 import { ImageInsertPopover, type ImageInsertPopoverProps } from "./image-insert-popover";
 
 export function insertImageFromSlashMenu(editor: Editor, range: Range, uploadContext: UploadContext) {
-  const target = insertImagePlaceholderAtRange(editor, range);
-  if (!target) return;
+  const inserted = insertImagePlaceholderAtRange(editor, range);
+  if (!inserted) return;
 
   queueMicrotask(() => {
     if (editor.isDestroyed) return;
-    showImageInsertPanel(editor, { uploadContext, target });
+    showImageInsertPanel(editor, { uploadContext, target: inserted.target });
   });
 }
 

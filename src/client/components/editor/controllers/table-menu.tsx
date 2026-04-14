@@ -10,8 +10,7 @@ import {
   useInteractions,
   type VirtualElement,
 } from "@floating-ui/react";
-import type { Editor } from "@tiptap/react";
-import { useEditorState } from "@tiptap/react";
+import { useTiptap, useTiptapState } from "@tiptap/react";
 import {
   buildColumnMenuSections,
   buildRowMenuSections,
@@ -29,10 +28,6 @@ import {
 import { hasExplicitColumnWidths } from "../extensions/table/widths";
 import { preserveEditorSelectionOnMouseDown } from "./menu/popover";
 
-interface TableMenuProps {
-  editor: Editor;
-}
-
 interface MenuDerivedState {
   openMenu: OpenMenuState | null;
   rowCount: number;
@@ -42,33 +37,31 @@ interface MenuDerivedState {
   canResetWidths: boolean;
 }
 
-export function TableMenu({ editor }: TableMenuProps) {
-  const state = useEditorState<MenuDerivedState>({
-    editor,
-    selector: (ctx) => {
-      const e = ctx.editor;
-      const pluginState = tableHandlesKey.getState(e.state);
-      const openMenu = pluginState?.openMenu ?? null;
-      let rowCount = 0;
-      let colCount = 0;
-      let canResetWidths = false;
-      const resolved = openMenu ? resolveOpenMenuState(e.state.doc, openMenu) : null;
-      if (resolved) {
-        rowCount = resolved.rowCount;
-        colCount = resolved.colCount;
-        canResetWidths = hasExplicitColumnWidths(resolved.table);
-      }
-      const active = activeCellInfo(e.state);
-      const selectionInOpenTable = !!resolved && active?.tablePos === resolved.tablePos;
-      return {
-        openMenu,
-        rowCount,
-        colCount,
-        canMerge: selectionInOpenTable && e.can().mergeCells(),
-        canSplit: selectionInOpenTable && e.can().splitCell(),
-        canResetWidths,
-      };
-    },
+export function TableMenu() {
+  const { editor } = useTiptap();
+  const state = useTiptapState<MenuDerivedState>((ctx) => {
+    const e = ctx.editor;
+    const pluginState = tableHandlesKey.getState(e.state);
+    const openMenu = pluginState?.openMenu ?? null;
+    let rowCount = 0;
+    let colCount = 0;
+    let canResetWidths = false;
+    const resolved = openMenu ? resolveOpenMenuState(e.state.doc, openMenu) : null;
+    if (resolved) {
+      rowCount = resolved.rowCount;
+      colCount = resolved.colCount;
+      canResetWidths = hasExplicitColumnWidths(resolved.table);
+    }
+    const active = activeCellInfo(e.state);
+    const selectionInOpenTable = !!resolved && active?.tablePos === resolved.tablePos;
+    return {
+      openMenu,
+      rowCount,
+      colCount,
+      canMerge: selectionInOpenTable && e.can().mergeCells(),
+      canSplit: selectionInOpenTable && e.can().splitCell(),
+      canResetWidths,
+    };
   });
 
   const { openMenu } = state;
@@ -179,7 +172,7 @@ export function TableMenu({ editor }: TableMenuProps) {
     return () => cancelAnimationFrame(raf);
   }, [openMenu]);
 
-  if (!openMenu || !hasTrigger) return null;
+  if (!editor || !openMenu || !hasTrigger) return null;
 
   return (
     <FloatingPortal>

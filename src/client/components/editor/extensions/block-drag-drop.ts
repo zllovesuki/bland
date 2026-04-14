@@ -2,6 +2,8 @@ import { Extension } from "@tiptap/core";
 import type { Slice } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { isChangeOrigin } from "@tiptap/extension-collaboration";
+import { findTopLevelBlockByBid, getTopLevelStructureSignature } from "../lib/top-level-blocks";
 import "../styles/block-drag-drop.css";
 
 export interface TopLevelBlockRect {
@@ -14,6 +16,8 @@ export interface TopLevelBlockRect {
 }
 
 interface BlockDragDropState {
+  canceled: boolean;
+  sourceBid: string | null;
   target: number | null;
   sourcePos: number | null;
   sourceEnd: number | null;
@@ -153,7 +157,9 @@ function createDropPlaceholder(view: EditorView) {
 // itself is less jumpy than rendering a second placeholder widget next to it.
 function isAdjacentToSource(state: BlockDragDropState): boolean {
   return (
+    !state.canceled &&
     state.target !== null &&
+    state.sourceBid !== null &&
     state.sourcePos !== null &&
     state.sourceEnd !== null &&
     (state.target === state.sourcePos || state.target === state.sourceEnd)
@@ -181,6 +187,13 @@ class BlockDragPreviewView {
   }
 
   update() {
+    const pluginState = blockDragDropKey.getState(this.editorView.state);
+    if (pluginState?.canceled) {
+      dragTargets.delete(this.editorView);
+      this.target = null;
+      return;
+    }
+
     if (this.target !== null) {
       if (this.target > this.editorView.state.doc.content.size) {
         this.setTarget(null);
@@ -238,40 +251,38 @@ class BlockDragPreviewView {
 // always matches the in-flow placeholder the user is dragging against.
 function handleMovedDrop(view: EditorView, event: DragEvent, slice: Slice, moved: boolean): boolean {
   if (!moved || !slice.content.size) return false;
+  const pluginState = blockDragDropKey.getState(view.state);
+  if (pluginState?.canceled || !pluginState?.sourceBid) {
+    event.preventDefault();
+    dragTargets.delete(view);
+    return true;
+  }
 
   const insertPos = dragTargets.get(view) ?? resolveMovedBlockDropPos(view, event);
-  if (insertPos === null) return false;
+  if (insertPos === null) {
+    event.preventDefault();
+    dragTargets.delete(view);
+    return true;
+  }
 
   event.preventDefault();
 
-  const { tr } = view.state;
-  const dragging = view.dragging as { node?: NodeSelection } | null;
-
-  if (dragging?.node) {
-    dragging.node.replace(tr);
-  } else {
-    tr.deleteSelection();
+  const source = findTopLevelBlockByBid(view.state.doc, pluginState.sourceBid);
+  if (!source) {
+    dragTargets.delete(view);
+    return true;
   }
 
+  const tr = view.state.tr.delete(source.pos, source.pos + source.node.nodeSize);
   const pos = tr.mapping.map(insertPos);
-  const isNode = slice.openStart === 0 && slice.openEnd === 0 && slice.content.childCount === 1;
   const beforeInsert = tr.doc;
 
-  if (isNode) {
-    tr.replaceRangeWith(pos, pos, slice.content.firstChild!);
-  } else {
-    tr.replaceRange(pos, pos, slice);
-  }
+  tr.replaceRangeWith(pos, pos, source.node);
 
   if (tr.doc.eq(beforeInsert)) return true;
 
   const $pos = tr.doc.resolve(pos);
-  if (
-    isNode &&
-    NodeSelection.isSelectable(slice.content.firstChild!) &&
-    $pos.nodeAfter &&
-    $pos.nodeAfter.sameMarkup(slice.content.firstChild!)
-  ) {
+  if (NodeSelection.isSelectable(source.node) && $pos.nodeAfter && $pos.nodeAfter.sameMarkup(source.node)) {
     tr.setSelection(new NodeSelection($pos));
   } else {
     tr.setSelection(Selection.near($pos));
@@ -298,15 +309,63 @@ export const BlockDragDropBehavior = Extension.create({
       new Plugin({
         key: blockDragDropKey,
         state: {
-          init: (): BlockDragDropState => ({ target: null, sourcePos: null, sourceEnd: null }),
-          apply(tr, value) {
+          init: (): BlockDragDropState => ({
+            canceled: false,
+            sourceBid: null,
+            target: null,
+            sourcePos: null,
+            sourceEnd: null,
+          }),
+          apply(tr, value, oldState, newState) {
             const meta = tr.getMeta(blockDragDropKey) as Partial<BlockDragDropState> | undefined;
-            if (!meta) return value;
-            return {
-              target: "target" in meta ? (meta.target ?? null) : value.target,
-              sourcePos: "sourcePos" in meta ? (meta.sourcePos ?? null) : value.sourcePos,
-              sourceEnd: "sourceEnd" in meta ? (meta.sourceEnd ?? null) : value.sourceEnd,
+            const next: BlockDragDropState = {
+              canceled: "canceled" in (meta ?? {}) ? !!meta?.canceled : value.canceled,
+              sourceBid: "sourceBid" in (meta ?? {}) ? (meta?.sourceBid ?? null) : value.sourceBid,
+              target:
+                "target" in (meta ?? {})
+                  ? (meta?.target ?? null)
+                  : value.target !== null
+                    ? tr.mapping.map(value.target)
+                    : null,
+              sourcePos: "sourcePos" in (meta ?? {}) ? (meta?.sourcePos ?? null) : value.sourcePos,
+              sourceEnd: "sourceEnd" in (meta ?? {}) ? (meta?.sourceEnd ?? null) : value.sourceEnd,
             };
+
+            if (next.canceled || next.sourceBid === null) {
+              return next;
+            }
+
+            const currentSource = findTopLevelBlockByBid(newState.doc, next.sourceBid);
+            if (!currentSource) {
+              return {
+                canceled: true,
+                sourceBid: null,
+                target: null,
+                sourcePos: null,
+                sourceEnd: null,
+              };
+            }
+
+            if (tr.docChanged && isChangeOrigin(tr)) {
+              const structureChanged =
+                getTopLevelStructureSignature(oldState.doc) !== getTopLevelStructureSignature(newState.doc);
+              if (structureChanged) {
+                return {
+                  canceled: true,
+                  sourceBid: null,
+                  target: null,
+                  sourcePos: null,
+                  sourceEnd: null,
+                };
+              }
+            }
+
+            next.sourcePos = currentSource.pos;
+            next.sourceEnd = currentSource.pos + currentSource.node.nodeSize;
+            if (next.target !== null && next.target > newState.doc.content.size) {
+              next.target = null;
+            }
+            return next;
           },
         },
         props: {
@@ -314,7 +373,7 @@ export const BlockDragDropBehavior = Extension.create({
             dragstart(view: EditorView, event: Event) {
               if (!view.editable) return false;
               // Image blocks own their drag via a document-level capture
-              // listener in image-node.tsx — let those through.
+              // listener in image-node-view.tsx — let those through.
               const el = event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
               if (el?.closest(".react-renderer.node-image")) return false;
               // Suppress everything else (text-selection drags, details
@@ -327,10 +386,11 @@ export const BlockDragDropBehavior = Extension.create({
           handleDrop: handleMovedDrop,
           decorations(state) {
             const pluginState = blockDragDropKey.getState(state);
-            if (!pluginState) return null;
+            if (!pluginState || pluginState.canceled) return null;
 
             const decorations = [];
-            const hasSource = pluginState.sourcePos !== null && pluginState.sourceEnd !== null;
+            const hasSource =
+              pluginState.sourceBid !== null && pluginState.sourcePos !== null && pluginState.sourceEnd !== null;
             const hasTarget = pluginState.target !== null;
             const adjacentToSource = isAdjacentToSource(pluginState);
 
@@ -370,7 +430,13 @@ export const BlockDragDropBehavior = Extension.create({
 
 // Capture a static DOM snapshot of the dragged source block. The live source
 // may be hidden while dragging away from it, so the placeholder needs its own copy.
-export function setDraggedBlockPreview(view: EditorView, dom: HTMLElement, sourcePos: number, sourceEnd: number) {
+export function setDraggedBlockPreview(
+  view: EditorView,
+  dom: HTMLElement,
+  sourceBid: string,
+  sourcePos: number,
+  sourceEnd: number,
+) {
   const styles = window.getComputedStyle(dom);
   dragPreviews.set(view, {
     dom: dom.cloneNode(true) as HTMLElement,
@@ -378,7 +444,9 @@ export function setDraggedBlockPreview(view: EditorView, dom: HTMLElement, sourc
     marginBottom: styles.marginBottom,
   });
   view.dispatch(
-    view.state.tr.setMeta(blockDragDropKey, { sourcePos, sourceEnd, target: null }).setMeta("addToHistory", false),
+    view.state.tr
+      .setMeta(blockDragDropKey, { canceled: false, sourceBid, sourcePos, sourceEnd, target: null })
+      .setMeta("addToHistory", false),
   );
 }
 
@@ -386,7 +454,7 @@ export function clearDraggedBlockPreview(view: EditorView) {
   dragPreviews.delete(view);
   view.dispatch(
     view.state.tr
-      .setMeta(blockDragDropKey, { sourcePos: null, sourceEnd: null, target: null })
+      .setMeta(blockDragDropKey, { canceled: false, sourceBid: null, sourcePos: null, sourceEnd: null, target: null })
       .setMeta("addToHistory", false),
   );
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Editor as TiptapEditor } from "@tiptap/core";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
@@ -11,8 +10,6 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { markDocCached } from "@/client/lib/doc-cache-hints";
 import { EditorTitle } from "./editor-title";
 import { EditorBody } from "./editor-body";
-import { EditorMetrics } from "./editor-metrics";
-import { EditorOutline } from "./editor-outline";
 
 interface EditorPaneProps {
   pageId: string;
@@ -34,7 +31,6 @@ export function EditorPane({
   workspaceId,
 }: EditorPaneProps) {
   const [title, setTitle] = useState(initialTitle);
-  const [editor, setEditor] = useState<TiptapEditor | null>(null);
   const [editorState, setEditorState] = useState<{
     fragment: Y.XmlFragment;
     provider: { awareness: Awareness };
@@ -176,12 +172,7 @@ export function EditorPane({
             readOnly={readOnly}
             shareToken={shareToken}
             workspaceId={workspaceId}
-            onEditor={setEditor}
           />
-          <div className="mt-4 space-y-4 pl-4 sm:pl-7">
-            <EditorOutline editor={editor} />
-            <EditorMetrics editor={editor} className="justify-end" />
-          </div>
         </>
       ) : (
         <div className="space-y-3 pl-7">

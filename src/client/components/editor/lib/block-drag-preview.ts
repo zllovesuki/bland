@@ -13,10 +13,11 @@ function getTransparentImg() {
   return transparentImg;
 }
 
-export function prepareBlockDragPreview(editor: Editor, pos: number, dataTransfer: DataTransfer) {
+export function prepareBlockDragPreview(editor: Editor, pos: number, dataTransfer: DataTransfer): boolean {
   const dom = editor.view.nodeDOM(pos);
   const node = editor.state.doc.nodeAt(pos);
-  if (!(dom instanceof HTMLElement) || !node) return;
+  const sourceBid = node && typeof node.attrs.bid === "string" ? node.attrs.bid : null;
+  if (!(dom instanceof HTMLElement) || !node || !sourceBid) return false;
 
   const transparent = getTransparentImg();
   const originalSetDragImage = dataTransfer.setDragImage.bind(dataTransfer);
@@ -29,7 +30,8 @@ export function prepareBlockDragPreview(editor: Editor, pos: number, dataTransfe
     document.removeEventListener("drop", cleanup);
   };
 
-  setDraggedBlockPreview(editor.view, dom, pos, pos + node.nodeSize);
+  setDraggedBlockPreview(editor.view, dom, sourceBid, pos, pos + node.nodeSize);
   document.addEventListener("dragend", cleanup);
   document.addEventListener("drop", cleanup);
+  return true;
 }

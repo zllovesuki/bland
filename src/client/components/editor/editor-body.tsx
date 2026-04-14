@@ -1,11 +1,9 @@
-import { memo, useEffect, useMemo } from "react";
-import type { Editor as TiptapEditor } from "@tiptap/core";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { userColor } from "@/client/hooks/use-sync";
-import { EditorContext } from "./editor-context";
 import { createEditorExtensions } from "./extensions/create-editor-extensions";
 import { DragHandle } from "./controllers/drag-handle";
 import { FormattingToolbar } from "./controllers/formatting-toolbar";
@@ -15,6 +13,13 @@ import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
 import { PageMentionContext } from "./page-mention-context";
 import { usePageMentionScope } from "./page-mention-scope-context";
+import {
+  EditorRuntimeContext,
+  canInsertPageMentionsForRuntime,
+  type EditorRuntimeSnapshot,
+} from "./editor-runtime-context";
+import { EditorMetrics } from "./editor-metrics";
+import { EditorOutline } from "./editor-outline";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
@@ -29,7 +34,6 @@ interface EditorBodyProps {
   readOnly?: boolean;
   shareToken?: string;
   workspaceId?: string;
-  onEditor?: (editor: TiptapEditor | null) => void;
 }
 
 export const EditorBody = memo(function EditorBody({
@@ -39,26 +43,51 @@ export const EditorBody = memo(function EditorBody({
   readOnly,
   shareToken,
   workspaceId,
-  onEditor,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const pageMentionScope = usePageMentionScope();
+  const runtimeRef = useRef<EditorRuntimeSnapshot>({
+    workspaceId,
+    pageId,
+    shareToken,
+    readOnly: !!readOnly,
+  });
+  runtimeRef.current = {
+    workspaceId,
+    pageId,
+    shareToken,
+    readOnly: !!readOnly,
+  };
+
+  const getRuntime = useCallback(() => runtimeRef.current, []);
+  const getUploadContext = useCallback(() => {
+    const runtime = runtimeRef.current;
+    return {
+      workspaceId: runtime.workspaceId,
+      pageId: runtime.pageId,
+      shareToken: runtime.shareToken,
+    };
+  }, []);
+  const canInsertMentions = useCallback(() => canInsertPageMentionsForRuntime(runtimeRef.current), []);
+  const collaborationUser = useMemo(
+    () => ({
+      name: user?.name ?? "Anonymous",
+      color: userColor(user?.id ?? "anon"),
+      avatar_url: user?.avatar_url ?? null,
+    }),
+    [user?.avatar_url, user?.id, user?.name],
+  );
 
   const editor = useEditor(
     {
       extensions: createEditorExtensions({
         fragment,
         provider,
-        user: {
-          name: user?.name ?? "Anonymous",
-          color: userColor(user?.id ?? "anon"),
-          avatar_url: user?.avatar_url ?? null,
-        },
-        workspaceId,
-        pageId,
-        shareToken,
+        user: collaborationUser,
+        getRuntime,
       }),
       editable: !readOnly,
+      shouldRerenderOnTransaction: false,
       coreExtensionOptions: EDITOR_CORE_EXTENSION_OPTIONS,
       editorProps: {
         attributes: {
@@ -99,7 +128,7 @@ export const EditorBody = memo(function EditorBody({
         },
       },
     },
-    [pageId],
+    [fragment, pageId, provider],
   );
 
   useEffect(() => {
@@ -107,31 +136,46 @@ export const EditorBody = memo(function EditorBody({
   }, [editor, readOnly]);
 
   useEffect(() => {
-    onEditor?.(editor ?? null);
-    return () => onEditor?.(null);
-  }, [editor, onEditor]);
+    provider.awareness.setLocalStateField("user", collaborationUser);
+  }, [collaborationUser, provider]);
 
-  const ctxValue = useMemo(
-    () => ({ workspaceId, pageId, shareToken, readOnly: !!readOnly }),
-    [workspaceId, pageId, shareToken, readOnly],
+  const runtimeValue = useMemo(
+    () => ({
+      workspaceId,
+      pageId,
+      shareToken,
+      readOnly: !!readOnly,
+      getRuntime,
+      getUploadContext,
+      canInsertPageMentions: canInsertMentions,
+    }),
+    [canInsertMentions, getRuntime, getUploadContext, pageId, readOnly, shareToken, workspaceId],
   );
 
+  if (!editor) return null;
+
   return (
-    <EditorContext.Provider value={ctxValue}>
+    <EditorRuntimeContext.Provider value={runtimeValue}>
       {/* Tiptap node views are rendered through EditorContent's React bridge.
           Re-providing the existing mention scope here keeps the stable
           route-level resolver lifetime while ensuring node views can still
           consume PageMentionContext. */}
       <PageMentionContext.Provider value={pageMentionScope}>
-        <div className="relative">
-          <EditorContent editor={editor} />
-          {editor && !readOnly && <DragHandle key={pageId} editor={editor} />}
-          {editor && !readOnly && <FormattingToolbar editor={editor} />}
-          {editor && !readOnly && <LinkToolbar editor={editor} />}
-          {editor && !readOnly && <ImageToolbar editor={editor} />}
-          {editor && !readOnly && <TableMenu editor={editor} />}
-        </div>
+        <Tiptap editor={editor}>
+          <div className="relative">
+            <Tiptap.Content />
+            {!readOnly && <DragHandle />}
+            {!readOnly && <FormattingToolbar />}
+            {!readOnly && <LinkToolbar />}
+            {!readOnly && <ImageToolbar />}
+            {!readOnly && <TableMenu />}
+          </div>
+          <div className="mt-4 space-y-4 pl-4 sm:pl-7">
+            <EditorOutline />
+            <EditorMetrics className="justify-end" />
+          </div>
+        </Tiptap>
       </PageMentionContext.Provider>
-    </EditorContext.Provider>
+    </EditorRuntimeContext.Provider>
   );
 });

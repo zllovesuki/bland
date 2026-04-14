@@ -1,4 +1,4 @@
-import { useEditorState } from "@tiptap/react";
+import { useTiptap, useTiptapState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { formatReadTime } from "./lib/read-time";
@@ -9,7 +9,6 @@ type CharacterCountStorage = {
 };
 
 export interface EditorMetricsProps {
-  editor: Editor | null;
   className?: string;
 }
 
@@ -48,16 +47,9 @@ function getEditorMetrics(editor: Editor): { words: number; characters: number }
   };
 }
 
-export function EditorMetrics({ editor, className }: EditorMetricsProps) {
-  const metrics = useEditorState({
-    editor,
-    selector: ({ editor: currentEditor }) => {
-      if (!currentEditor) {
-        return null;
-      }
-      return getEditorMetrics(currentEditor);
-    },
-  });
+export function EditorMetrics({ className }: EditorMetricsProps) {
+  const { editor } = useTiptap();
+  const metrics = useTiptapState(({ editor: currentEditor }) => getEditorMetrics(currentEditor));
 
   if (!editor || !metrics) {
     return null;
