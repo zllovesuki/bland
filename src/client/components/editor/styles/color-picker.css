@@ -1,5 +1,5 @@
 /* Overlay: color picker */
-.tiptap-color-panel {
+.tiptap-menu-surface.tiptap-color-panel {
   position: fixed;
   z-index: 60;
   display: grid;

@@ -11,7 +11,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const { readOnly } = useEditorRuntime();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
 
   const language = resolveLanguage(node.attrs.language);
@@ -36,12 +36,20 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   useLayoutEffect(() => {
     if (!open) return;
 
-    const menu = menuRef.current;
-    const activeItem = activeItemRef.current;
-    if (!menu || !activeItem) return;
+    let frameId = 0;
 
-    const targetScrollTop = activeItem.offsetTop - (menu.clientHeight - activeItem.offsetHeight) / 2;
-    menu.scrollTop = Math.max(0, targetScrollTop);
+    frameId = window.requestAnimationFrame(() => {
+      const dropdown = dropdownRef.current;
+      const activeItem = activeItemRef.current;
+      if (!dropdown || !activeItem) return;
+
+      const maxScrollTop = Math.max(0, dropdown.scrollHeight - dropdown.clientHeight);
+      const targetScrollTop = activeItem.offsetTop - (dropdown.clientHeight - activeItem.offsetHeight) / 2;
+
+      dropdown.scrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop));
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [language, open]);
 
   return (
@@ -65,7 +73,6 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
           <div
             ref={(node) => {
               refs.setFloating(node);
-              menuRef.current = node;
             }}
             className="animate-fade-in origin-top-right tiptap-menu-surface"
             role="menu"
@@ -75,7 +82,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
               onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
             })}
           >
-            <div className="tiptap-code-block-lang-dropdown">
+            <div ref={dropdownRef} className="tiptap-code-block-lang-dropdown">
               {Object.entries(CODE_LANGUAGES).map(([id, meta]) => (
                 <button
                   key={id}

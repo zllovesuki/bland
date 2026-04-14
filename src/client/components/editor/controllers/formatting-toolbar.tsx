@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { useTiptap, useTiptapState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -42,6 +42,11 @@ export function FormattingToolbar() {
     bgColor: (ctx.editor.getAttributes("textStyle").backgroundColor as string) ?? null,
     isAlignCenter: ctx.editor.isActive({ textAlign: "center" }),
     isAlignRight: ctx.editor.isActive({ textAlign: "right" }),
+    shouldShowToolbar: shouldShowFormattingToolbar({
+      editor: ctx.editor,
+      from: ctx.editor.state.selection.from,
+      to: ctx.editor.state.selection.to,
+    }),
   }));
 
   const shouldShow = useCallback(
@@ -71,6 +76,12 @@ export function FormattingToolbar() {
     setLinkMode(false);
     editor.chain().focus(null, { scrollIntoView: false }).run();
   };
+
+  useEffect(() => {
+    if (linkMode || !editorState.shouldShowToolbar) {
+      setColorPanel(null);
+    }
+  }, [editorState.shouldShowToolbar, linkMode]);
 
   if (!editor) return null;
 

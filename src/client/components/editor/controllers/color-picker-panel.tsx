@@ -1,5 +1,5 @@
 import { FloatingPortal } from "@floating-ui/react";
-import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "./menu/popover";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
 import { type ColorEntry } from "./colors";
 import "../styles/color-picker.css";
 
@@ -20,22 +20,21 @@ export function ColorPickerPanel({
   triggerRef,
   onClose,
 }: ColorPickerPanelProps) {
-  const { floatingStyles, getFloatingProps, refs } = useEditorPopover({
+  const { floatingStyles, setFloating } = useEditorRectPopover({
     open: true,
     onClose,
-    anchorRef: triggerRef,
+    contextElement: () => triggerRef.current,
+    getAnchorRect: () => triggerRef.current?.getBoundingClientRect() ?? null,
     offset: 6,
   });
 
   return (
     <FloatingPortal>
       <div
-        ref={refs.setFloating}
+        ref={setFloating}
         className="tiptap-menu-surface tiptap-color-panel"
         style={{ ...floatingStyles, zIndex: 60 }}
-        {...getFloatingProps({
-          onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
-        })}
+        onMouseDownCapture={(e) => preserveEditorSelectionOnMouseDown(e)}
       >
         {colors.map((c) => (
           <button

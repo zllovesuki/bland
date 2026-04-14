@@ -9,9 +9,11 @@ import {
   FloatingPortal,
   safePolygon,
   useHover,
+  useInteractions,
 } from "@floating-ui/react";
 import { ExternalLink, Pencil, Unlink, Check, X } from "lucide-react";
 import { useEditorRuntime } from "../editor-runtime-context";
+import { useEditorRectPopover } from "./menu/popover";
 import "../styles/floating-controls.css";
 import "../styles/link-toolbar.css";
 
@@ -38,7 +40,7 @@ export function LinkToolbar() {
     if (!link) setEditing(false);
   }, [link]);
 
-  const { floatingStyles, refs, context } = useFloating({
+  const { context, refs } = useFloating({
     open,
     onOpenChange(nextOpen) {
       if (!nextOpen && linkRef.current?.mode === "hover") {
@@ -50,15 +52,24 @@ export function LinkToolbar() {
     whileElementsMounted: autoUpdate,
   });
 
-  useHover(context, {
+  const hover = useHover(context, {
     enabled: link?.mode === "hover",
     handleClose: hoverHandleClose,
   });
+  const { getFloatingProps } = useInteractions([hover]);
+
+  const { floatingStyles, setFloating } = useEditorRectPopover({
+    open,
+    onClose: () => setLink(null),
+    contextElement: () => (link?.element?.isConnected ? link.element : null),
+    getAnchorRect: () => (link?.element?.isConnected ? link.element.getBoundingClientRect() : null),
+    placement: "top-start",
+    offset: 10,
+    padding: 10,
+  });
 
   useEffect(() => {
-    if (link?.element) {
-      refs.setReference(link.element);
-    }
+    refs.setReference(link?.element ?? null);
   }, [link?.element, refs]);
 
   useEffect(() => {
@@ -170,12 +181,17 @@ export function LinkToolbar() {
   return (
     <FloatingPortal>
       <div
-        ref={refs.setFloating}
+        ref={(node) => {
+          refs.setFloating(node);
+          setFloating(node);
+        }}
         style={{ ...floatingStyles, zIndex: 50 }}
         className="tiptap-link-toolbar"
-        onMouseDownCapture={(e) => {
-          if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
-        }}
+        {...getFloatingProps({
+          onMouseDownCapture: (e) => {
+            if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+          },
+        })}
       >
         {editing ? (
           <div className="flex items-center gap-1.5">
