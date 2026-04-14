@@ -132,7 +132,7 @@ export function SharedWithMeView() {
         <div className="animate-slide-up text-center">
           <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-400" />
           <h2 className="text-lg font-semibold text-zinc-200">Couldn't load shared pages</h2>
-          <p className="mt-1 text-sm text-zinc-500">Check your connection and try again.</p>
+          <p className="mt-1 text-sm text-zinc-400">Check your connection and try again.</p>
           <Button variant="secondary" size="sm" className="mt-4" onClick={() => window.location.reload()}>
             Retry
           </Button>
@@ -146,14 +146,14 @@ export function SharedWithMeView() {
       <div className="flex h-full items-center justify-center">
         <div className="animate-slide-up text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-800/50">
-            <Share2 className="h-8 w-8 text-zinc-600" />
+            <Share2 className="h-8 w-8 text-zinc-500" />
           </div>
-          <h2 className="text-lg font-semibold text-zinc-200">No pages shared with you yet</h2>
-          <p className="mt-1 text-sm text-zinc-500">When someone shares a page with you, it will appear here.</p>
+          <h2 className="text-lg font-semibold text-zinc-200">Nothing shared with you yet</h2>
+          <p className="mt-1 text-sm text-zinc-400">Shared pages show up here automatically.</p>
           {canLeaveSharedInbox && backLabel && (
             <button
               onClick={leaveSharedInbox}
-              className="mt-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-zinc-300"
               type="button"
             >
               <ArrowLeft className="h-3.5 w-3.5" />

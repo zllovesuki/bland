@@ -18,10 +18,10 @@ export function LandingPage() {
   return (
     <div className="relative min-h-screen">
       {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-950/95 backdrop-blur-sm">
+      <nav className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-900/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
+            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
               <FileText className="h-5 w-5 text-white" aria-hidden="true" />
             </div>
             <strong className="text-sm font-semibold text-zinc-100">bland</strong>
@@ -62,13 +62,13 @@ export function LandingPage() {
               className="animate-slide-up mt-8 flex items-center justify-end gap-4 opacity-0"
               style={{ animationDelay: "240ms" }}
             >
-              <span className="text-sm text-zinc-600">Invite only — ask your teammate for a link</span>
+              <span className="text-sm text-zinc-500">Invite only — ask your teammate for a link</span>
               <Link
                 to="/login"
                 search={{ redirect: undefined }}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-500 to-accent-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-accent-500/10 transition-transform hover:from-accent-400 hover:to-accent-500 hover:shadow-md hover:shadow-accent-500/15 active:scale-[0.98]"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent-600 px-5 py-2.5 text-sm font-medium text-white transition-[background-color,transform] hover:bg-accent-500 active:scale-[0.98]"
               >
-                Get started
+                Sign in
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
@@ -77,15 +77,6 @@ export function LandingPage() {
 
         {/* Product mockup */}
         <section className="relative mx-auto max-w-7xl px-4 pb-32 sm:px-6">
-          {/* Violet ambient glow */}
-          <div
-            className="pointer-events-none absolute inset-0 -top-24"
-            style={{
-              background: "radial-gradient(ellipse 70% 50% at 50% 40%, rgba(139, 92, 246, 0.04), transparent)",
-            }}
-            aria-hidden="true"
-          />
-
           <div
             className="animate-fade-in relative opacity-0"
             style={{
@@ -93,13 +84,13 @@ export function LandingPage() {
               transform: "perspective(2400px) rotateY(-1.5deg) rotateX(1deg)",
             }}
           >
-            <div className="overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 shadow-2xl shadow-black/30">
+            <div className="overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 shadow-2xl shadow-black/30">
               {/* Window chrome */}
               <div className="flex items-center gap-2 border-b border-zinc-800/40 px-4 py-2.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-zinc-700/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-zinc-700/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-zinc-700/80" />
-                <span className="ml-3 text-[11px] text-zinc-600">bland.tools</span>
+                <span className="ml-3 text-[11px] text-zinc-500">bland.tools</span>
               </div>
 
               {/* App body */}
@@ -166,7 +157,7 @@ export function LandingPage() {
                       {"\n  "}
                       <span className="text-accent-400">async</span> <span className="text-zinc-300">onSave</span>
                       {"() { "}
-                      <span className="text-zinc-600">/* ... */</span>
+                      <span className="text-zinc-500">/* ... */</span>
                       {" }"}
                       {"\n}"}
                     </pre>
@@ -179,7 +170,7 @@ export function LandingPage() {
             <div
               className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
               style={{
-                background: "linear-gradient(to top, #09090b, transparent)",
+                background: "linear-gradient(to top, var(--color-canvas), transparent)",
               }}
               aria-hidden="true"
             />
@@ -190,7 +181,7 @@ export function LandingPage() {
         <section className="mx-auto max-w-7xl px-4 pb-28 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {/* Collaboration — wide card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6 sm:col-span-2 lg:col-span-2">
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 lg:col-span-2">
               <div className="relative z-10">
                 <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">
                   Real-time collaboration
@@ -214,27 +205,22 @@ export function LandingPage() {
                 <div className="mt-2 flex items-center gap-3">
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span className="text-[11px] text-zinc-600">Alex</span>
+                    <span className="text-[11px] text-zinc-500">Alex</span>
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
-                    <span className="text-[11px] text-zinc-600">Rachel</span>
+                    <span className="text-[11px] text-zinc-500">Rachel</span>
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    <span className="text-[11px] text-zinc-600">Sam</span>
+                    <span className="text-[11px] text-zinc-500">Sam</span>
                   </span>
                 </div>
               </div>
-              <div
-                className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full opacity-[0.03]"
-                style={{ background: "radial-gradient(circle, #8b5cf6, transparent 70%)" }}
-                aria-hidden="true"
-              />
             </div>
 
             {/* Search — tall card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6 sm:row-span-2">
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:row-span-2">
               <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">Full-text search</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">
                 FTS5-powered instant search across every page in the workspace.
@@ -242,7 +228,7 @@ export function LandingPage() {
               {/* Mini visual — search UI */}
               <div className="mt-5 space-y-2">
                 <div className="flex items-center gap-2 rounded-lg border border-zinc-700/50 bg-zinc-950/60 px-3 py-2">
-                  <Search className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                  <Search className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
                   <span className="text-xs text-zinc-400">durable objects</span>
                   <span className="ml-auto text-[10px] text-zinc-700">⌘K</span>
                 </div>
@@ -256,22 +242,17 @@ export function LandingPage() {
                     className="rounded-lg border border-transparent bg-zinc-800/30 px-3 py-2 transition-colors first:border-accent-500/20 first:bg-accent-500/[0.06]"
                   >
                     <div className="flex items-center gap-2">
-                      <FileText className="h-3 w-3 text-zinc-600" aria-hidden="true" />
+                      <FileText className="h-3 w-3 text-zinc-500" aria-hidden="true" />
                       <span className="text-xs font-medium text-zinc-300">{r.title}</span>
                     </div>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-600">{r.match}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">{r.match}</p>
                   </div>
                 ))}
               </div>
-              <div
-                className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full opacity-[0.03]"
-                style={{ background: "radial-gradient(circle, #8b5cf6, transparent 70%)" }}
-                aria-hidden="true"
-              />
             </div>
 
             {/* Block types — compact card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 p-6 sm:col-span-2 lg:col-span-2">
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 lg:col-span-2">
               <div className="relative z-10">
                 <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">Rich block editor</h3>
                 <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">
@@ -283,7 +264,7 @@ export function LandingPage() {
               <div className="mt-5 grid gap-2 sm:grid-cols-3">
                 {/* Code block */}
                 <div className="rounded-lg border border-zinc-800/40 bg-zinc-950/50 px-3 py-2.5">
-                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-600">
+                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-500">
                     Code
                   </span>
                   <pre className="font-mono text-[11px] leading-relaxed text-zinc-500">
@@ -293,7 +274,7 @@ export function LandingPage() {
                 </div>
                 {/* Task list */}
                 <div className="rounded-lg border border-zinc-800/40 bg-zinc-950/50 px-3 py-2.5">
-                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-600">
+                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-500">
                     Tasks
                   </span>
                   <div className="space-y-1">
@@ -315,7 +296,7 @@ export function LandingPage() {
                 </div>
                 {/* Table */}
                 <div className="rounded-lg border border-zinc-800/40 bg-zinc-950/50 px-3 py-2.5">
-                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-600">
+                  <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-zinc-500">
                     Table
                   </span>
                   <table className="w-full text-[11px]">
@@ -342,11 +323,6 @@ export function LandingPage() {
                   </table>
                 </div>
               </div>
-              <div
-                className="pointer-events-none absolute -bottom-12 -right-12 h-40 w-40 rounded-full opacity-[0.03]"
-                style={{ background: "radial-gradient(circle, #8b5cf6, transparent 70%)" }}
-                aria-hidden="true"
-              />
             </div>
           </div>
         </section>
@@ -356,7 +332,7 @@ export function LandingPage() {
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 sm:px-6">
             {STACK.map((item, i) => (
               <span key={item} className="flex items-center gap-5">
-                <span className="font-mono text-xs uppercase tracking-[0.15em] text-zinc-600">{item}</span>
+                <span className="font-mono text-xs uppercase tracking-[0.15em] text-zinc-500">{item}</span>
                 {i < STACK.length - 1 && (
                   <span className="text-zinc-800" aria-hidden="true">
                     /

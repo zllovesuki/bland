@@ -26,8 +26,8 @@
   padding: 0;
   border: none;
   border-radius: 0.25rem;
-  color: #71717a;
-  background-color: #27272a;
+  color: var(--color-zinc-500);
+  background-color: var(--color-zinc-800);
   font: inherit;
   cursor: grab;
   transition:
@@ -38,19 +38,19 @@
 
 .tiptap-drag-handle:hover {
   opacity: 1;
-  color: #a1a1aa;
-  background-color: #27272a;
+  color: var(--color-zinc-400);
+  background-color: var(--color-zinc-800);
 }
 
 .tiptap-drag-handle.is-active {
-  color: #c4b5fd;
-  background-color: rgba(139, 92, 246, 0.14);
+  color: var(--color-accent-300);
+  background-color: color-mix(in srgb, var(--color-accent-500) 14%, transparent);
 }
 
 .tiptap-drag-handle:active {
   cursor: grabbing;
-  color: #d4d4d8;
-  background-color: #3f3f46;
+  color: var(--color-zinc-300);
+  background-color: var(--color-zinc-700);
 }
 
 .tiptap-drag-handle-add {
@@ -69,8 +69,8 @@
   flex-direction: column;
   min-width: 180px;
   padding: 4px;
-  background-color: #18181b;
-  border: 1px solid #3f3f46;
+  background-color: var(--color-zinc-800);
+  border: 1px solid var(--color-zinc-700);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
@@ -85,7 +85,7 @@
   padding: 6px 8px;
   background: none;
   border: none;
-  color: #d4d4d8;
+  color: var(--color-zinc-300);
   border-radius: 4px;
   font: inherit;
   font-size: 0.8125rem;
@@ -98,8 +98,8 @@
 
 .tiptap-block-menu-item:hover:not(:disabled),
 .tiptap-block-menu-item:focus-visible {
-  color: #f4f4f5;
-  background-color: #27272a;
+  color: var(--color-zinc-100);
+  background-color: var(--color-zinc-700);
   outline: none;
 }
 
@@ -123,7 +123,7 @@
   align-items: center;
   justify-content: center;
   width: 16px;
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .tiptap-block-menu-item:hover .tiptap-block-menu-item-icon,
@@ -137,6 +137,6 @@
 
 .tiptap-block-menu-sep {
   height: 1px;
-  background-color: #27272a;
+  background-color: var(--color-zinc-800);
   margin: 4px 0;
 }

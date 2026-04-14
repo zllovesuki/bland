@@ -5,8 +5,8 @@
   padding: 1px 6px;
   margin: 0 1px;
   border-radius: 4px;
-  background-color: rgba(113, 113, 122, 0.15);
-  color: #e4e4e7;
+  background-color: color-mix(in srgb, var(--color-zinc-500) 15%, transparent);
+  color: var(--color-zinc-200);
   font-size: 0.95em;
   line-height: 1.4;
   text-decoration: none;
@@ -17,8 +17,8 @@
 }
 
 .tiptap-page-mention:hover {
-  background-color: rgba(113, 113, 122, 0.3);
-  color: #f4f4f5;
+  background-color: color-mix(in srgb, var(--color-zinc-500) 30%, transparent);
+  color: var(--color-zinc-100);
 }
 
 .tiptap-page-mention:focus-visible {
@@ -27,11 +27,11 @@
 }
 
 .tiptap-page-mention-label {
-  border-bottom: 1px dashed rgba(161, 161, 170, 0.5);
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-zinc-400) 50%, transparent);
 }
 
 .tiptap-page-mention:hover .tiptap-page-mention-label {
-  border-bottom-color: rgba(228, 228, 231, 0.7);
+  border-bottom-color: color-mix(in srgb, var(--color-zinc-300) 70%, transparent);
 }
 
 .tiptap-page-mention-icon {
@@ -43,7 +43,7 @@
 }
 
 .tiptap-page-mention--pending {
-  color: #71717a;
+  color: var(--color-zinc-500);
   cursor: default;
 }
 
@@ -52,12 +52,12 @@
 }
 
 .tiptap-page-mention--pending:hover {
-  background-color: rgba(113, 113, 122, 0.15);
-  color: #71717a;
+  background-color: color-mix(in srgb, var(--color-zinc-500) 15%, transparent);
+  color: var(--color-zinc-500);
 }
 
 .tiptap-page-mention--restricted {
-  color: #71717a;
+  color: var(--color-zinc-500);
   cursor: default;
 }
 
@@ -66,37 +66,37 @@
 }
 
 .tiptap-page-mention--restricted:hover {
-  background-color: rgba(113, 113, 122, 0.15);
-  color: #71717a;
+  background-color: color-mix(in srgb, var(--color-zinc-500) 15%, transparent);
+  color: var(--color-zinc-500);
 }
 
 .ProseMirror-selectednode.tiptap-page-mention,
 .tiptap-page-mention.ProseMirror-selectednode {
-  background-color: rgba(59, 130, 246, 0.25);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+  background-color: color-mix(in srgb, var(--color-accent-500) 25%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent-500) 50%, transparent);
 }
 
 .tiptap-page-mention-picker-search {
   padding: 8px 8px 4px;
-  border-bottom: 1px solid rgba(113, 113, 122, 0.25);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-zinc-500) 25%, transparent);
 }
 
 .tiptap-page-mention-picker-input {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid rgba(113, 113, 122, 0.3);
+  border: 1px solid color-mix(in srgb, var(--color-zinc-500) 30%, transparent);
   border-radius: 4px;
-  background-color: rgba(24, 24, 27, 0.8);
-  color: #e4e4e7;
+  background-color: color-mix(in srgb, var(--color-zinc-900) 80%, transparent);
+  color: var(--color-zinc-200);
   font-size: 0.875rem;
   outline: none;
 }
 
 .tiptap-page-mention-picker-input::placeholder {
-  color: #71717a;
+  color: var(--color-zinc-500);
 }
 
 .tiptap-page-mention-picker-input:focus {
-  border-color: rgba(59, 130, 246, 0.6);
-  background-color: rgba(24, 24, 27, 1);
+  border-color: color-mix(in srgb, var(--color-accent-500) 60%, transparent);
+  background-color: var(--color-zinc-900);
 }

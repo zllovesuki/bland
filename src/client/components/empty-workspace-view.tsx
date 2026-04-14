@@ -102,7 +102,7 @@ export function EmptyWorkspaceView() {
 
   if (view === "loading") {
     return (
-      <div className="flex h-full items-center justify-center" aria-busy="true">
+      <div className="flex min-h-screen items-center justify-center" aria-busy="true">
         <div className="animate-slide-up text-center">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-zinc-500" />
           <p className="text-sm text-zinc-400">Loading workspaces...</p>
@@ -115,11 +115,11 @@ export function EmptyWorkspaceView() {
     const isExpired = sessionMode === SESSION_MODES.EXPIRED;
 
     return (
-      <div className="flex h-full items-center justify-center px-4">
+      <div className="flex min-h-screen items-center justify-center px-4">
         <div className="animate-slide-up text-center">
           <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-400" />
           <h2 className="text-lg font-semibold text-zinc-200">Couldn't load your workspaces</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-zinc-400">
             {isExpired ? "Sign in again to refresh your workspaces." : "Check your connection and try again."}
           </p>
           <div className="mt-4 flex items-center justify-center gap-2">
@@ -138,10 +138,10 @@ export function EmptyWorkspaceView() {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center">
       <div className="animate-slide-up text-center">
-        <h2 className="text-lg font-semibold text-zinc-200">No workspaces found</h2>
-        <p className="mt-1 text-sm text-zinc-500">Create a workspace or accept an invite to get started.</p>
+        <h2 className="text-lg font-semibold text-zinc-200">No workspaces yet</h2>
+        <p className="mt-1 text-sm text-zinc-400">Create one, or wait for an invite.</p>
 
         {showForm ? (
           <div className="mx-auto mt-4 flex w-64 flex-col gap-2">

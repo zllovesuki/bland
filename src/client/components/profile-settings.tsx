@@ -127,7 +127,7 @@ export function ProfileSettings() {
           </div>
           <div className="flex-1">
             <p className="text-sm text-zinc-400">Profile photo</p>
-            <p className="text-xs text-zinc-600">JPG, PNG, GIF, or WebP. Max 2MB.</p>
+            <p className="text-xs text-zinc-400">JPG, PNG, GIF, or WebP. Max 2MB.</p>
             {avatarUrl && (
               <button
                 onClick={() => setAvatarUrl("")}

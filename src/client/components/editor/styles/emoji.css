@@ -26,7 +26,7 @@
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 0.8125rem;
-  color: #e4e4e7;
+  color: var(--color-zinc-200);
 }
 
 .tiptap-emoji-suggestion-glyph-image {

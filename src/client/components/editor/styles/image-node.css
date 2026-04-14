@@ -4,9 +4,9 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border: 1px dashed #3f3f46;
+  border: 1px dashed var(--color-zinc-700);
   border-radius: 0.5rem;
-  color: #71717a;
+  color: var(--color-zinc-500);
   font-size: 0.875rem;
   cursor: pointer;
   transition:
@@ -15,9 +15,9 @@
 }
 
 .tiptap-image-placeholder:hover {
-  background-color: #27272a;
-  border-color: #52525b;
-  color: #a1a1aa;
+  background-color: var(--color-zinc-800);
+  border-color: var(--color-zinc-600);
+  color: var(--color-zinc-400);
 }
 
 .tiptap-image-placeholder-close {
@@ -28,7 +28,7 @@
   width: 22px;
   height: 22px;
   border-radius: 0.25rem;
-  color: #52525b;
+  color: var(--color-zinc-500);
   transition:
     color 0.1s,
     background-color 0.1s;
@@ -66,7 +66,7 @@
   height: 56px;
   max-height: 50%;
   border-radius: 3px;
-  background-color: #8b5cf6;
+  background-color: var(--color-accent-500);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   cursor: ew-resize;
   touch-action: none;
@@ -90,7 +90,7 @@
 }
 
 .tiptap-image-resize-handle:hover {
-  background-color: #a78bfa;
+  background-color: var(--color-accent-400);
 }
 
 .tiptap-image-alt {

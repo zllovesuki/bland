@@ -151,7 +151,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       },
     }),
     Placeholder.configure({
-      placeholder: "Type '/' for commands...",
+      placeholder: "Start typing, or press / for blocks",
     }),
     TopLevelBlockIdentity,
     BlockDragDropBehavior,

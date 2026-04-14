@@ -6,6 +6,7 @@ import { Header } from "./header";
 import { Footer } from "./footer";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
+import { ShortcutHelp } from "./ui/shortcut-help";
 import { useOnline } from "@/client/hooks/use-online";
 import { useSessionRehydration } from "@/client/hooks/use-session-rehydration";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -16,7 +17,7 @@ const Sidebar = lazy(() => import("./sidebar/sidebar").then((mod) => ({ default:
 function SidebarFallback() {
   return (
     <div
-      className="hidden w-[260px] shrink-0 flex-col border-r border-zinc-800/60 bg-gradient-to-b from-zinc-950 to-zinc-900/30 md:flex"
+      className="hidden w-[260px] shrink-0 flex-col border-r border-zinc-800/60 bg-zinc-900 md:flex"
       aria-hidden="true"
     >
       <div className="flex h-10 items-center border-b border-zinc-800/60 px-3">
@@ -49,6 +50,7 @@ export function AppShell() {
   const sessionMode = useAuthStore((s) => s.sessionMode);
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
 
   const toggleLayout = useCallback(() => {
     setExpanded((prev) => {
@@ -63,6 +65,20 @@ export function AppShell() {
 
   const online = useOnline();
   useSessionRehydration();
+
+  useEffect(() => {
+    function handleShortcutHelp(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const editable = (e.target as HTMLElement)?.isContentEditable;
+      if (tag === "INPUT" || tag === "TEXTAREA" || editable) return;
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShortcutHelpOpen((o) => !o);
+      }
+    }
+    document.addEventListener("keydown", handleShortcutHelp);
+    return () => document.removeEventListener("keydown", handleShortcutHelp);
+  }, []);
 
   // Route change: close drawer, move focus, announce
   const prevPathRef = useRef(location.pathname);
@@ -88,7 +104,7 @@ export function AppShell() {
     <div className="flex h-screen flex-col">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
       >
         Skip to content
       </a>
@@ -99,7 +115,7 @@ export function AppShell() {
       />
       {!online && (
         <div className="animate-slide-up border-b border-amber-500/20 bg-amber-500/10 py-1.5 text-center text-xs text-amber-400">
-          Offline — changes will sync when you reconnect
+          Offline. Your edits are saved locally and will sync when you're back.
         </div>
       )}
       {sessionMode === SESSION_MODES.EXPIRED && (
@@ -126,6 +142,7 @@ export function AppShell() {
       <Footer expanded={expanded} />
       <ToastContainer />
       <ConfirmContainer />
+      <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {routeAnnouncement}
       </div>

@@ -8,14 +8,14 @@
   opacity: 0.82;
   pointer-events: none;
   user-select: none;
-  outline: 2px solid rgba(167, 139, 250, 0.95);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-400) 95%, transparent);
   outline-offset: 0;
   border-radius: 0.375rem;
   box-sizing: border-box;
-  background-color: rgba(167, 139, 250, 0.08);
+  background-color: color-mix(in srgb, var(--color-accent-400) 8%, transparent);
   box-shadow:
-    inset 0 0 0 1px rgba(196, 181, 253, 0.2),
-    0 0 0 1px rgba(139, 92, 246, 0.08);
+    inset 0 0 0 1px color-mix(in srgb, var(--color-accent-300) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-accent-500) 8%, transparent);
 }
 
 .tiptap-drop-placeholder > [data-node-view-wrapper] {
@@ -57,10 +57,10 @@
 
 .tiptap-drop-placeholder-source {
   opacity: 0.7;
-  outline: 2px solid rgba(167, 139, 250, 0.75);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-400) 75%, transparent);
   outline-offset: 0;
   border-radius: 0.375rem;
-  background-color: rgba(167, 139, 250, 0.05);
+  background-color: color-mix(in srgb, var(--color-accent-400) 5%, transparent);
 }
 
 .tiptap-drop-placeholder-source .tiptap-image-node .tiptap-image-resize-handle {

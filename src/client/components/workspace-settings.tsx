@@ -278,7 +278,7 @@ export function WorkspaceSettings() {
                       onClick={() => {
                         setIcon("");
                       }}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/wsicon:opacity-100"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/wsicon:opacity-100"
                       aria-label="Remove icon"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -325,7 +325,7 @@ export function WorkspaceSettings() {
 
       <section className="mb-8">
         <h2 className="mb-4 text-lg font-semibold text-zinc-200">
-          Members <span className="text-sm font-normal text-zinc-500">({members.length})</span>
+          Members <span className="text-sm font-normal text-zinc-400">({members.length})</span>
         </h2>
         {memberError && <p className="mb-3 text-sm text-red-400">{memberError}</p>}
         <div className="space-y-2">
@@ -362,7 +362,7 @@ export function WorkspaceSettings() {
                       {displayName}
                       {isSelf && <span className="ml-1 text-xs text-zinc-500">(you)</span>}
                     </p>
-                    {displayEmail && <p className="truncate text-xs text-zinc-500">{displayEmail}</p>}
+                    {displayEmail && <p className="truncate text-xs text-zinc-400">{displayEmail}</p>}
                   </div>
                 </div>
 
@@ -384,12 +384,12 @@ export function WorkspaceSettings() {
                         )}
                       </button>
                       {roleDropdownId === member.user_id && (
-                        <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-lg">
+                        <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
                           {ASSIGNABLE_ROLES.map((role) => (
                             <button
                               key={role}
                               onClick={() => handleRoleChange(member.user_id, role)}
-                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-800 ${
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-700/50 ${
                                 member.role === role ? "text-accent-400" : "text-zinc-400 hover:text-zinc-200"
                               }`}
                             >
@@ -412,7 +412,7 @@ export function WorkspaceSettings() {
                     <button
                       onClick={() => handleRemoveMember(member.user_id, displayName)}
                       disabled={removingMember === member.user_id}
-                      className="rounded-md p-1 text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
+                      className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
                       aria-label={`Remove ${displayName}`}
                     >
                       {removingMember === member.user_id ? (
@@ -452,14 +452,14 @@ export function WorkspaceSettings() {
                   className="appearance-none rounded-lg border border-zinc-700 bg-zinc-800/50 py-2 pl-3 pr-8 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
                 >
                   {isAdminOrOwner && (
-                    <option value="admin" className="bg-zinc-900 text-zinc-300">
+                    <option value="admin" className="bg-zinc-800 text-zinc-300">
                       Admin
                     </option>
                   )}
-                  <option value="member" className="bg-zinc-900 text-zinc-300">
+                  <option value="member" className="bg-zinc-800 text-zinc-300">
                     Member
                   </option>
-                  <option value="guest" className="bg-zinc-900 text-zinc-300">
+                  <option value="guest" className="bg-zinc-800 text-zinc-300">
                     Guest
                   </option>
                 </select>
@@ -501,7 +501,7 @@ export function WorkspaceSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-zinc-200">Delete this workspace</p>
-                <p className="text-xs text-zinc-500">All pages and data will be permanently removed.</p>
+                <p className="text-xs text-zinc-400">All pages and data will be permanently removed.</p>
               </div>
               <Button
                 variant="danger"

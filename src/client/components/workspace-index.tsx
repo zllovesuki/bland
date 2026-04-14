@@ -17,18 +17,18 @@ export function WorkspaceIndex() {
     <div className="flex h-full items-center justify-center">
       <div className="animate-slide-up text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-800/50">
-          <FileText className="h-8 w-8 text-zinc-600" />
+          <FileText className="h-8 w-8 text-zinc-500" />
         </div>
 
         {hasPages ? (
           <>
             <h2 className="text-lg font-semibold text-zinc-200">{currentWorkspace?.name ?? "Workspace"}</h2>
-            <p className="mt-1 text-sm text-zinc-500">Select a page from the sidebar to get started</p>
+            <p className="mt-1 text-sm text-zinc-400">Pick a page. Or don't. We're not your boss.</p>
           </>
         ) : (
           <>
-            <h2 className="text-lg font-semibold text-zinc-200">No pages yet</h2>
-            <p className="mt-1 text-sm text-zinc-500">Create your first page to get started</p>
+            <h2 className="text-lg font-semibold text-zinc-200">Blank slate</h2>
+            <p className="mt-1 text-sm text-zinc-400">Your first page is one click away.</p>
             <Button
               variant="primary"
               size="sm"

@@ -6,18 +6,18 @@ import { toast } from "@/client/components/toast";
 import { Dialog } from "@/client/components/ui/dialog";
 
 const GRADIENT_PRESETS = [
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-  "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-  "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-  "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)",
-  "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)",
-  "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-  "linear-gradient(135deg, #667eea 0%, #43e97b 100%)",
-  "linear-gradient(135deg, #0c3483 0%, #a2b6df 100%)",
-  "linear-gradient(135deg, #ff0844 0%, #ffb199 100%)",
+  "linear-gradient(135deg, #5e3497 0%, #2a2729 100%)",
+  "linear-gradient(135deg, #4d2a7c 0%, #1b181a 100%)",
+  "linear-gradient(135deg, #423f42 0%, #2a2729 100%)",
+  "linear-gradient(135deg, #7241b8 0%, #423f42 100%)",
+  "linear-gradient(135deg, #2a2729 0%, #5e3497 50%, #2a2729 100%)",
+  "linear-gradient(135deg, #3d2d4a 0%, #1b181a 100%)",
+  "linear-gradient(135deg, #2a2729 0%, #352530 100%)",
+  "linear-gradient(135deg, #423f42 0%, #3d2d4a 50%, #2a2729 100%)",
+  "linear-gradient(135deg, #8854d4 0%, #2a2729 100%)",
+  "linear-gradient(135deg, #1b181a 0%, #423f42 100%)",
+  "linear-gradient(135deg, #352530 0%, #423f42 100%)",
+  "linear-gradient(135deg, #2a2729 0%, #4d2a7c 50%, #1b181a 100%)",
 ];
 
 export function CoverPicker({
@@ -58,14 +58,14 @@ export function CoverPicker({
       {currentCover ? (
         <button
           onClick={() => setOpen(true)}
-          className="rounded-md bg-zinc-900/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-900 group-hover/cover:opacity-100"
+          className="rounded-md bg-zinc-800/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-800 group-hover/cover:opacity-100"
         >
           Change cover
         </button>
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/actions:opacity-100"
+          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-zinc-500 opacity-40 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/actions:opacity-100"
         >
           <Image className="h-4 w-4" />
           <span>Add cover</span>

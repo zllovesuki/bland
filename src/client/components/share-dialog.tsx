@@ -192,7 +192,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
       {open && (
         <div
           ref={panelRef}
-          className="animate-scale-fade origin-top-right absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-lg"
+          className="animate-scale-fade origin-top-right absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-800 p-3 shadow-lg"
         >
           {loading ? (
             <div className="space-y-2 py-1" aria-busy="true">
@@ -269,7 +269,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
                           {(isAdmin || share.created_by === user?.id) && (
                             <button
                               onClick={() => deleteShare(share.id)}
-                              className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
+                              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
                               aria-label="Remove share"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -279,7 +279,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
                       ))}
                     </div>
                   ) : (
-                    <p className="px-2 text-sm text-zinc-600">No people shares</p>
+                    <p className="px-2 text-sm text-zinc-400">No people shares</p>
                   )}
                 </div>
               )}
@@ -323,7 +323,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
                             {share.link_token && (
                               <button
                                 onClick={() => copyLink(share)}
-                                className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+                                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
                                 aria-label="Copy link"
                               >
                                 {copiedId === share.id ? (
@@ -336,7 +336,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
                             {isAdmin && (
                               <button
                                 onClick={() => deleteShare(share.id)}
-                                className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
+                                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
                                 aria-label="Remove link"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -347,7 +347,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
                       ))}
                     </div>
                   ) : (
-                    isAdmin && <p className="px-2 text-sm text-zinc-600">No link shares</p>
+                    isAdmin && <p className="px-2 text-sm text-zinc-400">No link shares</p>
                   )}
                 </div>
               )}

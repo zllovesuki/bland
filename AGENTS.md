@@ -36,6 +36,7 @@ If a larger abstraction or refactor is optional, present it as an option instead
 - The current source tree wins when it conflicts with docs.
 - `docs/bland-production-spec.md` is the product and architecture reference.
 - `docs/frontend-spec.md` is the frontend reference design to keep consistent across `devbin.tools` products.
+- `.impeccable.md` is the design context — target audience, brand personality, aesthetic direction, and accessibility constraints. Consult it when making visual or UX decisions.
 - `src/shared/types.ts` is the shared client/worker contract surface for public API shapes.
 - `src/shared/doc-messages.ts` is the shared client/worker contract surface for DocSync custom messages. Update it when changing custom message payloads.
 - `src/worker/db/d1/schema.ts` is the D1 schema source of truth. `src/worker/db/docsync-do/schema.ts` and `src/worker/db/workspace-indexer/schema.ts` own DO-local schemas. Do not hand-edit generated SQL in `drizzle/`.
@@ -236,6 +237,7 @@ Notes:
 - When debugging collaborative editor behavior, verify both the editable page view and the read-only share view (`/s/:token`). Collaboration bugs can hide in one surface while the other looks correct.
 - Editor features that mutate shared document state must be collaboration-safe. Validate remote behavior under live multi-client edits instead of assuming a single-client DOM/result proves correctness.
 - When debugging hover, focus, or pointer bugs in frontend UI, verify first whether the interactive state is actually being lost or only rendered invisibly. Use DevTools to inspect `:hover`/computed styles before changing JavaScript; a visual bug can still be a CSS contrast or layering issue even when it feels event-related.
+- Do not put data-fetching logic in route `beforeLoad` hooks. Route hooks are for synchronous guard checks (auth redirects, store reads). Data loading belongs in the component that owns the data — use cached store state for instant redirects and component-level effects for fetches.
 
 ### Worker changes
 

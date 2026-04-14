@@ -6,8 +6,8 @@
   grid-template-columns: repeat(5, 28px);
   gap: 6px;
   padding: 10px;
-  background-color: #18181b;
-  border: 1px solid #3f3f46;
+  background-color: var(--color-zinc-800);
+  border: 1px solid var(--color-zinc-700);
   border-radius: 0.5rem;
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.35),
@@ -26,9 +26,9 @@
 }
 
 .tiptap-color-swatch:hover {
-  border-color: #71717a;
+  border-color: var(--color-zinc-500);
 }
 
 .tiptap-color-swatch.is-active {
-  border-color: #a78bfa;
+  border-color: var(--color-accent-400);
 }

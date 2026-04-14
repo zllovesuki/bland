@@ -19,6 +19,8 @@ interface EditorPaneProps {
   shareToken?: string;
   readOnly?: boolean;
   workspaceId?: string;
+  /** DOM node for portalling the outline into a right-rail container (xl+). */
+  outlinePortalTarget?: HTMLDivElement | null;
 }
 
 export function EditorPane({
@@ -29,6 +31,7 @@ export function EditorPane({
   shareToken,
   readOnly,
   workspaceId,
+  outlinePortalTarget,
 }: EditorPaneProps) {
   const [title, setTitle] = useState(initialTitle);
   const [editorState, setEditorState] = useState<{
@@ -172,6 +175,7 @@ export function EditorPane({
             readOnly={readOnly}
             shareToken={shareToken}
             workspaceId={workspaceId}
+            outlinePortalTarget={outlinePortalTarget}
           />
         </>
       ) : (

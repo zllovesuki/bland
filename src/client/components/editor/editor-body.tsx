@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
@@ -34,6 +35,8 @@ interface EditorBodyProps {
   readOnly?: boolean;
   shareToken?: string;
   workspaceId?: string;
+  /** DOM node for portalling the outline into a right-rail container (xl+). */
+  outlinePortalTarget?: HTMLDivElement | null;
 }
 
 export const EditorBody = memo(function EditorBody({
@@ -43,6 +46,7 @@ export const EditorBody = memo(function EditorBody({
   readOnly,
   shareToken,
   workspaceId,
+  outlinePortalTarget,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const pageMentionScope = usePageMentionScope();
@@ -171,9 +175,12 @@ export const EditorBody = memo(function EditorBody({
             {!readOnly && <TableMenu />}
           </div>
           <div className="mt-4 space-y-4 pl-4 sm:pl-7">
-            <EditorOutline />
+            <div className={outlinePortalTarget ? "xl:hidden" : undefined}>
+              <EditorOutline />
+            </div>
             <EditorMetrics className="justify-end" />
           </div>
+          {outlinePortalTarget && createPortal(<EditorOutline className="tiptap-outline--rail" />, outlinePortalTarget)}
         </Tiptap>
       </PageMentionContext.Provider>
     </EditorRuntimeContext.Provider>

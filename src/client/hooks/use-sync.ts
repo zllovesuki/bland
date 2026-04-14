@@ -68,7 +68,7 @@ export function useAwareness(awareness: Awareness | null): Map<number, Awareness
 
 const EMPTY_MAP = new Map<number, AwarenessState>();
 
-const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
+const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#9d6ee8", "#ec4899", "#06b6d4", "#f97316"];
 
 export function userColor(userId: string): string {
   let hash = 0;

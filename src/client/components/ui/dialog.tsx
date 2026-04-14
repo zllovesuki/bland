@@ -55,13 +55,17 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" role="presentation" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
+    <div
+      className="fixed inset-0 z-[90] flex items-start justify-center pt-[20vh]"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div className="fixed inset-0 bg-zinc-950/50 backdrop-blur-sm" aria-hidden="true" />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        className={`animate-slide-up relative rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl ${className ?? ""}`}
+        className={`animate-slide-up relative rounded-xl border border-zinc-700 bg-zinc-800 shadow-2xl ${className ?? ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

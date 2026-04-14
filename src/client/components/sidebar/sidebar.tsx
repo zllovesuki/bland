@@ -73,13 +73,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   }, [manualToggle]);
 
   const showCollapsed = collapsed && !mobileOpen;
-  const sidebarMenuZIndex = mobileOpen ? 70 : undefined;
+  const sidebarMenuZIndex = mobileOpen ? 90 : undefined;
 
   const sidebarContent = (
     <aside
       className={`relative flex h-full shrink-0 flex-col border-r border-zinc-800/60 transition-[width] duration-200 ${
         showCollapsed ? "w-12" : "w-[260px]"
-      } ${mobileOpen ? "bg-zinc-950" : "bg-gradient-to-b from-zinc-950 to-zinc-900/30"}`}
+      } bg-zinc-900`}
     >
       {showCollapsed ? (
         <div className="flex flex-1 flex-col items-center gap-2 pt-2">
@@ -144,7 +144,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
               <button
                 onClick={() => createPage()}
                 disabled={isCreating || !online}
-                className="flex flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-200 disabled:opacity-50"
+                className="flex flex-1 items-center gap-1.5 rounded-md border border-zinc-700/50 bg-zinc-800/30 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600/50 hover:bg-zinc-800/60 hover:text-zinc-100 disabled:opacity-50"
                 title={online ? undefined : "You're offline"}
               >
                 {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
@@ -157,28 +157,30 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
               aria-label="Search pages"
             >
               <Search className="h-3.5 w-3.5" />
-              <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-500 sm:inline">
+              <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-400 sm:inline">
                 {searchShortcutLabel}
               </kbd>
             </button>
           </div>
 
           <nav className="flex-1 overflow-y-auto px-1">
-            {isSharedMode && <div className="px-2 py-1 text-xs text-zinc-500">Shared with you</div>}
+            {isSharedMode && <div className="px-2 py-1 text-xs text-zinc-400">Shared with you</div>}
             <PageTree alwaysShowActions={!!mobileOpen} menuZIndex={sidebarMenuZIndex} />
           </nav>
 
-          <div className="border-t border-zinc-800/60 px-2 py-2">
+          <div className="flex items-center gap-1 border-t border-zinc-800/60 px-2 py-2">
             {currentWorkspace && !isSharedMode && (
               <Link
                 to="/$workspaceSlug/settings"
                 params={{ workspaceSlug: currentWorkspace.slug }}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+                aria-label="Settings"
+                title="Settings"
               >
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
               </Link>
             )}
+            <div className="flex-1" />
             {!mobileOpen && (
               <button
                 onClick={() => {
@@ -186,11 +188,11 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
                   setCollapsed(true);
                   localStorage.setItem(STORAGE_KEYS.SIDEBAR, "true");
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
                 aria-label="Collapse sidebar"
+                title="Collapse sidebar"
               >
                 <ChevronsLeft className="h-4 w-4" />
-                <span>Collapse</span>
               </button>
             )}
           </div>

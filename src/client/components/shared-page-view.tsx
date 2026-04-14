@@ -33,7 +33,7 @@ function SharedBreadcrumbs({
 }) {
   if (ancestors.length === 0) return null;
 
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
+  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
   return (
     <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
@@ -48,7 +48,7 @@ function SharedBreadcrumbs({
               {a.title || DEFAULT_PAGE_TITLE}
             </button>
           ) : (
-            <span className="flex items-center gap-1 text-zinc-600">
+            <span className="flex items-center gap-1 text-zinc-500">
               <Lock className="h-2.5 w-2.5" />
               Restricted
             </span>
@@ -78,6 +78,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   const [canEdit, setCanEdit] = useState<boolean | null>(null);
   const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
   const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
+  const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   useDocumentTitle(title || DEFAULT_PAGE_TITLE);
 
   // The page currently being viewed: either ?page= param or the root shared page
@@ -190,9 +191,9 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   if (isLoading) {
     return (
       <div className="flex h-screen flex-col">
-        <header className="sticky top-0 z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
+        <header className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm">
           <div className="mx-auto flex max-w-5xl items-center px-8 py-3">
-            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
+            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
               <FileText className="h-5 w-5 text-white" />
             </div>
             <Skeleton className="ml-4 h-4 w-40" />
@@ -214,7 +215,18 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
   }
 
   if (error || !info) {
-    return <PageErrorState message={error ?? "This shared link is invalid or has expired."} className="h-screen" />;
+    return (
+      <PageErrorState
+        message={error ?? "This shared link is invalid or has expired."}
+        className="h-screen"
+        action={{
+          label: "Go home",
+          onClick: () => {
+            window.location.href = "/";
+          },
+        }}
+      />
+    );
   }
 
   const isViewOnly = canEdit === null ? true : !canEdit;
@@ -230,7 +242,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
       routeSource="live"
     >
       <div className="flex h-screen flex-col">
-        <header className="z-50 border-b border-zinc-800/60 bg-[#09090b]/80 backdrop-blur-sm">
+        <header className="z-50 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm">
           <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
             <button
               onClick={() => setMobileTreeOpen((o) => !o)}
@@ -240,7 +252,7 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
               <Menu className="h-5 w-5" />
             </button>
             <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-              <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-accent-500 to-accent-600 shadow-sm shadow-accent-500/10">
+              <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
                 <FileText className="h-5 w-5 text-white" />
               </div>
             </Link>
@@ -278,40 +290,47 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
           </MobileDrawer>
 
           <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8">
-              {coverUrl && (
-                <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
-                  <PageCover coverUrl={coverUrl} shareToken={token} />
-                </div>
-              )}
+            <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
+              <div className="min-w-0">
+                {coverUrl && (
+                  <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
+                    <PageCover coverUrl={coverUrl} shareToken={token} />
+                  </div>
+                )}
 
-              {ancestors.length > 0 && (
-                <div className="mb-6">
-                  <SharedBreadcrumbs
-                    ancestors={ancestors}
-                    currentTitle={title}
-                    currentIcon={icon}
-                    onNavigate={handleNavigate}
-                  />
-                </div>
-              )}
+                {ancestors.length > 0 && (
+                  <div className="mb-6">
+                    <SharedBreadcrumbs
+                      ancestors={ancestors}
+                      currentTitle={title}
+                      currentIcon={icon}
+                      onNavigate={handleNavigate}
+                    />
+                  </div>
+                )}
 
-              {icon && (
-                <div className="mb-4 pl-7">
-                  <EmojiIcon emoji={icon} size={36} />
-                </div>
-              )}
+                {icon && (
+                  <div className="mb-4 pl-7">
+                    <EmojiIcon emoji={icon} size={36} />
+                  </div>
+                )}
 
-              <EditorPane
-                key={displayPageId}
-                pageId={displayPageId}
-                initialTitle={activePage ? title : info.title}
-                onTitleChange={setTitle}
-                onProvider={setWsProvider}
-                shareToken={token}
-                readOnly={isViewOnly}
-                workspaceId={info.workspace_id}
-              />
+                <EditorPane
+                  key={displayPageId}
+                  pageId={displayPageId}
+                  initialTitle={activePage ? title : info.title}
+                  onTitleChange={setTitle}
+                  onProvider={setWsProvider}
+                  shareToken={token}
+                  readOnly={isViewOnly}
+                  workspaceId={info.workspace_id}
+                  outlinePortalTarget={outlineRailEl}
+                />
+              </div>
+
+              <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">
+                <div ref={setOutlineRailEl} className="sticky top-8" />
+              </aside>
             </div>
           </main>
         </div>

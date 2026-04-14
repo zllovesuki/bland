@@ -2,8 +2,8 @@
 .tiptap-slash-menu {
   display: flex;
   flex-direction: column;
-  background-color: #18181b;
-  border: 1px solid #3f3f46;
+  background-color: var(--color-zinc-800);
+  border: 1px solid var(--color-zinc-700);
   border-radius: 0.75rem;
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.35),
@@ -22,7 +22,7 @@
 
 .tiptap-menu-label,
 .tiptap-slash-menu-label {
-  color: #71717a;
+  color: var(--color-zinc-500);
   font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -40,7 +40,7 @@
   padding: 8px 10px;
   background: none;
   border: none;
-  color: #d4d4d8;
+  color: var(--color-zinc-300);
   border-radius: 0.5rem;
   font-size: 0.875rem;
   text-align: left;
@@ -55,8 +55,8 @@
 .tiptap-slash-menu-item:hover:not(:disabled),
 .tiptap-slash-menu-item:focus-visible,
 .tiptap-slash-menu-item[aria-selected="true"] {
-  background-color: #27272a;
-  color: #f4f4f5;
+  background-color: var(--color-zinc-700);
+  color: var(--color-zinc-100);
   outline: none;
 }
 
@@ -77,14 +77,14 @@
 }
 
 .tiptap-menu-item.is-active {
-  background-color: rgba(139, 92, 246, 0.1);
-  color: #a78bfa;
+  background-color: color-mix(in srgb, var(--color-accent-500) 10%, transparent);
+  color: var(--color-accent-400);
 }
 
 .tiptap-menu-item.is-active:hover:not(:disabled),
 .tiptap-menu-item.is-active:focus-visible {
-  background-color: rgba(139, 92, 246, 0.18);
-  color: #ddd6fe;
+  background-color: color-mix(in srgb, var(--color-accent-500) 18%, transparent);
+  color: var(--color-accent-200);
 }
 
 .tiptap-menu-item-icon {
@@ -92,7 +92,7 @@
   align-items: center;
   justify-content: center;
   width: 16px;
-  color: #a1a1aa;
+  color: var(--color-zinc-400);
 }
 
 .tiptap-menu-item:hover .tiptap-menu-item-icon,
@@ -106,6 +106,6 @@
 
 .tiptap-menu-separator {
   height: 1px;
-  background-color: #27272a;
+  background-color: var(--color-zinc-700);
   margin: 4px 0;
 }

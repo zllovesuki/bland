@@ -52,14 +52,14 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
     return chain.reverse();
   }, [pages, page.parent_id]);
 
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
+  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
   return (
     <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
       <Link
         to="/$workspaceSlug"
         params={{ workspaceSlug }}
-        className="truncate text-zinc-500 transition-colors hover:text-zinc-300"
+        className="truncate text-zinc-400 transition-colors hover:text-zinc-300"
       >
         {workspace?.name ?? workspaceSlug}
       </Link>
@@ -109,11 +109,11 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
     };
   }, [workspaceId, page.id]);
 
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" />;
+  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
   return (
     <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <span className="truncate text-zinc-500">{workspace?.name ?? workspaceSlug}</span>
+      <span className="truncate text-zinc-400">{workspace?.name ?? workspaceSlug}</span>
       {ancestors.map((a) => (
         <span key={a.id} className="flex items-center gap-1">
           {sep}
@@ -127,7 +127,7 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
               {a.title || DEFAULT_PAGE_TITLE}
             </Link>
           ) : (
-            <span className="flex items-center gap-1 text-zinc-600">
+            <span className="flex items-center gap-1 text-zinc-500">
               <Lock className="h-2.5 w-2.5" />
               Restricted
             </span>
@@ -174,6 +174,7 @@ function PageViewContent() {
   const [error, setError] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
+  const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
@@ -277,6 +278,8 @@ function PageViewContent() {
     const ok = await confirm({
       title: "Archive page",
       message: getArchivePageConfirmMessage(page.title, directChildCount),
+      variant: "danger",
+      confirmLabel: "Archive",
     });
     if (!ok) return;
     setIsArchiving(true);
@@ -369,84 +372,109 @@ function PageViewContent() {
   }
 
   if (error || !page) {
-    return <PageErrorState message={error ?? "Page not found."} className="h-full" />;
+    return (
+      <PageErrorState
+        message={error ?? "Page not found."}
+        className="h-full"
+        action={{
+          label: "Go back",
+          onClick: () => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              navigate({
+                to: "/$workspaceSlug",
+                params: { workspaceSlug: params.workspaceSlug },
+              });
+            }
+          },
+        }}
+      />
+    );
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8">
-      {page.cover_url && (
-        <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8">
-          <PageCover coverUrl={page.cover_url} />
-          {page.can_edit !== false && online && (
-            <div className="absolute right-2 top-2">
-              <CoverPicker
-                currentCover={page.cover_url}
-                onSelect={handleCoverChange}
-                workspaceId={workspace!.id}
-                pageId={page.id}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="mb-6 flex min-h-6 items-center justify-between">
-        {useRestrictedBreadcrumbs ? (
-          <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
-        ) : (
-          <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
-        )}
-        <div className="flex items-center gap-3">
-          {!isSharedMode && online && canCreatePage(members, currentUser) && <ShareDialog pageId={page.id} />}
-          <AvatarStack
-            awareness={wsProvider?.awareness ?? null}
-            localClientId={wsProvider?.awareness.clientID ?? null}
-          />
-          <SyncStatusDot status={status} />
-        </div>
-      </div>
-
-      <div className="group/actions mb-4 flex items-start justify-between pl-7">
-        <div className="flex items-center gap-3">
-          {page.can_edit !== false && online ? (
-            <>
-              <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
-              {!page.cover_url && (
+    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
+      <div className="min-w-0">
+        {page.cover_url && (
+          <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
+            <PageCover coverUrl={page.cover_url} />
+            {page.can_edit !== false && online && (
+              <div className="absolute right-2 top-2">
                 <CoverPicker
-                  currentCover={null}
+                  currentCover={page.cover_url}
                   onSelect={handleCoverChange}
                   workspaceId={workspace!.id}
                   pageId={page.id}
                 />
-              )}
-            </>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mb-6 flex min-h-6 items-center justify-between">
+          {useRestrictedBreadcrumbs ? (
+            <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
           ) : (
-            page.icon && <EmojiIcon emoji={page.icon} size={28} />
+            <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+          )}
+          <div className="flex items-center gap-3">
+            {!isSharedMode && online && canCreatePage(members, currentUser) && <ShareDialog pageId={page.id} />}
+            <AvatarStack
+              awareness={wsProvider?.awareness ?? null}
+              localClientId={wsProvider?.awareness.clientID ?? null}
+            />
+            <SyncStatusDot status={status} />
+          </div>
+        </div>
+
+        <div className="group/actions mb-4 flex items-start justify-between pl-7">
+          <div className="flex items-center gap-3">
+            {page.can_edit !== false && online ? (
+              <>
+                <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
+                {!page.cover_url && (
+                  <CoverPicker
+                    currentCover={null}
+                    onSelect={handleCoverChange}
+                    workspaceId={workspace!.id}
+                    pageId={page.id}
+                  />
+                )}
+              </>
+            ) : (
+              page.icon && <EmojiIcon emoji={page.icon} size={28} />
+            )}
+          </div>
+          {!isSharedMode && canArchivePage(members, currentUser, page) && (
+            <button
+              onClick={handleArchive}
+              disabled={isArchiving || !online}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-40 transition-[colors,opacity] hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
+              aria-label={online ? "Archive page" : "Archive page (offline)"}
+            >
+              {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Archive
+            </button>
           )}
         </div>
-        {!isSharedMode && canArchivePage(members, currentUser, page) && (
-          <button
-            onClick={handleArchive}
-            disabled={isArchiving || !online}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-0 transition-colors hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
-            aria-label={online ? "Archive page" : "Archive page (offline)"}
-          >
-            {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            Archive
-          </button>
-        )}
+
+        <ErrorBoundary key={page.id}>
+          <EditorPane
+            pageId={page.id}
+            initialTitle={page.title}
+            onTitleChange={handleTitleChange}
+            onProvider={setWsProvider}
+            readOnly={page.can_edit === false}
+            workspaceId={workspace.id}
+            outlinePortalTarget={outlineRailEl}
+          />
+        </ErrorBoundary>
       </div>
 
-      <ErrorBoundary key={page.id}>
-        <EditorPane
-          pageId={page.id}
-          initialTitle={page.title}
-          onTitleChange={handleTitleChange}
-          onProvider={setWsProvider}
-          readOnly={page.can_edit === false}
-          workspaceId={workspace.id}
-        />
-      </ErrorBoundary>
+      <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">
+        <div ref={setOutlineRailEl} className="sticky top-8" />
+      </aside>
     </div>
   );
 }

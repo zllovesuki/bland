@@ -71,7 +71,7 @@ export function WorkspaceSwitcher() {
       </div>
 
       {dropdownOpen && (
-        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-900 shadow-lg">
+        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg">
           <div className="max-h-48 overflow-y-auto p-1">
             {workspaces.map((ws) => (
               <div key={ws.id} className="group relative">

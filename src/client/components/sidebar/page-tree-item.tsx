@@ -164,7 +164,9 @@ export function PageTreeItem({
           {page.icon ? <EmojiIcon emoji={page.icon} size={14} /> : <FileText className="h-3.5 w-3.5 text-zinc-500" />}
         </span>
 
-        <span className="truncate">{page.title || DEFAULT_PAGE_TITLE}</span>
+        <span className="truncate" title={page.title || DEFAULT_PAGE_TITLE}>
+          {page.title || DEFAULT_PAGE_TITLE}
+        </span>
 
         {canCreate && (
           <button

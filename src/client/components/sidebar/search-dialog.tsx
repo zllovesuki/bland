@@ -106,10 +106,14 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" role="presentation" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
+    <div
+      className="fixed inset-0 z-[90] flex items-start justify-center pt-[15vh]"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div className="fixed inset-0 bg-zinc-950/60" aria-hidden="true" />
       <div
-        className="animate-scale-fade relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl"
+        className="animate-scale-fade relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-800 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 border-b border-zinc-800 px-4 py-3">
@@ -124,23 +128,23 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
             className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-500 outline-none"
           />
           {isSearching && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
-          <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+          <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
             Esc
           </kbd>
         </div>
 
         <div className="max-h-80 overflow-y-auto p-1">
           {results.length === 0 && query.trim().length >= 3 && !isSearching && hasError && (
-            <div className="px-4 py-8 text-center text-sm text-zinc-500">Search unavailable</div>
+            <div className="px-4 py-8 text-center text-sm text-zinc-400">Search is down. Not your fault.</div>
           )}
           {results.length === 0 && query.trim().length >= 3 && !isSearching && !hasError && (
-            <div className="px-4 py-8 text-center text-sm text-zinc-500">No results found</div>
+            <div className="px-4 py-8 text-center text-sm text-zinc-400">Nothing. Try different words.</div>
           )}
           {results.length === 0 && query.trim().length > 0 && query.trim().length < 3 && !isSearching && (
-            <div className="px-4 py-8 text-center text-sm text-zinc-500">Type at least 3 characters</div>
+            <div className="px-4 py-8 text-center text-sm text-zinc-400">Type at least 3 characters</div>
           )}
           {results.length === 0 && query.trim().length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-zinc-500">Type to search across all pages</div>
+            <div className="px-4 py-8 text-center text-sm text-zinc-400">Search across all your pages</div>
           )}
           {results.map((result, i) => (
             <button
@@ -159,7 +163,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
                 <div className="truncate text-sm font-medium text-zinc-200">{result.title || DEFAULT_PAGE_TITLE}</div>
                 {result.snippet && (
                   <div
-                    className="mt-0.5 truncate text-xs text-zinc-500 [&>mark]:bg-accent-500/30 [&>mark]:text-zinc-200"
+                    className="mt-0.5 truncate text-xs text-zinc-400 [&>mark]:bg-accent-500/30 [&>mark]:text-zinc-200"
                     dangerouslySetInnerHTML={{ __html: result.snippet }}
                   />
                 )}

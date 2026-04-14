@@ -35,7 +35,7 @@ export function IconPicker({
               onSelect(null);
               setOpen(false);
             }}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 opacity-0 transition-colors hover:bg-zinc-800 hover:text-zinc-300 group-hover/icon:opacity-100"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-colors hover:bg-zinc-800 hover:text-zinc-300 group-hover/icon:opacity-100"
             aria-label="Remove icon"
           >
             <X className="h-3.5 w-3.5" />
@@ -47,7 +47,7 @@ export function IconPicker({
           className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
         >
           <SmilePlus className="h-4 w-4" />
-          <span className="opacity-0 group-hover:opacity-100">Add icon</span>
+          <span className="opacity-60 transition-opacity group-hover:opacity-100">Add icon</span>
         </button>
       )}
 

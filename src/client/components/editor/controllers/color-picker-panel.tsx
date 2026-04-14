@@ -45,7 +45,7 @@ export function ColorPickerPanel({
             className={`tiptap-color-swatch${(activeColor ?? null) === c.value ? " is-active" : ""}`}
             style={{
               backgroundColor: c.value ?? nullFallback,
-              ...(c.value === null ? { backgroundImage: "linear-gradient(135deg, #71717a 25%, transparent 25%)" } : {}),
+              ...(c.value === null ? { backgroundImage: "linear-gradient(135deg, #747178 25%, transparent 25%)" } : {}),
             }}
             onMouseDown={(e) => {
               e.preventDefault();

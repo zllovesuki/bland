@@ -85,7 +85,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
   const rootPages = activePages.filter((p) => p.parent_id === null);
 
   if (activePages.length === 0) {
-    return <div className="px-3 py-4 text-center text-xs text-zinc-600">No pages yet</div>;
+    return <div className="px-3 py-4 text-center text-xs text-zinc-400">No pages yet</div>;
   }
 
   return (
