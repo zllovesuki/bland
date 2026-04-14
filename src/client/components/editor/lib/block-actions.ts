@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
+import { scheduleMovedTextblockSelectionFinalization } from "./moved-textblock-selection";
 import { findTopLevelBlockByBid, getTopLevelBlocks } from "./top-level-blocks";
 
 type MoveDirection = -1 | 1;
@@ -60,6 +61,7 @@ export function moveTopLevelBlock(editor: Editor, bid: string | null, direction:
   if (!applyMoveTopLevelBlock(tr, bid, direction)) return false;
   editor.view.dispatch(tr);
   editor.view.focus();
+  scheduleMovedTextblockSelectionFinalization(editor.view);
   return true;
 }
 

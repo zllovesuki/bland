@@ -1,8 +1,9 @@
 import { Extension } from "@tiptap/core";
 import type { Slice } from "@tiptap/pm/model";
-import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
+import { scheduleMovedTextblockSelectionFinalization } from "../lib/moved-textblock-selection";
 import { findTopLevelBlockByBid, getTopLevelStructureSignature } from "../lib/top-level-blocks";
 import "../styles/block-drag-drop.css";
 
@@ -32,25 +33,6 @@ interface DragPreview {
 const blockDragDropKey = new PluginKey<BlockDragDropState>("blockDragDrop");
 const dragTargets = new WeakMap<EditorView, number | null>();
 const dragPreviews = new WeakMap<EditorView, DragPreview>();
-
-function getDroppedTextblockCursorPos(selection: Selection): number | null {
-  if (!(selection instanceof NodeSelection) || !selection.node.isTextblock) {
-    return null;
-  }
-
-  return Math.max(selection.from + 1, selection.to - 1);
-}
-
-function normalizeMovedTextblockDrop(view: EditorView) {
-  view.updateState(view.state);
-
-  const cursorPos = getDroppedTextblockCursorPos(view.state.selection);
-  if (cursorPos === null) return;
-
-  view.dispatch(
-    view.state.tr.setSelection(TextSelection.create(view.state.doc, cursorPos)).setMeta("addToHistory", false),
-  );
-}
 
 // Read the current top-level block boxes from the DOM so drag placement is based
 // on visible layout rather than ProseMirror caret heuristics in the gaps between blocks.
@@ -290,12 +272,7 @@ function handleMovedDrop(view: EditorView, event: DragEvent, slice: Slice, moved
 
   view.focus();
   view.dispatch(tr.setMeta("uiEvent", "drop"));
-
-  requestAnimationFrame(() => {
-    if (!view.isDestroyed) {
-      normalizeMovedTextblockDrop(view);
-    }
-  });
+  scheduleMovedTextblockSelectionFinalization(view);
 
   dragTargets.delete(view);
   return true;
@@ -458,5 +435,3 @@ export function clearDraggedBlockPreview(view: EditorView) {
       .setMeta("addToHistory", false),
   );
 }
-
-export { getDroppedTextblockCursorPos };
