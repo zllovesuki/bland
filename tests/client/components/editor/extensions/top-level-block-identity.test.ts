@@ -6,6 +6,7 @@ import {
   TopLevelBlockIdentity,
   applyTopLevelBlockIdNormalization,
 } from "@/client/components/editor/extensions/top-level-block-identity";
+import { createParagraphNode } from "@tests/client/util/editor-fixtures";
 
 const schema = getSchema([StarterKit.configure({ undoRedo: false }), TopLevelBlockIdentity]);
 
@@ -13,7 +14,7 @@ describe("top-level block identity", () => {
   it("assigns compact bids to top-level blocks that are missing them", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
-      content: [paragraph("One"), paragraph("Two")],
+      content: [createParagraphNode("One"), createParagraphNode("Two")],
     });
     const tr = EditorState.create({ schema, doc }).tr;
 
@@ -33,18 +34,18 @@ describe("top-level block identity", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
       content: [
-        paragraph("Top", "dupBid"),
+        createParagraphNode("Top", "dupBid"),
         {
           type: "bulletList",
           attrs: { bid: "listBid" },
           content: [
             {
               type: "listItem",
-              content: [paragraph("Nested", "nestedBid")],
+              content: [createParagraphNode("Nested", "nestedBid")],
             },
           ],
         },
-        paragraph("Second top", "dupBid"),
+        createParagraphNode("Second top", "dupBid"),
       ],
     });
     const tr = EditorState.create({ schema, doc }).tr;
@@ -64,11 +65,3 @@ describe("top-level block identity", () => {
     expect(json.content[1]?.content?.[0]?.content?.[0]?.attrs?.bid).toBeNull();
   });
 });
-
-function paragraph(text: string, bid: string | null = null) {
-  return {
-    type: "paragraph",
-    attrs: { bid },
-    content: [{ type: "text", text }],
-  };
-}

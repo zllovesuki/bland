@@ -3,6 +3,7 @@ import { getSchema } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { EditorState, NodeSelection, type Transaction } from "@tiptap/pm/state";
 import { primeTopLevelBlockDragState } from "@/client/components/editor/lib/block-drag-state";
+import { createHeadingNode, createParagraphNode } from "@tests/client/util/editor-fixtures";
 
 const schema = getSchema([StarterKit.configure({ undoRedo: false })]);
 
@@ -10,7 +11,12 @@ describe("block drag state priming", () => {
   it("primes an empty top-level paragraph for internal drag/drop", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
-      content: [heading("Sup Bro"), paragraph("Test"), { type: "paragraph" }, paragraph("Mentions")],
+      content: [
+        createHeadingNode("Sup Bro"),
+        createParagraphNode("Test"),
+        { type: "paragraph" },
+        createParagraphNode("Mentions"),
+      ],
     });
     const state = EditorState.create({ schema, doc });
     const emptyPos = doc.child(0)!.nodeSize + doc.child(1)!.nodeSize;
@@ -35,7 +41,7 @@ describe("block drag state priming", () => {
   it("ignores invalid block positions", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
-      content: [paragraph("Test")],
+      content: [createParagraphNode("Test")],
     });
     const state = EditorState.create({ schema, doc });
     const view: Parameters<typeof primeTopLevelBlockDragState>[0] = {
@@ -50,18 +56,3 @@ describe("block drag state priming", () => {
     expect(view.dragging).toBeNull();
   });
 });
-
-function paragraph(text: string) {
-  return {
-    type: "paragraph",
-    content: [{ type: "text", text }],
-  };
-}
-
-function heading(text: string) {
-  return {
-    type: "heading",
-    attrs: { level: 1 },
-    content: [{ type: "text", text }],
-  };
-}

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
-import type { FormattingToolbarEditor } from "@/client/components/editor/controllers/formatting-toolbar-state";
 import { shouldShowFormattingToolbar } from "@/client/components/editor/controllers/formatting-toolbar-state";
-import { createDetailsBlockNode } from "@/client/components/editor/controllers/details-block";
 import { DetailsBlockExtensions } from "@/client/components/editor/extensions/details-block";
+import { createDetailsNode } from "@tests/client/util/editor-fixtures";
+import { createFormattingToolbarEditor } from "@tests/client/util/editor-mocks";
 
 const schema = getSchema([StarterKit.configure({ undoRedo: false }), ...DetailsBlockExtensions]);
 
@@ -14,7 +14,7 @@ describe("formatting toolbar visibility", () => {
     const summary = "Specs";
     const doc = schema.nodeFromJSON({
       type: "doc",
-      content: [createDetailsBlockNode({ summary })],
+      content: [createDetailsNode({ summary })],
     });
     const from = 2;
     const to = from + summary.length;
@@ -24,33 +24,13 @@ describe("formatting toolbar visibility", () => {
       selection: TextSelection.create(doc, from, to),
     });
 
-    expect(shouldShowFormattingToolbar({ editor: createEditor(state), from, to })).toBe(false);
+    expect(shouldShowFormattingToolbar({ editor: createFormattingToolbarEditor(state), from, to })).toBe(false);
   });
 
   it("still shows for selections inside details content", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
-      content: [
-        {
-          type: "details",
-          attrs: { open: true },
-          content: [
-            {
-              type: "detailsSummary",
-              content: [{ type: "text", text: "Specs" }],
-            },
-            {
-              type: "detailsContent",
-              content: [
-                {
-                  type: "paragraph",
-                  content: [{ type: "text", text: "Body copy" }],
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      content: [createDetailsNode({ summary: "Specs", contentText: "Body copy" })],
     });
     const detailsNode = doc.firstChild;
     const summaryNode = detailsNode?.firstChild;
@@ -66,14 +46,6 @@ describe("formatting toolbar visibility", () => {
       selection: TextSelection.create(doc, from, to),
     });
 
-    expect(shouldShowFormattingToolbar({ editor: createEditor(state), from, to })).toBe(true);
+    expect(shouldShowFormattingToolbar({ editor: createFormattingToolbarEditor(state), from, to })).toBe(true);
   });
 });
-
-function createEditor(state: EditorState): FormattingToolbarEditor {
-  return {
-    state,
-    view: { dragging: null },
-    isActive: () => false,
-  } as FormattingToolbarEditor;
-}
