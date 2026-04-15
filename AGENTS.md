@@ -193,7 +193,7 @@ Configured in [wrangler.jsonc](/home/vendetta/code/bland/wrangler.jsonc):
 - Then run `npm run db:generate` (runs all three) or `npm run db:generate:d1` / `db:generate:docsync-do` / `db:generate:workspace-indexer` individually.
 - Do not manually edit `drizzle/**/*.sql` unless the user explicitly asks for a hand-written migration.
 - DO configs use `driver: "durable-sqlite"` and generate a `migrations.js` file used by the DO constructor's `blockConcurrencyWhile` → `migrate()` pattern.
-- D1 migrations are applied via `npm run db:migrate` (`wrangler d1 migrations apply`).
+- D1 migrations are applied via `npm run db:migrate:local` or `npm run db:migrate:remote` (`wrangler d1 migrations apply`).
 - FTS5 in WorkspaceIndexer is created via raw SQL in the constructor after drizzle migration (drizzle cannot manage FTS5 virtual tables).
 
 ## Validation
@@ -211,14 +211,15 @@ cp .dev.vars.example .dev.vars
 npm run typecheck
 npm run build
 npm run db:generate
-npm run db:migrate
+npm run db:migrate:local
 npm run db:seed-initial-user -- --email you@example.com --name "Your Name"
 ```
 
 Notes:
 
 - `.dev.vars.example` currently defines `LOG_LEVEL`, `ALLOWED_ORIGINS`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
-- `npm run db:migrate` is currently wired to `wrangler d1 migrations apply bland-prod --local`.
+- `npm run db:migrate:local` is wired to `wrangler d1 migrations apply bland-prod --local`.
+- `npm run db:migrate:remote` is wired to `wrangler d1 migrations apply bland-prod --remote`.
 - `scripts/seed-initial-user.ts` seeds the initial local user, workspace, and owner membership. It refuses to run if users already exist.
 
 ## Change Guidelines
