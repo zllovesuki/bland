@@ -5,6 +5,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import path from "path";
 
 const persistStatePath = process.env.BLAND_PERSIST_STATE_PATH;
+const ignoredWatchPaths = ["docs/**", "scripts/**", "playwright-report/**", "test-results/**"];
 
 export default defineConfig({
   plugins: [
@@ -12,6 +13,11 @@ export default defineConfig({
     tailwindcss(),
     cloudflare(persistStatePath ? { persistState: { path: persistStatePath } } : undefined),
   ],
+  server: {
+    watch: {
+      ignored: ignoredWatchPaths,
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
