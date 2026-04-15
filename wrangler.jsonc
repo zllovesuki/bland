@@ -3,18 +3,22 @@
 	"name": "bland",
 	"main": "src/worker/index.ts",
 	"compatibility_date": "2026-03-01",
+	"observability": {
+		"enabled": true,
+	},
 	"vars": {
 		"LOG_LEVEL": "info",
 		"ALLOWED_ORIGINS": "https://bland.tools,https://staging.bland.tools",
 	},
 	"assets": {
+		"binding": "ASSETS",
 		"not_found_handling": "single-page-application",
-		"run_worker_first": ["/api/*", "/parties/*", "/uploads/*"],
+		"run_worker_first": ["/*", "!/assets/*"],
 	},
 	"routes": [
 		{
-			"pattern": "bland.tools/*",
-			"zone_name": "bland.tools",
+			"pattern": "bland.tools",
+			"custom_domain": true,
 		},
 	],
 	"d1_databases": [

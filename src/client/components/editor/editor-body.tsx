@@ -35,6 +35,7 @@ interface EditorBodyProps {
   readOnly?: boolean;
   shareToken?: string;
   workspaceId?: string;
+  onSchemaError?: (error: Error) => void;
   /** DOM node for portalling the outline into a right-rail container (xl+). */
   outlinePortalTarget?: HTMLDivElement | null;
 }
@@ -46,6 +47,7 @@ export const EditorBody = memo(function EditorBody({
   readOnly,
   shareToken,
   workspaceId,
+  onSchemaError,
   outlinePortalTarget,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
@@ -91,8 +93,16 @@ export const EditorBody = memo(function EditorBody({
         getRuntime,
       }),
       editable: !readOnly,
+      enableContentCheck: true,
       shouldRerenderOnTransaction: false,
       coreExtensionOptions: EDITOR_CORE_EXTENSION_OPTIONS,
+      onContentError: ({ editor, error, disableCollaboration }) => {
+        // Fail closed for collaborative schema mismatches so an older client
+        // never syncs destructive edits back into the shared document.
+        disableCollaboration();
+        editor.setEditable(false, false);
+        onSchemaError?.(error);
+      },
       editorProps: {
         attributes: {
           class: "tiptap",

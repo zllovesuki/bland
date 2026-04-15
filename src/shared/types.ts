@@ -110,6 +110,12 @@ export const ApiError = z.object({
 });
 export type ApiError = z.infer<typeof ApiError>;
 
+export const PublicClientConfig = z.object({
+  turnstile_site_key: z.string().min(1),
+  sentry_dsn: z.string().min(1).nullable(),
+});
+export type PublicClientConfig = z.infer<typeof PublicClientConfig>;
+
 export const InvitePreview = z.object({
   id: z.string(),
   email: z.string().nullable(),

@@ -1,5 +1,5 @@
 import { Component } from "react";
-import type { ReactNode, ErrorInfo } from "react";
+import type { ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 
@@ -17,10 +17,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(): State {
     return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, info.componentStack);
   }
 
   render() {

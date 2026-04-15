@@ -18,6 +18,7 @@ import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { ToastContainer } from "./toast";
 
@@ -117,6 +118,16 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
         }
       } catch (err) {
         if (!cancelled) {
+          if (navigator.onLine) {
+            reportClientError({
+              source: "shared-page.resolve",
+              error: err,
+              context: {
+                hasActivePage: !!activePage,
+                sessionMode,
+              },
+            });
+          }
           setError(navigator.onLine ? toApiError(err).message : "This shared page requires a connection.");
         }
       } finally {
@@ -163,7 +174,18 @@ export function SharedPageView({ token, activePage }: { token: string; activePag
             setCanEdit(page.can_edit);
           }
         })
-        .catch(() => {});
+        .catch((error) => {
+          if (!cancelled) {
+            reportClientError({
+              source: "shared-page.active-page-load",
+              error,
+              context: {
+                workspaceId: info.workspace_id,
+                pageId: activePage,
+              },
+            });
+          }
+        });
     }
 
     api.pages

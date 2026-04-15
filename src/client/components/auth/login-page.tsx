@@ -5,24 +5,33 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { useAuth } from "@/client/hooks/use-auth";
 import { toApiError } from "@/client/lib/api";
+import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
+import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { TurnstileWidget } from "./turnstile-widget";
-import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = useSearch({ from: "/login" });
   const { login } = useAuth();
   useDocumentTitle("Login");
+  const config = getClientConfigSnapshot();
+  const configError = getClientConfigErrorSnapshot();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileUnavailable, setTurnstileUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const showVerificationUnavailable = !!configError || !config || turnstileUnavailable;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (showVerificationUnavailable) {
+      setError(SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE);
+      return;
+    }
     if (!turnstileToken) {
       setError("Please complete the verification.");
       return;
@@ -87,17 +96,30 @@ export function LoginPage() {
             label="Password"
           />
 
-          <TurnstileWidget
-            siteKey={TURNSTILE_SITE_KEY}
-            onTokenChange={setTurnstileToken}
-            action="login"
-            resetKey={turnstileResetKey}
-          />
+          {showVerificationUnavailable ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm text-red-400"
+            >
+              <p>{SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE}</p>
+              <Button variant="secondary" size="sm" className="mt-3" onClick={() => window.location.reload()}>
+                Reload
+              </Button>
+            </div>
+          ) : (
+            <TurnstileWidget
+              siteKey={config.turnstile_site_key}
+              onTokenChange={setTurnstileToken}
+              onUnavailable={() => setTurnstileUnavailable(true)}
+              action="login"
+              resetKey={turnstileResetKey}
+            />
+          )}
 
           <Button
             variant="primary"
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || showVerificationUnavailable || !turnstileToken}
             className="w-full"
             icon={
               isSubmitting ? (

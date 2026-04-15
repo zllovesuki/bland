@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { reportClientError } from "@/client/lib/report-client-error";
 
 declare global {
   interface Window {
@@ -13,70 +14,121 @@ declare global {
 interface TurnstileWidgetProps {
   siteKey: string;
   onTokenChange: (token: string | null) => void;
+  onUnavailable?: () => void;
   action?: string;
   resetKey?: number;
 }
 
-let scriptLoading = false;
 let scriptLoaded = false;
-const loadCallbacks: Array<() => void> = [];
+let scriptPromise: Promise<void> | null = null;
 
 function loadTurnstileScript(): Promise<void> {
-  if (scriptLoaded) return Promise.resolve();
+  if (scriptLoaded || window.turnstile) {
+    scriptLoaded = true;
+    return Promise.resolve();
+  }
 
-  return new Promise((resolve) => {
-    loadCallbacks.push(resolve);
+  if (scriptPromise) {
+    return scriptPromise;
+  }
 
-    if (scriptLoading) return;
-    scriptLoading = true;
-
+  scriptPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.async = true;
     script.onload = () => {
       scriptLoaded = true;
-      for (const cb of loadCallbacks) cb();
-      loadCallbacks.length = 0;
+      scriptPromise = null;
+      resolve();
+    };
+    script.onerror = () => {
+      scriptPromise = null;
+      reject(new Error("Failed to load the Turnstile script"));
     };
     document.head.appendChild(script);
   });
+
+  return scriptPromise;
 }
 
-export function TurnstileWidget({ siteKey, onTokenChange, action, resetKey }: TurnstileWidgetProps) {
+export function TurnstileWidget({ siteKey, onTokenChange, onUnavailable, action, resetKey }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const onTokenChangeRef = useRef(onTokenChange);
+  const onUnavailableRef = useRef(onUnavailable);
   onTokenChangeRef.current = onTokenChange;
+  onUnavailableRef.current = onUnavailable;
+
+  const handleUnavailable = useCallback(() => {
+    onTokenChangeRef.current(null);
+    onUnavailableRef.current?.();
+  }, []);
 
   const renderWidget = useCallback(() => {
     const container = containerRef.current;
-    if (!container || !window.turnstile) return;
+    if (!container) return;
+    if (!window.turnstile) {
+      reportClientError({
+        source: "turnstile.missing-api",
+        error: new Error("Turnstile API was unavailable after the script loaded"),
+        context: {
+          action: action ?? null,
+        },
+      });
+      handleUnavailable();
+      return;
+    }
 
     if (widgetIdRef.current !== null) {
       window.turnstile.remove(widgetIdRef.current);
       widgetIdRef.current = null;
     }
 
-    widgetIdRef.current = window.turnstile.render(container, {
-      sitekey: siteKey,
-      appearance: "interaction-only",
-      theme: "dark",
-      size: "flexible",
-      action,
-      callback: (token: string) => {
-        onTokenChangeRef.current(token);
-      },
-      "error-callback": () => {
-        onTokenChangeRef.current(null);
-      },
-      "expired-callback": () => {
-        onTokenChangeRef.current(null);
-      },
-    });
-  }, [siteKey, action]);
+    try {
+      widgetIdRef.current = window.turnstile.render(container, {
+        sitekey: siteKey,
+        appearance: "interaction-only",
+        theme: "dark",
+        size: "flexible",
+        action,
+        callback: (token: string) => {
+          onTokenChangeRef.current(token);
+        },
+        // Keep the widget mounted here. Turnstile defaults to automatic retry
+        // and expired-token refresh, so these callbacks should clear stale
+        // tokens without forcing the auth UI into a terminal reload state.
+        "error-callback": () => {
+          onTokenChangeRef.current(null);
+        },
+        "expired-callback": () => {
+          onTokenChangeRef.current(null);
+        },
+      });
+    } catch (error) {
+      reportClientError({
+        source: "turnstile.render-failed",
+        error,
+        context: {
+          action: action ?? null,
+        },
+      });
+      handleUnavailable();
+    }
+  }, [siteKey, action, handleUnavailable]);
 
   useEffect(() => {
-    loadTurnstileScript().then(renderWidget);
+    loadTurnstileScript()
+      .then(renderWidget)
+      .catch((error) => {
+        reportClientError({
+          source: "turnstile.script-load-failed",
+          error,
+          context: {
+            action: action ?? null,
+          },
+        });
+        handleUnavailable();
+      });
 
     return () => {
       if (widgetIdRef.current !== null && window.turnstile) {
@@ -84,7 +136,7 @@ export function TurnstileWidget({ siteKey, onTokenChange, action, resetKey }: Tu
         widgetIdRef.current = null;
       }
     };
-  }, [renderWidget]);
+  }, [action, handleUnavailable, renderWidget]);
 
   useEffect(() => {
     if (resetKey !== undefined && widgetIdRef.current !== null && window.turnstile) {

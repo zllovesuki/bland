@@ -5,10 +5,11 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
+import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
+import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { TurnstileWidget } from "./turnstile-widget";
-import { TURNSTILE_SITE_KEY } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import type { InvitePreview } from "@/shared/types";
 
@@ -17,6 +18,8 @@ export function InvitePage() {
   const navigate = useNavigate();
   useDocumentTitle("Accept Invite");
   const { isAuthenticated } = useAuthStore();
+  const config = getClientConfigSnapshot();
+  const configError = getClientConfigErrorSnapshot();
 
   const [invite, setInvite] = useState<InvitePreview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -27,8 +30,10 @@ export function InvitePage() {
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileUnavailable, setTurnstileUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const showVerificationUnavailable = !!configError || !config || turnstileUnavailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +62,10 @@ export function InvitePage() {
 
   async function handleAccept(e: FormEvent) {
     e.preventDefault();
+    if (showVerificationUnavailable) {
+      setError(SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE);
+      return;
+    }
     if (!turnstileToken) {
       setError("Please complete the verification.");
       return;
@@ -189,17 +198,30 @@ export function InvitePage() {
             </>
           )}
 
-          <TurnstileWidget
-            siteKey={TURNSTILE_SITE_KEY}
-            onTokenChange={setTurnstileToken}
-            action="accept_invite"
-            resetKey={turnstileResetKey}
-          />
+          {showVerificationUnavailable ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm text-red-400"
+            >
+              <p>{SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE}</p>
+              <Button variant="secondary" size="sm" className="mt-3" onClick={() => window.location.reload()}>
+                Reload
+              </Button>
+            </div>
+          ) : (
+            <TurnstileWidget
+              siteKey={config.turnstile_site_key}
+              onTokenChange={setTurnstileToken}
+              onUnavailable={() => setTurnstileUnavailable(true)}
+              action="accept_invite"
+              resetKey={turnstileResetKey}
+            />
+          )}
 
           <Button
             variant="primary"
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || showVerificationUnavailable || !turnstileToken}
             className="w-full"
             icon={
               isSubmitting ? (

@@ -8,8 +8,13 @@ import { getCachedDocKey } from "@/client/lib/constants";
 import { YJS_PAGE_TITLE, YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { markDocCached } from "@/client/lib/doc-cache-hints";
+import { reportClientError } from "@/client/lib/report-client-error";
+import { toast } from "@/client/components/toast";
+import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { EditorTitle } from "./editor-title";
 import { EditorBody } from "./editor-body";
+
+const INVALID_SCHEMA_MESSAGE = "This page contains content this editor version can't safely load. Refresh to update.";
 
 interface EditorPaneProps {
   pageId: string;
@@ -39,6 +44,8 @@ export function EditorPane({
     provider: { awareness: Awareness };
     ydoc: Y.Doc;
   } | null>(null);
+  const [schemaError, setSchemaError] = useState<Error | null>(null);
+  const schemaErrorReportedRef = useRef(false);
 
   const initialTitleRef = useRef(initialTitle);
   initialTitleRef.current = initialTitle;
@@ -48,6 +55,13 @@ export function EditorPane({
   onProviderRef.current = onProvider;
 
   useEffect(() => {
+    setSchemaError(null);
+    schemaErrorReportedRef.current = false;
+  }, [pageId, shareToken]);
+
+  useEffect(() => {
+    if (schemaError) return;
+
     const ydoc = new Y.Doc();
     const idb = new IndexeddbPersistence(getCachedDocKey(pageId), ydoc);
     const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
@@ -145,7 +159,30 @@ export function EditorPane({
       idb.destroy();
       ydoc.destroy();
     };
-  }, [pageId, shareToken]);
+  }, [pageId, schemaError, shareToken]);
+
+  const handleSchemaError = useCallback(
+    (error: Error) => {
+      setEditorState(null);
+      setSchemaError((current) => current ?? error);
+
+      if (schemaErrorReportedRef.current) return;
+      schemaErrorReportedRef.current = true;
+
+      reportClientError({
+        source: "editor.invalid-schema",
+        error,
+        context: {
+          pageId,
+          workspaceId,
+          hasShareToken: !!shareToken,
+          readOnly: !!readOnly,
+        },
+      });
+      toast.error(INVALID_SCHEMA_MESSAGE);
+    },
+    [pageId, readOnly, shareToken, workspaceId],
+  );
 
   const handleTitleInput = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -164,9 +201,20 @@ export function EditorPane({
 
   return (
     <div>
-      <EditorTitle title={title} onInput={handleTitleInput} disabled={!editorState} readOnly={readOnly} />
+      <EditorTitle
+        title={title}
+        onInput={handleTitleInput}
+        disabled={!editorState || !!schemaError}
+        readOnly={readOnly || !!schemaError}
+      />
 
-      {editorState ? (
+      {schemaError ? (
+        <PageErrorState
+          message={INVALID_SCHEMA_MESSAGE}
+          className="min-h-[12rem]"
+          action={{ label: "Reload", onClick: () => window.location.reload() }}
+        />
+      ) : editorState ? (
         <>
           <EditorBody
             fragment={editorState.fragment}
@@ -175,6 +223,7 @@ export function EditorPane({
             readOnly={readOnly}
             shareToken={shareToken}
             workspaceId={workspaceId}
+            onSchemaError={handleSchemaError}
             outlinePortalTarget={outlinePortalTarget}
           />
         </>

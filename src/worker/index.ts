@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
 import { createDb } from "@/worker/db/d1/client";
 import { pages } from "@/worker/db/d1/schema";
+import { handleHttpRequest } from "@/worker/lib/http-entry";
 import { resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
+import { renderSpaShell } from "@/worker/lib/spa-shell";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
@@ -14,103 +16,107 @@ export { WorkspaceIndexer } from "@/worker/durable-objects/workspace-indexer";
 
 const log = createLogger("websocket");
 
+async function handlePartyRequest(request: Request, env: Env) {
+  return routePartykitRequest(request, env, {
+    onBeforeConnect: async (req, lobby) => {
+      const pageId = lobby.name;
+      log.debug("connection_attempt", { pageId });
+
+      // Validate browser-provided origins before upgrading the socket.
+      const origin = req.headers.get("origin");
+      if (origin && !isAllowedOrigin(origin, env)) {
+        log.warn("origin_rejected", { origin, pageId });
+        return new Response("Forbidden origin", { status: 403 });
+      }
+
+      const url = new URL(req.url);
+      const token = url.searchParams.get("token");
+      const shareToken = url.searchParams.get("share");
+
+      if (!token && !shareToken) {
+        log.warn("auth_missing", { pageId });
+        return new Response("Authentication required", { status: 401 });
+      }
+
+      const db = createDb(env.DB);
+
+      // Load page first — needed for both auth paths
+      const page = await db
+        .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at })
+        .from(pages)
+        .where(eq(pages.id, pageId))
+        .get();
+
+      if (!page || page.archived_at) {
+        log.warn("page_not_found", { pageId });
+        return new Response("Page not found", { status: 404 });
+      }
+
+      let readOnly = false;
+
+      if (token) {
+        // JWT auth path
+        let userId: string;
+        try {
+          const { sub } = await verifyAccessToken(token, env);
+          userId = sub;
+        } catch {
+          log.warn("auth_failed", { pageId });
+          return new Response("Invalid token", { status: 401 });
+        }
+
+        // Resolve once and derive both view/edit answers. This relies on the v1
+        // assumption in permissions.ts that access levels are monotonic.
+        const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId }, [pageId], page.workspace_id);
+        const accessLevel = accessLevels.get(pageId) ?? "none";
+        if (accessLevel === "none") {
+          log.warn("access_denied", { userId, pageId });
+          return new Response("You do not have access to this page", { status: 403 });
+        }
+        readOnly = accessLevel !== "edit";
+
+        log.info("connection_authorized", { userId, pageId, readOnly });
+      } else {
+        // Share token auth path
+        const accessLevels = await resolvePageAccessLevels(
+          db,
+          { type: "link", token: shareToken! },
+          [pageId],
+          page.workspace_id,
+        );
+        const accessLevel = accessLevels.get(pageId) ?? "none";
+        if (accessLevel === "none") {
+          log.warn("share_access_denied", { pageId });
+          return new Response("Invalid or expired share link", { status: 403 });
+        }
+        readOnly = accessLevel !== "edit";
+
+        log.info("share_connection_authorized", { pageId, readOnly });
+      }
+
+      // Always return a sanitized Request to prevent client-injected params
+      url.searchParams.delete("readOnly");
+      url.searchParams.delete("authType");
+      if (readOnly) {
+        url.searchParams.set("readOnly", "1");
+      }
+      if (token && !readOnly) {
+        url.searchParams.set("authType", "member_edit");
+      }
+      return new Request(url.toString(), req);
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     setLevel(env.LOG_LEVEL);
-
-    // Route WebSocket connections to DocSync Durable Object
-    const partyResponse = await routePartykitRequest(request, env, {
-      onBeforeConnect: async (req, lobby) => {
-        const pageId = lobby.name;
-        log.debug("connection_attempt", { pageId });
-
-        // Validate browser-provided origins before upgrading the socket.
-        const origin = req.headers.get("origin");
-        if (origin && !isAllowedOrigin(origin, env)) {
-          log.warn("origin_rejected", { origin, pageId });
-          return new Response("Forbidden origin", { status: 403 });
-        }
-
-        const url = new URL(req.url);
-        const token = url.searchParams.get("token");
-        const shareToken = url.searchParams.get("share");
-
-        if (!token && !shareToken) {
-          log.warn("auth_missing", { pageId });
-          return new Response("Authentication required", { status: 401 });
-        }
-
-        const db = createDb(env.DB);
-
-        // Load page first — needed for both auth paths
-        const page = await db
-          .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at })
-          .from(pages)
-          .where(eq(pages.id, pageId))
-          .get();
-
-        if (!page || page.archived_at) {
-          log.warn("page_not_found", { pageId });
-          return new Response("Page not found", { status: 404 });
-        }
-
-        let readOnly = false;
-
-        if (token) {
-          // JWT auth path
-          let userId: string;
-          try {
-            const { sub } = await verifyAccessToken(token, env);
-            userId = sub;
-          } catch {
-            log.warn("auth_failed", { pageId });
-            return new Response("Invalid token", { status: 401 });
-          }
-
-          // Resolve once and derive both view/edit answers. This relies on the v1
-          // assumption in permissions.ts that access levels are monotonic.
-          const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId }, [pageId], page.workspace_id);
-          const accessLevel = accessLevels.get(pageId) ?? "none";
-          if (accessLevel === "none") {
-            log.warn("access_denied", { userId, pageId });
-            return new Response("You do not have access to this page", { status: 403 });
-          }
-          readOnly = accessLevel !== "edit";
-
-          log.info("connection_authorized", { userId, pageId, readOnly });
-        } else {
-          // Share token auth path
-          const accessLevels = await resolvePageAccessLevels(
-            db,
-            { type: "link", token: shareToken! },
-            [pageId],
-            page.workspace_id,
-          );
-          const accessLevel = accessLevels.get(pageId) ?? "none";
-          if (accessLevel === "none") {
-            log.warn("share_access_denied", { pageId });
-            return new Response("Invalid or expired share link", { status: 403 });
-          }
-          readOnly = accessLevel !== "edit";
-
-          log.info("share_connection_authorized", { pageId, readOnly });
-        }
-
-        // Always return a sanitized Request to prevent client-injected params
-        url.searchParams.delete("readOnly");
-        url.searchParams.delete("authType");
-        if (readOnly) {
-          url.searchParams.set("readOnly", "1");
-        }
-        if (token && !readOnly) {
-          url.searchParams.set("authType", "member_edit");
-        }
-        return new Request(url.toString(), req);
-      },
+    return handleHttpRequest(request, env, ctx, {
+      handlePartyRequest,
+      handleAppRequest: (nextRequest, nextEnv, nextCtx) => app.fetch(nextRequest, nextEnv, nextCtx),
+      handleAssetRequest: (nextRequest, nextEnv) => nextEnv.ASSETS.fetch(nextRequest),
+      handleShellRequest: renderSpaShell,
     });
-    if (partyResponse) return partyResponse;
-
-    return app.fetch(request, env, ctx);
   },
   async queue(batch: MessageBatch, env: Env) {
     setLevel(env.LOG_LEVEL);

@@ -30,6 +30,7 @@ import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
 import { isDocCached, removeDocHint } from "@/client/lib/doc-cache-hints";
+import { reportClientError } from "@/client/lib/report-client-error";
 import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
@@ -233,6 +234,16 @@ function PageViewContent() {
               return;
             }
           }
+          reportClientError({
+            source: "page.load",
+            error: err,
+            context: {
+              workspaceId,
+              pageId: params.pageId,
+              online,
+              sessionMode: currentMode,
+            },
+          });
           setError(apiErr.message);
         }
       } finally {
@@ -315,11 +326,20 @@ function PageViewContent() {
       try {
         await api.pages.update(workspace.id, page.id, { icon });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
-      } catch {
+      } catch (error) {
         if (iconVersionRef.current === version) {
           setPage((p) => (p ? { ...p, icon: page.icon } : p));
           updatePage(workspace.id, page.id, { icon: page.icon });
         }
+        reportClientError({
+          source: "page.icon-update",
+          error,
+          context: {
+            workspaceId: workspace.id,
+            pageId: page.id,
+            icon,
+          },
+        });
       }
     },
     [workspace, page, updatePage, wsProvider],
@@ -334,11 +354,20 @@ function PageViewContent() {
       try {
         await api.pages.update(workspace.id, page.id, { cover_url });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
-      } catch {
+      } catch (error) {
         if (coverVersionRef.current === version) {
           setPage((p) => (p ? { ...p, cover_url: page.cover_url } : p));
           updatePage(workspace.id, page.id, { cover_url: page.cover_url });
         }
+        reportClientError({
+          source: "page.cover-update",
+          error,
+          context: {
+            workspaceId: workspace.id,
+            pageId: page.id,
+            hasCover: !!cover_url,
+          },
+        });
       }
     },
     [workspace, page, updatePage, wsProvider],

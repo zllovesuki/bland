@@ -1,5 +1,3 @@
-export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
-
 export const STORAGE_KEYS = {
   D1_BOOKMARK: "bland:d1:bookmark",
   USER: "bland:user",
@@ -8,6 +6,9 @@ export const STORAGE_KEYS = {
   SIDEBAR: "bland:sidebar",
   CACHED_DOCS: "bland:cached-docs",
 } as const;
+
+export const SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE =
+  "Security verification is unavailable right now. Please try again.";
 
 export const SESSION_MODES = {
   RESTORING: "restoring",

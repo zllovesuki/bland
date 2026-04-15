@@ -4,3 +4,4 @@ JWT_SECRET=dev-jwt-secret-replace-in-production
 # https://developers.cloudflare.com/turnstile/troubleshooting/testing/
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+SENTRY_DSN=
