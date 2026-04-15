@@ -188,8 +188,9 @@ function PageViewContent() {
   );
 
   const workspaceId = workspace?.id;
+  const routeWorkspaceReady = workspace?.slug === params.workspaceSlug;
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!workspaceId || !routeWorkspaceReady) return;
     let cancelled = false;
 
     async function loadPage() {
@@ -255,7 +256,7 @@ function PageViewContent() {
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, params.pageId, updatePage, addPage]);
+  }, [workspaceId, routeWorkspaceReady, params.pageId, updatePage, addPage]);
 
   useEffect(() => {
     if (!online || sessionMode !== SESSION_MODES.AUTHENTICATED || routeSource !== "cache") return;
