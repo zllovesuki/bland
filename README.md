@@ -96,7 +96,7 @@ D1 is the single source of truth for relational metadata. Document content lives
 npm install
 cp .dev.vars.example .dev.vars
 npm run db:migrate:local
-npm run db:seed-initial-user -- --email you@example.com --name "Your Name"
+npm run db:seed-initial-user:local -- --email you@example.com --name "Your Name"
 npm run dev
 ```
 
@@ -108,18 +108,19 @@ Local development uses the Cloudflare Turnstile test keys baked into `.dev.vars.
 
 ## 📜 Common scripts
 
-| Command                        | What it does                                                     |
-| ------------------------------ | ---------------------------------------------------------------- |
-| `npm run dev`                  | Start the local Vite dev server with Cloudflare Vite integration |
-| `npm run build`                | Production build (Vite + Worker)                                 |
-| `npm run typecheck`            | Full TypeScript check (app + tests)                              |
-| `npm test`                     | Vitest unit tests                                                |
-| `npm run test:e2e`             | Playwright browser tests                                         |
-| `npm run db:generate`          | Regenerate Drizzle migrations for D1 and both DOs                |
-| `npm run db:migrate:local`     | Apply D1 migrations against the local dev database               |
-| `npm run db:seed-initial-user` | Seed the bootstrap user, workspace, and ownership                |
-| `npm run deploy`               | Remote D1 migrate, production build, `wrangler deploy`           |
-| `npm run format`               | Prettier formatting                                              |
+| Command                               | What it does                                                     |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `npm run dev`                         | Start the local Vite dev server with Cloudflare Vite integration |
+| `npm run build`                       | Production build (Vite + Worker)                                 |
+| `npm run typecheck`                   | Full TypeScript check (app + tests)                              |
+| `npm test`                            | Vitest unit tests                                                |
+| `npm run test:e2e`                    | Playwright browser tests                                         |
+| `npm run db:generate`                 | Regenerate Drizzle migrations for D1 and both DOs                |
+| `npm run db:migrate:local`            | Apply D1 migrations against the local dev database               |
+| `npm run db:seed-initial-user:local`  | Seed the bootstrap user in local D1                              |
+| `npm run db:seed-initial-user:remote` | Seed the bootstrap user in remote D1                             |
+| `npm run deploy`                      | Remote D1 migrate, production build, `wrangler deploy`           |
+| `npm run format`                      | Prettier formatting                                              |
 
 ---
 

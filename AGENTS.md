@@ -98,7 +98,7 @@ Before writing new code, check these files for reusable pieces:
 ### Client constants (`src/client/lib/constants.ts`)
 
 - `TURNSTILE_SITE_KEY` — from env or test fallback.
-- `STORAGE_KEYS` — `{ D1_BOOKMARK, USER, LAYOUT, SIDEBAR }` for localStorage keys.
+- `STORAGE_KEYS` — localStorage keys for D1 bookmark propagation, session/workspace state, layout/sidebar prefs, cached docs, and emoji recents.
 
 ### Client helpers (`src/client/lib/api.ts`, `src/client/lib/permissions.ts`, `src/client/hooks/use-online.ts`, `src/client/hooks/use-role.ts`, `src/client/hooks/use-page-drag.ts`, `src/client/hooks/use-scroll-visibility.ts`)
 
@@ -135,7 +135,7 @@ Before writing new code, check these files for reusable pieces:
 
 - `src/worker/index.ts` is the Worker entrypoint, routes Partyserver WebSocket connections to `DocSync`, exports the `DocSync` and `WorkspaceIndexer` Durable Objects, and handles queue consumption.
 - `src/worker/router.ts` wires Hono, CORS, D1 session handling, route registration, 404s, and top-level error handling.
-- `src/worker/routes/` contains the current HTTP surface for auth, invites, workspaces, pages, page-tree, page-context, shares, uploads, search, and health.
+- `src/worker/routes/` contains the current HTTP surface for auth, invites, workspaces, pages, page-tree, page-context, page-mentions, shares, uploads, search, and health.
 - `src/worker/middleware/` owns auth, rate limiting, and Turnstile verification.
 - `src/worker/db/d1/schema.ts` defines the Drizzle schema for D1 (app-global metadata).
 - `src/worker/db/docsync-do/schema.ts` defines the DocSync DO-local SQLite schema (snapshot chunking).
@@ -212,15 +212,15 @@ npm run typecheck
 npm run build
 npm run db:generate
 npm run db:migrate:local
-npm run db:seed-initial-user -- --email you@example.com --name "Your Name"
+npm run db:seed-initial-user:local -- --email you@example.com --name "Your Name"
 ```
 
 Notes:
 
-- `.dev.vars.example` currently defines `LOG_LEVEL`, `ALLOWED_ORIGINS`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, and `TURNSTILE_SECRET`.
+- `.dev.vars.example` currently defines `LOG_LEVEL`, `ALLOWED_ORIGINS`, `JWT_SECRET`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET`, and `SENTRY_DSN`.
 - `npm run db:migrate:local` is wired to `wrangler d1 migrations apply bland-prod --local`.
 - `npm run db:migrate:remote` is wired to `wrangler d1 migrations apply bland-prod --remote`.
-- `scripts/seed-initial-user.ts` seeds the initial local user, workspace, and owner membership. It refuses to run if users already exist.
+- `scripts/seed-initial-user.ts` seeds the initial user, workspace, and owner membership. Pass exactly one of `--local` or `--remote`, or use `npm run db:seed-initial-user:local` / `npm run db:seed-initial-user:remote`. It refuses to run if users already exist.
 
 ## Change Guidelines
 
@@ -306,6 +306,7 @@ When modifying cover rendering, error states, loading skeletons, or mobile drawe
 - [src/worker/routes/auth.ts](/home/vendetta/code/bland/src/worker/routes/auth.ts)
 - [src/worker/routes/workspaces.ts](/home/vendetta/code/bland/src/worker/routes/workspaces.ts)
 - [src/worker/routes/pages.ts](/home/vendetta/code/bland/src/worker/routes/pages.ts)
+- [src/worker/routes/page-mentions.ts](/home/vendetta/code/bland/src/worker/routes/page-mentions.ts)
 - [src/worker/routes/shares.ts](/home/vendetta/code/bland/src/worker/routes/shares.ts)
 - [src/worker/routes/uploads.ts](/home/vendetta/code/bland/src/worker/routes/uploads.ts)
 - [src/worker/routes/search.ts](/home/vendetta/code/bland/src/worker/routes/search.ts)

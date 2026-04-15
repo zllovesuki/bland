@@ -12,6 +12,8 @@ const WORKSPACE_SLUG = "bland";
 const DATABASE = "bland-prod";
 const ARGON2_PARAMS = { t: 2, m: 19456, p: 1, dkLen: 32 } as const;
 
+type SeedMode = "--local" | "--remote";
+
 function base64Encode(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
@@ -75,19 +77,47 @@ async function promptPassword(): Promise<string> {
   });
 }
 
+function printUsage() {
+  console.error("Usage:");
+  console.error(
+    "  npm run db:seed-initial-user -- --local --email <email> --name <name> [--password <pw>]",
+  );
+  console.error(
+    "  npm run db:seed-initial-user -- --remote --email <email> --name <name> [--password <pw>]",
+  );
+  console.error("");
+  console.error("Convenience scripts:");
+  console.error(
+    "  npm run db:seed-initial-user:local -- --email <email> --name <name> [--password <pw>]",
+  );
+  console.error(
+    "  npm run db:seed-initial-user:remote -- --email <email> --name <name> [--password <pw>]",
+  );
+}
+
 function parseArgs(argv: string[]) {
-  let mode: "--local" | "--remote" = "--local";
+  let mode: SeedMode | null = null;
   let email: string | null = null;
   let name: string | null = null;
   let password: string | null = null;
+  let help = false;
+
+  function setMode(nextMode: SeedMode) {
+    if (mode && mode !== nextMode) {
+      printUsage();
+      console.error("\nSpecify exactly one of --local or --remote.");
+      process.exit(1);
+    }
+    mode = nextMode;
+  }
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case "--local":
-        mode = "--local";
+        setMode("--local");
         break;
       case "--remote":
-        mode = "--remote";
+        setMode("--remote");
         break;
       case "--email":
         email = argv[++i];
@@ -98,17 +128,33 @@ function parseArgs(argv: string[]) {
       case "--password":
         password = argv[++i];
         break;
+      case "--help":
+      case "-h":
+        help = true;
+        break;
+      default:
+        printUsage();
+        console.error(`\nUnknown argument: ${argv[i]}`);
+        process.exit(1);
     }
   }
 
-  return { mode, email, name, password };
+  return { mode, email, name, password, help };
 }
 
 async function main() {
-  const { mode, email, name, password: passwordArg } = parseArgs(process.argv.slice(2));
+  const { mode, email, name, password: passwordArg, help } = parseArgs(process.argv.slice(2));
 
-  if (!email || !name) {
-    console.error("Usage: npm run db:seed-initial-user -- --local --email <email> --name <name> [--password <pw>]");
+  if (help) {
+    printUsage();
+    process.exit(0);
+  }
+
+  if (!mode || !email || !name) {
+    printUsage();
+    if (!mode) {
+      console.error("\nSpecify exactly one of --local or --remote.");
+    }
     process.exit(1);
   }
 
