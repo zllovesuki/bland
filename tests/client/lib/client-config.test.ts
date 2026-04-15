@@ -16,6 +16,7 @@ describe("client config bootstrap", () => {
         turnstile_site_key: "turnstile-test-key",
         sentry_dsn: "https://public@example.ingest.sentry.io/1",
       },
+      __BLAND_CSP_NONCE__: "nonce-test",
     });
 
     const clientConfig = await import("@/client/lib/client-config");
@@ -24,6 +25,7 @@ describe("client config bootstrap", () => {
       turnstile_site_key: "turnstile-test-key",
       sentry_dsn: "https://public@example.ingest.sentry.io/1",
     });
+    expect(clientConfig.getBootstrapCspNonceSnapshot()).toBe("nonce-test");
     expect(clientConfig.getClientConfigErrorSnapshot()).toBeNull();
 
     window.__BLAND_PUBLIC_CONFIG__ = {
@@ -43,6 +45,7 @@ describe("client config bootstrap", () => {
     const clientConfig = await import("@/client/lib/client-config");
 
     expect(clientConfig.getClientConfigSnapshot()).toBeNull();
+    expect(clientConfig.getBootstrapCspNonceSnapshot()).toBeNull();
     expect(clientConfig.getClientConfigErrorSnapshot()).toEqual(
       expect.objectContaining({ message: "Missing Worker bootstrap config" }),
     );

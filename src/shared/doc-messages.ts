@@ -1,27 +1,52 @@
-import { z } from "zod";
-
 /** Custom messages sent between clients and DocSync via y-partyserver's custom message channel. */
 
-export const PageMetadataRefresh = z.object({
-  type: z.literal("page-metadata-refresh"),
-});
-export type PageMetadataRefresh = z.infer<typeof PageMetadataRefresh>;
+export type PageMetadataRefresh = {
+  type: "page-metadata-refresh";
+};
 
-export const PageMetadataUpdated = z.object({
-  type: z.literal("page-metadata-updated"),
-  pageId: z.string(),
-  icon: z.string().nullable(),
-  cover_url: z.string().nullable(),
-});
-export type PageMetadataUpdated = z.infer<typeof PageMetadataUpdated>;
+export type PageMetadataUpdated = {
+  type: "page-metadata-updated";
+  pageId: string;
+  icon: string | null;
+  cover_url: string | null;
+};
 
-export const DocCustomMessage = z.discriminatedUnion("type", [PageMetadataRefresh, PageMetadataUpdated]);
-export type DocCustomMessage = z.infer<typeof DocCustomMessage>;
+export type DocCustomMessage = PageMetadataRefresh | PageMetadataUpdated;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStringOrNull(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
 
 export function parseDocMessage(raw: string): DocCustomMessage | null {
   try {
-    const parsed = DocCustomMessage.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
+    const parsed = JSON.parse(raw);
+    if (!isRecord(parsed) || typeof parsed.type !== "string") {
+      return null;
+    }
+
+    if (parsed.type === "page-metadata-refresh") {
+      return { type: "page-metadata-refresh" };
+    }
+
+    if (
+      parsed.type === "page-metadata-updated" &&
+      typeof parsed.pageId === "string" &&
+      isStringOrNull(parsed.icon) &&
+      isStringOrNull(parsed.cover_url)
+    ) {
+      return {
+        type: "page-metadata-updated",
+        pageId: parsed.pageId,
+        icon: parsed.icon,
+        cover_url: parsed.cover_url,
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }

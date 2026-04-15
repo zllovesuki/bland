@@ -1,4 +1,9 @@
 import { type PublicClientConfig } from "@/shared/types";
+import {
+  applyBaselineSecurityHeaders,
+  applyDocumentSecurityHeaders,
+  createCspNonce,
+} from "@/worker/lib/security-headers";
 
 function serializeJsonForInlineScript(value: unknown): string {
   return JSON.stringify(value)
@@ -14,15 +19,33 @@ export function getPublicClientConfig(env: Pick<Env, "TURNSTILE_SITE_KEY" | "SEN
   };
 }
 
-export function createPublicClientConfigScript(env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">): string {
-  return `window.__BLAND_PUBLIC_CONFIG__=${serializeJsonForInlineScript(getPublicClientConfig(env))};`;
+export function createPublicClientConfigScript(
+  env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">,
+  cspNonce?: string,
+): string {
+  let script = `window.__BLAND_PUBLIC_CONFIG__=${serializeJsonForInlineScript(getPublicClientConfig(env))};`;
+  if (cspNonce) {
+    script += `window.__BLAND_CSP_NONCE__=${serializeJsonForInlineScript(cspNonce)};`;
+  }
+  return script;
 }
 
 class HeadBootstrapInjector {
-  constructor(private readonly script: string) {}
+  constructor(
+    private readonly script: string,
+    private readonly nonce: string,
+  ) {}
 
   element(element: Element) {
-    element.append(`<script>${this.script}</script>`, { html: true });
+    element.append(`<script nonce="${this.nonce}">${this.script}</script>`, { html: true });
+  }
+}
+
+class ScriptNonceInjector {
+  constructor(private readonly nonce: string) {}
+
+  element(element: Element) {
+    element.setAttribute("nonce", this.nonce);
   }
 }
 
@@ -32,10 +55,20 @@ export async function renderSpaShell(
 ): Promise<Response> {
   const shell = await env.ASSETS.fetch(request);
   if (!shell.ok) {
-    return shell;
+    return applyBaselineSecurityHeaders(shell);
   }
 
-  return Promise.resolve(
-    new HTMLRewriter().on("head", new HeadBootstrapInjector(createPublicClientConfigScript(env))).transform(shell),
+  const nonce = createCspNonce();
+  const response = await Promise.resolve(
+    new HTMLRewriter()
+      .on("head", new HeadBootstrapInjector(createPublicClientConfigScript(env, nonce), nonce))
+      .on("script", new ScriptNonceInjector(nonce))
+      .transform(shell),
   );
+
+  return applyDocumentSecurityHeaders(response, {
+    nonce,
+    requestUrl: request.url,
+    sentryDsn: env.SENTRY_DSN || null,
+  });
 }

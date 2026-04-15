@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
+import { ALLOWED_UPLOAD_TYPES, MAX_PAGE_MENTION_BATCH, MAX_UPLOAD_SIZE } from "@/shared/constants";
 
 export const WorkspaceRole = z.enum(["owner", "admin", "member", "guest"]);
 export type WorkspaceRole = z.infer<typeof WorkspaceRole>;
@@ -187,18 +187,6 @@ export const UpdatePageRequest = z.object({
   parent_id: z.string().max(26).nullable().optional(),
 });
 export type UpdatePageRequest = z.infer<typeof UpdatePageRequest>;
-
-const ALLOWED_UPLOAD_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/heic",
-  "application/pdf",
-] as const;
-
-export const UPLOAD_MIME_SET = new Set<string>(ALLOWED_UPLOAD_TYPES);
-export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB
 
 export const PresignRequest = z.object({
   filename: z.string().min(1).max(255),

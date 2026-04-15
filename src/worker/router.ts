@@ -19,6 +19,7 @@ import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import { createLogger, errorContext } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
+import { applyBaselineSecurityHeaders } from "@/worker/lib/security-headers";
 
 type AppVariables = {
   db: Db;
@@ -42,6 +43,11 @@ app.use(
     maxAge: 86400,
   }),
 );
+
+app.use("*", async (c, next) => {
+  await next();
+  c.res = applyBaselineSecurityHeaders(c.res);
+});
 
 function selectSessionConstraint(method: string, _path: string): string | undefined {
   // Mutating requests go to primary

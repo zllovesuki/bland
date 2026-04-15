@@ -8,7 +8,7 @@
 	},
 	"vars": {
 		"LOG_LEVEL": "info",
-		"ALLOWED_ORIGINS": "https://bland.tools,https://staging.bland.tools",
+		"ALLOWED_ORIGINS": "https://bland.tools",
 	},
 	"assets": {
 		"binding": "ASSETS",

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { reportClientError } from "@/client/lib/report-client-error";
+import { getBootstrapCspNonceSnapshot } from "@/client/lib/client-config";
 
 declare global {
   interface Window {
@@ -22,7 +23,7 @@ interface TurnstileWidgetProps {
 let scriptLoaded = false;
 let scriptPromise: Promise<void> | null = null;
 
-function loadTurnstileScript(): Promise<void> {
+export function loadTurnstileScript(): Promise<void> {
   if (scriptLoaded || window.turnstile) {
     scriptLoaded = true;
     return Promise.resolve();
@@ -36,6 +37,10 @@ function loadTurnstileScript(): Promise<void> {
     const script = document.createElement("script");
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.async = true;
+    const cspNonce = getBootstrapCspNonceSnapshot();
+    if (cspNonce) {
+      script.nonce = cspNonce;
+    }
     script.onload = () => {
       scriptLoaded = true;
       scriptPromise = null;

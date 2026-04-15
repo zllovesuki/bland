@@ -8,6 +8,7 @@ import { resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
+import { applyBaselineSecurityHeaders } from "@/worker/lib/security-headers";
 import { renderSpaShell } from "@/worker/lib/spa-shell";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
 
@@ -17,7 +18,7 @@ export { WorkspaceIndexer } from "@/worker/durable-objects/workspace-indexer";
 const log = createLogger("websocket");
 
 async function handlePartyRequest(request: Request, env: Env) {
-  return routePartykitRequest(request, env, {
+  const response = await routePartykitRequest(request, env, {
     onBeforeConnect: async (req, lobby) => {
       const pageId = lobby.name;
       log.debug("connection_attempt", { pageId });
@@ -106,6 +107,8 @@ async function handlePartyRequest(request: Request, env: Env) {
       return new Request(url.toString(), req);
     },
   });
+
+  return response && response.status !== 101 ? applyBaselineSecurityHeaders(response) : response;
 }
 
 export default {
@@ -114,7 +117,8 @@ export default {
     return handleHttpRequest(request, env, ctx, {
       handlePartyRequest,
       handleAppRequest: (nextRequest, nextEnv, nextCtx) => app.fetch(nextRequest, nextEnv, nextCtx),
-      handleAssetRequest: (nextRequest, nextEnv) => nextEnv.ASSETS.fetch(nextRequest),
+      handleAssetRequest: async (nextRequest, nextEnv) =>
+        applyBaselineSecurityHeaders(await nextEnv.ASSETS.fetch(nextRequest)),
       handleShellRequest: renderSpaShell,
     });
   },

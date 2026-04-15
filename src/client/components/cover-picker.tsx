@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback } from "react";
 import { Image, X, Upload } from "lucide-react";
 import { uploadFile } from "@/client/lib/uploads";
-import { UPLOAD_MIME_SET } from "@/shared/types";
 import { toast } from "@/client/components/toast";
 import { Dialog } from "@/client/components/ui/dialog";
+import { UPLOAD_MIME_SET } from "@/shared/constants";
 
 const GRADIENT_PRESETS = [
   "linear-gradient(135deg, #5e3497 0%, #2a2729 100%)",

@@ -1,5 +1,5 @@
 import { api } from "@/client/lib/api";
-import { UPLOAD_MIME_SET, MAX_UPLOAD_SIZE } from "@/shared/types";
+import { MAX_UPLOAD_SIZE, UPLOAD_MIME_SET } from "@/shared/constants";
 import type { PresignRequest } from "@/shared/types";
 
 export async function uploadFile(

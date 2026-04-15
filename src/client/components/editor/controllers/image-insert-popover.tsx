@@ -49,7 +49,7 @@ async function fetchImageContentType(url: string, signal: AbortSignal): Promise<
   return null;
 }
 
-function validateImageUrl(url: string): Promise<string> {
+export function validateImageUrl(url: string): Promise<string> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -57,8 +57,8 @@ function validateImageUrl(url: string): Promise<string> {
     return Promise.reject(new Error("Enter a valid image URL"));
   }
 
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    return Promise.reject(new Error("Image URLs must start with http:// or https://"));
+  if (parsed.protocol !== "https:") {
+    return Promise.reject(new Error("Image URLs must start with https://"));
   }
 
   return new Promise((resolve, reject) => {
