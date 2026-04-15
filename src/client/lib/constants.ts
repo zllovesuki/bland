@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   LAYOUT: "bland:layout",
   SIDEBAR: "bland:sidebar",
   CACHED_DOCS: "bland:cached-docs",
+  EMOJI_RECENTS: "bland:emoji-recents",
 } as const;
 
 export const SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE =

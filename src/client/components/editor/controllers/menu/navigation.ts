@@ -12,14 +12,30 @@ export function moveMenuIndex(currentIndex: number, itemCount: number, direction
   return currentIndex <= 0 ? itemCount - 1 : currentIndex - 1;
 }
 
+function moveMenuIndexByStep(currentIndex: number, itemCount: number, step: number): number {
+  if (itemCount === 0) return -1;
+  if (currentIndex < 0) return step > 0 ? 0 : itemCount - 1;
+  const next = currentIndex + step;
+  if (next < 0) return Math.max(0, itemCount + next);
+  if (next >= itemCount) return Math.min(itemCount - 1, next - itemCount);
+  return next;
+}
+
 interface UseMenuNavigationOptions<T> {
   items: T[];
   initialIndex?: number;
   listRef: React.RefObject<HTMLElement | null>;
   onSelect: (item: T) => void;
+  columns?: number;
 }
 
-export function useMenuNavigation<T>({ items, initialIndex = 0, listRef, onSelect }: UseMenuNavigationOptions<T>) {
+export function useMenuNavigation<T>({
+  items,
+  initialIndex = 0,
+  listRef,
+  onSelect,
+  columns,
+}: UseMenuNavigationOptions<T>) {
   const [selectedIndex, setSelectedIndex] = useState(() => getInitialMenuIndex(items.length, initialIndex));
 
   useEffect(() => {
@@ -36,15 +52,42 @@ export function useMenuNavigation<T>({ items, initialIndex = 0, listRef, onSelec
     (event: KeyboardEvent) => {
       if (items.length === 0) return false;
 
+      const gridColumns = columns && columns > 1 ? columns : 0;
+      const vertical = gridColumns > 0 ? gridColumns : 1;
+
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setSelectedIndex((index) => moveMenuIndex(index, items.length, -1));
+        setSelectedIndex((index) => moveMenuIndexByStep(index, items.length, -vertical));
         return true;
       }
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
+        setSelectedIndex((index) => moveMenuIndexByStep(index, items.length, vertical));
+        return true;
+      }
+
+      if (gridColumns > 0 && event.key === "ArrowLeft") {
+        event.preventDefault();
+        setSelectedIndex((index) => moveMenuIndex(index, items.length, -1));
+        return true;
+      }
+
+      if (gridColumns > 0 && event.key === "ArrowRight") {
+        event.preventDefault();
         setSelectedIndex((index) => moveMenuIndex(index, items.length, 1));
+        return true;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        setSelectedIndex(0);
+        return true;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        setSelectedIndex(items.length - 1);
         return true;
       }
 
@@ -57,7 +100,7 @@ export function useMenuNavigation<T>({ items, initialIndex = 0, listRef, onSelec
 
       return false;
     },
-    [items, onSelect, selectedIndex],
+    [columns, items, onSelect, selectedIndex],
   );
 
   return {

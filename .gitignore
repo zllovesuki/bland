@@ -4,3 +4,4 @@ dist/
 .dev.vars
 playwright-report/
 test-results/
+src/client/lib/emoji/generated/

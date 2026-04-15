@@ -1,14 +1,5 @@
-import { Emoji, EmojiStyle } from "emoji-picker-react";
-
-/** Convert a native emoji string to its unified hex code (e.g. "🚀" → "1f680"). */
-function toUnified(emoji: string): string {
-  const codePoints: string[] = [];
-  for (const char of emoji) {
-    const cp = char.codePointAt(0);
-    if (cp !== undefined) codePoints.push(cp.toString(16));
-  }
-  return codePoints.join("-");
-}
+import { useEffect, useState } from "react";
+import { getEmojiAssetUrl, normalizeEmoji } from "@/client/lib/emoji";
 
 interface EmojiIconProps {
   emoji: string;
@@ -16,5 +7,37 @@ interface EmojiIconProps {
 }
 
 export function EmojiIcon({ emoji, size = 20 }: EmojiIconProps) {
-  return <Emoji unified={toUnified(emoji)} size={size} emojiStyle={EmojiStyle.APPLE} />;
+  const assetUrl = getEmojiAssetUrl(emoji);
+  const [failed, setFailed] = useState(false);
+  const style = { width: size, height: size };
+
+  useEffect(() => {
+    setFailed(false);
+  }, [assetUrl]);
+
+  if (assetUrl && !failed) {
+    return (
+      <img
+        src={assetUrl}
+        alt=""
+        aria-hidden
+        draggable={false}
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="inline-block shrink-0 select-none align-text-bottom"
+        style={style}
+      />
+    );
+  }
+
+  return (
+    <span
+      role="img"
+      aria-label={normalizeEmoji(emoji)}
+      className="inline-flex shrink-0 select-none items-center justify-center align-text-bottom leading-none"
+      style={{ ...style, fontSize: size }}
+    >
+      {normalizeEmoji(emoji)}
+    </span>
+  );
 }

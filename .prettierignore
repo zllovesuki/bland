@@ -1,3 +1,4 @@
 .reference/
 drizzle/
+src/client/lib/emoji/generated/
 worker-configuration.d.ts

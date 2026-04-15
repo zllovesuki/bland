@@ -12,7 +12,7 @@ interface EmojiPickerProps {
 export function EmojiPicker({ onSelect, className, style }: EmojiPickerProps) {
   return (
     <Suspense
-      fallback={<div className="h-[400px] w-[320px] rounded-lg border border-zinc-700 bg-zinc-800" style={style} />}
+      fallback={<div className="h-[400px] w-[360px] rounded-lg border border-zinc-700 bg-zinc-800" style={style} />}
     >
       <EmojiPickerImpl onSelect={onSelect} className={className} style={style} />
     </Suspense>

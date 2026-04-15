@@ -1,53 +1,11 @@
 import { textblockTypeInputRule } from "@tiptap/core";
-import { CodeBlockLowlight, type CodeBlockLowlightOptions } from "@tiptap/extension-code-block-lowlight";
+import CodeBlock from "@tiptap/extension-code-block";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import { createLowlight } from "lowlight";
-import c from "highlight.js/lib/languages/c";
-import cpp from "highlight.js/lib/languages/cpp";
-import csharp from "highlight.js/lib/languages/csharp";
-import dockerfile from "highlight.js/lib/languages/dockerfile";
-import go from "highlight.js/lib/languages/go";
-import ini from "highlight.js/lib/languages/ini";
-import java from "highlight.js/lib/languages/java";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import markdown from "highlight.js/lib/languages/markdown";
-import php from "highlight.js/lib/languages/php";
-import plaintext from "highlight.js/lib/languages/plaintext";
-import python from "highlight.js/lib/languages/python";
-import rust from "highlight.js/lib/languages/rust";
-import shell from "highlight.js/lib/languages/shell";
-import sql from "highlight.js/lib/languages/sql";
-import typescript from "highlight.js/lib/languages/typescript";
-import yaml from "highlight.js/lib/languages/yaml";
 import { resolveCodeBlockLineRange } from "./selection";
 import { CodeBlockView } from "./view";
+import { createLazyHighlightPlugin } from "./lazy-highlight";
 import { resolveLanguage } from "./shared";
-
-const lowlight = createLowlight({
-  text: plaintext,
-  plaintext,
-  c,
-  csharp,
-  cpp,
-  dockerfile,
-  go,
-  hcl: ini,
-  java,
-  javascript,
-  json,
-  jsonc: json,
-  markdown,
-  php,
-  python,
-  rust,
-  shell,
-  sql,
-  toml: ini,
-  typescript,
-  yaml,
-});
 
 function createCodeBlockDoubleClickPlugin(codeBlockName: string) {
   return new Plugin({
@@ -74,20 +32,17 @@ function createCodeBlockDoubleClickPlugin(codeBlockName: string) {
   });
 }
 
-export const HighlightedCodeBlock = CodeBlockLowlight.extend({
-  addOptions() {
-    return {
-      ...this.parent?.(),
-      lowlight,
-    } as CodeBlockLowlightOptions;
-  },
-
+export const HighlightedCodeBlock = CodeBlock.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
   },
 
   addProseMirrorPlugins() {
-    return [...(this.parent?.() ?? []), createCodeBlockDoubleClickPlugin(this.name)];
+    return [
+      ...(this.parent?.() ?? []),
+      createCodeBlockDoubleClickPlugin(this.name),
+      createLazyHighlightPlugin(this.name, this.options.defaultLanguage),
+    ];
   },
 
   addInputRules() {

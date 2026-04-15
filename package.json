@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "emoji:generate": "node --import tsx scripts/generate-emoji-data.ts",
     "dev": "vite dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit && npm run typecheck:tests",
@@ -21,7 +22,11 @@
     "db:migrate:remote": "wrangler d1 migrations apply bland-prod --remote",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:seed-initial-user": "node --import tsx scripts/seed-initial-user.ts --local"
+    "db:seed-initial-user": "node --import tsx scripts/seed-initial-user.ts --local",
+    "predev": "npm run emoji:generate",
+    "prebuild": "npm run emoji:generate",
+    "pretypecheck": "npm run emoji:generate",
+    "pretest": "npm run emoji:generate"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.6",
@@ -31,7 +36,7 @@
     "@tanstack/react-router": "^1.168.0",
     "@tiptap/core": "^3.22.2",
     "@tiptap/extension-character-count": "^3.22.3",
-    "@tiptap/extension-code-block-lowlight": "^3.22.2",
+    "@tiptap/extension-code-block": "^3.22.3",
     "@tiptap/extension-collaboration": "^3.22.2",
     "@tiptap/extension-collaboration-caret": "^3.22.2",
     "@tiptap/extension-details": "^3.22.3",
@@ -54,7 +59,6 @@
     "@tiptap/suggestion": "^3.22.2",
     "@tiptap/y-tiptap": "^3.0.2",
     "drizzle-orm": "^0.45.2",
-    "emoji-picker-react": "^4.18.0",
     "highlight.js": "^11.11.1",
     "hono": "^4.7.0",
     "jose": "^6.0.0",
