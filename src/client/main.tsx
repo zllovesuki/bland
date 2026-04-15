@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { requestSessionRefresh } from "./lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "./lib/client-config";
+import { shouldBootstrapSession } from "./lib/session-bootstrap";
 import { routeTree } from "./route-tree";
 import { SESSION_MODES } from "./lib/constants";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
@@ -60,36 +61,44 @@ async function bootstrap() {
   }
 
   const store = useAuthStore.getState();
-  store.setSessionMode(SESSION_MODES.RESTORING);
+  const shouldRefresh = shouldBootstrapSession(window.location.pathname, !!store.user);
 
-  try {
-    const res = await requestSessionRefresh();
-    if (res.ok) {
-      const data = (await res.json()) as { accessToken: string; user: import("@/shared/types").User };
-      useAuthStore.getState().setAuth(data.accessToken, data.user);
-    } else {
-      // Server reachable, explicit auth rejection
+  if (shouldRefresh) {
+    store.setSessionMode(SESSION_MODES.RESTORING);
+
+    try {
+      const res = await requestSessionRefresh();
+      if (res.ok) {
+        const data = (await res.json()) as { accessToken: string; user: import("@/shared/types").User };
+        useAuthStore.getState().setAuth(data.accessToken, data.user);
+      } else {
+        // Server reachable, explicit auth rejection
+        const s = useAuthStore.getState();
+        if (s.user) {
+          s.markExpired();
+        } else {
+          s.setSessionMode(SESSION_MODES.ANONYMOUS);
+        }
+      }
+    } catch {
+      // Network error / timeout / server unreachable
       const s = useAuthStore.getState();
       if (s.user) {
-        s.markExpired();
+        s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
       } else {
         s.setSessionMode(SESSION_MODES.ANONYMOUS);
       }
     }
-  } catch {
-    // Network error / timeout / server unreachable
-    const s = useAuthStore.getState();
-    if (s.user) {
-      s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
-    } else {
-      s.setSessionMode(SESSION_MODES.ANONYMOUS);
-    }
-  } finally {
-    // Validate cache ownership before route loaders trust persisted data
-    const currentUser = useAuthStore.getState().user;
-    useWorkspaceStore.getState().validateCacheOwner(currentUser?.id ?? null);
-    useAuthStore.getState().setBootstrapped();
   }
+
+  if (!shouldRefresh) {
+    store.setSessionMode(SESSION_MODES.ANONYMOUS);
+  }
+
+  // Validate cache ownership before route loaders trust persisted data
+  const currentUser = useAuthStore.getState().user;
+  useWorkspaceStore.getState().validateCacheOwner(currentUser?.id ?? null);
+  useAuthStore.getState().setBootstrapped();
 
   createRoot(document.getElementById("root")!, {
     onUncaughtError(error, errorInfo) {

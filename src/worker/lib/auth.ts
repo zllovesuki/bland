@@ -4,6 +4,7 @@ import { argon2id } from "@noble/hashes/argon2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
 
+import { SESSION_HINT_COOKIE } from "@/shared/auth";
 import { users } from "@/worker/db/d1/schema";
 import { JWT_ALGORITHM, REFRESH_COOKIE_MAX_AGE } from "@/worker/lib/constants";
 
@@ -28,6 +29,10 @@ function base64Decode(str: string): Uint8Array {
 export const REFRESH_COOKIE = "bland_refresh";
 
 const ARGON2_PARAMS = { t: 2, m: 19456, p: 1 } as const;
+
+function appendSetCookie(c: Context, value: string): void {
+  c.header("set-cookie", value, { append: true });
+}
 
 export function getJwtSecret(env: Env): Uint8Array {
   return new TextEncoder().encode(env.JWT_SECRET);
@@ -116,14 +121,16 @@ export async function createRefreshToken(userId: string, env: Env): Promise<stri
 }
 
 export function setRefreshCookie(c: Context, token: string): void {
-  c.header(
-    "set-cookie",
+  appendSetCookie(
+    c,
     `${REFRESH_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_COOKIE_MAX_AGE}`,
   );
+  appendSetCookie(c, `${SESSION_HINT_COOKIE}=1; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_COOKIE_MAX_AGE}`);
 }
 
 export function clearRefreshCookie(c: Context): void {
-  c.header("set-cookie", `${REFRESH_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+  appendSetCookie(c, `${REFRESH_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+  appendSetCookie(c, `${SESSION_HINT_COOKIE}=; Secure; SameSite=Strict; Path=/; Max-Age=0`);
 }
 
 export function parseCookies(header: string | undefined): Record<string, string> {
