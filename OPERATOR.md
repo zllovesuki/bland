@@ -60,6 +60,107 @@ Notes:
 - `SENTRY_DSN` is used for client-side Sentry only. Worker-side Sentry is not implemented.
 - `ALLOWED_ORIGINS` controls both HTTP CORS and WebSocket origin checks. Keep it exact.
 
+## First-Time Setup
+
+Use this section when standing up `bland` in a fresh Cloudflare account. Skip it for subsequent deploys — those use the [Deploy Runbook](#deploy-runbook) below.
+
+### 1. Cloudflare account prerequisites
+
+- A Cloudflare account with Workers, Durable Objects, D1, R2, and Queues enabled.
+- `npx wrangler login` completed locally against that account.
+- A zone for the production domain (`bland.tools` in the live repo; adjust `wrangler.jsonc` `routes` and `ALLOWED_ORIGINS` if deploying under a different hostname).
+
+### 2. Create the bindings
+
+`wrangler.jsonc` references bindings by name but does not create them. Create each one before the first deploy.
+
+D1:
+
+```bash
+npx wrangler d1 create bland-prod
+```
+
+Copy the returned `database_id` into `wrangler.jsonc` under `d1_databases[0].database_id`.
+
+R2:
+
+```bash
+npx wrangler r2 bucket create bland-uploads
+```
+
+Queue:
+
+```bash
+npx wrangler queues create bland-tasks
+```
+
+Durable Objects (`DocSync`, `WorkspaceIndexer`) and rate-limit bindings (`RL_AUTH`, `RL_API`) are created implicitly on the first `wrangler deploy` from the classes and config already in the repo.
+
+### 3. Turnstile widget
+
+Create a Cloudflare Turnstile widget for the production hostname in the Cloudflare dashboard. You will need the site key and secret in the next step.
+
+### 4. Set runtime config
+
+Public vars live in `wrangler.jsonc` → `vars`. Secrets are set per-environment with `wrangler secret put`.
+
+Secrets (prompts for the value):
+
+```bash
+npx wrangler secret put JWT_SECRET       # 32+ random bytes, e.g. `openssl rand -base64 48`
+npx wrangler secret put TURNSTILE_SECRET
+npx wrangler secret put TURNSTILE_SITE_KEY
+npx wrangler secret put SENTRY_DSN       # optional; leave unset to disable client Sentry
+```
+
+Notes:
+
+- `LOG_LEVEL` and `ALLOWED_ORIGINS` are already in `wrangler.jsonc` vars. Change them there if needed and redeploy.
+- `TURNSTILE_SITE_KEY` is public, but the Worker injects it into the SPA shell at request time, so it must be set as a secret (or a var) in the deployed environment.
+- `JWT_SECRET` must never be logged or committed. Rotate by setting a new value and redeploying; all existing access tokens become invalid and clients re-authenticate via the refresh cookie flow.
+
+### 5. Attach the custom domain
+
+`wrangler.jsonc` registers `bland.tools` as a custom domain route. Point the zone's DNS at Cloudflare and let the first deploy bind the route, or pre-create the custom domain in the Workers dashboard. Update the `routes[0].pattern` and `ALLOWED_ORIGINS` if deploying under a different hostname.
+
+### 6. Apply remote D1 migrations
+
+Run migrations against the production D1 before the first deploy so the initial deploy starts against a populated schema:
+
+```bash
+npm run db:migrate:remote
+```
+
+`npm run deploy` re-runs this every time, so later deploys don't need a separate migration step.
+
+### 7. First deploy
+
+```bash
+npm run deploy
+```
+
+This applies remote migrations, builds the Worker, and deploys. The first deploy also creates the Durable Object namespaces and rate-limit bindings declared in `wrangler.jsonc`.
+
+### 8. Seed the bootstrap user
+
+`bland` has no open signup — the first user has to be created out-of-band. Run the seed script against the remote database:
+
+```bash
+npm run db:seed-initial-user -- --remote --email you@example.com --name "Your Name"
+```
+
+The script:
+
+- Refuses to run if any users already exist in the target D1.
+- Prompts interactively for a password (or pass `--password <pw>`; minimum 8 characters) and hashes it with Argon2id.
+- Creates a workspace named `bland` and an owner membership for the new user.
+
+Log in at `https://bland.tools/login` with that password, then issue invites to everyone else from workspace settings.
+
+### 9. Post-setup smoke check
+
+Run the [Post-Deploy Smoke Checks](#post-deploy-smoke-checks) below to confirm auth, collaboration, sharing, uploads, and search are all live.
+
 ## Deploy Runbook
 
 There is no separate staging Wrangler environment configured in the live repo today. The default config is the production target.
