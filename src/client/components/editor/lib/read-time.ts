@@ -1,6 +1,6 @@
-export const DEFAULT_WORDS_PER_MINUTE = 200;
+const DEFAULT_WORDS_PER_MINUTE = 200;
 
-export function estimateReadTimeMinutes(wordCount: number, wordsPerMinute = DEFAULT_WORDS_PER_MINUTE): number {
+function estimateReadTimeMinutes(wordCount: number, wordsPerMinute = DEFAULT_WORDS_PER_MINUTE): number {
   if (!Number.isFinite(wordCount) || wordCount <= 0) {
     return 0;
   }

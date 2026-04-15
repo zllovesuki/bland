@@ -176,31 +176,6 @@ export function applyExplicitColumnWidths(
   return mutated;
 }
 
-export function readRenderedColumnPixelWidths(
-  view: EditorView,
-  tablePos: number,
-  columnCount: number,
-): number[] | null {
-  const tableEl = findTableElement(view, tablePos);
-  if (!tableEl) return null;
-
-  const firstRow = tableEl.querySelector<HTMLTableRowElement>(":scope > tbody > tr");
-  if (!firstRow) return null;
-
-  const widths = new Array(columnCount).fill(0);
-  let col = 0;
-  for (const cell of Array.from(firstRow.cells)) {
-    const colspan = cell.colSpan || 1;
-    const width = cell.getBoundingClientRect().width / colspan;
-    for (let index = 0; index < colspan; index++) {
-      widths[col + index] = Math.max(1, Math.round(width));
-    }
-    col += colspan;
-  }
-
-  return widths.some((width) => width === 0) ? null : widths;
-}
-
 function visitTableCells(
   doc: PMNode,
   table: PMNode,

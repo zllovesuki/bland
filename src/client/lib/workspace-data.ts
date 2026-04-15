@@ -57,11 +57,7 @@ async function fetchWorkspaceData(
  * page routes can still attempt resolution via `api.pages.context` for
  * shared-access workspaces.
  */
-export async function resolveWorkspaceRoute(
-  slug: string,
-  isAuthenticated: boolean,
-  cache: CacheRead,
-): Promise<ResolvedResult> {
+export async function resolveWorkspaceRoute(slug: string, cache: CacheRead): Promise<ResolvedResult> {
   let workspaces = cache.memberWorkspaces;
   let liveWorkspaces: Workspace[] | undefined;
 

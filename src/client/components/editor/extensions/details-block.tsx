@@ -7,7 +7,7 @@ import {
   DETAILS_SUMMARY_PLACEHOLDER,
 } from "../controllers/details-block";
 
-export const DetailsBlock = Details.configure({
+const DetailsBlock = Details.configure({
   persist: true,
   HTMLAttributes: { class: "tiptap-details" },
   renderToggleButton: ({ element, isOpen, node }) => {
@@ -17,14 +17,14 @@ export const DetailsBlock = Details.configure({
   },
 });
 
-export const DetailsBlockSummary = DetailsSummary.configure({
+const DetailsBlockSummary = DetailsSummary.configure({
   HTMLAttributes: {
     class: "tiptap-details-summary",
     "data-placeholder": DETAILS_SUMMARY_PLACEHOLDER,
   },
 });
 
-export const DetailsBlockContent = DetailsContent.configure({
+const DetailsBlockContent = DetailsContent.configure({
   HTMLAttributes: { class: "tiptap-details-content" },
 });
 

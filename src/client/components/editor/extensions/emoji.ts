@@ -1,7 +1,7 @@
 import type { Editor, Range } from "@tiptap/core";
 import Emoji, { emojiToShortcode, type EmojiItem } from "@tiptap/extension-emoji";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
-import { mountEmojiSuggestion, type EmojiSuggestionOverlayHandle } from "../controllers/emoji-suggestion-overlay";
+import { mountEmojiSuggestion, type EmojiSuggestionOverlayHandle } from "../controllers/emoji/suggestion-overlay";
 
 const MAX_EMOJI_SUGGESTIONS = 8;
 

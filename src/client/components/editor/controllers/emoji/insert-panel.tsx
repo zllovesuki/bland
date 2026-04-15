@@ -1,8 +1,8 @@
 import type { Editor, Range } from "@tiptap/core";
-import { mountEditorRenderer } from "./menu/renderer";
-import { EmojiInsertPopover, type EmojiInsertPopoverProps } from "./emoji-insert-popover";
+import { mountEditorRenderer } from "../menu/renderer";
+import { EmojiInsertPopover, type EmojiInsertPopoverProps } from "./insert-popover";
 
-export function showEmojiInsertPanel(editor: Editor, opts: { range: Range; pos: number }) {
+function showEmojiInsertPanel(editor: Editor, opts: { range: Range; pos: number }) {
   // Keep launcher exports separate from the React component module so Vite Fast
   // Refresh can treat the popover as a component boundary without falling back
   // to a full invalidation on every edit.

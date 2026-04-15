@@ -30,7 +30,7 @@ export function generateBlockBid(): string {
   return nanoid(6);
 }
 
-export function isTopLevelMovableNode(node: PMNode): boolean {
+function isTopLevelMovableNode(node: PMNode): boolean {
   return TOP_LEVEL_MOVABLE_NODE_TYPE_SET.has(node.type.name);
 }
 

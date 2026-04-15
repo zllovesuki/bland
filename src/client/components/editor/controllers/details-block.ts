@@ -86,8 +86,6 @@ function focusEmptyDetailsSummary(editor: Editor) {
   if (detailsDepth < 0) return;
 
   const detailsPos = $from.before(detailsDepth);
-  const detailsNode = $from.node(detailsDepth);
-
   const summaryPos = detailsPos + 2;
   const tr = editor.state.tr.setSelection(TextSelection.create(editor.state.doc, summaryPos));
   editor.view.dispatch(tr);

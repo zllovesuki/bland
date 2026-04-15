@@ -42,7 +42,7 @@ interface OpenPickerOpts {
   currentPageId: string;
 }
 
-export function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentionPickerHandle {
+function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentionPickerHandle {
   const state = useWorkspaceStore.getState();
   const pages = selectActivePages(state);
   const items = collectAllVisibleItems(pages, opts.currentPageId);

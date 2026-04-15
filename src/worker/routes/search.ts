@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 import { pages } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
@@ -41,8 +41,6 @@ searchRouter.get("/workspaces/:wid/search", requireAuth, rateLimit("RL_API"), as
     return c.json({ results: [] });
   }
 
-  // Build snippet lookup and page ID list
-  const snippetByPageId = new Map(searchResult.items.map((item) => [item.pageId, item.snippet]));
   const pageIds = searchResult.items.map((item) => item.pageId);
 
   // Load page metadata from D1 (title, icon, archived_at filtering)

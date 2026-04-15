@@ -1,11 +1,11 @@
 import type { Editor } from "@tiptap/core";
 import type { EmojiItem } from "@tiptap/extension-emoji";
-import { mountEditorRenderer } from "./menu/renderer";
+import { mountEditorRenderer } from "../menu/renderer";
 import {
   EmojiSuggestionPanel,
   type EmojiSuggestionPanelHandle,
   type EmojiSuggestionPanelProps,
-} from "./emoji-suggestion-panel";
+} from "./suggestion-panel";
 
 interface EmojiSuggestionOverlayOpts {
   contextElement?: HTMLElement | null;

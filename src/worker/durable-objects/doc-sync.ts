@@ -107,7 +107,7 @@ export class DocSync extends YServer<Env> {
     super.onClose(connection, code, reason, wasClean);
   }
 
-  getConnectionTags(connection: Connection, ctx: ConnectionContext): string[] {
+  getConnectionTags(_connection: Connection, ctx: ConnectionContext): string[] {
     const url = new URL(ctx.request.url);
     const tags: string[] = [];
     if (url.searchParams.get("readOnly") === "1") {

@@ -22,7 +22,7 @@ import { TopLevelBlockIdentity } from "./top-level-block-identity";
 import { PageMentionNode } from "./page-mention/node";
 import { PageMentionSuggestion } from "./page-mention/suggestion";
 import { SlashCommands } from "../controllers/slash/extension";
-import { launchEmojiPicker } from "../controllers/emoji-insert-panel";
+import { launchEmojiPicker } from "../controllers/emoji/insert-panel";
 import { insertImageFromSlashMenu } from "../controllers/image/insert-panel";
 import type {
   SlashMenuEmojiConfig,

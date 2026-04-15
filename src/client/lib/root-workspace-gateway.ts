@@ -1,9 +1,6 @@
 import type { Workspace } from "@/shared/types";
 
-export type RootWorkspaceDecision =
-  | { kind: "redirect"; workspace: Workspace }
-  | { kind: "empty" }
-  | { kind: "unavailable" };
+type RootWorkspaceDecision = { kind: "redirect"; workspace: Workspace } | { kind: "empty" } | { kind: "unavailable" };
 
 interface ResolveRootWorkspaceDecisionInput {
   lastVisitedWorkspaceId: string | null;

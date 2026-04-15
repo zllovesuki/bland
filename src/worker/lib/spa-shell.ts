@@ -12,7 +12,7 @@ function serializeJsonForInlineScript(value: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-export function getPublicClientConfig(env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">): PublicClientConfig {
+function getPublicClientConfig(env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">): PublicClientConfig {
   return {
     turnstile_site_key: env.TURNSTILE_SITE_KEY,
     sentry_dsn: env.SENTRY_DSN || null,

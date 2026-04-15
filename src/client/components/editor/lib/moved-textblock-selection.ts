@@ -18,7 +18,7 @@ export function getMovedTextblockCursorPos(selection: Selection): number | null 
   return Math.max(selection.from + 1, selection.to - 1);
 }
 
-export function finalizeMovedTextblockSelection(view: EditorView): boolean {
+function finalizeMovedTextblockSelection(view: EditorView): boolean {
   view.updateState(view.state);
 
   const cursorPos = getMovedTextblockCursorPos(view.state.selection);

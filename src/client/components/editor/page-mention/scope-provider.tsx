@@ -4,7 +4,7 @@ import type { ResolvedViewerContext } from "@/shared/types";
 import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
 import { createPageMentionResolver } from "../lib/page-mention/resolver";
 import { getPageMentionEffectiveShareToken, getPageMentionResolverScopeKey } from "../lib/page-mention/resolver-config";
-import type { PageMentionContextValue, PageMentionNavigateTarget } from "./context";
+import type { PageMentionNavigateTarget } from "./context";
 import { PageMentionScopeContext } from "./scope-context";
 
 interface PageMentionScopeProviderProps {

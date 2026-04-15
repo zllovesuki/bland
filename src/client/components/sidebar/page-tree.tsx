@@ -21,8 +21,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
   const online = useOnline();
 
   const activePages = pages.filter((p) => !p.archived_at).sort((a, b) => a.position - b.position);
-  const { draggedId, dropTarget, onDragStart, onDragOver, onDragLeave, onDragEnd, setDropTarget } =
-    usePageDrag(activePages);
+  const { draggedId, dropTarget, onDragStart, onDragOver, onDragLeave, onDragEnd } = usePageDrag(activePages);
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {

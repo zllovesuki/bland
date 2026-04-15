@@ -16,16 +16,12 @@ function TreeNode({
   node,
   depth,
   activePageId,
-  shareToken,
-  workspaceId,
   onNavigate,
   onToggle,
 }: {
   node: TreeNodeData;
   depth: number;
   activePageId: string;
-  shareToken: string;
-  workspaceId: string;
   onNavigate: (pageId: string) => void;
   onToggle: (pageId: string) => void;
 }) {
@@ -70,8 +66,6 @@ function TreeNode({
               node={child}
               depth={depth + 1}
               activePageId={activePageId}
-              shareToken={shareToken}
-              workspaceId={workspaceId}
               onNavigate={onNavigate}
               onToggle={onToggle}
             />
@@ -100,13 +94,11 @@ export function SharedPageTree({
 }) {
   const [nodes, setNodes] = useState<Map<string, TreeNodeData>>(() => new Map());
   const [rootChildren, setRootChildren] = useState<string[] | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Reset tree state when the root page changes (e.g. navigating to a different shared link)
   useEffect(() => {
     setNodes(new Map());
     setRootChildren(null);
-    setLoading(false);
   }, [rootPageId, shareToken]);
 
   const loadChildren = useCallback(
@@ -140,12 +132,10 @@ export function SharedPageTree({
 
   useEffect(() => {
     if (rootChildren !== null) return;
-    setLoading(true);
     loadChildren(rootPageId).then((children) => {
       setRootChildren(children.map((c) => c.id));
-      setLoading(false);
     });
-  }, [rootPageId, loadChildren]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rootChildren, rootPageId, loadChildren]);
 
   const handleToggle = useCallback(
     async (pageId: string) => {
@@ -202,8 +192,6 @@ export function SharedPageTree({
               node={node}
               depth={1}
               activePageId={activePageId}
-              shareToken={shareToken}
-              workspaceId={workspaceId}
               onNavigate={onNavigate}
               onToggle={handleToggle}
             />

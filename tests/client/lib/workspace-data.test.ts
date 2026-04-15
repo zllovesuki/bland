@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPage, createMember, createWorkspace } from "@tests/client/util/fixtures";
-import type { Workspace, Page, WorkspaceMember, ResolvedViewerContext } from "@/shared/types";
+import type { Workspace, ResolvedViewerContext } from "@/shared/types";
 import type { WorkspaceAccessMode, WorkspaceSnapshot } from "@/client/stores/workspace-store";
 
 let resolveWorkspaceRoute: typeof import("@/client/lib/workspace-data").resolveWorkspaceRoute;
@@ -73,7 +73,7 @@ describe("resolveWorkspaceRoute", () => {
     const liveWs = createWorkspace({ id: "ws-live", slug: "live-ws" });
     listWorkspacesMock.mockResolvedValue([liveWs]);
 
-    const result = await resolveWorkspaceRoute("live-ws", true, createCache());
+    const result = await resolveWorkspaceRoute("live-ws", createCache());
 
     expect(result.kind).toBe("resolved");
     if (result.kind === "resolved") {
@@ -88,7 +88,7 @@ describe("resolveWorkspaceRoute", () => {
   it("returns unavailable when live list lacks the slug (may be shared-access)", async () => {
     listWorkspacesMock.mockResolvedValue([createWorkspace({ id: "ws-other", slug: "other" })]);
 
-    const result = await resolveWorkspaceRoute("missing-slug", true, createCache());
+    const result = await resolveWorkspaceRoute("missing-slug", createCache());
 
     // unavailable, not not_found -- child page route may resolve via api.pages.context
     expect(result.kind).toBe("unavailable");
@@ -103,7 +103,7 @@ describe("resolveWorkspaceRoute", () => {
       },
     });
 
-    const result = await resolveWorkspaceRoute("cached-ws", true, cache);
+    const result = await resolveWorkspaceRoute("cached-ws", cache);
 
     expect(result.kind).toBe("resolved");
     if (result.kind === "resolved") {
@@ -115,7 +115,7 @@ describe("resolveWorkspaceRoute", () => {
   it("returns unavailable when offline with no cached data", async () => {
     listWorkspacesMock.mockRejectedValue(new Error("offline"));
 
-    const result = await resolveWorkspaceRoute("unknown", true, createCache());
+    const result = await resolveWorkspaceRoute("unknown", createCache());
 
     expect(result.kind).toBe("unavailable");
   });
@@ -124,7 +124,7 @@ describe("resolveWorkspaceRoute", () => {
     const workspaces = [createWorkspace({ id: "ws-1", slug: "ws-slug" })];
     listWorkspacesMock.mockResolvedValue(workspaces);
 
-    const result = await resolveWorkspaceRoute("ws-slug", true, createCache());
+    const result = await resolveWorkspaceRoute("ws-slug", createCache());
 
     expect(result.kind).toBe("resolved");
     if (result.kind === "resolved") {

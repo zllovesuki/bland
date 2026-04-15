@@ -75,21 +75,10 @@ export function selectWorkspaceSnapshot(state: WorkspaceState, workspaceId: stri
   return state.snapshotsByWorkspaceId[workspaceId] ?? null;
 }
 
-function buildPageMetaById(snapshots: Record<string, WorkspaceSnapshot>): Record<string, Page> {
-  const index: Record<string, Page> = {};
-  for (const snap of Object.values(snapshots)) {
-    for (const page of snap.pages) {
-      index[page.id] = page;
-    }
-  }
-  return index;
-}
-
 function rebuildPageMetaFromSnapshot(
   existing: Record<string, Page>,
   workspaceId: string,
   pages: Page[],
-  allSnapshots: Record<string, WorkspaceSnapshot>,
 ): Record<string, Page> {
   // Remove old entries for this workspace, add new ones
   const next: Record<string, Page> = {};
@@ -164,12 +153,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           };
           return {
             snapshotsByWorkspaceId,
-            pageMetaById: rebuildPageMetaFromSnapshot(
-              state.pageMetaById,
-              workspaceId,
-              snapshot.pages,
-              snapshotsByWorkspaceId,
-            ),
+            pageMetaById: rebuildPageMetaFromSnapshot(state.pageMetaById, workspaceId, snapshot.pages),
           };
         });
       },

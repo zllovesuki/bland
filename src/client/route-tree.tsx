@@ -107,13 +107,13 @@ const workspaceRoute = createRoute({
   path: "/$workspaceSlug",
   staticData: { chrome: "workspace", nav: null },
   beforeLoad: async ({ params, location }) => {
-    const { hasLocalSession, isAuthenticated } = useAuthStore.getState();
+    const { hasLocalSession } = useAuthStore.getState();
     if (!hasLocalSession) {
       throw redirect({ to: "/login", search: { redirect: location.pathname } });
     }
 
     const store = useWorkspaceStore.getState();
-    const result = await resolveWorkspaceRoute(params.workspaceSlug, isAuthenticated, store);
+    const result = await resolveWorkspaceRoute(params.workspaceSlug, store);
     applyResolvedRoute(store, result);
     // Do NOT redirect on unavailable here -- child page routes may still
     // resolve via api.pages.context for shared-access workspaces.

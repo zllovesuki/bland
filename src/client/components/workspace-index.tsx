@@ -1,4 +1,3 @@
-import { useParams } from "@tanstack/react-router";
 import { FileText, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { useWorkspaceStore, selectActivePages, selectActiveWorkspace } from "@/client/stores/workspace-store";
@@ -6,7 +5,6 @@ import { useCreatePage } from "@/client/hooks/use-create-page";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function WorkspaceIndex() {
-  const params = useParams({ strict: false }) as { workspaceSlug?: string };
   const pages = useWorkspaceStore(selectActivePages);
   const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
   const { createPage, isCreating } = useCreatePage();

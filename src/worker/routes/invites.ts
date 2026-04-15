@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { ulid } from "ulidx";
 
 import { invites, memberships, users, workspaces } from "@/worker/db/d1/schema";
@@ -12,7 +12,6 @@ import {
   createAccessToken,
   createRefreshToken,
   setRefreshCookie,
-  toUserResponse,
   verifyAccessToken,
   generateSecureToken,
 } from "@/worker/lib/auth";

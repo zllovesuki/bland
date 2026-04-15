@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useLayoutEffect, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import { FileText } from "lucide-react";
 import { useMenuNavigation } from "../menu/navigation";

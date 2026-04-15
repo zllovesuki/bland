@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
 
 import { jwtVerify } from "jose";
 
-import { uploads, pages, pageShares } from "@/worker/db/d1/schema";
-import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
+import { uploads, pageShares } from "@/worker/db/d1/schema";
+import { optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { canEdit, canAccessPage } from "@/worker/lib/permissions";

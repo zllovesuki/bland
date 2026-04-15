@@ -14,7 +14,7 @@ import {
   moveTopLevelBlock,
 } from "../lib/block-actions";
 import { launchPageMentionPicker } from "../lib/page-mention/open-picker";
-import { launchEmojiPicker } from "./emoji-insert-panel";
+import { launchEmojiPicker } from "./emoji/insert-panel";
 import { insertImageFromSlashMenu } from "./image/insert-panel";
 import { getSlashMenuItems, type SlashMenuPageMentionConfig } from "./slash/items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash/overlay";

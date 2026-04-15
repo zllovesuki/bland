@@ -1,4 +1,4 @@
-export const SHARED_INBOX_RETURN_TO_KEY = "blandSharedInboxReturnTo";
+const SHARED_INBOX_RETURN_TO_KEY = "blandSharedInboxReturnTo";
 
 export function getSharedInboxReturnTo(state: unknown): string | null {
   if (!state || typeof state !== "object") return null;

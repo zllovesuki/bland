@@ -5,7 +5,6 @@ import { checkMembership } from "@/worker/lib/membership";
 import { SearchResult } from "@/shared/types";
 import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
 import { createMembership } from "@tests/worker/util/fixtures";
-import { ApiErrorResponse } from "@tests/worker/util/schemas";
 
 vi.mock("@/worker/lib/membership", () => ({ checkMembership: vi.fn() }));
 vi.mock("@/worker/lib/permissions", () => ({ canAccessPages: vi.fn().mockResolvedValue(new Map()) }));

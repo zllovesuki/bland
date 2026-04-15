@@ -7,7 +7,6 @@ import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { verifyTurnstileToken } from "@/worker/middleware/turnstile";
 import {
-  hashPassword,
   verifyPassword,
   createAccessToken,
   createRefreshToken,

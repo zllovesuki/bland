@@ -142,7 +142,7 @@ export function isPrintableKey(event: KeyboardEvent): boolean {
   return key.length === 1;
 }
 
-export function cellPosAt(tablePos: number, table: PMNode, row: number, col: number): number | null {
+function cellPosAt(tablePos: number, table: PMNode, row: number, col: number): number | null {
   const map = TableMap.get(table);
   if (row < 0 || row >= map.height || col < 0 || col >= map.width) return null;
   return tablePos + 1 + map.positionAt(row, col, table);

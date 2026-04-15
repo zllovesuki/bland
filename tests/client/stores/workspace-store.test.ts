@@ -6,8 +6,6 @@ import { STORAGE_KEYS } from "@/client/lib/constants";
 let useWorkspaceStore: typeof import("@/client/stores/workspace-store").useWorkspaceStore;
 let selectActiveWorkspace: typeof import("@/client/stores/workspace-store").selectActiveWorkspace;
 let selectActivePages: typeof import("@/client/stores/workspace-store").selectActivePages;
-let selectActiveMembers: typeof import("@/client/stores/workspace-store").selectActiveMembers;
-let clearAllCachedDocs: typeof import("@/client/lib/doc-cache-hints").clearAllCachedDocs;
 
 beforeEach(async () => {
   installLocalStorageStub();
@@ -17,8 +15,6 @@ beforeEach(async () => {
   useWorkspaceStore = wsMod.useWorkspaceStore;
   selectActiveWorkspace = wsMod.selectActiveWorkspace;
   selectActivePages = wsMod.selectActivePages;
-  selectActiveMembers = wsMod.selectActiveMembers;
-  clearAllCachedDocs = cacheMod.clearAllCachedDocs;
   vi.spyOn(cacheMod, "clearAllCachedDocs").mockImplementation(() => {});
 });
 

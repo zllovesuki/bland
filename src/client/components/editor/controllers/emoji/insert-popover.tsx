@@ -1,8 +1,8 @@
 import { FloatingPortal } from "@floating-ui/react";
 import type { Editor, Range } from "@tiptap/core";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";
-import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
-import { insertEmoji } from "../extensions/emoji";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "../menu/popover";
+import { insertEmoji } from "../../extensions/emoji";
 
 export interface EmojiInsertPopoverProps {
   editor: Editor;

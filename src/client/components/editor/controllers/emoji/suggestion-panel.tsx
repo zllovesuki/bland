@@ -1,8 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import type { EmojiItem } from "@tiptap/extension-emoji";
-import { useMenuNavigation } from "./menu/navigation";
-import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
+import { useMenuNavigation } from "../menu/navigation";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "../menu/popover";
 
 export interface EmojiSuggestionPanelProps {
   items: EmojiItem[];
