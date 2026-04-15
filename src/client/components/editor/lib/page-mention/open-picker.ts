@@ -1,8 +1,8 @@
 import type { Editor, Range } from "@tiptap/core";
 import { useWorkspaceStore, selectActivePages } from "@/client/stores/workspace-store";
 import type { Page } from "@/shared/types";
-import { mountPageMentionPicker, type PageMentionPickerHandle } from "../controllers/page-mention-picker-overlay";
-import type { PageMentionItem } from "../controllers/page-mention-picker-panel";
+import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
+import type { PageMentionItem } from "../../controllers/page-mention/picker-panel";
 
 const MAX_SUGGESTIONS = 20;
 

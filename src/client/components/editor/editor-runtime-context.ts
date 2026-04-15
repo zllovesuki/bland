@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { canInsertPageMentions } from "./lib/can-insert-page-mentions";
+import { canInsertPageMentions } from "./lib/page-mention/can-insert";
 import type { UploadContext } from "./lib/media-actions";
 
 export interface EditorRuntimeSnapshot {

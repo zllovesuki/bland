@@ -2,11 +2,11 @@ import { useRef, useCallback, useState, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
-import { useEditorRuntime } from "../editor-runtime-context";
-import { showImageInsertPanel } from "../controllers/image-insert-panel";
-import { prepareBlockDragPreview } from "../lib/block-drag-preview";
-import { createImageNodeTarget, resolveShareUrl } from "../lib/media-actions";
-import "../styles/image-node.css";
+import { useEditorRuntime } from "../../editor-runtime-context";
+import { showImageInsertPanel } from "../../controllers/image/insert-panel";
+import { prepareBlockDragPreview } from "../../lib/block-drag-preview";
+import { createImageNodeTarget, resolveShareUrl } from "../../lib/media-actions";
+import "../../styles/image-node.css";
 
 export function ImageNodeView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useEditorRuntime();

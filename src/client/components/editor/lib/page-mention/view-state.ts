@@ -1,5 +1,5 @@
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
-import type { MentionEntry } from "./page-mention-resolver";
+import type { MentionEntry } from "./resolver";
 
 export type PageMentionViewState =
   | {

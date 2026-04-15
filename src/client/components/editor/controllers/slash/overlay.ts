@@ -1,8 +1,8 @@
 import type { Editor } from "@tiptap/core";
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
-import { mountEditorRenderer } from "./menu/renderer";
-import { SlashMenuPanel, type SlashMenuPanelHandle, type SlashMenuPanelProps } from "./slash-menu-panel";
-import type { SlashMenuItem } from "./slash-items";
+import { mountEditorRenderer } from "../menu/renderer";
+import { SlashMenuPanel, type SlashMenuPanelHandle, type SlashMenuPanelProps } from "./panel";
+import type { SlashMenuItem } from "./items";
 
 interface SlashMenuOverlayOpts {
   contextElement?: HTMLElement | null;

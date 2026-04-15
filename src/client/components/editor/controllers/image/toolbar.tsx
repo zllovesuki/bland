@@ -4,14 +4,14 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
 import { FloatingPortal } from "@floating-ui/react";
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
-import { useEditorRuntime } from "../editor-runtime-context";
+import { useEditorRuntime } from "../../editor-runtime-context";
 import {
   createImageNodeTarget,
   deleteImageAtTarget,
   triggerFileUploadAtTarget,
   updateImageAttributesAtTarget,
-} from "../lib/media-actions";
-import "../styles/floating-controls.css";
+} from "../../lib/media-actions";
+import "../../styles/floating-controls.css";
 
 interface ImageState {
   pos: number;

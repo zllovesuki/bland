@@ -1,9 +1,9 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
-import { useMenuNavigation } from "./menu/navigation";
-import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
-import type { SlashMenuItem } from "./slash-items";
+import { useMenuNavigation } from "../menu/navigation";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "../menu/popover";
+import type { SlashMenuItem } from "./items";
 
 export interface SlashMenuPanelProps {
   items: SlashMenuItem[];

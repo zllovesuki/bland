@@ -1,6 +1,6 @@
 import { Node, mergeAttributes, type Range } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import { PageMentionView } from "./page-mention-node-view";
+import { PageMentionView } from "./node-view";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {

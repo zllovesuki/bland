@@ -1,6 +1,6 @@
 import { Outlet } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
-import { PageMentionScopeProvider } from "@/client/components/editor/page-mention-scope-provider";
+import { PageMentionScopeProvider } from "@/client/components/editor/page-mention/scope-provider";
 import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
 
 export function WorkspaceLayout() {

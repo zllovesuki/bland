@@ -1,8 +1,8 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { FileText, Loader2, Lock } from "lucide-react";
-import { usePageMentionEntry, usePageMentionNavigate, usePageMentionResolver } from "../page-mention-context";
-import { getPageMentionViewState } from "../lib/page-mention-view-state";
+import { usePageMentionEntry, usePageMentionNavigate, usePageMentionResolver } from "../../page-mention/context";
+import { getPageMentionViewState } from "../../lib/page-mention/view-state";
 
 export function PageMentionView({ node }: NodeViewProps) {
   const pageId = node.attrs.pageId as string | null;

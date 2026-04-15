@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
-import type { MentionEntry, PageMentionResolver, PageMentionRouteContext } from "./lib/page-mention-resolver";
+import type { MentionEntry, PageMentionResolver, PageMentionRouteContext } from "../lib/page-mention/resolver";
 
 export type PageMentionNavigateTarget = { pageId: string } & PageMentionRouteContext;
 

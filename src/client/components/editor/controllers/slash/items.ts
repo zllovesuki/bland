@@ -16,8 +16,8 @@ import {
   FileText,
   SmilePlus,
 } from "lucide-react";
-import { insertDetailsBlock } from "./details-block";
-import { canInsertPageMentionAtRange } from "../lib/can-insert-page-mentions";
+import { insertDetailsBlock } from "../details-block";
+import { canInsertPageMentionAtRange } from "../../lib/page-mention/can-insert";
 
 export interface SlashMenuItem {
   title: string;

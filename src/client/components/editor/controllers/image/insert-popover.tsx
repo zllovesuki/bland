@@ -3,7 +3,7 @@ import { FloatingPortal } from "@floating-ui/react";
 import type { Editor } from "@tiptap/core";
 import { Upload } from "lucide-react";
 import { toast } from "@/client/components/toast";
-import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "../menu/popover";
 import {
   IMAGE_MIME_TYPES,
   IMAGE_TARGET_MISSING_MESSAGE,
@@ -13,8 +13,8 @@ import {
   triggerFileUploadAtTarget,
   type ImageNodeTarget,
   type UploadContext,
-} from "../lib/media-actions";
-import "../styles/floating-controls.css";
+} from "../../lib/media-actions";
+import "../../styles/floating-controls.css";
 
 const IMAGE_EMBED_TIMEOUT_MS = 8000;
 const ALLOWED_EMBED_MIME_SET = new Set(IMAGE_MIME_TYPES);

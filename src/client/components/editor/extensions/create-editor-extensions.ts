@@ -12,25 +12,25 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { FileHandler } from "@tiptap/extension-file-handler";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
-import { ShareAwareImage } from "./image-node";
+import { ShareAwareImage } from "./image/node";
 import { EditorEmoji } from "./emoji";
 import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
 import { TopLevelBlockIdentity } from "./top-level-block-identity";
-import { PageMentionNode } from "./page-mention-node";
-import { PageMentionSuggestion } from "./page-mention-suggestion";
-import { SlashCommands } from "../controllers/slash-menu-extension";
+import { PageMentionNode } from "./page-mention/node";
+import { PageMentionSuggestion } from "./page-mention/suggestion";
+import { SlashCommands } from "../controllers/slash/extension";
 import { launchEmojiPicker } from "../controllers/emoji-insert-panel";
-import { insertImageFromSlashMenu } from "../controllers/image-insert-panel";
+import { insertImageFromSlashMenu } from "../controllers/image/insert-panel";
 import type {
   SlashMenuEmojiConfig,
   SlashMenuImageConfig,
   SlashMenuPageMentionConfig,
-} from "../controllers/slash-items";
-import { canInsertPageMentionAtRange, canInsertPageMentions } from "../lib/can-insert-page-mentions";
-import { launchPageMentionPicker } from "../lib/open-page-mention-picker";
+} from "../controllers/slash/items";
+import { canInsertPageMentionAtRange, canInsertPageMentions } from "../lib/page-mention/can-insert";
+import { launchPageMentionPicker } from "../lib/page-mention/open-picker";
 import {
   IMAGE_MIME_TYPES,
   insertImagePlaceholderAtPos,

@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import { FileText } from "lucide-react";
-import { useMenuNavigation } from "./menu/navigation";
-import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu/popover";
+import { useMenuNavigation } from "../menu/navigation";
+import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "../menu/popover";
 
 export interface PageMentionItem {
   pageId: string;

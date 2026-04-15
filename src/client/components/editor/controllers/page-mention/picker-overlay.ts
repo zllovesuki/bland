@@ -1,12 +1,12 @@
 import type { Editor } from "@tiptap/core";
-import { mountEditorRenderer } from "./menu/renderer";
+import { mountEditorRenderer } from "../menu/renderer";
 import {
   PageMentionPickerPanel,
   type PageMentionItem,
   type PageMentionFilterMode,
   type PageMentionPickerPanelHandle,
   type PageMentionPickerPanelProps,
-} from "./page-mention-picker-panel";
+} from "./picker-panel";
 
 interface PageMentionPickerMountOpts {
   contextElement?: HTMLElement | null;

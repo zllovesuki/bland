@@ -4,10 +4,10 @@ import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import { useWorkspaceStore, selectActivePages } from "@/client/stores/workspace-store";
-import { filterPageMentionItems } from "../lib/open-page-mention-picker";
-import { canInsertPageMentionAtRange } from "../lib/can-insert-page-mentions";
-import { mountPageMentionPicker, type PageMentionPickerHandle } from "../controllers/page-mention-picker-overlay";
-import type { PageMentionItem } from "../controllers/page-mention-picker-panel";
+import { filterPageMentionItems } from "../../lib/page-mention/open-picker";
+import { canInsertPageMentionAtRange } from "../../lib/page-mention/can-insert";
+import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
+import type { PageMentionItem } from "../../controllers/page-mention/picker-panel";
 
 const pageMentionSuggestionKey = new PluginKey("pageMentionSuggestion");
 

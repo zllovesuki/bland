@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPageMentionViewState } from "@/client/components/editor/lib/page-mention-view-state";
+import { getPageMentionViewState } from "@/client/components/editor/lib/page-mention/view-state";
 
 describe("page mention view state", () => {
   it("keeps pending mentions non-interactive with no metadata", () => {

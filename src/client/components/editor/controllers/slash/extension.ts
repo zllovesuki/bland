@@ -9,8 +9,8 @@ import {
   type SlashMenuImageConfig,
   type SlashMenuItem,
   type SlashMenuPageMentionConfig,
-} from "./slash-items";
-import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash-menu-overlay";
+} from "./items";
+import { mountSlashMenu, type SlashMenuOverlayHandle } from "./overlay";
 
 interface SlashCommandsOptions {
   pageMention: SlashMenuPageMentionConfig | null;

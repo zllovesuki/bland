@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { PageMentionContextValue } from "./page-mention-context";
+import type { PageMentionContextValue } from "./context";
 
 const EMPTY_SCOPE: PageMentionContextValue = {
   resolver: null,

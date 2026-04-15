@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvePageMentionsResponse, ResolvedViewerContext } from "@/shared/types";
 import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
 
-let createPageMentionResolver: typeof import("@/client/components/editor/lib/page-mention-resolver").createPageMentionResolver;
+let createPageMentionResolver: typeof import("@/client/components/editor/lib/page-mention/resolver").createPageMentionResolver;
 
 const resolveMock = vi.fn();
 
@@ -102,7 +102,7 @@ beforeEach(async () => {
       },
     },
   }));
-  const mod = await import("@/client/components/editor/lib/page-mention-resolver");
+  const mod = await import("@/client/components/editor/lib/page-mention/resolver");
   createPageMentionResolver = mod.createPageMentionResolver;
 });
 

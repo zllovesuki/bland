@@ -1,6 +1,6 @@
 import { Image } from "@tiptap/extension-image";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import { ImageNodeView } from "./image-node-view";
+import { ImageNodeView } from "./node-view";
 
 export const ShareAwareImage = Image.extend({
   addAttributes() {

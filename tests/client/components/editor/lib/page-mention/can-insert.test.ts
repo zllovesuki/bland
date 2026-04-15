@@ -6,8 +6,8 @@ import { schema as basicSchema } from "prosemirror-schema-basic";
 import {
   canInsertPageMentionAtRange,
   canInsertPageMentions,
-} from "@/client/components/editor/lib/can-insert-page-mentions";
-import { getSlashMenuItems, filterItems } from "@/client/components/editor/controllers/slash-items";
+} from "@/client/components/editor/lib/page-mention/can-insert";
+import { getSlashMenuItems, filterItems } from "@/client/components/editor/controllers/slash/items";
 
 const schema = new Schema({
   nodes: basicSchema.spec.nodes.addBefore("text", "pageMention", {

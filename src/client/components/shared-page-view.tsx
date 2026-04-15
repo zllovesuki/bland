@@ -5,7 +5,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { EditorPane } from "@/client/components/editor/editor-pane";
-import { PageMentionScopeProvider } from "@/client/components/editor/page-mention-scope-provider";
+import { PageMentionScopeProvider } from "@/client/components/editor/page-mention/scope-provider";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { Footer } from "@/client/components/footer";
 import { SharedPageTree } from "@/client/components/shared-page-tree";

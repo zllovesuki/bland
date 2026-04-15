@@ -2,7 +2,7 @@ import { api } from "@/client/lib/api";
 import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
 import type { ApiError, ResolvedPageMentionItem, ResolvedViewerContext } from "@/shared/types";
 import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
-import { canUseCachedPageMentionData } from "./page-mention-resolver-config";
+import { canUseCachedPageMentionData } from "./resolver-config";
 
 export type MentionEntryStatus = "pending" | "resolved";
 export type MentionEntrySource = "server" | "cache" | null;

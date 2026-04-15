@@ -9,11 +9,11 @@ import { createEditorExtensions } from "./extensions/create-editor-extensions";
 import { DragHandle } from "./controllers/drag-handle";
 import { FormattingToolbar } from "./controllers/formatting-toolbar";
 import { LinkToolbar } from "./controllers/link-toolbar";
-import { ImageToolbar } from "./controllers/image-toolbar";
+import { ImageToolbar } from "./controllers/image/toolbar";
 import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
-import { PageMentionContext } from "./page-mention-context";
-import { usePageMentionScope } from "./page-mention-scope-context";
+import { PageMentionContext } from "./page-mention/context";
+import { usePageMentionScope } from "./page-mention/scope-context";
 import {
   EditorRuntimeContext,
   canInsertPageMentionsForRuntime,

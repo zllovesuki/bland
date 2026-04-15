@@ -3,7 +3,7 @@ import {
   canUseCachedPageMentionData,
   getPageMentionEffectiveShareToken,
   getPageMentionResolverScopeKey,
-} from "@/client/components/editor/lib/page-mention-resolver-config";
+} from "@/client/components/editor/lib/page-mention/resolver-config";
 import type { ResolvedViewerContext } from "@/shared/types";
 
 function createViewer(overrides: Partial<ResolvedViewerContext> = {}): ResolvedViewerContext {

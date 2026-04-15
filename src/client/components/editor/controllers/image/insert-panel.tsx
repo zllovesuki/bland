@@ -1,7 +1,7 @@
 import type { Editor, Range } from "@tiptap/core";
-import { mountEditorRenderer } from "./menu/renderer";
-import { type ImageNodeTarget, type UploadContext, insertImagePlaceholderAtRange } from "../lib/media-actions";
-import { ImageInsertPopover, type ImageInsertPopoverProps } from "./image-insert-popover";
+import { mountEditorRenderer } from "../menu/renderer";
+import { type ImageNodeTarget, type UploadContext, insertImagePlaceholderAtRange } from "../../lib/media-actions";
+import { ImageInsertPopover, type ImageInsertPopoverProps } from "./insert-popover";
 
 export function insertImageFromSlashMenu(editor: Editor, range: Range, uploadContext: UploadContext) {
   const inserted = insertImagePlaceholderAtRange(editor, range);
