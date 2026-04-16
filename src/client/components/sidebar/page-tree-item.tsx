@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 
 import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
@@ -10,7 +10,6 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { useCreatePage } from "@/client/hooks/use-create-page";
-import type { DropTarget } from "@/client/hooks/use-page-drag";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { confirm } from "@/client/components/confirm";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
@@ -22,12 +21,12 @@ interface PageTreeItemProps {
   allPages: Page[];
   alwaysShowActions: boolean;
   activeAncestorIds: Set<string>;
+  expandedDuringDrag: Set<string>;
   draggedId: string | null;
-  dropTarget: DropTarget | null;
+  dropAnchorId: string | null;
+  renderDropPreview: () => ReactNode;
   menuZIndex?: number;
   onDragStart: (e: React.DragEvent, pageId: string) => void;
-  onDragOver: (e: React.DragEvent, pageId: string) => void;
-  onDragLeave: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   canDrag: boolean;
 }
@@ -39,12 +38,12 @@ export function PageTreeItem({
   allPages,
   alwaysShowActions,
   activeAncestorIds,
+  expandedDuringDrag,
   draggedId,
-  dropTarget,
+  dropAnchorId,
+  renderDropPreview,
   menuZIndex,
   onDragStart,
-  onDragOver,
-  onDragLeave,
   onDragEnd,
   canDrag,
 }: PageTreeItemProps) {
@@ -62,11 +61,13 @@ export function PageTreeItem({
   const { createPage, isCreating: creating } = useCreatePage();
   const isActive = params.pageId === page.id;
   const shouldExpand = activeAncestorIds.has(page.id) || isActive;
-  const [isExpanded, setIsExpanded] = useState(shouldExpand);
+  const [userExpanded, setUserExpanded] = useState(shouldExpand);
 
   useEffect(() => {
-    if (shouldExpand) setIsExpanded(true);
+    if (shouldExpand) setUserExpanded(true);
   }, [shouldExpand]);
+
+  const isExpanded = userExpanded || expandedDuringDrag.has(page.id);
   const [menuOpen, setMenuOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -78,7 +79,7 @@ export function PageTreeItem({
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsExpanded((v) => !v);
+    setUserExpanded((v) => !v);
   }, []);
 
   const handleArchive = useCallback(
@@ -121,32 +122,38 @@ export function PageTreeItem({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      createPage({ parentId: page.id, onCreated: () => setIsExpanded(true) });
+      createPage({ parentId: page.id, onCreated: () => setUserExpanded(true) });
     },
     [createPage, page.id],
   );
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      setMenuOpen(false);
+      onDragStart(e, page.id);
+    },
+    [onDragStart, page.id],
+  );
+
   const isDragged = draggedId === page.id;
-  const isDropBefore = dropTarget?.pageId === page.id && dropTarget.position === "before";
-  const isDropAfter = dropTarget?.pageId === page.id && dropTarget.position === "after";
-  const isDropChild = dropTarget?.pageId === page.id && dropTarget.position === "child";
+  const showPreviewBefore = dropAnchorId === page.id;
 
   return (
     <div>
-      {isDropBefore && (
-        <div className="mx-2 h-0.5 rounded bg-accent-500" style={{ marginLeft: `${depth * 16 + 8}px` }} />
-      )}
+      {showPreviewBefore && renderDropPreview()}
       <Link
         to="/$workspaceSlug/$pageId"
         params={{ workspaceSlug: params.workspaceSlug || currentWorkspace?.slug || "", pageId: page.id }}
         draggable={canDrag}
-        onDragStart={(e) => onDragStart(e, page.id)}
-        onDragOver={(e) => onDragOver(e, page.id)}
-        onDragLeave={onDragLeave}
+        onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
+        data-page-row
+        data-page-id={page.id}
+        data-depth={depth}
+        data-dragging={isDragged ? "true" : undefined}
         className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition-colors ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-        } ${isDragged ? "opacity-40" : ""} ${isDropChild ? "ring-1 ring-accent-500/50" : ""}`}
+        }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         <button
@@ -210,10 +217,6 @@ export function PageTreeItem({
         )}
       </Link>
 
-      {isDropAfter && (
-        <div className="mx-2 h-0.5 rounded bg-accent-500" style={{ marginLeft: `${depth * 16 + 8}px` }} />
-      )}
-
       {isExpanded && hasChildren && (
         <div>
           {childPages.map((child) => (
@@ -225,12 +228,12 @@ export function PageTreeItem({
               allPages={allPages}
               alwaysShowActions={alwaysShowActions}
               activeAncestorIds={activeAncestorIds}
+              expandedDuringDrag={expandedDuringDrag}
               draggedId={draggedId}
-              dropTarget={dropTarget}
+              dropAnchorId={dropAnchorId}
+              renderDropPreview={renderDropPreview}
               menuZIndex={menuZIndex}
               onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
               onDragEnd={onDragEnd}
               canDrag={canDrag}
             />
