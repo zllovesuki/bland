@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import type { Page } from "@/shared/types";
 import { MAX_TREE_DEPTH } from "@/shared/constants";
+import { SIDEBAR_TREE_INDENT_PX, SIDEBAR_TREE_ROW_PADDING_PX } from "@/client/components/sidebar/tree-metrics";
 
-export const INDENT_PX = 16;
-export const ROW_PADDING_PX = 8;
+export const INDENT_PX = SIDEBAR_TREE_INDENT_PX;
+export const ROW_PADDING_PX = SIDEBAR_TREE_ROW_PADDING_PX;
 export const TOP_CAP_PX = 12;
 export const BOTTOM_CAP_PX = 24;
 

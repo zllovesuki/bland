@@ -8,19 +8,13 @@ import {
 } from "@/client/components/workspace/use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useOnline } from "@/client/hooks/use-online";
-import {
-  usePageDrag,
-  computePosition,
-  resolveInsertionIndex,
-  INDENT_PX,
-  ROW_PADDING_PX,
-  type DropTarget,
-} from "@/client/hooks/use-page-drag";
+import { usePageDrag, computePosition, resolveInsertionIndex, type DropTarget } from "@/client/hooks/use-page-drag";
 import { api, toApiError } from "@/client/lib/api";
 import { toast } from "@/client/components/toast";
 import { DEFAULT_PAGE_TITLE, MAX_TREE_DEPTH } from "@/shared/constants";
 import type { Page } from "@/shared/types";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { SIDEBAR_TREE_INDENT_PX, SIDEBAR_TREE_ROW_PADDING_PX } from "./tree-metrics";
 import { PageTreeItem } from "./page-tree-item";
 import "./page-tree-drag.css";
 
@@ -327,7 +321,7 @@ function DropSlotPreview({ target, draggedPage }: { target: DropTarget; draggedP
   return (
     <div
       className={`page-tree-drop-placeholder ${variant}`}
-      style={{ paddingLeft: `${depth * INDENT_PX + ROW_PADDING_PX}px` }}
+      style={{ paddingLeft: `${depth * SIDEBAR_TREE_INDENT_PX + SIDEBAR_TREE_ROW_PADDING_PX}px` }}
       aria-hidden
     >
       {/* Invisible spacer matching the real row's chevron column (w-5 = 20px).

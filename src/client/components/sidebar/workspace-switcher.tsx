@@ -51,13 +51,17 @@ export function WorkspaceSwitcher() {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="flex h-10 items-center border-b border-zinc-800/60">
+      <div className="flex h-10 items-center border-b border-zinc-800/60 px-1.5">
         <button
           onClick={() => setDropdownOpen((o) => !o)}
           aria-expanded={dropdownOpen}
-          className="flex h-full min-w-0 flex-1 items-center justify-between px-3 pr-3 transition-colors hover:bg-zinc-800/50"
+          className={`group flex h-8 min-w-0 flex-1 items-center justify-between rounded-md border px-3 pr-3 transition-[background-color,border-color,color] ${
+            dropdownOpen
+              ? "border-zinc-700/80 bg-zinc-800/90 text-zinc-100"
+              : "border-transparent text-zinc-300 hover:border-zinc-800/80 hover:bg-zinc-800/80 hover:text-zinc-100"
+          }`}
         >
-          <span className="truncate text-sm font-medium text-zinc-300">
+          <span className="truncate text-sm font-medium">
             {currentWorkspace?.icon && (
               <span className="mr-1.5 inline-flex items-center align-middle">
                 <EmojiIcon emoji={currentWorkspace.icon} size={14} />
@@ -66,13 +70,15 @@ export function WorkspaceSwitcher() {
             {currentWorkspace?.name ?? "Workspace"}
           </span>
           <ChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-zinc-500 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+              dropdownOpen ? "rotate-180 text-zinc-300" : "text-zinc-500 group-hover:text-zinc-300"
+            }`}
           />
         </button>
       </div>
 
       {dropdownOpen && (
-        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg">
+        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 overflow-hidden rounded-xl border border-zinc-700/80 bg-[color:oklch(0.29_0.008_18)] shadow-[0_20px_45px_rgba(0,0,0,0.38)]">
           <div className="max-h-48 overflow-y-auto p-1">
             {workspaces.map((ws) => (
               <div key={ws.id} className="group relative">
@@ -111,10 +117,10 @@ export function WorkspaceSwitcher() {
                         setDropdownOpen(false);
                         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
                       }}
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium transition-[background-color,color,box-shadow] ${
                         ws.id === currentWorkspace?.id
-                          ? "bg-zinc-800 text-zinc-100"
-                          : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                          ? "bg-[color:oklch(0.355_0.012_18)] text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                          : "text-zinc-400 hover:bg-[color:oklch(0.34_0.01_18)] hover:text-zinc-100"
                       }`}
                     >
                       {ws.icon && <EmojiIcon emoji={ws.icon} size={14} />}
@@ -138,7 +144,7 @@ export function WorkspaceSwitcher() {
             ))}
           </div>
 
-          <div className="border-t border-zinc-700 p-1">
+          <div className="border-t border-zinc-700/80 bg-[color:oklch(0.275_0.007_18)] p-1">
             {showCreateForm ? (
               <div className="flex flex-col gap-1.5 p-2">
                 <input
@@ -187,7 +193,7 @@ export function WorkspaceSwitcher() {
             ) : (
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-200"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-zinc-400 transition-[background-color,color] hover:bg-[color:oklch(0.34_0.01_18)] hover:text-zinc-100"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Create workspace

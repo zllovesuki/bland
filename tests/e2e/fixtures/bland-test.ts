@@ -9,6 +9,11 @@ export interface TestPage {
   workspaceSlug: string;
 }
 
+export interface TestWorkspace {
+  workspaceId: string;
+  workspaceSlug: string;
+}
+
 export interface ShareLink {
   token: string;
   permission: "view" | "edit";
@@ -56,19 +61,52 @@ function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Create a page via API and return its metadata. */
-export async function createTestPage(page: Page, accessToken: string, title?: string): Promise<TestPage> {
-  // Get the workspace ID from the workspaces list
+async function getWorkspaceBySlug(page: Page, accessToken: string, workspaceSlug: string): Promise<TestWorkspace> {
   const wsRes = await page.request.get("/api/v1/workspaces", {
     headers: authHeaders(accessToken),
   });
   if (!wsRes.ok()) throw new Error(`Failed to list workspaces: ${wsRes.status()}`);
   const wsData = (await wsRes.json()) as { workspaces: Array<{ id: string; slug: string }> };
-  const workspace = wsData.workspaces[0];
-  if (!workspace) throw new Error("No workspaces found");
+  const workspace = wsData.workspaces.find((candidate) => candidate.slug === workspaceSlug);
+  if (!workspace) throw new Error(`Workspace not found: ${workspaceSlug}`);
+
+  return {
+    workspaceId: workspace.id,
+    workspaceSlug: workspace.slug,
+  };
+}
+
+export async function createTestWorkspace(page: Page, accessToken: string, namePrefix = "E2E Test Workspace") {
+  const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const workspaceName = `${namePrefix} ${uniqueSuffix}`;
+  const workspaceSlug = `e2e-${uniqueSuffix}`;
+  const res = await page.request.post("/api/v1/workspaces", {
+    data: {
+      name: workspaceName,
+      slug: workspaceSlug,
+    },
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok()) throw new Error(`Failed to create workspace: ${res.status()}`);
+  const body = (await res.json()) as { workspace: { id: string; slug: string } };
+
+  return {
+    workspaceId: body.workspace.id,
+    workspaceSlug: body.workspace.slug,
+  };
+}
+
+/** Create a page via API and return its metadata. */
+export async function createTestPage(
+  page: Page,
+  accessToken: string,
+  title?: string,
+  workspace?: TestWorkspace,
+): Promise<TestPage> {
+  const targetWorkspace = workspace ?? (await getWorkspaceBySlug(page, accessToken, TEST_CREDENTIALS.workspaceSlug));
 
   // Create a page
-  const pageRes = await page.request.post(`/api/v1/workspaces/${workspace.id}/pages`, {
+  const pageRes = await page.request.post(`/api/v1/workspaces/${targetWorkspace.workspaceId}/pages`, {
     data: { title: title ?? `E2E Test Page ${Date.now()}` },
     headers: authHeaders(accessToken),
   });
@@ -77,8 +115,8 @@ export async function createTestPage(page: Page, accessToken: string, title?: st
 
   return {
     pageId: pageData.page.id,
-    workspaceId: workspace.id,
-    workspaceSlug: workspace.slug,
+    workspaceId: targetWorkspace.workspaceId,
+    workspaceSlug: targetWorkspace.workspaceSlug,
   };
 }
 

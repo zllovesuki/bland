@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestWorkspace } from "../fixtures/bland-test";
 
 interface ApiPage {
   id: string;
@@ -11,13 +10,6 @@ interface ApiPage {
 
 function authHeaders(accessToken: string): Record<string, string> {
   return { Authorization: `Bearer ${accessToken}` };
-}
-
-async function getWorkspaceId(page: Page, accessToken: string): Promise<string> {
-  const res = await page.request.get("/api/v1/workspaces", { headers: authHeaders(accessToken) });
-  const data = (await res.json()) as { workspaces: Array<{ id: string }> };
-  if (!data.workspaces[0]) throw new Error("No workspace found");
-  return data.workspaces[0].id;
 }
 
 async function createPage(
@@ -59,12 +51,12 @@ async function expandRow(page: Page, pageId: string): Promise<void> {
 
 test.describe("sidebar drag-and-drop", () => {
   test("reorders root pages", async ({ authenticatedPage: { page, accessToken } }) => {
-    const workspaceId = await getWorkspaceId(page, accessToken);
-    const a = await createPage(page, accessToken, workspaceId, "DnD-A");
-    const b = await createPage(page, accessToken, workspaceId, "DnD-B");
-    const c = await createPage(page, accessToken, workspaceId, "DnD-C");
+    const workspace = await createTestWorkspace(page, accessToken, "Drag DnD");
+    const a = await createPage(page, accessToken, workspace.workspaceId, "DnD-A");
+    const b = await createPage(page, accessToken, workspace.workspaceId, "DnD-B");
+    const c = await createPage(page, accessToken, workspace.workspaceId, "DnD-C");
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}`);
+    await page.goto(`/${workspace.workspaceSlug}`);
     await rowLocator(page, a.id).waitFor({ timeout: 15_000 });
     await rowLocator(page, c.id).waitFor({ timeout: 15_000 });
 
@@ -78,7 +70,7 @@ test.describe("sidebar drag-and-drop", () => {
     await expect
       .poll(
         async () => {
-          const pages = await listPages(page, accessToken, workspaceId);
+          const pages = await listPages(page, accessToken, workspace.workspaceId);
           return pages
             .filter((p) => [a.id, b.id, c.id].includes(p.id) && p.parent_id === null)
             .sort((x, y) => x.position - y.position)
@@ -90,11 +82,11 @@ test.describe("sidebar drag-and-drop", () => {
   });
 
   test("nests a root page as a child via horizontal X offset", async ({ authenticatedPage: { page, accessToken } }) => {
-    const workspaceId = await getWorkspaceId(page, accessToken);
-    const parent = await createPage(page, accessToken, workspaceId, "DnD-Parent");
-    const child = await createPage(page, accessToken, workspaceId, "DnD-Child");
+    const workspace = await createTestWorkspace(page, accessToken, "Drag DnD");
+    const parent = await createPage(page, accessToken, workspace.workspaceId, "DnD-Parent");
+    const child = await createPage(page, accessToken, workspace.workspaceId, "DnD-Child");
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}`);
+    await page.goto(`/${workspace.workspaceSlug}`);
     await rowLocator(page, parent.id).waitFor({ timeout: 15_000 });
     await rowLocator(page, child.id).waitFor({ timeout: 15_000 });
 
@@ -110,7 +102,7 @@ test.describe("sidebar drag-and-drop", () => {
     await expect
       .poll(
         async () => {
-          const pages = await listPages(page, accessToken, workspaceId);
+          const pages = await listPages(page, accessToken, workspace.workspaceId);
           return pages.find((p) => p.id === child.id)?.parent_id ?? null;
         },
         { timeout: 15_000 },
@@ -121,13 +113,13 @@ test.describe("sidebar drag-and-drop", () => {
   test("inserts into the visible gap before a parent's first child", async ({
     authenticatedPage: { page, accessToken },
   }) => {
-    const workspaceId = await getWorkspaceId(page, accessToken);
-    const parent = await createPage(page, accessToken, workspaceId, "DnD-Gap-Parent");
-    const firstChild = await createPage(page, accessToken, workspaceId, "DnD-Gap-Child-1", parent.id);
-    const secondChild = await createPage(page, accessToken, workspaceId, "DnD-Gap-Child-2", parent.id);
-    const moving = await createPage(page, accessToken, workspaceId, "DnD-Gap-Moving");
+    const workspace = await createTestWorkspace(page, accessToken, "Drag DnD");
+    const parent = await createPage(page, accessToken, workspace.workspaceId, "DnD-Gap-Parent");
+    const firstChild = await createPage(page, accessToken, workspace.workspaceId, "DnD-Gap-Child-1", parent.id);
+    const secondChild = await createPage(page, accessToken, workspace.workspaceId, "DnD-Gap-Child-2", parent.id);
+    const moving = await createPage(page, accessToken, workspace.workspaceId, "DnD-Gap-Moving");
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}`);
+    await page.goto(`/${workspace.workspaceSlug}`);
     await rowLocator(page, parent.id).waitFor({ timeout: 15_000 });
     await expandRow(page, parent.id);
     await rowLocator(page, firstChild.id).waitFor({ timeout: 15_000 });
@@ -139,7 +131,7 @@ test.describe("sidebar drag-and-drop", () => {
     await expect
       .poll(
         async () => {
-          const pages = await listPages(page, accessToken, workspaceId);
+          const pages = await listPages(page, accessToken, workspace.workspaceId);
           const movingPage = pages.find((p) => p.id === moving.id);
           const childOrder = pages
             .filter((p) => [moving.id, firstChild.id, secondChild.id].includes(p.id) && p.parent_id === parent.id)
@@ -158,13 +150,13 @@ test.describe("sidebar drag-and-drop", () => {
   test("maps a root-zone drop before a descendant row to before that root subtree", async ({
     authenticatedPage: { page, accessToken },
   }) => {
-    const workspaceId = await getWorkspaceId(page, accessToken);
-    const parent = await createPage(page, accessToken, workspaceId, "DnD-Root-Gap-Parent");
-    const firstChild = await createPage(page, accessToken, workspaceId, "DnD-Root-Gap-Child-1", parent.id);
-    await createPage(page, accessToken, workspaceId, "DnD-Root-Gap-Child-2", parent.id);
-    const moving = await createPage(page, accessToken, workspaceId, "DnD-Root-Gap-Moving");
+    const workspace = await createTestWorkspace(page, accessToken, "Drag DnD");
+    const parent = await createPage(page, accessToken, workspace.workspaceId, "DnD-Root-Gap-Parent");
+    const firstChild = await createPage(page, accessToken, workspace.workspaceId, "DnD-Root-Gap-Child-1", parent.id);
+    await createPage(page, accessToken, workspace.workspaceId, "DnD-Root-Gap-Child-2", parent.id);
+    const moving = await createPage(page, accessToken, workspace.workspaceId, "DnD-Root-Gap-Moving");
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}`);
+    await page.goto(`/${workspace.workspaceSlug}`);
     await rowLocator(page, parent.id).waitFor({ timeout: 15_000 });
     await expandRow(page, parent.id);
     await rowLocator(page, firstChild.id).waitFor({ timeout: 15_000 });
@@ -176,7 +168,7 @@ test.describe("sidebar drag-and-drop", () => {
     await expect
       .poll(
         async () => {
-          const pages = await listPages(page, accessToken, workspaceId);
+          const pages = await listPages(page, accessToken, workspace.workspaceId);
           return pages
             .filter((p) => [moving.id, parent.id].includes(p.id) && p.parent_id === null)
             .sort((x, y) => x.position - y.position)
@@ -188,11 +180,11 @@ test.describe("sidebar drag-and-drop", () => {
   });
 
   test("refuses to nest a page inside its own subtree", async ({ authenticatedPage: { page, accessToken } }) => {
-    const workspaceId = await getWorkspaceId(page, accessToken);
-    const parent = await createPage(page, accessToken, workspaceId, "DnD-Cycle-Parent");
-    const child = await createPage(page, accessToken, workspaceId, "DnD-Cycle-Child", parent.id);
+    const workspace = await createTestWorkspace(page, accessToken, "Drag DnD");
+    const parent = await createPage(page, accessToken, workspace.workspaceId, "DnD-Cycle-Parent");
+    const child = await createPage(page, accessToken, workspace.workspaceId, "DnD-Cycle-Child", parent.id);
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}`);
+    await page.goto(`/${workspace.workspaceSlug}`);
     await rowLocator(page, parent.id).waitFor({ timeout: 15_000 });
     await expandRow(page, parent.id);
     await rowLocator(page, child.id).waitFor({ timeout: 15_000 });
@@ -209,7 +201,7 @@ test.describe("sidebar drag-and-drop", () => {
 
     await page.waitForTimeout(1_000);
 
-    const pages = await listPages(page, accessToken, workspaceId);
+    const pages = await listPages(page, accessToken, workspace.workspaceId);
     const parentAfter = pages.find((p) => p.id === parent.id);
     expect(parentAfter?.parent_id).toBeNull();
   });

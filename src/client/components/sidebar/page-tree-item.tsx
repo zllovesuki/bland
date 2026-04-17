@@ -14,6 +14,7 @@ import { useCreatePage } from "@/client/hooks/use-create-page";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { confirm } from "@/client/components/confirm";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
+import { getSidebarTreePaddingLeft } from "./tree-metrics";
 
 interface PageTreeItemProps {
   page: Page;
@@ -155,7 +156,7 @@ export function PageTreeItem({
         className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition-colors ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        style={{ paddingLeft: getSidebarTreePaddingLeft(depth) }}
       >
         <button
           onClick={toggleExpand}
