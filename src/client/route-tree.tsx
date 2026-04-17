@@ -1,24 +1,15 @@
 import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { AppShell } from "@/client/components/app-shell";
-import { resolveWorkspaceRoute, resolvePageRoute, applyResolvedRoute } from "@/client/lib/workspace-data";
-import { WorkspaceLayout } from "@/client/components/workspace-layout";
-import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore, selectActiveSnapshot } from "@/client/stores/workspace-store";
-
-export type ChromeMode = "workspace" | "standalone" | "share";
-
-declare module "@tanstack/react-router" {
-  interface StaticDataRouteOption {
-    chrome: ChromeMode;
-    nav: "shared-inbox" | null;
-  }
-}
+import { RootShell } from "@/client/components/root-shell";
+import { StandaloneLayout } from "@/client/components/layouts/standalone-layout";
+import { ShareLayout } from "@/client/components/layouts/share-layout";
+import { WorkspaceLayout } from "@/client/components/workspace/layout";
+import { useAuthStore, selectHasLocalSession, selectIsAuthenticated } from "@/client/stores/auth-store";
 
 function RouteErrorFallback() {
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center">
       <div className="text-center">
         <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
         <p className="mb-3 text-sm text-zinc-400">Something went wrong.</p>
@@ -31,154 +22,138 @@ function RouteErrorFallback() {
 }
 
 const rootRoute = createRootRoute({
-  component: AppShell,
+  component: RootShell,
   errorComponent: RouteErrorFallback,
-  staticData: { chrome: "standalone", nav: null },
 });
 
+// --- Bare route (no layout chrome) ---
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  staticData: { chrome: "share", nav: null },
   component: lazyRouteComponent(() => import("@/client/components/index-gateway"), "IndexGateway"),
 });
 
-const loginRoute = createRoute({
+// --- Standalone layout routes ---
+// Each standalone route uses StandaloneLayout as its component, with the
+// actual page as a child index route. This preserves the URL structure
+// without needing pathless id-based layout routes.
+
+const loginWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
-  staticData: { chrome: "standalone", nav: null },
+  component: StandaloneLayout,
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
   beforeLoad: ({ search }) => {
-    const { isAuthenticated } = useAuthStore.getState();
-    if (isAuthenticated) {
+    if (selectIsAuthenticated(useAuthStore.getState())) {
       throw redirect({ to: search.redirect || "/" });
     }
   },
+});
+
+const loginRoute = createRoute({
+  getParentRoute: () => loginWrapper,
+  path: "/",
   component: lazyRouteComponent(() => import("@/client/components/auth/login-page"), "LoginPage"),
 });
 
-const inviteRoute = createRoute({
+const inviteWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
-  staticData: { chrome: "standalone", nav: null },
+  component: StandaloneLayout,
+});
+
+const inviteRoute = createRoute({
+  getParentRoute: () => inviteWrapper,
+  path: "/",
   component: lazyRouteComponent(() => import("@/client/components/auth/invite-page"), "InvitePage"),
 });
 
-const profileRoute = createRoute({
+const profileWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
-  staticData: { chrome: "standalone", nav: null },
+  component: StandaloneLayout,
   beforeLoad: async () => {
-    const { isAuthenticated } = useAuthStore.getState();
-    if (!isAuthenticated) {
+    if (!selectIsAuthenticated(useAuthStore.getState())) {
       throw redirect({ to: "/login", search: { redirect: "/profile" } });
     }
   },
+});
+
+const profileRoute = createRoute({
+  getParentRoute: () => profileWrapper,
+  path: "/",
   component: lazyRouteComponent(() => import("@/client/components/profile-settings"), "ProfileSettings"),
 });
 
-const sharedWithMeRoute = createRoute({
+const sharedWithMeWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shared-with-me",
-  staticData: { chrome: "standalone", nav: "shared-inbox" },
+  component: StandaloneLayout,
   beforeLoad: async () => {
-    const { hasLocalSession } = useAuthStore.getState();
-    if (!hasLocalSession) {
+    if (!selectHasLocalSession(useAuthStore.getState())) {
       throw redirect({ to: "/login", search: { redirect: "/shared-with-me" } });
     }
   },
+});
+
+const sharedWithMeRoute = createRoute({
+  getParentRoute: () => sharedWithMeWrapper,
+  path: "/",
   component: lazyRouteComponent(() => import("@/client/components/shared-with-me-view"), "SharedWithMeView"),
 });
 
-const shareRoute = createRoute({
+const shareWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/s/$token",
-  staticData: { chrome: "share", nav: null },
+  component: ShareLayout,
   validateSearch: (search: Record<string, unknown>) => ({
     page: typeof search.page === "string" ? search.page : undefined,
   }),
+});
+
+const shareRoute = createRoute({
+  getParentRoute: () => shareWrapper,
+  path: "/",
   component: lazyRouteComponent(() => import("@/client/routes/shared-page-route"), "SharedPageRoute"),
 });
 
 const workspaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/$workspaceSlug",
-  staticData: { chrome: "workspace", nav: null },
-  beforeLoad: async ({ params, location }) => {
-    const { hasLocalSession } = useAuthStore.getState();
-    if (!hasLocalSession) {
+  component: WorkspaceLayout,
+  beforeLoad: ({ location }) => {
+    if (!selectHasLocalSession(useAuthStore.getState())) {
       throw redirect({ to: "/login", search: { redirect: location.pathname } });
     }
-
-    const store = useWorkspaceStore.getState();
-    const result = await resolveWorkspaceRoute(params.workspaceSlug, store);
-    applyResolvedRoute(store, result);
-    // Do NOT redirect on unavailable here -- child page routes may still
-    // resolve via api.pages.context for shared-access workspaces.
-    // Only the workspace index and settings routes redirect on non-member access.
   },
-  component: WorkspaceLayout,
 });
 
 const workspaceIndexRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/",
-  staticData: { chrome: "workspace", nav: null },
-  beforeLoad: ({ params }) => {
-    // Workspace index requires confirmed member access for the correct workspace.
-    const store = useWorkspaceStore.getState();
-    const snap = selectActiveSnapshot(store);
-    if (!snap || snap.workspace.slug !== params.workspaceSlug || snap.accessMode !== "member") {
-      throw redirect({ to: "/" });
-    }
-  },
-  component: lazyRouteComponent(() => import("@/client/components/workspace-index"), "WorkspaceIndex"),
+  component: lazyRouteComponent(() => import("@/client/components/workspace/index"), "WorkspaceIndex"),
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/settings",
-  staticData: { chrome: "workspace", nav: null },
-  beforeLoad: ({ params }) => {
-    const store = useWorkspaceStore.getState();
-    const snap = selectActiveSnapshot(store);
-    if (!snap || snap.workspace.slug !== params.workspaceSlug || snap.accessMode !== "member") {
-      throw redirect({ to: "/" });
-    }
-  },
-  component: lazyRouteComponent(() => import("@/client/components/workspace-settings"), "WorkspaceSettings"),
+  component: lazyRouteComponent(() => import("@/client/components/workspace/settings"), "WorkspaceSettings"),
 });
 
 const pageRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/$pageId",
-  staticData: { chrome: "workspace", nav: null },
-  beforeLoad: async ({ params }) => {
-    const store = useWorkspaceStore.getState();
-    const result = await resolvePageRoute(params.workspaceSlug, params.pageId, store);
-    applyResolvedRoute(store, result);
-
-    if (result.kind === "resolved" && result.data.canonicalSlug) {
-      throw redirect({
-        to: "/$workspaceSlug/$pageId",
-        params: { workspaceSlug: result.data.canonicalSlug, pageId: params.pageId },
-      });
-    }
-    if (result.kind === "not_found" || result.kind === "unavailable") {
-      throw redirect({ to: "/" });
-    }
-  },
-  component: lazyRouteComponent(() => import("@/client/components/page-view"), "PageView"),
+  component: lazyRouteComponent(() => import("@/client/components/workspace/page-view"), "PageView"),
 });
 
 export const routeTree = rootRoute.addChildren([
   indexRoute,
-  loginRoute,
-  inviteRoute,
-  profileRoute,
-  sharedWithMeRoute,
-  shareRoute,
+  loginWrapper.addChildren([loginRoute]),
+  inviteWrapper.addChildren([inviteRoute]),
+  profileWrapper.addChildren([profileRoute]),
+  sharedWithMeWrapper.addChildren([sharedWithMeRoute]),
+  shareWrapper.addChildren([shareRoute]),
   workspaceRoute.addChildren([workspaceIndexRoute, settingsRoute, pageRoute]),
 ]);

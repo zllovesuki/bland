@@ -10,6 +10,7 @@ import { resolveRootWorkspaceDecision } from "@/client/lib/root-workspace-gatewa
 import { SESSION_MODES } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { fetchSharedInbox } from "@/client/hooks/use-shared-inbox";
 
 type RootViewState = "loading" | "empty" | "unavailable";
 
@@ -60,13 +61,9 @@ export function EmptyWorkspaceView() {
       }
 
       if (decision.kind === "empty") {
-        store.clearActiveRoute();
-
-        // Check shared inbox: if user has pages shared with them, redirect there
         let sharedItems = store.sharedInbox;
         try {
-          sharedItems = await api.shares.sharedWithMe();
-          store.setSharedInbox(sharedItems);
+          sharedItems = await fetchSharedInbox();
         } catch {
           // Fall back to cached inbox
         }
@@ -81,8 +78,6 @@ export function EmptyWorkspaceView() {
         setView("empty");
         return;
       }
-
-      store.clearActiveRoute();
 
       // Offline with no cached member workspaces: check cached shared inbox
       if (store.sharedInbox.length > 0) {

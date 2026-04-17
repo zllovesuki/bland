@@ -1,5 +1,5 @@
 import type { Editor, Range } from "@tiptap/core";
-import { useWorkspaceStore, selectActivePages } from "@/client/stores/workspace-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import type { Page } from "@/shared/types";
 import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
 import type { PageMentionItem } from "../../controllers/page-mention/picker-panel";
@@ -40,11 +40,13 @@ interface OpenPickerOpts {
   range: Range;
   clientRect: (() => DOMRect | null) | null;
   currentPageId: string;
+  workspaceId: string | undefined;
 }
 
 function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentionPickerHandle {
-  const state = useWorkspaceStore.getState();
-  const pages = selectActivePages(state);
+  const pages = opts.workspaceId
+    ? (useWorkspaceStore.getState().snapshotsByWorkspaceId[opts.workspaceId]?.pages ?? [])
+    : [];
   const items = collectAllVisibleItems(pages, opts.currentPageId);
 
   let handle: PageMentionPickerHandle | null = null;
@@ -81,6 +83,7 @@ function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentio
 interface LaunchPickerOpts {
   range: Range;
   currentPageId: string;
+  workspaceId: string | undefined;
 }
 
 export function launchPageMentionPicker(editor: Editor, opts: LaunchPickerOpts): PageMentionPickerHandle {
@@ -90,6 +93,7 @@ export function launchPageMentionPicker(editor: Editor, opts: LaunchPickerOpts):
   return openPageMentionPicker(editor, {
     range: { from, to: from },
     currentPageId: opts.currentPageId,
+    workspaceId: opts.workspaceId,
     clientRect: () => {
       const coords = editor.view.coordsAtPos(from);
       return new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top);

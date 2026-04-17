@@ -5,7 +5,8 @@ import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-rea
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
-import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@/client/stores/workspace-store";
+import { useWorkspaceMembers, useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
@@ -52,9 +53,9 @@ export function PageTreeItem({
     pageId?: string;
   };
   const navigate = useNavigate();
-  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const currentWorkspace = useCurrentWorkspace();
   const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
-  const members = useWorkspaceStore(selectActiveMembers);
+  const members = useWorkspaceMembers();
   const currentUser = useAuthStore((s) => s.user);
   const canArchive = canArchivePage(members, currentUser, page);
   const canCreate = canCreatePage(members, currentUser);

@@ -38,7 +38,7 @@ export function DragHandle() {
     ? {
         isAvailable: ({ editor: currentEditor }) => canInsertPageMentions() && currentEditor.isEditable,
         openPicker: ({ editor: currentEditor, range }) => {
-          launchPageMentionPicker(currentEditor, { range, currentPageId: pageId });
+          launchPageMentionPicker(currentEditor, { range, currentPageId: pageId, workspaceId });
         },
       }
     : null;

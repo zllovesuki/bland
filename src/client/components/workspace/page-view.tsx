@@ -1,21 +1,14 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import type YProvider from "y-partyserver/provider";
-import { api, toApiError } from "@/client/lib/api";
-import { applyResolvedRoute, resolvePageRoute } from "@/client/lib/workspace-data";
+import { api } from "@/client/lib/api";
 import { confirm } from "@/client/components/confirm";
 import { toast } from "@/client/components/toast";
-import { getCachedDocKey, SESSION_MODES } from "@/client/lib/constants";
-import {
-  useWorkspaceStore,
-  selectActiveWorkspace,
-  selectActivePages,
-  selectActiveMembers,
-} from "@/client/stores/workspace-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
+import { canArchivePage, canCreatePage, getMyRole } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
@@ -29,19 +22,25 @@ import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
-import { isDocCached, removeDocHint } from "@/client/lib/doc-cache-hints";
 import { reportClientError } from "@/client/lib/report-client-error";
 import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
-import { parseDocMessage } from "@/shared/doc-messages";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
-import { useMyRole } from "@/client/hooks/use-role";
+import { CanonicalPageSurface } from "@/client/components/page-surface/canonical";
+import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
 
-function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
-  const workspace = useWorkspaceStore(selectActiveWorkspace);
-  const pages = useWorkspaceStore(selectActivePages);
-
+function Breadcrumbs({
+  page,
+  workspaceSlug,
+  workspaceName,
+  pages,
+}: {
+  page: Page;
+  workspaceSlug: string;
+  workspaceName?: string | null;
+  pages: Page[];
+}) {
   const ancestors = useMemo(() => {
     const chain: Page[] = [];
     const byId = new Map(pages.map((p) => [p.id, p]));
@@ -62,7 +61,7 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
         params={{ workspaceSlug }}
         className="truncate text-zinc-400 transition-colors hover:text-zinc-300"
       >
-        {workspace?.name ?? workspaceSlug}
+        {workspaceName ?? workspaceSlug}
       </Link>
       {ancestors.map((a) => (
         <span key={a.id} className="flex items-center gap-1">
@@ -88,33 +87,22 @@ function Breadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: strin
   );
 }
 
-function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug: string }) {
-  const workspace = useWorkspaceStore(selectActiveWorkspace);
-  const [ancestors, setAncestors] = useState<AncestorInfo[]>([]);
-  const workspaceId = workspace?.id;
-
-  useEffect(() => {
-    if (!workspaceId) {
-      setAncestors([]);
-      return;
-    }
-    let cancelled = false;
-    api.pages
-      .ancestors(workspaceId, page.id)
-      .then((a) => {
-        if (!cancelled) setAncestors(a);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, page.id]);
-
+function SharedBreadcrumbs({
+  page,
+  workspaceSlug,
+  workspaceName,
+  ancestors,
+}: {
+  page: Page;
+  workspaceSlug: string;
+  workspaceName?: string | null;
+  ancestors: AncestorInfo[];
+}) {
   const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
   return (
     <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <span className="truncate text-zinc-400">{workspace?.name ?? workspaceSlug}</span>
+      <span className="truncate text-zinc-400">{workspaceName ?? workspaceSlug}</span>
       {ancestors.map((a) => (
         <span key={a.id} className="flex items-center gap-1">
           {sep}
@@ -148,7 +136,11 @@ function SharedBreadcrumbs({ page, workspaceSlug }: { page: Page; workspaceSlug:
 
 export function PageView() {
   const { pageId } = useParams({ strict: false }) as { pageId: string };
-  return <PageViewContent key={pageId} />;
+  return (
+    <CanonicalPageSurface key={pageId}>
+      <PageViewContent />
+    </CanonicalPageSurface>
+  );
 }
 
 function PageViewContent() {
@@ -157,133 +149,31 @@ function PageViewContent() {
     pageId: string;
   };
   const navigate = useNavigate();
-  const workspace = useWorkspaceStore(selectActiveWorkspace);
-  const pages = useWorkspaceStore(selectActivePages);
+  const { state, wsProvider, setWsProvider, patchPage } = usePageSurface();
+  const { workspaceId: effectiveWorkspaceId, workspace, pages, members, accessMode } = useCanonicalPageContext();
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
-  const addPage = useWorkspaceStore((s) => s.addPageToSnapshot);
   const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
-  const members = useWorkspaceStore(selectActiveMembers);
-  const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
-  const routeSource = useWorkspaceStore((s) => s.activeRouteSource);
-  const isSharedMode = accessMode === "shared";
-  const { role } = useMyRole();
-  const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
   const currentUser = useAuthStore((s) => s.user);
-  const sessionMode = useAuthStore((s) => s.sessionMode);
-  const [page, setPage] = useState<(Page & { can_edit?: boolean }) | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const role = getMyRole(members, currentUser);
+  const isSharedMode = accessMode === "shared";
+  const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
   const [isArchiving, setIsArchiving] = useState(false);
-  const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
   const knownHasCover = pages.find((p) => p.id === params.pageId)?.cover_url;
   const online = useOnline();
+
+  const page = state.kind === "ready" ? state.page : null;
+  const ancestors = state.kind === "ready" ? state.ancestors : [];
+
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
+
   const directChildCount = useMemo(
     () => (page ? pages.filter((candidate) => candidate.parent_id === page.id && !candidate.archived_at).length : 0),
     [pages, page],
   );
-
-  const workspaceId = workspace?.id;
-  const routeWorkspaceReady = workspace?.slug === params.workspaceSlug;
-  useEffect(() => {
-    if (!workspaceId || !routeWorkspaceReady) return;
-    let cancelled = false;
-
-    async function loadPage() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await api.pages.get(workspaceId!, params.pageId);
-        if (!cancelled) {
-          setPage(data);
-          const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId[workspaceId!];
-          if (snap) {
-            const exists = snap.pages.some((p) => p.id === data.id);
-            if (exists) updatePage(workspaceId!, data.id, data);
-            else addPage(workspaceId!, data);
-          }
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const apiErr = toApiError(err);
-
-          // Confirmed 403: remove from cache + clear Yjs DB (spec 20.3)
-          if (apiErr.error === "forbidden" || apiErr.message.includes("403")) {
-            useWorkspaceStore.getState().removePageFromSnapshot(workspaceId!, params.pageId);
-            removeDocHint(params.pageId);
-            import("y-indexeddb").then((m) => m.clearDocument(getCachedDocKey(params.pageId))).catch(() => {});
-            setError("You no longer have access to this page.");
-            setIsLoading(false);
-            return;
-          }
-
-          // Offline/expired: try pageMetaById for cross-workspace recovery
-          const currentMode = useAuthStore.getState().sessionMode;
-          if (!online || currentMode !== SESSION_MODES.AUTHENTICATED) {
-            const cached = useWorkspaceStore.getState().pageMetaById[params.pageId];
-            if (cached) {
-              if (isDocCached(params.pageId)) {
-                setPage(cached);
-              } else {
-                setError("This page isn't available offline yet.");
-              }
-              setIsLoading(false);
-              return;
-            }
-          }
-          reportClientError({
-            source: "page.load",
-            error: err,
-            context: {
-              workspaceId,
-              pageId: params.pageId,
-              online,
-              sessionMode: currentMode,
-            },
-          });
-          setError(apiErr.message);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    loadPage();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, routeWorkspaceReady, params.pageId, updatePage, addPage]);
-
-  useEffect(() => {
-    if (!online || sessionMode !== SESSION_MODES.AUTHENTICATED || routeSource !== "cache") return;
-
-    let cancelled = false;
-
-    async function revalidateRoute() {
-      const store = useWorkspaceStore.getState();
-      const result = await resolvePageRoute(params.workspaceSlug, params.pageId, store);
-      if (cancelled || result.kind !== "resolved") return;
-
-      applyResolvedRoute(useWorkspaceStore.getState(), result);
-
-      if (result.data.canonicalSlug) {
-        navigate({
-          to: "/$workspaceSlug/$pageId",
-          params: { workspaceSlug: result.data.canonicalSlug, pageId: params.pageId },
-          replace: true,
-        });
-      }
-    }
-
-    void revalidateRoute();
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, online, params.pageId, params.workspaceSlug, routeSource, sessionMode]);
 
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;
@@ -311,25 +201,25 @@ function PageViewContent() {
   const handleTitleChange = useCallback(
     (title: string) => {
       if (page && workspace) {
-        setPage({ ...page, title });
+        patchPage({ title });
         updatePage(workspace.id, page.id, { title });
       }
     },
-    [page, workspace, updatePage],
+    [page, workspace, updatePage, patchPage],
   );
 
   const handleIconChange = useCallback(
     async (icon: string | null) => {
       if (!workspace || !page) return;
       const version = ++iconVersionRef.current;
-      setPage((p) => (p ? { ...p, icon } : p));
+      patchPage({ icon });
       updatePage(workspace.id, page.id, { icon });
       try {
         await api.pages.update(workspace.id, page.id, { icon });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (iconVersionRef.current === version) {
-          setPage((p) => (p ? { ...p, icon: page.icon } : p));
+          patchPage({ icon: page.icon });
           updatePage(workspace.id, page.id, { icon: page.icon });
         }
         reportClientError({
@@ -343,21 +233,21 @@ function PageViewContent() {
         });
       }
     },
-    [workspace, page, updatePage, wsProvider],
+    [workspace, page, updatePage, wsProvider, patchPage],
   );
 
   const handleCoverChange = useCallback(
     async (cover_url: string | null) => {
       if (!workspace || !page) return;
       const version = ++coverVersionRef.current;
-      setPage((p) => (p ? { ...p, cover_url } : p));
+      patchPage({ cover_url });
       updatePage(workspace.id, page.id, { cover_url });
       try {
         await api.pages.update(workspace.id, page.id, { cover_url });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (coverVersionRef.current === version) {
-          setPage((p) => (p ? { ...p, cover_url: page.cover_url } : p));
+          patchPage({ cover_url: page.cover_url });
           updatePage(workspace.id, page.id, { cover_url: page.cover_url });
         }
         reportClientError({
@@ -371,24 +261,10 @@ function PageViewContent() {
         });
       }
     },
-    [workspace, page, updatePage, wsProvider],
+    [workspace, page, updatePage, wsProvider, patchPage],
   );
 
-  // Listen for real-time icon/cover updates from other clients
-  useEffect(() => {
-    if (!wsProvider || !workspace) return;
-    const handler = (message: string) => {
-      const msg = parseDocMessage(message);
-      if (msg?.type === "page-metadata-updated") {
-        setPage((p) => (p ? { ...p, icon: msg.icon, cover_url: msg.cover_url } : p));
-        updatePage(workspace.id, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
-      }
-    };
-    wsProvider.on("custom-message", handler);
-    return () => wsProvider.off("custom-message", handler);
-  }, [wsProvider, workspace, updatePage]);
-
-  if (isLoading || !workspace) {
+  if (state.kind === "loading") {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
         {knownHasCover && (
@@ -401,10 +277,10 @@ function PageViewContent() {
     );
   }
 
-  if (error || !page) {
+  if (state.kind === "unavailable" || !page || !effectiveWorkspaceId) {
     return (
       <PageErrorState
-        message={error ?? "Page not found."}
+        message={state.kind === "unavailable" ? state.message : "Page not found."}
         className="h-full"
         action={{
           label: "Go back",
@@ -429,12 +305,12 @@ function PageViewContent() {
         {page.cover_url && (
           <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
             <PageCover coverUrl={page.cover_url} />
-            {page.can_edit !== false && online && (
+            {workspace && page.can_edit !== false && online && (
               <div className="absolute right-2 top-2">
                 <CoverPicker
                   currentCover={page.cover_url}
                   onSelect={handleCoverChange}
-                  workspaceId={workspace!.id}
+                  workspaceId={workspace.id}
                   pageId={page.id}
                 />
               </div>
@@ -444,12 +320,24 @@ function PageViewContent() {
 
         <div className="mb-6 flex min-h-6 items-center justify-between">
           {useRestrictedBreadcrumbs ? (
-            <SharedBreadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+            <SharedBreadcrumbs
+              page={page}
+              workspaceSlug={params.workspaceSlug}
+              workspaceName={workspace?.name}
+              ancestors={ancestors}
+            />
           ) : (
-            <Breadcrumbs page={page} workspaceSlug={params.workspaceSlug} />
+            <Breadcrumbs
+              page={page}
+              workspaceSlug={params.workspaceSlug}
+              workspaceName={workspace?.name}
+              pages={pages}
+            />
           )}
           <div className="flex items-center gap-3">
-            {!isSharedMode && online && canCreatePage(members, currentUser) && <ShareDialog pageId={page.id} />}
+            {!isSharedMode && workspace && online && canCreatePage(members, currentUser) && (
+              <ShareDialog pageId={page.id} />
+            )}
             <AvatarStack
               awareness={wsProvider?.awareness ?? null}
               localClientId={wsProvider?.awareness.clientID ?? null}
@@ -460,14 +348,14 @@ function PageViewContent() {
 
         <div className="group/actions mb-4 flex items-start justify-between pl-7">
           <div className="flex items-center gap-3">
-            {page.can_edit !== false && online ? (
+            {workspace && page.can_edit !== false && online ? (
               <>
                 <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
                 {!page.cover_url && (
                   <CoverPicker
                     currentCover={null}
                     onSelect={handleCoverChange}
-                    workspaceId={workspace!.id}
+                    workspaceId={workspace.id}
                     pageId={page.id}
                   />
                 )}
@@ -476,7 +364,7 @@ function PageViewContent() {
               page.icon && <EmojiIcon emoji={page.icon} size={28} />
             )}
           </div>
-          {!isSharedMode && canArchivePage(members, currentUser, page) && (
+          {!isSharedMode && workspace && canArchivePage(members, currentUser, page) && (
             <button
               onClick={handleArchive}
               disabled={isArchiving || !online}
@@ -496,7 +384,7 @@ function PageViewContent() {
             onTitleChange={handleTitleChange}
             onProvider={setWsProvider}
             readOnly={page.can_edit === false}
-            workspaceId={workspace.id}
+            workspaceId={effectiveWorkspaceId}
             outlinePortalTarget={outlineRailEl}
           />
         </ErrorBoundary>

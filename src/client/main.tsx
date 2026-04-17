@@ -64,8 +64,6 @@ async function bootstrap() {
   const shouldRefresh = shouldBootstrapSession(window.location.pathname, !!store.user);
 
   if (shouldRefresh) {
-    store.setSessionMode(SESSION_MODES.RESTORING);
-
     try {
       const res = await requestSessionRefresh();
       if (res.ok) {
@@ -76,8 +74,6 @@ async function bootstrap() {
         const s = useAuthStore.getState();
         if (s.user) {
           s.markExpired();
-        } else {
-          s.setSessionMode(SESSION_MODES.ANONYMOUS);
         }
       }
     } catch {
@@ -85,14 +81,8 @@ async function bootstrap() {
       const s = useAuthStore.getState();
       if (s.user) {
         s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
-      } else {
-        s.setSessionMode(SESSION_MODES.ANONYMOUS);
       }
     }
-  }
-
-  if (!shouldRefresh) {
-    store.setSessionMode(SESSION_MODES.ANONYMOUS);
   }
 
   // Validate cache ownership before route loaders trust persisted data

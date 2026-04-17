@@ -1,14 +1,15 @@
 import { FileText, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { useWorkspaceStore, selectActivePages, selectActiveWorkspace } from "@/client/stores/workspace-store";
+import { useCurrentWorkspace, useWorkspacePages } from "./use-workspace-view";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 export function WorkspaceIndex() {
-  const pages = useWorkspaceStore(selectActivePages);
-  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const currentWorkspace = useCurrentWorkspace();
+  const pages = useWorkspacePages();
   const { createPage, isCreating } = useCreatePage();
   useDocumentTitle(currentWorkspace?.name);
+
   const hasPages = pages.filter((p) => !p.archived_at).length > 0;
 
   return (

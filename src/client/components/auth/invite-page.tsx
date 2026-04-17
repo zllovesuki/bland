@@ -7,7 +7,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
 import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
-import { useAuthStore } from "@/client/stores/auth-store";
+import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { TurnstileWidget } from "./turnstile-widget";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
@@ -17,7 +17,7 @@ export function InvitePage() {
   const { token } = useParams({ strict: false }) as { token: string };
   const navigate = useNavigate();
   useDocumentTitle("Accept Invite");
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const config = getClientConfigSnapshot();
   const configError = getClientConfigErrorSnapshot();
 

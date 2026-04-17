@@ -3,7 +3,7 @@ import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from 
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
-import { useWorkspaceStore, selectActiveMembers } from "@/client/stores/workspace-store";
+import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useMyRole } from "@/client/hooks/use-role";
 import { confirm } from "@/client/components/confirm";
@@ -53,7 +53,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
     open,
   );
 
-  const members = useWorkspaceStore(selectActiveMembers);
+  const members = useWorkspaceMembers();
   const user = useAuthStore((s) => s.user);
 
   const { role: myRole, isAdminOrOwner: isAdmin } = useMyRole();

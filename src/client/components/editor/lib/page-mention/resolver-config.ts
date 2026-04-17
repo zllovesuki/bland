@@ -1,5 +1,5 @@
 import type { ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
+import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
 
 export function canUseCachedPageMentionData(viewer: ResolvedViewerContext, routeSource: WorkspaceRouteSource): boolean {
   return routeSource === "cache" && viewer.route_kind === "canonical";

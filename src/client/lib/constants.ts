@@ -12,7 +12,6 @@ export const SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE =
   "Security verification is unavailable right now. Please try again.";
 
 export const SESSION_MODES = {
-  RESTORING: "restoring",
   AUTHENTICATED: "authenticated",
   LOCAL_ONLY: "local-only",
   EXPIRED: "expired",

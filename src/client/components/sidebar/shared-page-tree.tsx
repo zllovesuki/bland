@@ -5,6 +5,7 @@ import { api } from "@/client/lib/api";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { getSidebarTreePaddingLeft } from "./tree-metrics";
 
 interface TreeNodeData {
   page: Page;
@@ -30,14 +31,14 @@ function TreeNode({
   return (
     <div>
       <div
-        className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ${
+        className={`flex h-8 w-full items-center gap-1 rounded-md text-sm transition-colors ${
           isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300"
         }`}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        style={{ paddingLeft: getSidebarTreePaddingLeft(depth) }}
       >
         <button
           onClick={() => onToggle(node.page.id)}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-zinc-500 hover:text-zinc-300"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
           aria-label={node.expanded ? "Collapse" : "Expand"}
         >
           <ChevronRight
@@ -47,7 +48,7 @@ function TreeNode({
           />
         </button>
         <button onClick={() => onNavigate(node.page.id)} className="flex min-w-0 flex-1 items-center gap-1 text-left">
-          <span className="shrink-0">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
             {node.page.icon ? <EmojiIcon emoji={node.page.icon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
           </span>
           <span className="truncate">{node.page.title || DEFAULT_PAGE_TITLE}</span>
@@ -55,7 +56,7 @@ function TreeNode({
       </div>
       {node.expanded &&
         (node.children === null ? (
-          <div className="space-y-1 py-0.5" style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
+          <div className="space-y-1 py-0.5" style={{ paddingLeft: getSidebarTreePaddingLeft(depth + 1) }}>
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
           </div>
@@ -170,11 +171,14 @@ export function SharedPageTree({
     <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
       <button
         onClick={() => onNavigate(rootPageId)}
-        className={`mb-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm font-medium transition-colors ${
+        className={`mb-1 flex h-8 w-full items-center gap-1 rounded-md text-left text-sm font-medium transition-colors ${
           activePageId === rootPageId ? "bg-zinc-800 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800/50"
         }`}
+        style={{ paddingLeft: getSidebarTreePaddingLeft(0) }}
       >
-        {rootIcon ? <span>{rootIcon}</span> : <FileText className="h-3.5 w-3.5" />}
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
+          {rootIcon ? <EmojiIcon emoji={rootIcon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
+        </span>
         <span className="truncate">{rootTitle || DEFAULT_PAGE_TITLE}</span>
       </button>
       {rootChildren === null ? (

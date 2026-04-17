@@ -1,5 +1,5 @@
-import { useWorkspaceStore, selectActiveMembers } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
 import { getMyRole, isAdminOrOwner as checkAdminOrOwner } from "@/client/lib/permissions";
 import type { WorkspaceRole } from "@/shared/types";
 
@@ -10,7 +10,7 @@ interface RoleInfo {
 }
 
 export function useMyRole(): RoleInfo {
-  const members = useWorkspaceStore(selectActiveMembers);
+  const members = useWorkspaceMembers();
   const user = useAuthStore((s) => s.user);
   const role = getMyRole(members, user);
   return { role, isOwner: role === "owner", isAdminOrOwner: checkAdminOrOwner(role) };

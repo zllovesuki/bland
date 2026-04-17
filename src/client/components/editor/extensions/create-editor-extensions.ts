@@ -79,7 +79,11 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     isAvailable: ({ editor }) => canOpenMentions(editor.isEditable) && canInsertPageMentionAtRange(editor),
     openPicker: ({ editor, range }) => {
       if (!canOpenMentions(editor.isEditable)) return;
-      launchPageMentionPicker(editor, { range, currentPageId: getRuntime().pageId });
+      launchPageMentionPicker(editor, {
+        range,
+        currentPageId: getRuntime().pageId,
+        workspaceId: getRuntime().workspaceId,
+      });
     },
   };
 
@@ -208,6 +212,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     PageMentionSuggestion.configure({
       getCurrentPageId: () => getRuntime().pageId,
       isAvailable: (editor) => canOpenMentions(editor.isEditable),
+      getRuntime,
     }),
     ...createTableExtensions(),
   ] as AnyExtension[];

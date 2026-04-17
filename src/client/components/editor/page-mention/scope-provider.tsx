@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
+import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
 import { createPageMentionResolver } from "../lib/page-mention/resolver";
 import { getPageMentionEffectiveShareToken, getPageMentionResolverScopeKey } from "../lib/page-mention/resolver-config";
 import type { PageMentionNavigateTarget } from "./context";
@@ -12,7 +12,7 @@ interface PageMentionScopeProviderProps {
   workspaceId: string | undefined;
   viewer: ResolvedViewerContext | null;
   shareToken?: string;
-  routeSource: WorkspaceRouteSource;
+  mentionCachePolicy: WorkspaceRouteSource;
   lookupCachedPage?: (pageId: string) => { title: string; icon: string | null } | null;
 }
 
@@ -21,13 +21,13 @@ export function PageMentionScopeProvider({
   workspaceId,
   viewer,
   shareToken,
-  routeSource,
+  mentionCachePolicy,
   lookupCachedPage,
 }: PageMentionScopeProviderProps) {
   const navigate = useNavigate();
-  const routeSourceRef = useRef(routeSource);
+  const policyRef = useRef(mentionCachePolicy);
   const lookupCachedPageRef = useRef(lookupCachedPage);
-  routeSourceRef.current = routeSource;
+  policyRef.current = mentionCachePolicy;
   lookupCachedPageRef.current = lookupCachedPage;
 
   const effectiveShareToken = useMemo(
@@ -76,7 +76,7 @@ export function PageMentionScopeProvider({
       workspaceId,
       shareToken: effectiveShareToken,
       viewer: scopeViewer,
-      getRouteSource: () => routeSourceRef.current,
+      getRouteSource: () => policyRef.current,
       lookupCachedPage: (pageId) => lookupCachedPageRef.current?.(pageId) ?? null,
     });
     nextResolver.syncPolicy();
@@ -89,7 +89,7 @@ export function PageMentionScopeProvider({
 
   useEffect(() => {
     resolver?.syncPolicy();
-  }, [resolver, routeSource]);
+  }, [resolver, mentionCachePolicy]);
 
   const handleMentionNavigate = useCallback(
     (target: PageMentionNavigateTarget) => {

@@ -1,11 +1,5 @@
-import { getRouteApi } from "@tanstack/react-router";
-import { SharedPageView } from "@/client/components/shared-page-view";
-
-const shareRoute = getRouteApi("/s/$token");
+import { SharePageView } from "@/client/components/share/page-view";
 
 export function SharedPageRoute() {
-  const params = shareRoute.useParams();
-  const search = shareRoute.useSearch();
-
-  return <SharedPageView token={params.token} activePage={search.page} />;
+  return <SharePageView />;
 }

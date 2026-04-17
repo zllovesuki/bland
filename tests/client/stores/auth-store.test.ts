@@ -4,12 +4,16 @@ import { createUser } from "@tests/client/util/fixtures";
 import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 
 let useAuthStore: typeof import("@/client/stores/auth-store").useAuthStore;
+let selectIsAuthenticated: typeof import("@/client/stores/auth-store").selectIsAuthenticated;
+let selectHasLocalSession: typeof import("@/client/stores/auth-store").selectHasLocalSession;
 
 beforeEach(async () => {
   installLocalStorageStub();
   vi.resetModules();
   const mod = await import("@/client/stores/auth-store");
   useAuthStore = mod.useAuthStore;
+  selectIsAuthenticated = mod.selectIsAuthenticated;
+  selectHasLocalSession = mod.selectHasLocalSession;
 });
 
 afterEach(() => {
@@ -18,12 +22,12 @@ afterEach(() => {
 
 describe("auth-store", () => {
   describe("initial state", () => {
-    it("starts with RESTORING session mode and no auth", () => {
+    it("starts with ANONYMOUS session mode and no auth", () => {
       const state = useAuthStore.getState();
-      expect(state.sessionMode).toBe(SESSION_MODES.RESTORING);
+      expect(state.sessionMode).toBe(SESSION_MODES.ANONYMOUS);
       expect(state.accessToken).toBeNull();
-      expect(state.isAuthenticated).toBe(false);
-      expect(state.hasLocalSession).toBe(false);
+      expect(selectIsAuthenticated(state)).toBe(false);
+      expect(selectHasLocalSession(state)).toBe(false);
       expect(state.bootstrapped).toBe(false);
     });
 
@@ -52,8 +56,8 @@ describe("auth-store", () => {
       expect(state.accessToken).toBe("tok-123");
       expect(state.user).toEqual(user);
       expect(state.sessionMode).toBe(SESSION_MODES.AUTHENTICATED);
-      expect(state.isAuthenticated).toBe(true);
-      expect(state.hasLocalSession).toBe(true);
+      expect(selectIsAuthenticated(state)).toBe(true);
+      expect(selectHasLocalSession(state)).toBe(true);
     });
 
     it("persists user to localStorage", () => {
@@ -73,8 +77,8 @@ describe("auth-store", () => {
       expect(state.accessToken).toBeNull();
       expect(state.user).toEqual(user);
       expect(state.sessionMode).toBe(SESSION_MODES.EXPIRED);
-      expect(state.isAuthenticated).toBe(false);
-      expect(state.hasLocalSession).toBe(true);
+      expect(selectIsAuthenticated(state)).toBe(false);
+      expect(selectHasLocalSession(state)).toBe(true);
     });
   });
 
@@ -88,8 +92,8 @@ describe("auth-store", () => {
       expect(state.accessToken).toBeNull();
       expect(state.user).toBeNull();
       expect(state.sessionMode).toBe(SESSION_MODES.ANONYMOUS);
-      expect(state.isAuthenticated).toBe(false);
-      expect(state.hasLocalSession).toBe(false);
+      expect(selectIsAuthenticated(state)).toBe(false);
+      expect(selectHasLocalSession(state)).toBe(false);
       expect(localStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
       expect(localStorage.getItem(STORAGE_KEYS.CACHED_DOCS)).toBeNull();
     });
@@ -101,14 +105,13 @@ describe("auth-store", () => {
       [SESSION_MODES.LOCAL_ONLY, false, true],
       [SESSION_MODES.EXPIRED, false, true],
       [SESSION_MODES.ANONYMOUS, false, false],
-      [SESSION_MODES.RESTORING, false, false],
     ] as const)("mode %s -> isAuthenticated=%s, hasLocalSession=%s", (mode, expectAuth, expectLocal) => {
       useAuthStore.getState().setSessionMode(mode);
 
       const state = useAuthStore.getState();
       expect(state.sessionMode).toBe(mode);
-      expect(state.isAuthenticated).toBe(expectAuth);
-      expect(state.hasLocalSession).toBe(expectLocal);
+      expect(selectIsAuthenticated(state)).toBe(expectAuth);
+      expect(selectHasLocalSession(state)).toBe(expectLocal);
     });
   });
 

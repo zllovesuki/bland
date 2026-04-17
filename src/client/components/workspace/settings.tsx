@@ -17,7 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { useWorkspaceStore, selectActiveWorkspace, selectActiveMembers } from "@/client/stores/workspace-store";
+import { useCurrentWorkspace, useWorkspaceMembers } from "./use-workspace-view";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
@@ -48,9 +49,11 @@ const ASSIGNABLE_ROLES = ["admin", "member", "guest"] as const;
 export function WorkspaceSettings() {
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
-  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
-  const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
-  const members = useWorkspaceStore(selectActiveMembers);
+  // Workspace layout gating guarantees member access here. Read through the
+  // snapshot store so a successful save shows the new name/icon immediately;
+  // the route/provider state only carries workspace identity.
+  const currentWorkspace = useCurrentWorkspace();
+  const members = useWorkspaceMembers();
   const replaceMembers = useWorkspaceStore((s) => s.replaceSnapshotMembers);
   const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
   const currentUser = useAuthStore((s) => s.user);
@@ -226,13 +229,12 @@ export function WorkspaceSettings() {
       const store = useWorkspaceStore.getState();
       store.removeMemberWorkspace(currentWorkspace.id);
       store.removeWorkspaceSnapshot(currentWorkspace.id);
-      store.clearActiveRoute();
       navigate({ to: "/" });
     } catch {
       toast.error("Failed to delete workspace");
       setDeleting(false);
     }
-  }, [currentWorkspace, isOwner, deleting, workspaces, navigate]);
+  }, [currentWorkspace, isOwner, deleting, navigate]);
 
   if (!currentWorkspace) return null;
 

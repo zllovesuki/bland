@@ -79,20 +79,12 @@ async function promptPassword(): Promise<string> {
 
 function printUsage() {
   console.error("Usage:");
-  console.error(
-    "  npm run db:seed-initial-user -- --local --email <email> --name <name> [--password <pw>]",
-  );
-  console.error(
-    "  npm run db:seed-initial-user -- --remote --email <email> --name <name> [--password <pw>]",
-  );
+  console.error("  npm run db:seed-initial-user -- --local --email <email> --name <name> [--password <pw>]");
+  console.error("  npm run db:seed-initial-user -- --remote --email <email> --name <name> [--password <pw>]");
   console.error("");
   console.error("Convenience scripts:");
-  console.error(
-    "  npm run db:seed-initial-user:local -- --email <email> --name <name> [--password <pw>]",
-  );
-  console.error(
-    "  npm run db:seed-initial-user:remote -- --email <email> --name <name> [--password <pw>]",
-  );
+  console.error("  npm run db:seed-initial-user:local -- --email <email> --name <name> [--password <pw>]");
+  console.error("  npm run db:seed-initial-user:remote -- --email <email> --name <name> [--password <pw>]");
 }
 
 function parseArgs(argv: string[]) {

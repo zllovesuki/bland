@@ -3,7 +3,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
-import { useWorkspaceStore, selectActivePages } from "@/client/stores/workspace-store";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { filterPageMentionItems } from "../../lib/page-mention/open-picker";
 import { canInsertPageMentionAtRange } from "../../lib/page-mention/can-insert";
 import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
@@ -14,6 +14,7 @@ const pageMentionSuggestionKey = new PluginKey("pageMentionSuggestion");
 interface PageMentionSuggestionOptions {
   getCurrentPageId: () => string;
   isAvailable: (editor: Editor) => boolean;
+  getRuntime: () => { workspaceId: string | undefined };
 }
 
 export const PageMentionSuggestion = Extension.create<PageMentionSuggestionOptions>({
@@ -23,6 +24,7 @@ export const PageMentionSuggestion = Extension.create<PageMentionSuggestionOptio
     return {
       getCurrentPageId: () => "",
       isAvailable: () => false,
+      getRuntime: () => ({ workspaceId: undefined }),
     };
   },
 
@@ -37,8 +39,11 @@ export const PageMentionSuggestion = Extension.create<PageMentionSuggestionOptio
         shouldShow: ({ editor, transaction }) => this.options.isAvailable(editor) && !isChangeOrigin(transaction),
         items: ({ query }) => {
           if (!this.options.isAvailable(this.editor)) return [];
-          const state = useWorkspaceStore.getState();
-          const pages = selectActivePages(state);
+          const runtime = this.options.getRuntime();
+          const workspaceId = runtime.workspaceId;
+          const pages = workspaceId
+            ? (useWorkspaceStore.getState().snapshotsByWorkspaceId[workspaceId]?.pages ?? [])
+            : [];
           return filterPageMentionItems(pages, query, this.options.getCurrentPageId());
         },
         command: ({ editor, range, props: item }) => {

@@ -4,6 +4,7 @@ import { createUser } from "@tests/client/util/fixtures";
 import { SESSION_MODES } from "@/client/lib/constants";
 
 let useAuthStore: typeof import("@/client/stores/auth-store").useAuthStore;
+let selectHasLocalSession: typeof import("@/client/stores/auth-store").selectHasLocalSession;
 let api: typeof import("@/client/lib/api").api;
 
 const mockFetch = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>();
@@ -16,6 +17,7 @@ beforeEach(async () => {
   const authMod = await import("@/client/stores/auth-store");
   const apiMod = await import("@/client/lib/api");
   useAuthStore = authMod.useAuthStore;
+  selectHasLocalSession = authMod.selectHasLocalSession;
   api = apiMod.api;
 });
 
@@ -92,7 +94,7 @@ describe("apiFetch auto-refresh", () => {
     const state = useAuthStore.getState();
     expect(state.sessionMode).toBe(SESSION_MODES.LOCAL_ONLY);
     expect(state.user).toEqual(user);
-    expect(state.hasLocalSession).toBe(true);
+    expect(selectHasLocalSession(state)).toBe(true);
   });
 
   it("does not downgrade from LOCAL_ONLY on repeated network errors", async () => {

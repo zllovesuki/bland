@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Loader2, ChevronDown, Pencil, Check, X } from "lucide-react";
-import { useWorkspaceStore, selectActiveWorkspace } from "@/client/stores/workspace-store";
+import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { useMyRole } from "@/client/hooks/use-role";
@@ -12,7 +13,7 @@ import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 export function WorkspaceSwitcher() {
   const navigate = useNavigate();
-  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
+  const currentWorkspace = useCurrentWorkspace();
   const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
   const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
   const { isOwner } = useMyRole();

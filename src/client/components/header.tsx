@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
-import { useAuthStore } from "@/client/stores/auth-store";
+import { useAuthStore, selectHasLocalSession } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
@@ -15,7 +15,7 @@ interface HeaderProps {
 }
 
 export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: HeaderProps) {
-  const hasLocalSession = useAuthStore((s) => s.hasLocalSession);
+  const hasLocalSession = useAuthStore(selectHasLocalSession);
   const user = useAuthStore((s) => s.user);
   const { logout } = useAuth();
   const navigate = useNavigate();

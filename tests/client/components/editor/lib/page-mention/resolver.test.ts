@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvePageMentionsResponse, ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
+import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
 
 let createPageMentionResolver: typeof import("@/client/components/editor/lib/page-mention/resolver").createPageMentionResolver;
 

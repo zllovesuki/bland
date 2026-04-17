@@ -1,7 +1,7 @@
 import { api } from "@/client/lib/api";
 import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
 import type { ApiError, ResolvedPageMentionItem, ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/stores/workspace-store";
+import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
 import { canUseCachedPageMentionData } from "./resolver-config";
 
 export type MentionEntryStatus = "pending" | "resolved";

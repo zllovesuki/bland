@@ -1,11 +1,11 @@
 import { useCallback } from "react";
-import { useAuthStore } from "@/client/stores/auth-store";
+import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
 import type { LoginRequest } from "@/shared/types";
 
 export function useAuth() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const user = useAuthStore((s) => s.user);
   const bootstrapped = useAuthStore((s) => s.bootstrapped);
   const setAuth = useAuthStore((s) => s.setAuth);

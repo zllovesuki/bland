@@ -1,19 +1,15 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Share2, FileText, AlertCircle, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { Button } from "@/client/components/ui/button";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
-import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useSharedInbox } from "@/client/hooks/use-shared-inbox";
 import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
-import { api } from "@/client/lib/api";
 import { getSharedInboxReturnTo } from "@/client/lib/shared-inbox-navigation";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import type { SharedWithMeItem } from "@/shared/types";
-
-type RequestState = "idle" | "loading" | "error";
 
 function groupByWorkspace(items: SharedWithMeItem[]) {
   const groups: Map<string, { workspace: SharedWithMeItem["workspace"]; pages: SharedWithMeItem[] }> = new Map();
@@ -46,43 +42,12 @@ export function SharedWithMeView() {
   useDocumentTitle("Shared with me");
   const navigate = useNavigate();
   const location = useLocation();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const sharedInbox = useWorkspaceStore((s) => s.sharedInbox);
-  const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
+  const { items: sharedInbox, status } = useSharedInbox();
   const [entryReturnTo] = useState(() => getSharedInboxReturnTo(location.state));
   const { backLabel, canLeaveSharedInbox, leaveSharedInbox } = useSharedInboxNavigation({ returnTo: entryReturnTo });
-  const [requestState, setRequestState] = useState<RequestState>(
-    sharedInbox.length > 0 ? "idle" : isAuthenticated ? "loading" : "error",
-  );
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "error");
-      return;
-    }
-    let cancelled = false;
-
-    setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "loading");
-
-    api.shares
-      .sharedWithMe()
-      .then((result) => {
-        if (cancelled) return;
-        setSharedInbox(result);
-        setRequestState("idle");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRequestState(useWorkspaceStore.getState().sharedInbox.length > 0 ? "idle" : "error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, setSharedInbox]);
-
-  const showLoading = requestState === "loading" && sharedInbox.length === 0;
-  const showError = sharedInbox.length === 0 && (!isAuthenticated || requestState === "error");
+  const showLoading = status === "loading" && sharedInbox.length === 0;
+  const showError = sharedInbox.length === 0 && status === "error";
 
   const handlePageClick = useCallback(
     (item: SharedWithMeItem) => {

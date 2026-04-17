@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
-import { useWorkspaceStore, selectActiveWorkspace, selectActivePages } from "@/client/stores/workspace-store";
+import {
+  useWorkspaceView,
+  useWorkspacePages,
+  useCurrentWorkspace,
+} from "@/client/components/workspace/use-workspace-view";
+import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useOnline } from "@/client/hooks/use-online";
 import {
   usePageDrag,
@@ -29,9 +34,10 @@ const EDGE_SCROLL_THRESHOLD_PX = 40;
 const EDGE_SCROLL_SPEED_PX = 4;
 
 export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProps) {
-  const pages = useWorkspaceStore(selectActivePages);
-  const currentWorkspace = useWorkspaceStore(selectActiveWorkspace);
-  const accessMode = useWorkspaceStore((s) => s.activeAccessMode);
+  const pages = useWorkspacePages();
+  const { route } = useWorkspaceView();
+  const currentWorkspace = useCurrentWorkspace();
+  const accessMode = route.phase === "ready" ? route.accessMode : "shared";
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
