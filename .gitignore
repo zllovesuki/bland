@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+.prompts/
 .dev.vars
 playwright-report/
 test-results/
