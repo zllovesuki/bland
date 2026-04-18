@@ -14,7 +14,7 @@ import type {
   SharedPageInfo,
   SharedWithMeItem,
   AncestorInfo,
-  PageContext,
+  PageRouteBootstrap,
   ResolvePageMentionsResponse,
 } from "@/shared/types";
 
@@ -225,7 +225,7 @@ export const api = {
       return res.ancestors;
     },
     context: async (pageId: string) => {
-      const res = await apiFetch<PageContext>(`/pages/${pageId}/context`);
+      const res = await apiFetch<PageRouteBootstrap>(`/pages/${pageId}/context`);
       return res;
     },
   },

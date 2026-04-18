@@ -10,7 +10,7 @@ import type { AppContext } from "@/worker/router";
 
 const pageContextRouter = new Hono<AppContext>();
 
-// GET /pages/:id/context - Bootstrap page access for non-members
+// GET /pages/:id/context - Bootstrap canonical page-route workspace identity
 pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), async (c) => {
   const pageId = c.req.param("id");
   const user = c.get("user")!;
@@ -34,8 +34,6 @@ pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), as
   if (resolved.fullMember) {
     return c.json({
       workspace,
-      page,
-      can_edit: true,
       viewer: toResolvedViewerContext(resolved, workspace.slug, "canonical"),
     });
   }
@@ -49,8 +47,6 @@ pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), as
 
   return c.json({
     workspace,
-    page,
-    can_edit: level === "edit",
     viewer: toResolvedViewerContext(resolved, workspace.slug, "canonical"),
   });
 });

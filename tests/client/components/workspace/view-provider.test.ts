@@ -80,7 +80,6 @@ describe("recoverPageAccess contract", () => {
   it("api.pages.context returns the correct workspace for a cross-workspace page", async () => {
     pageContextMock.mockResolvedValue({
       workspace: wsB,
-      page: pageInB,
       viewer: { access_mode: "member", principal_type: "user", route_kind: "canonical", workspace_slug: "workspace-b" },
     });
     listPagesMock.mockResolvedValue([pageInB]);
@@ -109,10 +108,8 @@ describe("recoverPageAccess contract", () => {
   });
 
   it("returns false when page belongs to the same workspace", async () => {
-    const pageInA = createPage({ id: "page-in-a", workspace_id: "ws-a" });
     pageContextMock.mockResolvedValue({
       workspace: wsA,
-      page: pageInA,
       viewer: { access_mode: "member", principal_type: "user", route_kind: "canonical", workspace_slug: "workspace-a" },
     });
 
@@ -135,7 +132,6 @@ describe("recoverPageAccess contract", () => {
   it("fetches pages only (no members) for shared-access discovery", async () => {
     pageContextMock.mockResolvedValue({
       workspace: wsB,
-      page: pageInB,
       viewer: { access_mode: "shared", principal_type: "user", route_kind: "canonical", workspace_slug: "workspace-b" },
     });
     listPagesMock.mockResolvedValue([pageInB]);

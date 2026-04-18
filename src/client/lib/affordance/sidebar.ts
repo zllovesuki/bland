@@ -3,10 +3,9 @@ import {
   ENABLED_ACTION,
   HIDDEN_ACTION,
   disabledAction,
+  OFFLINE_ACTION_REASON,
   type UiActionState,
 } from "@/client/lib/affordance/action-state";
-
-const OFFLINE_REASON = "You're offline";
 
 export interface SidebarBaseAffordance {
   createPage: UiActionState;
@@ -27,8 +26,12 @@ export function deriveSidebarBaseAffordance(input: {
   const entitlements = getPageStructureEntitlements(workspaceRole, false);
 
   return {
-    createPage: entitlements.createPage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
-    dragTree: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
+    createPage: entitlements.createPage
+      ? online
+        ? ENABLED_ACTION
+        : disabledAction(OFFLINE_ACTION_REASON)
+      : HIDDEN_ACTION,
+    dragTree: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
   };
 }
 
@@ -41,8 +44,16 @@ export function deriveSidebarRowAffordance(input: {
   const entitlements = getPageStructureEntitlements(workspaceRole, ownsPage);
 
   return {
-    createSubpage: entitlements.createPage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
-    archivePage: entitlements.archivePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
-    dragPage: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
+    createSubpage: entitlements.createPage
+      ? online
+        ? ENABLED_ACTION
+        : disabledAction(OFFLINE_ACTION_REASON)
+      : HIDDEN_ACTION,
+    archivePage: entitlements.archivePage
+      ? online
+        ? ENABLED_ACTION
+        : disabledAction(OFFLINE_ACTION_REASON)
+      : HIDDEN_ACTION,
+    dragPage: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
   };
 }

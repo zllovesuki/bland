@@ -289,10 +289,8 @@ export interface AncestorInfo {
   accessible: boolean;
 }
 
-export interface PageContext {
+export interface PageRouteBootstrap {
   workspace: Workspace;
-  page: Page;
-  can_edit: boolean;
   viewer: ResolvedViewerContext;
 }
 

@@ -65,7 +65,10 @@ describe("page-context", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      can_edit: true,
+      workspace: {
+        id: "ws-1",
+        slug: "demo",
+      },
       viewer: {
         access_mode: "member",
         principal_type: "user",
@@ -87,7 +90,10 @@ describe("page-context", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      can_edit: false,
+      workspace: {
+        id: "ws-1",
+        slug: "demo",
+      },
       viewer: {
         access_mode: "shared",
         principal_type: "user",

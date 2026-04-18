@@ -9,11 +9,10 @@ import {
   ENABLED_ACTION,
   HIDDEN_ACTION,
   disabledAction,
+  OFFLINE_ACTION_REASON,
   type UiActionState,
 } from "@/client/lib/affordance/action-state";
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
-
-const OFFLINE_REASON = "You're offline";
 
 export interface WorkspacePageAffordance {
   breadcrumbMode: "normal" | "restricted";
@@ -38,16 +37,16 @@ export function deriveWorkspacePageAffordance(input: {
 
   return {
     breadcrumbMode: accessMode === "shared" || workspaceRole === "guest" ? "restricted" : "normal",
-    shareDialog: canManageShares ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_REASON)) : HIDDEN_ACTION,
+    shareDialog: canManageShares ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
     editPageMetadata: editEntitlements.editPageMetadata
       ? online
         ? ENABLED_ACTION
-        : disabledAction(OFFLINE_REASON)
+        : disabledAction(OFFLINE_ACTION_REASON)
       : HIDDEN_ACTION,
     archivePage: structureEntitlements.archivePage
       ? online
         ? ENABLED_ACTION
-        : disabledAction(OFFLINE_REASON)
+        : disabledAction(OFFLINE_ACTION_REASON)
       : HIDDEN_ACTION,
     editor: deriveEditorAffordance({
       surface: "canonical",
