@@ -15,6 +15,7 @@ import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { JWT_ALGORITHM } from "@/worker/lib/constants";
 import { PresignRequest } from "@/shared/types";
+import { getPageEditEntitlements } from "@/shared/entitlements";
 import type { AppContext } from "@/worker/router";
 
 const log = createLogger("uploads");
@@ -41,9 +42,8 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("
     if (membership && canEdit(membership.role)) {
       uploadedBy = user.id;
     } else if (data.page_id) {
-      // Guest or non-member: check page-level edit access
       const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, data.page_id, workspaceId, "edit");
-      if (hasEdit) uploadedBy = user.id;
+      if (hasEdit && getPageEditEntitlements("canonical", "edit").uploadImage) uploadedBy = user.id;
     }
   }
 
@@ -53,7 +53,7 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("
       return c.json({ error: "bad_request", message: "page_id is required for shared-link uploads" }, 400);
     }
     const hasEdit = await canAccessPage(db, { type: "link", token: shareToken }, data.page_id, workspaceId, "edit");
-    if (!hasEdit) {
+    if (!hasEdit || !getPageEditEntitlements("shared", "edit").uploadImage) {
       return c.json({ error: "forbidden", message: "Share link does not grant edit access" }, 403);
     }
     const share = await db
@@ -128,26 +128,17 @@ uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c
     if (membership && canEdit(membership.role)) {
       putAuthorized = true;
     } else if (upload.page_id) {
-      // Guest or non-member: check page-level edit access
-      putAuthorized = await canAccessPage(
-        db,
-        { type: "user", userId: user.id },
-        upload.page_id,
-        upload.workspace_id,
-        "edit",
-      );
+      putAuthorized =
+        (await canAccessPage(db, { type: "user", userId: user.id }, upload.page_id, upload.workspace_id, "edit")) &&
+        getPageEditEntitlements("canonical", "edit").uploadImage;
     }
   }
 
   // Fall through to share token if JWT auth didn't authorize (spec §10.8)
   if (!putAuthorized && shareToken && upload.page_id) {
-    putAuthorized = await canAccessPage(
-      db,
-      { type: "link", token: shareToken },
-      upload.page_id,
-      upload.workspace_id,
-      "edit",
-    );
+    putAuthorized =
+      (await canAccessPage(db, { type: "link", token: shareToken }, upload.page_id, upload.workspace_id, "edit")) &&
+      getPageEditEntitlements("shared", "edit").uploadImage;
   }
 
   if (!putAuthorized) {

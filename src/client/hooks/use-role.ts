@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
-import { getMyRole, isAdminOrOwner as checkAdminOrOwner } from "@/client/lib/permissions";
+import { getMyRole, isWorkspaceAdminOrOwner as checkAdminOrOwner } from "@/client/lib/workspace-role";
 import type { WorkspaceRole } from "@/shared/types";
 
 interface RoleInfo {

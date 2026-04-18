@@ -3,12 +3,12 @@ import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
-import { useEditorRuntime } from "../../editor-runtime-context";
+import { useEditorAffordance } from "../../editor-affordance-context";
 import { CODE_LANGUAGES, resolveLanguage } from "./shared";
 import "../../styles/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
-  const { readOnly } = useEditorRuntime();
+  const { documentEditable } = useEditorAffordance();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,7 +58,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
         ref={btnRef}
         type="button"
         className="tiptap-code-block-lang-btn"
-        onClick={() => !readOnly && setOpen((p) => !p)}
+        onClick={() => documentEditable && setOpen((p) => !p)}
         onMouseDown={(e) => e.preventDefault()}
         contentEditable={false}
         aria-label={`Language: ${displayName}`}

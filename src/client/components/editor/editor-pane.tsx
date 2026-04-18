@@ -13,6 +13,7 @@ import { toast } from "@/client/components/toast";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { EditorTitle } from "./editor-title";
 import { EditorBody } from "./editor-body";
+import type { EditorAffordance } from "@/client/lib/affordance/editor";
 
 const INVALID_SCHEMA_MESSAGE = "This page contains content this editor version can't safely load. Refresh to update.";
 
@@ -22,8 +23,8 @@ interface EditorPaneProps {
   onTitleChange?: (title: string) => void;
   onProvider?: (provider: YProvider | null) => void;
   shareToken?: string;
-  readOnly?: boolean;
   workspaceId?: string;
+  affordance: EditorAffordance;
   /** DOM node for portalling the outline into a right-rail container (xl+). */
   outlinePortalTarget?: HTMLDivElement | null;
 }
@@ -34,8 +35,8 @@ export function EditorPane({
   onTitleChange,
   onProvider,
   shareToken,
-  readOnly,
   workspaceId,
+  affordance,
   outlinePortalTarget,
 }: EditorPaneProps) {
   const [title, setTitle] = useState(initialTitle);
@@ -176,12 +177,12 @@ export function EditorPane({
           pageId,
           workspaceId,
           hasShareToken: !!shareToken,
-          readOnly: !!readOnly,
+          readOnly: !affordance.documentEditable,
         },
       });
       toast.error(INVALID_SCHEMA_MESSAGE);
     },
-    [pageId, readOnly, shareToken, workspaceId],
+    [pageId, affordance.documentEditable, shareToken, workspaceId],
   );
 
   const handleTitleInput = useCallback(
@@ -205,7 +206,7 @@ export function EditorPane({
         title={title}
         onInput={handleTitleInput}
         disabled={!editorState || !!schemaError}
-        readOnly={readOnly || !!schemaError}
+        readOnly={!affordance.documentEditable || !!schemaError}
       />
 
       {schemaError ? (
@@ -220,9 +221,9 @@ export function EditorPane({
             fragment={editorState.fragment}
             provider={editorState.provider}
             pageId={pageId}
-            readOnly={readOnly}
             shareToken={shareToken}
             workspaceId={workspaceId}
+            affordance={affordance}
             onSchemaError={handleSchemaError}
             outlinePortalTarget={outlinePortalTarget}
           />

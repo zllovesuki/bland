@@ -4,6 +4,7 @@ import { offset } from "@floating-ui/dom";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { useTiptap } from "@tiptap/react";
 import { ArrowDown, ArrowUp, Menu, Plus, Trash2 } from "lucide-react";
+import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRuntime } from "../editor-runtime-context";
 import { primeTopLevelBlockDragState } from "../lib/block-drag-state";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
@@ -31,12 +32,13 @@ export function DragHandle() {
   const nodePos = useRef(-1);
   const nodeBid = useRef<string | null>(null);
   const groupRef = useRef<HTMLDivElement>(null);
-  const { workspaceId, pageId, shareToken, readOnly, canInsertPageMentions } = useEditorRuntime();
+  const { workspaceId, pageId, shareToken } = useEditorRuntime();
+  const affordance = useEditorAffordance();
   const [menuBid, setMenuBid] = useState<string | null>(null);
   const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
-  pageMentionRef.current = canInsertPageMentions()
+  pageMentionRef.current = affordance.canInsertPageMentions
     ? {
-        isAvailable: ({ editor: currentEditor }) => canInsertPageMentions() && currentEditor.isEditable,
+        isAvailable: ({ editor: currentEditor }) => affordance.canInsertPageMentions && currentEditor.isEditable,
         openPicker: ({ editor: currentEditor, range }) => {
           launchPageMentionPicker(currentEditor, { range, currentPageId: pageId, workspaceId });
         },
@@ -91,6 +93,7 @@ export function DragHandle() {
     const items = getSlashMenuItems({
       pageMention: pageMentionRef.current,
       image: {
+        isAvailable: () => affordance.canInsertImages,
         insertImage: ({ editor: currentEditor, range }) => {
           insertImageFromSlashMenu(currentEditor, range, { workspaceId, pageId, shareToken });
         },
@@ -137,7 +140,7 @@ export function DragHandle() {
       handle?.destroy();
       handle = null;
     }
-  }, [closeMenu, editor, pageId, shareToken, workspaceId]);
+  }, [closeMenu, editor, pageId, affordance.canInsertImages, shareToken, workspaceId]);
 
   useEffect(() => () => setHandleLocked(false), [setHandleLocked]);
 
@@ -193,7 +196,7 @@ export function DragHandle() {
     [closeMenu, menuBid],
   );
 
-  if (!editor || readOnly) return null;
+  if (!editor || !affordance.documentEditable) return null;
 
   const canMoveUp = menuBid !== null && canMoveTopLevelBlock(editor.state.doc, menuBid, -1);
   const canMoveDown = menuBid !== null && canMoveTopLevelBlock(editor.state.doc, menuBid, 1);

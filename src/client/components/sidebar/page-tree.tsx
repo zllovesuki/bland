@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
 import {
-  useWorkspaceView,
   useWorkspacePages,
   useCurrentWorkspace,
+  useWorkspaceMembers,
 } from "@/client/components/workspace/use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useOnline } from "@/client/hooks/use-online";
@@ -14,6 +14,10 @@ import { toast } from "@/client/components/toast";
 import { DEFAULT_PAGE_TITLE, MAX_TREE_DEPTH } from "@/shared/constants";
 import type { Page } from "@/shared/types";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { useAuthStore } from "@/client/stores/auth-store";
+import { getMyRole } from "@/client/lib/workspace-role";
+import { deriveSidebarBaseAffordance } from "@/client/lib/affordance/sidebar";
+import { isActionEnabled } from "@/client/lib/affordance/action-state";
 import { SIDEBAR_TREE_INDENT_PX, SIDEBAR_TREE_ROW_PADDING_PX } from "./tree-metrics";
 import { PageTreeItem } from "./page-tree-item";
 import "./page-tree-drag.css";
@@ -29,12 +33,15 @@ const EDGE_SCROLL_SPEED_PX = 4;
 
 export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProps) {
   const pages = useWorkspacePages();
-  const { route } = useWorkspaceView();
   const currentWorkspace = useCurrentWorkspace();
-  const accessMode = route.phase === "ready" ? route.accessMode : "shared";
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
+  const members = useWorkspaceMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const workspaceRole = getMyRole(members, currentUser) ?? "none";
+  const baseAffordance = deriveSidebarBaseAffordance({ workspaceRole, online });
+  const canDrag = isActionEnabled(baseAffordance.dragTree);
 
   const activePages = useMemo(
     () => pages.filter((p) => !p.archived_at).sort((a, b) => a.position - b.position),
@@ -193,6 +200,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      if (!canDrag) return;
       const target = dropTarget;
       const dragged = draggedId;
       onDragEnd();
@@ -233,7 +241,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
         toast.error(apiErr.message || "Failed to move page");
       }
     },
-    [dropTarget, draggedId, currentWorkspace, activePages, byId, onDragEnd, resetDragUi, updatePage],
+    [canDrag, dropTarget, draggedId, currentWorkspace, activePages, byId, onDragEnd, resetDragUi, updatePage],
   );
 
   const activeAncestorIds = useMemo(() => {
@@ -259,7 +267,6 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
     () => (dropTarget ? <DropSlotPreview target={dropTarget} draggedPage={draggedPage} /> : null),
     [dropTarget, draggedPage],
   );
-  const canDrag = online && accessMode !== "shared";
 
   return (
     <div
@@ -290,6 +297,8 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
             onDragStart={onDragStart}
             onDragEnd={handleDragEnd}
             canDrag={canDrag}
+            workspaceRole={workspaceRole}
+            online={online}
           />
         </div>
       ))}

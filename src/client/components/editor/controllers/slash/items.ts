@@ -34,6 +34,7 @@ export interface SlashMenuPageMentionConfig {
 }
 
 export interface SlashMenuImageConfig {
+  isAvailable?: (props: { editor: Editor }) => boolean;
   insertImage: (props: { editor: Editor; range: Range }) => void;
 }
 
@@ -167,6 +168,7 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
       group: "Media",
       icon: ImageIcon,
       aliases: ["img", "picture", "photo"],
+      isAvailable: ({ editor }) => (opts.image.isAvailable ? opts.image.isAvailable({ editor }) : true),
       command: ({ editor, range }) => {
         opts.image.insertImage({ editor, range });
       },

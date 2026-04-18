@@ -5,15 +5,16 @@ import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-rea
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
-import { useWorkspaceMembers, useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
+import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canArchivePage, canCreatePage } from "@/client/lib/permissions";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { confirm } from "@/client/components/confirm";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
+import { deriveSidebarRowAffordance } from "@/client/lib/affordance/sidebar";
+import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { getSidebarTreePaddingLeft } from "./tree-metrics";
 
 interface PageTreeItemProps {
@@ -31,6 +32,8 @@ interface PageTreeItemProps {
   onDragStart: (e: React.DragEvent, pageId: string) => void;
   onDragEnd: () => void;
   canDrag: boolean;
+  workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
+  online: boolean;
 }
 
 export function PageTreeItem({
@@ -48,6 +51,8 @@ export function PageTreeItem({
   onDragStart,
   onDragEnd,
   canDrag,
+  workspaceRole,
+  online,
 }: PageTreeItemProps) {
   const params = useParams({ strict: false }) as {
     workspaceSlug?: string;
@@ -56,10 +61,12 @@ export function PageTreeItem({
   const navigate = useNavigate();
   const currentWorkspace = useCurrentWorkspace();
   const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
-  const members = useWorkspaceMembers();
   const currentUser = useAuthStore((s) => s.user);
-  const canArchive = canArchivePage(members, currentUser, page);
-  const canCreate = canCreatePage(members, currentUser);
+  const rowAffordance = deriveSidebarRowAffordance({
+    workspaceRole,
+    ownsPage: currentUser?.id === page.created_by,
+    online,
+  });
   const { createPage, isCreating: creating } = useCreatePage();
   const isActive = params.pageId === page.id;
   const shouldExpand = activeAncestorIds.has(page.id) || isActive;
@@ -177,19 +184,20 @@ export function PageTreeItem({
           {page.title || DEFAULT_PAGE_TITLE}
         </span>
 
-        {canCreate && (
+        {isActionVisible(rowAffordance.createSubpage) && (
           <button
             onClick={handleCreateSubpage}
-            disabled={creating}
+            disabled={creating || !isActionEnabled(rowAffordance.createSubpage)}
             className={`ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-zinc-700 ${addVisibility} disabled:opacity-50`}
             tabIndex={-1}
             aria-label="Create subpage"
+            title={rowAffordance.createSubpage.kind === "disabled" ? rowAffordance.createSubpage.reason : undefined}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
 
-        {canArchive && (
+        {isActionVisible(rowAffordance.archivePage) && (
           <div ref={menuRef} className="shrink-0">
             <button
               onClick={(e) => {
@@ -197,13 +205,15 @@ export function PageTreeItem({
                 e.stopPropagation();
                 setMenuOpen((v) => !v);
               }}
+              disabled={!isActionEnabled(rowAffordance.archivePage)}
               className={`flex h-6 w-6 items-center justify-center rounded hover:bg-zinc-700 ${moreVisibility}`}
               tabIndex={-1}
               aria-label="Page options"
+              title={rowAffordance.archivePage.kind === "disabled" ? rowAffordance.archivePage.reason : undefined}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
-            {menuOpen && (
+            {menuOpen && isActionEnabled(rowAffordance.archivePage) && (
               <DropdownPortal triggerRef={menuRef} zIndex={menuZIndex} onClose={() => setMenuOpen(false)}>
                 <button
                   onClick={handleArchive}
@@ -238,6 +248,8 @@ export function PageTreeItem({
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               canDrag={canDrag}
+              workspaceRole={workspaceRole}
+              online={online}
             />
           ))}
         </div>

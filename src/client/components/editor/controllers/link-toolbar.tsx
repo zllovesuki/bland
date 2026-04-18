@@ -12,7 +12,7 @@ import {
   useInteractions,
 } from "@floating-ui/react";
 import { ExternalLink, Pencil, Unlink, Check, X } from "lucide-react";
-import { useEditorRuntime } from "../editor-runtime-context";
+import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRectPopover } from "./menu/popover";
 import "../styles/floating-controls.css";
 import "../styles/link-toolbar.css";
@@ -25,7 +25,7 @@ interface LinkState {
 
 export function LinkToolbar() {
   const { editor } = useTiptap();
-  const { readOnly } = useEditorRuntime();
+  const { documentEditable } = useEditorAffordance();
   const [link, setLink] = useState<LinkState | null>(null);
   const [editing, setEditing] = useState(false);
   const [editHref, setEditHref] = useState("");
@@ -176,7 +176,7 @@ export function LinkToolbar() {
     if (link?.href) window.open(link.href, "_blank", "noopener");
   };
 
-  if (!editor || readOnly || !open) return null;
+  if (!editor || !documentEditable || !open) return null;
 
   return (
     <FloatingPortal>

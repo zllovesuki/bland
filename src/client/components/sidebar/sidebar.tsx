@@ -13,7 +13,9 @@ import { PageTree } from "./page-tree";
 import { SearchDialog, searchShortcutLabel } from "./search-dialog";
 import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canCreatePage } from "@/client/lib/permissions";
+import { getMyRole } from "@/client/lib/workspace-role";
+import { deriveSidebarBaseAffordance } from "@/client/lib/affordance/sidebar";
+import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { toast } from "@/client/components/toast";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { MobileDrawer } from "@/client/components/ui/mobile-drawer";
@@ -42,6 +44,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   });
   const [searchOpen, setSearchOpen] = useState(false);
   const online = useOnline();
+  const workspaceRole = getMyRole(members, currentUser) ?? "none";
+  const sidebarAffordance = deriveSidebarBaseAffordance({ workspaceRole, online });
   const onlineRef = useRef(online);
   onlineRef.current = online;
 
@@ -87,13 +91,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
     >
       {showCollapsed ? (
         <div className="flex flex-1 flex-col items-center gap-2 pt-2">
-          {canCreatePage(members, currentUser) && (
+          {isActionVisible(sidebarAffordance.createPage) && (
             <button
               onClick={() => createPage()}
-              disabled={!online}
+              disabled={!isActionEnabled(sidebarAffordance.createPage)}
               className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-50"
               aria-label="New page"
-              title={online ? undefined : "You're offline"}
+              title={sidebarAffordance.createPage.kind === "disabled" ? sidebarAffordance.createPage.reason : undefined}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -144,12 +148,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
           )}
 
           <div className="flex items-center gap-1 px-2 py-2">
-            {canCreatePage(members, currentUser) && (
+            {isActionVisible(sidebarAffordance.createPage) && (
               <button
                 onClick={() => createPage()}
-                disabled={isCreating || !online}
+                disabled={isCreating || !isActionEnabled(sidebarAffordance.createPage)}
                 className="flex flex-1 items-center gap-1.5 rounded-md border border-zinc-700/50 bg-zinc-800/30 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600/50 hover:bg-zinc-800/60 hover:text-zinc-100 disabled:opacity-50"
-                title={online ? undefined : "You're offline"}
+                title={
+                  sidebarAffordance.createPage.kind === "disabled" ? sidebarAffordance.createPage.reason : undefined
+                }
               >
                 {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 New page

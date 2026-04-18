@@ -16,18 +16,8 @@ import {
   getPageLoadFailureAction,
   needsRestrictedAncestors,
 } from "@/client/lib/page-surface-model";
-import { derivePageCapabilities, type PageCapabilities } from "@/client/lib/page-capabilities";
 import { PageSurfaceCtx, type PageLoadTarget, type PageSurfaceContextValue } from "./use-page-surface";
 import type { Page, WorkspaceRole } from "@/shared/types";
-
-const NO_CAPABILITIES: PageCapabilities = {
-  canEdit: false,
-  canCreatePage: false,
-  canArchive: false,
-  canShare: false,
-  canDrag: false,
-  canInsertMention: false,
-};
 
 interface PageSurfaceProviderProps {
   surface: PageSurfaceKind;
@@ -378,23 +368,9 @@ export function PageSurfaceProvider({
     };
   }, [state.kind, readyPageId, workspaceId, shouldLoadRestrictedAncestors, shareToken]);
 
-  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
-
-  const capabilities = useMemo<PageCapabilities>(() => {
-    if (state.kind !== "ready") return NO_CAPABILITIES;
-    return derivePageCapabilities({
-      page: state.page,
-      accessMode,
-      role,
-      currentUserId,
-      online,
-      shareToken,
-    });
-  }, [state, accessMode, role, currentUserId, online, shareToken]);
-
   const contextValue = useMemo<PageSurfaceContextValue>(
-    () => ({ state, wsProvider, setWsProvider, patchPage, capabilities }),
-    [state, wsProvider, patchPage, capabilities],
+    () => ({ state, wsProvider, setWsProvider, patchPage }),
+    [state, wsProvider, patchPage],
   );
 
   return <PageSurfaceCtx.Provider value={contextValue}>{children}</PageSurfaceCtx.Provider>;

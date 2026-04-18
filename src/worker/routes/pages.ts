@@ -8,7 +8,6 @@ import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";
 import {
   canEdit,
-  isAdminOrOwner,
   canAccessPage,
   canAccessPages,
   resolvePageAccessLevels,
@@ -18,6 +17,12 @@ import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { MAX_TREE_DEPTH } from "@/shared/constants";
+import {
+  getPageEditEntitlements,
+  getPageStructureEntitlements,
+  type PageAccessLevel,
+  type ResolvedWorkspaceRole,
+} from "@/shared/entitlements";
 import { getPage } from "@/worker/lib/page-access";
 import { getPageAncestorChain, getPageAncestorDepthFromChain, validatePageMove } from "@/worker/lib/page-tree";
 import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
@@ -35,7 +40,7 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
 
   const membership = await requireMembership(c, db, user.id, workspaceId, true);
   if (membership instanceof Response) return membership;
-  if (!canEdit(membership.role)) {
+  if (!getPageStructureEntitlements(membership.role, false).createPage) {
     return c.json({ error: "forbidden", message: "You do not have permission to create pages in this workspace" }, 403);
   }
 
@@ -211,22 +216,29 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   }
 
   const membership = await checkMembership(db, user.id, workspaceId);
+  const workspaceRole: ResolvedWorkspaceRole = membership?.role ?? "none";
+  let pageAccess: PageAccessLevel = "none";
 
   if (membership && canEdit(membership.role)) {
-    // Full edit access for owner/admin/member
+    pageAccess = "edit";
   } else {
-    // Guest or non-member: check page-level edit share
     const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, pageId, workspaceId, "edit");
     if (!hasEdit) {
       return c.json({ error: "forbidden", message: "You do not have edit access to this page" }, 403);
     }
+    pageAccess = "edit";
   }
 
   const data = await parseBody(c, UpdatePageRequest);
   if (data instanceof Response) return data;
+  const editEntitlements = getPageEditEntitlements("canonical", pageAccess);
+  const structureEntitlements = getPageStructureEntitlements(workspaceRole, existing.created_by === user.id);
 
-  // Non-members can only update icon and cover_url, not tree operations
-  if (!membership && (data.parent_id !== undefined || data.position !== undefined)) {
+  if (!editEntitlements.editPageMetadata) {
+    return c.json({ error: "forbidden", message: "You do not have edit access to this page" }, 403);
+  }
+
+  if ((data.parent_id !== undefined || data.position !== undefined) && !structureEntitlements.movePage) {
     return c.json({ error: "forbidden", message: "Shared users cannot move pages" }, 403);
   }
 
@@ -315,7 +327,7 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
   // Check permission: page creator, admin, or owner
   const isCreator = existing.created_by === user.id;
 
-  if (!isCreator && !isAdminOrOwner(membership.role)) {
+  if (!getPageStructureEntitlements(membership.role, isCreator).archivePage) {
     return c.json({ error: "forbidden", message: "Only the page creator or workspace admins can delete pages" }, 403);
   }
 

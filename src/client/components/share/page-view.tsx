@@ -9,8 +9,10 @@ import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { useOnline } from "@/client/hooks/use-online";
 import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
+import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import type { AncestorInfo } from "@/shared/types";
 
 function SharedBreadcrumbs({
@@ -72,6 +74,7 @@ function SharedBreadcrumbSkeleton() {
 export function SharePageView() {
   const { state, patchPage, setWsProvider } = usePageSurface();
   const presentation = useSharedPagePresentation();
+  const online = useOnline();
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   const handleTitleChange = useCallback(
     (titleOverride: string) => {
@@ -108,6 +111,11 @@ export function SharePageView() {
 
   const page = presentation.page;
   const showBreadcrumbSlot = presentation.isAncestorTrailLoading || presentation.ancestors.length > 0;
+  const pageAffordance = deriveSharePageAffordance({
+    pageAccess: presentation.isViewOnly ? "view" : "edit",
+    workspaceId: presentation.workspaceId,
+    online,
+  });
 
   return (
     <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
@@ -147,8 +155,8 @@ export function SharePageView() {
             onTitleChange={handleTitleChange}
             onProvider={setWsProvider}
             shareToken={presentation.token}
-            readOnly={presentation.isViewOnly}
             workspaceId={presentation.workspaceId}
+            affordance={pageAffordance.editor}
             outlinePortalTarget={outlineRailEl}
           />
         </ErrorBoundary>

@@ -25,11 +25,15 @@ export function CoverPicker({
   onSelect,
   workspaceId,
   pageId,
+  disabled = false,
+  title,
 }: {
   currentCover: string | null;
   onSelect: (cover: string | null) => void;
   workspaceId: string;
   pageId: string;
+  disabled?: boolean;
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -58,21 +62,25 @@ export function CoverPicker({
       {currentCover ? (
         <button
           onClick={() => setOpen(true)}
-          className="rounded-md bg-zinc-800/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-800 group-hover/cover:opacity-100"
+          disabled={disabled}
+          title={title}
+          className="rounded-md bg-zinc-800/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-800 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Change cover
         </button>
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-zinc-500 opacity-40 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/actions:opacity-100"
+          disabled={disabled}
+          title={title}
+          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-zinc-500 opacity-40 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/actions:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Image className="h-4 w-4" />
           <span>Add cover</span>
         </button>
       )}
 
-      <Dialog open={open} onClose={() => setOpen(false)} className="w-full max-w-sm p-4">
+      <Dialog open={open && !disabled} onClose={() => setOpen(false)} className="w-full max-w-sm p-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-base font-medium text-zinc-300">Cover</span>
           <div className="flex items-center gap-2">

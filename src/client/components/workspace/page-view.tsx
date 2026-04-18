@@ -4,7 +4,9 @@ import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { canArchivePage, canCreatePage, getMyRole } from "@/client/lib/permissions";
+import { getMyRole } from "@/client/lib/workspace-role";
+import { deriveWorkspacePageAffordance } from "@/client/lib/affordance/workspace-page";
+import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { PageCover } from "@/client/components/ui/page-cover";
@@ -149,7 +151,6 @@ function PageViewContent() {
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
-  const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   const { status } = useSyncStatus(wsProvider);
   const knownHasCover = pages.find((p) => p.id === params.pageId)?.cover_url;
@@ -157,6 +158,16 @@ function PageViewContent() {
 
   const page = state.kind === "ready" ? state.page : null;
   const ancestors = state.kind === "ready" ? state.ancestors : [];
+  const pageAffordance = page
+    ? deriveWorkspacePageAffordance({
+        accessMode,
+        workspaceRole: role ?? "none",
+        pageAccess: page.can_edit === false ? "view" : "edit",
+        ownsPage: currentUser?.id === page.created_by,
+        workspaceId: effectiveWorkspaceId ?? undefined,
+        online,
+      })
+    : null;
 
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
 
@@ -216,13 +227,19 @@ function PageViewContent() {
         {page.cover_url && (
           <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
             <PageCover coverUrl={page.cover_url} />
-            {workspace && page.can_edit !== false && online && (
+            {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) && (
               <div className="absolute right-2 top-2">
                 <CoverPicker
                   currentCover={page.cover_url}
                   onSelect={handleCoverChange}
                   workspaceId={workspace.id}
                   pageId={page.id}
+                  disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
+                  title={
+                    pageAffordance.editPageMetadata.kind === "disabled"
+                      ? pageAffordance.editPageMetadata.reason
+                      : undefined
+                  }
                 />
               </div>
             )}
@@ -230,7 +247,7 @@ function PageViewContent() {
         )}
 
         <div className="mb-6 flex min-h-6 items-center justify-between">
-          {useRestrictedBreadcrumbs ? (
+          {pageAffordance?.breadcrumbMode === "restricted" ? (
             <SharedBreadcrumbs
               page={page}
               workspaceSlug={params.workspaceSlug}
@@ -246,8 +263,12 @@ function PageViewContent() {
             />
           )}
           <div className="flex items-center gap-3">
-            {!isSharedMode && workspace && online && canCreatePage(members, currentUser) && (
-              <ShareDialog pageId={page.id} />
+            {!isSharedMode && workspace && pageAffordance && isActionVisible(pageAffordance.shareDialog) && (
+              <ShareDialog
+                pageId={page.id}
+                disabled={!isActionEnabled(pageAffordance.shareDialog)}
+                title={pageAffordance.shareDialog.kind === "disabled" ? pageAffordance.shareDialog.reason : undefined}
+              />
             )}
             <AvatarStack
               awareness={wsProvider?.awareness ?? null}
@@ -259,15 +280,30 @@ function PageViewContent() {
 
         <div className="group/actions mb-4 flex items-start justify-between pl-7">
           <div className="flex items-center gap-3">
-            {workspace && page.can_edit !== false && online ? (
+            {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) ? (
               <>
-                <IconPicker currentIcon={page.icon} onSelect={handleIconChange} />
+                <IconPicker
+                  currentIcon={page.icon}
+                  onSelect={handleIconChange}
+                  disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
+                  title={
+                    pageAffordance.editPageMetadata.kind === "disabled"
+                      ? pageAffordance.editPageMetadata.reason
+                      : undefined
+                  }
+                />
                 {!page.cover_url && (
                   <CoverPicker
                     currentCover={null}
                     onSelect={handleCoverChange}
                     workspaceId={workspace.id}
                     pageId={page.id}
+                    disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
+                    title={
+                      pageAffordance.editPageMetadata.kind === "disabled"
+                        ? pageAffordance.editPageMetadata.reason
+                        : undefined
+                    }
                   />
                 )}
               </>
@@ -275,12 +311,13 @@ function PageViewContent() {
               page.icon && <EmojiIcon emoji={page.icon} size={28} />
             )}
           </div>
-          {!isSharedMode && workspace && canArchivePage(members, currentUser, page) && (
+          {!isSharedMode && workspace && pageAffordance && isActionVisible(pageAffordance.archivePage) && (
             <button
               onClick={handleArchive}
-              disabled={isArchiving || !online}
+              disabled={isArchiving || !isActionEnabled(pageAffordance.archivePage)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-40 transition-[colors,opacity] hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
-              aria-label={online ? "Archive page" : "Archive page (offline)"}
+              aria-label={pageAffordance.archivePage.kind === "disabled" ? "Archive page (offline)" : "Archive page"}
+              title={pageAffordance.archivePage.kind === "disabled" ? pageAffordance.archivePage.reason : undefined}
             >
               {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               Archive
@@ -294,8 +331,14 @@ function PageViewContent() {
             initialTitle={page.title}
             onTitleChange={handleTitleChange}
             onProvider={setWsProvider}
-            readOnly={page.can_edit === false}
             workspaceId={effectiveWorkspaceId}
+            affordance={
+              pageAffordance?.editor ?? {
+                documentEditable: false,
+                canInsertPageMentions: false,
+                canInsertImages: false,
+              }
+            }
             outlinePortalTarget={outlineRailEl}
           />
         </ErrorBoundary>

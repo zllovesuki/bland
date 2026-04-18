@@ -6,12 +6,20 @@ import { pageShares, pages, users, workspaces, memberships } from "@/worker/db/d
 import { optionalAuth, requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership, requireMembership } from "@/worker/lib/membership";
-import { isAdminOrOwner, canAccessPage, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
+import { canAccessPage, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
 import { generateSecureToken } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { getPage } from "@/worker/lib/page-access";
 import { CreateShareRequest } from "@/shared/types";
+import {
+  canCreateLinkShare,
+  canCreateUserShare,
+  canCreateUserShareByEmail,
+  canRevealLinkTokens,
+  canRevealShareGranteeEmails,
+  canRevokeShare,
+} from "@/shared/entitlements";
 import type { AppContext } from "@/worker/router";
 
 const log = createLogger("shares");
@@ -85,17 +93,15 @@ sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c
   const membership = await requireMembership(c, db, user.id, page.workspace_id, true);
   if (membership instanceof Response) return membership;
 
-  const data = await parseBody(c, CreateShareRequest);
-  if (data instanceof Response) return data;
-
-  // Authorization per spec §10.8
   if (membership.role === "guest") {
     return c.json({ error: "forbidden", message: "Guests cannot manage shares" }, 403);
   }
 
+  const data = await parseBody(c, CreateShareRequest);
+  if (data instanceof Response) return data;
+
   if (data.grantee_type === "link") {
-    // Only admin/owner can create link shares
-    if (!isAdminOrOwner(membership.role)) {
+    if (!canCreateLinkShare(membership.role)) {
       return c.json({ error: "forbidden", message: "Only admins and owners can create link shares" }, 403);
     }
 
@@ -126,8 +132,7 @@ sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c
     if (data.grantee_id) {
       resolvedGranteeId = data.grantee_id;
     } else if (data.grantee_email) {
-      // Only admin/owner can use email lookup to prevent account enumeration
-      if (!isAdminOrOwner(membership.role)) {
+      if (!canCreateUserShareByEmail(membership.role)) {
         return c.json({ error: "forbidden", message: "Only admins and owners can share by email" }, 403);
       }
       const normalizedEmail = data.grantee_email.toLowerCase();
@@ -147,13 +152,9 @@ sharesRouter.post("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c
       return c.json({ error: "bad_request", message: "You cannot share a page with yourself" }, 400);
     }
 
-    // Admin/owner can share with any registered user.
-    // Members can only share with existing workspace members.
-    if (!isAdminOrOwner(membership.role)) {
-      const targetMembership = await checkMembership(db, resolvedGranteeId, page.workspace_id);
-      if (!targetMembership) {
-        return c.json({ error: "bad_request", message: "Members can only share with workspace members" }, 400);
-      }
+    const targetMembership = await checkMembership(db, resolvedGranteeId, page.workspace_id);
+    if (!canCreateUserShare(membership.role, !!targetMembership)) {
+      return c.json({ error: "bad_request", message: "Members can only share with workspace members" }, 400);
     }
 
     // Prevent duplicate user shares for the same grantee on the same page
@@ -269,22 +270,20 @@ sharesRouter.get("/pages/:id/share", requireAuth, rateLimit("RL_API"), async (c)
     .leftJoin(users, eq(pageShares.grantee_id, users.id))
     .where(eq(pageShares.page_id, pageId));
 
-  // Redact link_token for non-admin/owner per spec §10.8
-  // Redact grantee emails for non-members to prevent enumeration
-  const isMemberWithRole = membership && membership.role !== "guest";
-  const canSeeLinkTokens = membership ? isAdminOrOwner(membership.role) : false;
+  const canSeeLinkToken = membership ? canRevealLinkTokens(membership.role) : false;
+  const canSeeGranteeEmails = membership ? canRevealShareGranteeEmails(membership.role) : false;
   const result = rows.map((s) => ({
     id: s.id,
     page_id: s.page_id,
     grantee_type: s.grantee_type,
     grantee_id: s.grantee_id,
     permission: s.permission,
-    link_token: canSeeLinkTokens ? s.link_token : null,
+    link_token: canSeeLinkToken ? s.link_token : null,
     created_by: s.created_by,
     created_at: s.created_at,
     grantee_user:
       s.grantee_id && s.grantee_name
-        ? { id: s.grantee_id, name: s.grantee_name, email: isMemberWithRole ? s.grantee_email! : "" }
+        ? { id: s.grantee_id, name: s.grantee_name, email: canSeeGranteeEmails ? s.grantee_email! : "" }
         : null,
   }));
 
@@ -319,21 +318,22 @@ sharesRouter.delete("/pages/:id/share/:shareId", requireAuth, rateLimit("RL_API"
     return c.json({ error: "not_found", message: "Share not found" }, 404);
   }
 
-  // Members can only revoke workspace-member user shares they created
-  if (!isAdminOrOwner(membership.role)) {
-    if (share.grantee_type === "link") {
-      return c.json({ error: "forbidden", message: "Only admins and owners can revoke link shares" }, 403);
-    }
-    if (share.created_by !== user.id) {
-      return c.json({ error: "forbidden", message: "You can only revoke shares you created" }, 403);
-    }
-    // Verify the grantee is still a workspace member (members can only revoke member shares)
-    if (share.grantee_id) {
-      const granteeInWorkspace = await checkMembership(db, share.grantee_id, page.workspace_id);
-      if (!granteeInWorkspace) {
-        return c.json({ error: "forbidden", message: "Members can only revoke workspace-member user shares" }, 403);
-      }
-    }
+  const granteeInWorkspace = share.grantee_id ? await checkMembership(db, share.grantee_id, page.workspace_id) : null;
+  if (
+    !canRevokeShare({
+      workspaceRole: membership.role,
+      granteeType: share.grantee_type,
+      shareCreatedByViewer: share.created_by === user.id,
+      granteeIsWorkspaceMember: !!granteeInWorkspace,
+    })
+  ) {
+    const message =
+      share.grantee_type === "link"
+        ? "Only admins and owners can revoke link shares"
+        : share.created_by !== user.id
+          ? "You can only revoke shares you created"
+          : "Members can only revoke workspace-member user shares";
+    return c.json({ error: "forbidden", message }, 403);
   }
 
   await db.delete(pageShares).where(eq(pageShares.id, shareId));

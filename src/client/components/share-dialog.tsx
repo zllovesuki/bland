@@ -28,9 +28,11 @@ function PermissionSelect({ value, onChange }: { value: "view" | "edit"; onChang
 
 interface ShareDialogProps {
   pageId: string;
+  disabled?: boolean;
+  title?: string;
 }
 
-export function ShareDialog({ pageId }: ShareDialogProps) {
+export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProps) {
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState<PageShare[]>([]);
   const [loading, setLoading] = useState(false);
@@ -176,6 +178,7 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
     <div className="relative">
       <button
         onClick={() => {
+          if (disabled) return;
           if (!open) {
             setLoading(true);
             setShares([]);
@@ -183,7 +186,9 @@ export function ShareDialog({ pageId }: ShareDialogProps) {
           }
           setOpen((o) => !o);
         }}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+        disabled={disabled}
+        title={title}
+        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Share2 className="h-3.5 w-3.5" />
         Share

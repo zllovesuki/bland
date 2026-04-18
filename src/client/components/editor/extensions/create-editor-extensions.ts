@@ -29,7 +29,7 @@ import type {
   SlashMenuImageConfig,
   SlashMenuPageMentionConfig,
 } from "../controllers/slash/items";
-import { canInsertPageMentionAtRange, canInsertPageMentions } from "../lib/page-mention/can-insert";
+import { canInsertPageMentionAtRange } from "../lib/page-mention/can-insert";
 import { launchPageMentionPicker } from "../lib/page-mention/open-picker";
 import {
   IMAGE_MIME_TYPES,
@@ -39,12 +39,14 @@ import {
   type ImageNodeTarget,
 } from "../lib/media-actions";
 import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
+import type { EditorAffordance } from "@/client/lib/affordance/editor";
 
 interface CreateEditorExtensionsOpts {
   fragment: Y.XmlFragment;
   provider: { awareness: Awareness };
   user: { name: string; color: string; avatar_url: string | null };
   getRuntime: () => EditorRuntimeSnapshot;
+  getAffordance: () => EditorAffordance;
 }
 
 function countWords(text: string): number {
@@ -57,7 +59,7 @@ function countCharacters(text: string): number {
 }
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
-  const { fragment, provider, user, getRuntime } = opts;
+  const { fragment, provider, user, getRuntime, getAffordance } = opts;
   const getUploadContext = () => {
     const runtime = getRuntime();
     return {
@@ -67,12 +69,8 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     };
   };
   const canOpenMentions = (editable: boolean) => {
-    const runtime = getRuntime();
-    return canInsertPageMentions({
-      editable,
-      workspaceId: runtime.workspaceId,
-      shareToken: runtime.shareToken,
-    });
+    const affordance = getAffordance();
+    return editable && affordance.canInsertPageMentions;
   };
 
   const pageMentionSlashConfig: SlashMenuPageMentionConfig = {
@@ -88,6 +86,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
   };
 
   const imageSlashConfig: SlashMenuImageConfig = {
+    isAvailable: () => getAffordance().canInsertImages,
     insertImage: ({ editor, range }) => {
       insertImageFromSlashMenu(editor, range, getUploadContext());
     },
@@ -166,7 +165,8 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       allowedMimeTypes: IMAGE_MIME_TYPES,
       onPaste: (currentEditor, files) => {
         const runtime = getRuntime();
-        if (!currentEditor.isEditable || !runtime.workspaceId || files.length === 0) return;
+        if (!currentEditor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0)
+          return;
         const selection = currentEditor.state.selection;
         const placeholders: ImageNodeTarget[] = [];
         const first = insertImagePlaceholderAtRange(currentEditor, { from: selection.from, to: selection.to });
@@ -189,7 +189,8 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       },
       onDrop: (currentEditor, files, pos) => {
         const runtime = getRuntime();
-        if (!currentEditor.isEditable || !runtime.workspaceId || files.length === 0) return;
+        if (!currentEditor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0)
+          return;
         const placeholders: ImageNodeTarget[] = [];
         let insertPos = pos;
         for (const _file of files) {

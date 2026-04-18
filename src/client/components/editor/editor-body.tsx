@@ -14,13 +14,11 @@ import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
 import { PageMentionContext } from "./page-mention/context";
 import { usePageMentionScope } from "./page-mention/scope-context";
-import {
-  EditorRuntimeContext,
-  canInsertPageMentionsForRuntime,
-  type EditorRuntimeSnapshot,
-} from "./editor-runtime-context";
+import { EditorAffordanceContext } from "./editor-affordance-context";
+import { EditorRuntimeContext, type EditorRuntimeSnapshot } from "./editor-runtime-context";
 import { EditorMetrics } from "./editor-metrics";
 import { EditorOutline } from "./editor-outline";
+import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
@@ -32,9 +30,9 @@ interface EditorBodyProps {
   fragment: Y.XmlFragment;
   provider: { awareness: Awareness };
   pageId: string;
-  readOnly?: boolean;
   shareToken?: string;
   workspaceId?: string;
+  affordance: EditorAffordance;
   onSchemaError?: (error: Error) => void;
   /** DOM node for portalling the outline into a right-rail container (xl+). */
   outlinePortalTarget?: HTMLDivElement | null;
@@ -44,25 +42,25 @@ export const EditorBody = memo(function EditorBody({
   fragment,
   provider,
   pageId,
-  readOnly,
   shareToken,
   workspaceId,
+  affordance,
   onSchemaError,
   outlinePortalTarget,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const pageMentionScope = usePageMentionScope();
+  const affordanceRef = useRef(affordance);
+  affordanceRef.current = affordance;
   const runtimeRef = useRef<EditorRuntimeSnapshot>({
     workspaceId,
     pageId,
     shareToken,
-    readOnly: !!readOnly,
   });
   runtimeRef.current = {
     workspaceId,
     pageId,
     shareToken,
-    readOnly: !!readOnly,
   };
 
   const getRuntime = useCallback(() => runtimeRef.current, []);
@@ -74,7 +72,7 @@ export const EditorBody = memo(function EditorBody({
       shareToken: runtime.shareToken,
     };
   }, []);
-  const canInsertMentions = useCallback(() => canInsertPageMentionsForRuntime(runtimeRef.current), []);
+  const getAffordance = useCallback(() => affordanceRef.current, []);
   const collaborationUser = useMemo(
     () => ({
       name: user?.name ?? "Anonymous",
@@ -91,8 +89,9 @@ export const EditorBody = memo(function EditorBody({
         provider,
         user: collaborationUser,
         getRuntime,
+        getAffordance,
       }),
-      editable: !readOnly,
+      editable: affordance.documentEditable,
       enableContentCheck: true,
       shouldRerenderOnTransaction: false,
       coreExtensionOptions: EDITOR_CORE_EXTENSION_OPTIONS,
@@ -142,12 +141,12 @@ export const EditorBody = memo(function EditorBody({
         },
       },
     },
-    [fragment, pageId, provider],
+    [fragment, getAffordance, pageId, provider],
   );
 
   useEffect(() => {
-    if (editor) editor.setEditable(!readOnly);
-  }, [editor, readOnly]);
+    if (editor) editor.setEditable(affordance.documentEditable);
+  }, [editor, affordance.documentEditable]);
 
   useEffect(() => {
     provider.awareness.setLocalStateField("user", collaborationUser);
@@ -158,41 +157,42 @@ export const EditorBody = memo(function EditorBody({
       workspaceId,
       pageId,
       shareToken,
-      readOnly: !!readOnly,
       getRuntime,
       getUploadContext,
-      canInsertPageMentions: canInsertMentions,
     }),
-    [canInsertMentions, getRuntime, getUploadContext, pageId, readOnly, shareToken, workspaceId],
+    [getRuntime, getUploadContext, pageId, shareToken, workspaceId],
   );
 
   if (!editor) return null;
 
   return (
     <EditorRuntimeContext.Provider value={runtimeValue}>
-      {/* Tiptap node views are rendered through EditorContent's React bridge.
-          Re-providing the existing mention scope here keeps the stable
-          route-level resolver lifetime while ensuring node views can still
-          consume PageMentionContext. */}
-      <PageMentionContext.Provider value={pageMentionScope}>
-        <Tiptap editor={editor}>
-          <div className="relative">
-            <Tiptap.Content />
-            {!readOnly && <DragHandle />}
-            {!readOnly && <FormattingToolbar />}
-            {!readOnly && <LinkToolbar />}
-            {!readOnly && <ImageToolbar />}
-            {!readOnly && <TableMenu />}
-          </div>
-          <div className="mt-4 space-y-4 pl-4 sm:pl-7">
-            <div className={outlinePortalTarget ? "xl:hidden" : undefined}>
-              <EditorOutline />
+      <EditorAffordanceContext.Provider value={affordance}>
+        {/* Tiptap node views are rendered through EditorContent's React bridge.
+            Re-providing the existing mention scope here keeps the stable
+            route-level resolver lifetime while ensuring node views can still
+            consume PageMentionContext. */}
+        <PageMentionContext.Provider value={pageMentionScope}>
+          <Tiptap editor={editor}>
+            <div className="relative">
+              <Tiptap.Content />
+              {affordance.documentEditable && <DragHandle />}
+              {affordance.documentEditable && <FormattingToolbar />}
+              {affordance.documentEditable && <LinkToolbar />}
+              {affordance.documentEditable && <ImageToolbar />}
+              {affordance.documentEditable && <TableMenu />}
             </div>
-            <EditorMetrics className="justify-end" />
-          </div>
-          {outlinePortalTarget && createPortal(<EditorOutline className="tiptap-outline--rail" />, outlinePortalTarget)}
-        </Tiptap>
-      </PageMentionContext.Provider>
+            <div className="mt-4 space-y-4 pl-4 sm:pl-7">
+              <div className={outlinePortalTarget ? "xl:hidden" : undefined}>
+                <EditorOutline />
+              </div>
+              <EditorMetrics className="justify-end" />
+            </div>
+            {outlinePortalTarget &&
+              createPortal(<EditorOutline className="tiptap-outline--rail" />, outlinePortalTarget)}
+          </Tiptap>
+        </PageMentionContext.Provider>
+      </EditorAffordanceContext.Provider>
     </EditorRuntimeContext.Provider>
   );
 });

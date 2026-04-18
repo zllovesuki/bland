@@ -2,6 +2,7 @@ import { useRef, useCallback, useState, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
+import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import { showImageInsertPanel } from "../../controllers/image/insert-panel";
 import { prepareBlockDragPreview } from "../../lib/block-drag-preview";
@@ -10,6 +11,7 @@ import "../../styles/image-node.css";
 
 export function ImageNodeView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
+  const { canInsertImages } = useEditorAffordance();
   const { src, alt = "", title, align = "left", width } = node.attrs;
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<number | null>(null);
@@ -99,25 +101,25 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
 
   const uploadCtx = { workspaceId, pageId, shareToken };
   const openImagePanel = useCallback(() => {
-    if (!editor.isEditable) return;
+    if (!editor.isEditable || !canInsertImages) return;
     const pos = getPos();
     if (typeof pos !== "number") return;
     showImageInsertPanel(editor, {
       uploadContext: uploadCtx,
       target: createImageNodeTarget(editor, pos),
     });
-  }, [editor, getPos, pageId, shareToken, workspaceId]);
+  }, [canInsertImages, editor, getPos, pageId, shareToken, workspaceId]);
 
   if (!resolvedSrc) {
     return (
       <NodeViewWrapper>
         <div
           className="tiptap-image-placeholder"
-          onClick={editor.isEditable ? openImagePanel : undefined}
-          style={editor.isEditable ? undefined : { cursor: "default" }}
+          onClick={editor.isEditable && canInsertImages ? openImagePanel : undefined}
+          style={editor.isEditable && canInsertImages ? undefined : { cursor: "default" }}
         >
           <ImageIcon size={20} />
-          <span>{editor.isEditable ? "Add an image" : "Image"}</span>
+          <span>{editor.isEditable && canInsertImages ? "Add an image" : "Image"}</span>
           {editor.isEditable && (
             <button
               type="button"

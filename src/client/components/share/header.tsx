@@ -4,6 +4,8 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
+import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
+import { useOnline } from "@/client/hooks/use-online";
 
 interface ShareHeaderProps {
   onToggleMobileSidebar: () => void;
@@ -11,6 +13,12 @@ interface ShareHeaderProps {
 
 export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
   const presentation = useSharedPagePresentation();
+  const online = useOnline();
+  const pageAffordance = deriveSharePageAffordance({
+    pageAccess: presentation.isViewOnly ? "view" : "edit",
+    workspaceId: presentation.workspaceId,
+    online,
+  });
 
   return (
     <header className="z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm">
@@ -41,7 +49,7 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
 
         <div className="flex-1" />
 
-        {presentation.isViewOnly && (
+        {pageAffordance.showViewOnlyBadge && (
           <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
             <Eye className="h-3 w-3" />
             View only

@@ -4,6 +4,7 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
 import { FloatingPortal } from "@floating-ui/react";
 import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import {
   createImageNodeTarget,
@@ -38,7 +39,8 @@ function hiddenToolbarStyles(): CSSProperties {
 
 export function ImageToolbar() {
   const { editor } = useTiptap();
-  const { workspaceId, pageId, shareToken, readOnly } = useEditorRuntime();
+  const { workspaceId, pageId, shareToken } = useEditorRuntime();
+  const affordance = useEditorAffordance();
   const [editingAlt, setEditingAlt] = useState(false);
   const [altText, setAltText] = useState("");
   const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
@@ -212,7 +214,7 @@ export function ImageToolbar() {
   // Resolve the selected image container before rendering the toolbar. If we
   // render with an unresolved anchor, floating-ui falls back to (0, 0) and the
   // toolbar looks like it disappeared even though selection is correct.
-  if (!editor || readOnly || !open || !referenceEl) return null;
+  if (!editor || !affordance.documentEditable || !open || !referenceEl) return null;
 
   return (
     <FloatingPortal>
@@ -256,9 +258,11 @@ export function ImageToolbar() {
               type="button"
               title="Replace image"
               aria-label="Replace image"
+              disabled={!affordance.canInsertImages}
               onMouseDown={(e) => {
                 e.preventDefault();
                 if (!imageState) return;
+                if (!affordance.canInsertImages) return;
                 triggerFileUploadAtTarget(editor, uploadCtx, createImageNodeTarget(editor, imageState.pos));
               }}
             >

@@ -76,6 +76,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Express app chrome through explicit layout routes rooted at `src/client/route-tree.tsx` and `src/client/components/root-shell.tsx`, not route metadata switches.
 - Keep asynchronous route and page loading in providers or components, not route `beforeLoad`. Use `beforeLoad` only for synchronous auth and redirect guards.
 - Keep workspace route resolution in `src/client/components/workspace/view-provider.tsx`, the shared page-surface state machine in `src/client/components/page-surface/provider.tsx` with canonical glue in `src/client/components/page-surface/canonical.tsx`, and share-link state in `src/client/components/share/view-provider.tsx`. Keep `workspace/page-view.tsx` and `share/page-view.tsx` focused on rendering and page-local actions.
+- Keep stable allow/deny permission semantics in `src/shared/entitlements/`. Keep client UX action visibility and disabled state in `src/client/lib/affordance/`. Do not collapse these back into one monolithic client permission bag.
 - Keep `src/client/stores/workspace-store.ts` as a persisted cache and snapshot store, not a home for transient request lifecycle or active-route state.
 - Prefer discriminated unions like `WorkspaceRouteState` and `PageSurfaceState`, plus pure helpers under `src/client/lib/`, for non-trivial routing and loading logic.
 - Use `createRequestGuard` for async effects that can overlap during navigation or provider remounts, and `classifyFailure` plus structured worker error codes for failure handling. Do not branch on error-message text.
@@ -83,6 +84,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Treat `useEffect` dependency arrays as correctness-critical. Do not introduce circular update paths where an effect depends on state that the effect itself mutates unless the guard is explicit, necessary, and obviously safe on a second read.
 - Keep network calls centralized in `src/client/lib/api.ts`.
 - Extend the shared editor under `src/client/components/editor/` instead of creating parallel editor shells or abstractions.
+- Keep `src/client/components/editor/editor-runtime-context.ts` operational only, and keep UI editing affordances in `src/client/components/editor/editor-affordance-context.ts`. Do not infer mention/upload affordances from raw runtime fields when the affordance layer already owns them.
 - Keep the authenticated workspace surface and the share surface aligned through shared primitives such as `src/client/components/ui/mobile-drawer.tsx`, `page-cover.tsx`, `page-error-state.tsx`, and `page-loading-skeleton.tsx`, rather than parallel rewrites.
 - When changing collaboration or route-loading behavior, verify both member and share flows and update focused regression coverage, including `tests/e2e/specs/08-rapid-page-navigation.spec.ts` and `tests/e2e/specs/10-shared-rapid-navigation.spec.ts` when applicable.
 
@@ -126,6 +128,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 
 - `package.json`
 - `wrangler.jsonc`
+- `src/shared/entitlements/`
 - `src/shared/types.ts`
 - `src/shared/doc-messages.ts`
 - `src/client/route-tree.tsx`
@@ -133,6 +136,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - `src/client/components/workspace/`
 - `src/client/components/share/`
 - `src/client/components/editor/`
+- `src/client/lib/affordance/`
 - `src/client/stores/workspace-store.ts`
 - `src/client/lib/api.ts`
 - `src/client/lib/*-model.ts`
