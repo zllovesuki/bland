@@ -25,9 +25,10 @@ interface EditorPaneProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: EditorAffordance;
-  /** DOM node for portalling the outline into a right-rail container (xl+). */
-  outlinePortalTarget?: HTMLDivElement | null;
+  outline?: EditorOutlinePlacement;
 }
+
+export type EditorOutlinePlacement = { kind: "inline" } | { kind: "rail"; target: HTMLDivElement | null };
 
 export function EditorPane({
   pageId,
@@ -37,7 +38,7 @@ export function EditorPane({
   shareToken,
   workspaceId,
   affordance,
-  outlinePortalTarget,
+  outline,
 }: EditorPaneProps) {
   const [title, setTitle] = useState(initialTitle);
   const [editorState, setEditorState] = useState<{
@@ -225,7 +226,7 @@ export function EditorPane({
             workspaceId={workspaceId}
             affordance={affordance}
             onSchemaError={handleSchemaError}
-            outlinePortalTarget={outlinePortalTarget}
+            outline={outline}
           />
         </>
       ) : (

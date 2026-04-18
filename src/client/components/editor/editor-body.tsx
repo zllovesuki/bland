@@ -16,6 +16,7 @@ import { EditorAffordanceContext } from "./editor-affordance-context";
 import { EditorRuntimeContext, type EditorRuntimeSnapshot } from "./editor-runtime-context";
 import { EditorMetrics } from "./editor-metrics";
 import { EditorOutline } from "./editor-outline";
+import type { EditorOutlinePlacement } from "./editor-pane";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { PageMentionContext, usePageMentions } from "@/client/components/page-mention/context";
 import "./styles/content.css";
@@ -33,8 +34,7 @@ interface EditorBodyProps {
   workspaceId?: string;
   affordance: EditorAffordance;
   onSchemaError?: (error: Error) => void;
-  /** DOM node for portalling the outline into a right-rail container (xl+). */
-  outlinePortalTarget?: HTMLDivElement | null;
+  outline?: EditorOutlinePlacement;
 }
 
 export const EditorBody = memo(function EditorBody({
@@ -45,7 +45,7 @@ export const EditorBody = memo(function EditorBody({
   workspaceId,
   affordance,
   onSchemaError,
-  outlinePortalTarget,
+  outline = { kind: "inline" },
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const pageMentions = usePageMentions();
@@ -155,6 +155,9 @@ export const EditorBody = memo(function EditorBody({
 
   if (!editor) return null;
 
+  const outlineContent =
+    outline.kind === "rail" ? <EditorOutline className="tiptap-outline--rail" /> : <EditorOutline />;
+
   return (
     <EditorRuntimeContext.Provider value={runtimeValue}>
       <EditorAffordanceContext.Provider value={affordance}>
@@ -173,13 +176,10 @@ export const EditorBody = memo(function EditorBody({
               {affordance.documentEditable && <TableMenu />}
             </div>
             <div className="mt-4 space-y-4 pl-4 sm:pl-7">
-              <div className={outlinePortalTarget ? "xl:hidden" : undefined}>
-                <EditorOutline />
-              </div>
+              {outline.kind === "inline" ? outlineContent : null}
               <EditorMetrics className="justify-end" />
             </div>
-            {outlinePortalTarget &&
-              createPortal(<EditorOutline className="tiptap-outline--rail" />, outlinePortalTarget)}
+            {outline.kind === "rail" && outline.target ? createPortal(outlineContent, outline.target) : null}
           </Tiptap>
         </PageMentionContext.Provider>
       </EditorAffordanceContext.Provider>

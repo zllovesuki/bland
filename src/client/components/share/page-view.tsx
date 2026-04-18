@@ -10,6 +10,7 @@ import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useOnline } from "@/client/hooks/use-online";
 import {
   useActivePageActions,
@@ -38,6 +39,7 @@ export function SharePageView() {
   const presentation = useSharedPagePresentation();
   const online = useOnline();
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
+  const showOutlineRail = useMediaQuery("(min-width: 1024px)");
   const handleTitleChange = useCallback(
     (titleOverride: string) => {
       patchPage({ title: titleOverride });
@@ -119,15 +121,17 @@ export function SharePageView() {
             onProvider={setSyncProvider}
             shareToken={presentation.token}
             workspaceId={presentation.workspaceId}
+            outline={showOutlineRail ? { kind: "rail", target: outlineRailEl } : { kind: "inline" }}
             affordance={pageAffordance.editor}
-            outlinePortalTarget={outlineRailEl}
           />
         </ErrorBoundary>
       </div>
 
-      <aside className="hidden pt-[5.5rem] lg:block" aria-label="Document outline">
-        <div ref={setOutlineRailEl} className="sticky top-8" />
-      </aside>
+      {showOutlineRail ? (
+        <aside className="pt-[5.5rem]" aria-label="Document outline">
+          <div ref={setOutlineRailEl} className="sticky top-8" />
+        </aside>
+      ) : null}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/icon-picker";
 import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
+import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
@@ -53,6 +54,7 @@ function PageViewContent() {
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
+  const showOutlineRail = useMediaQuery("(min-width: 1024px)");
   const { status } = useSyncStatus(syncProvider);
   const currentPageMeta = pages.find((candidate) => candidate.id === params.pageId) ?? null;
   const knownHasCover = currentPageMeta?.cover_url;
@@ -218,6 +220,7 @@ function PageViewContent() {
             onTitleChange={handleTitleChange}
             onProvider={setSyncProvider}
             workspaceId={effectiveWorkspaceId}
+            outline={showOutlineRail ? { kind: "rail", target: outlineRailEl } : { kind: "inline" }}
             affordance={
               pageAffordance?.editor ?? {
                 documentEditable: false,
@@ -225,14 +228,15 @@ function PageViewContent() {
                 canInsertImages: false,
               }
             }
-            outlinePortalTarget={outlineRailEl}
           />
         </ErrorBoundary>
       </div>
 
-      <aside className="hidden pt-[5.5rem] lg:block" aria-label="Document outline">
-        <div ref={setOutlineRailEl} className="sticky top-8" />
-      </aside>
+      {showOutlineRail ? (
+        <aside className="pt-[5.5rem]" aria-label="Document outline">
+          <div ref={setOutlineRailEl} className="sticky top-8" />
+        </aside>
+      ) : null}
     </div>
   );
 }

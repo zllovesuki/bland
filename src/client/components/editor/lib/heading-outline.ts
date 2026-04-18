@@ -5,13 +5,12 @@ export interface HeadingOutlineItem {
   text: string;
   level: number;
   pos: number;
-  active: boolean;
 }
 
-export function getHeadingOutline(editor: Editor | null | undefined): HeadingOutlineItem[] {
+export function collectHeadings(editor: Editor | null | undefined): HeadingOutlineItem[] {
   if (!editor) return [];
 
-  const headings: Omit<HeadingOutlineItem, "active">[] = [];
+  const headings: HeadingOutlineItem[] = [];
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name !== "heading") return;
 
@@ -26,19 +25,27 @@ export function getHeadingOutline(editor: Editor | null | undefined): HeadingOut
     });
   });
 
-  if (headings.length === 0) return [];
+  return headings;
+}
 
-  const selectionPos = editor.state.selection.from;
-  let activeIndex = -1;
-  for (let i = 0; i < headings.length; i += 1) {
-    if (headings[i].pos <= selectionPos) activeIndex = i;
+export function resolveActiveBySelection(headings: HeadingOutlineItem[], selectionPos: number): number | null {
+  let active: number | null = null;
+  for (const heading of headings) {
+    if (heading.pos <= selectionPos) active = heading.pos;
     else break;
   }
+  return active;
+}
 
-  return headings.map((heading, index) => ({
-    ...heading,
-    active: index === activeIndex,
-  }));
+export function resolveSelectionHeading(editor: Editor | null | undefined): number | null {
+  if (!editor) return null;
+  const { $from } = editor.state.selection;
+  for (let depth = $from.depth; depth >= 0; depth -= 1) {
+    if ($from.node(depth).type.name === "heading") {
+      return $from.before(depth);
+    }
+  }
+  return null;
 }
 
 export function jumpToHeading(editor: Editor, pos: number) {
