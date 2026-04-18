@@ -5,9 +5,12 @@ import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useMyRole } from "@/client/hooks/use-role";
+import { getMyRole } from "@/client/lib/workspace-role";
 import { confirm } from "@/client/components/confirm";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
+import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
+import { useOnline } from "@/client/hooks/use-online";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
 
 function PermissionSelect({ value, onChange }: { value: "view" | "edit"; onChange: (v: "view" | "edit") => void }) {
@@ -57,8 +60,8 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
 
   const members = useWorkspaceMembers();
   const user = useAuthStore((s) => s.user);
-
-  const { role: myRole, isAdminOrOwner: isAdmin } = useMyRole();
+  const online = useOnline();
+  const workspaceRole = getMyRole(members, user) ?? "none";
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +81,16 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
     const shareable = members.filter((m) => m.user_id !== user?.id && !sharedIds.has(m.user_id));
     return { linkShares: link, userShares: userS, shareableMembers: shareable };
   }, [shares, members, user?.id]);
+  const dialogAffordance = useMemo(
+    () =>
+      deriveShareDialogAffordance({
+        workspaceRole,
+        online,
+        hasUserShares: userShares.length > 0,
+        hasLinkShares: linkShares.length > 0,
+      }),
+    [workspaceRole, online, userShares.length, linkShares.length],
+  );
 
   const filteredSuggestions = useMemo(() => {
     if (!peopleInput.trim()) return shareableMembers;
@@ -88,7 +101,7 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
   }, [peopleInput, shareableMembers]);
 
   async function handlePeopleShare() {
-    if (!peopleInput.trim() || creating) return;
+    if (!peopleInput.trim() || creating || !isActionEnabled(dialogAffordance.createUserShare)) return;
     setCreating(true);
     setError(null);
     try {
@@ -127,6 +140,7 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
   }
 
   async function createLinkShare() {
+    if (!isActionEnabled(dialogAffordance.createLinkShare)) return;
     setCreating(true);
     setError(null);
     try {
@@ -210,7 +224,7 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
               {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
 
               {/* People section */}
-              {myRole && myRole !== "guest" && (
+              {dialogAffordance.showPeopleSection && (
                 <div className="mb-3">
                   <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
                     <Users className="h-3 w-3" />
@@ -235,7 +249,12 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
                     <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
                     <button
                       onClick={handlePeopleShare}
-                      disabled={creating || !peopleInput.trim()}
+                      disabled={creating || !peopleInput.trim() || !isActionEnabled(dialogAffordance.createUserShare)}
+                      title={
+                        dialogAffordance.createUserShare.kind === "disabled"
+                          ? dialogAffordance.createUserShare.reason
+                          : undefined
+                      }
                       className="shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
                     >
                       {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
@@ -260,27 +279,16 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
                   {userShares.length > 0 ? (
                     <div className="space-y-1">
                       {userShares.map((share) => (
-                        <div
+                        <ShareUserRow
                           key={share.id}
-                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <Users className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                            <span className="truncate text-sm text-zinc-300">{granteeName(share)}</span>
-                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">
-                              {share.permission}
-                            </span>
-                          </div>
-                          {(isAdmin || share.created_by === user?.id) && (
-                            <button
-                              onClick={() => deleteShare(share.id)}
-                              className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
-                              aria-label="Remove share"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
+                          share={share}
+                          label={granteeName(share)}
+                          workspaceRole={workspaceRole}
+                          online={online}
+                          currentUserId={user?.id}
+                          granteeIsWorkspaceMember={members.some((m) => m.user_id === share.grantee_id)}
+                          onDelete={() => deleteShare(share.id)}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -290,17 +298,22 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
               )}
 
               {/* Link section */}
-              {(isAdmin || linkShares.length > 0) && (
-                <div className={myRole && myRole !== "guest" ? "border-t border-zinc-700/50 pt-3" : ""}>
+              {dialogAffordance.showLinkSection && (
+                <div className={dialogAffordance.showPeopleSection ? "border-t border-zinc-700/50 pt-3" : ""}>
                   <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
                     <Link2 className="h-3 w-3" />
                     Link
                   </p>
-                  {isAdmin && (
+                  {isActionVisible(dialogAffordance.createLinkShare) && (
                     <div className="mb-2 flex items-center gap-1.5">
                       <button
                         onClick={createLinkShare}
-                        disabled={creating}
+                        disabled={creating || !isActionEnabled(dialogAffordance.createLinkShare)}
+                        title={
+                          dialogAffordance.createLinkShare.kind === "disabled"
+                            ? dialogAffordance.createLinkShare.reason
+                            : undefined
+                        }
                         className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
                       >
                         {creating ? (
@@ -316,43 +329,22 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
                   {linkShares.length > 0 ? (
                     <div className="space-y-1">
                       {linkShares.map((share) => (
-                        <div
+                        <ShareLinkRow
                           key={share.id}
-                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <Link2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                            <span className="truncate text-sm text-zinc-300">{share.permission} link</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {share.link_token && (
-                              <button
-                                onClick={() => copyLink(share)}
-                                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
-                                aria-label="Copy link"
-                              >
-                                {copiedId === share.id ? (
-                                  <Check className="h-3.5 w-3.5 text-green-400" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            )}
-                            {isAdmin && (
-                              <button
-                                onClick={() => deleteShare(share.id)}
-                                className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400"
-                                aria-label="Remove link"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                          share={share}
+                          copiedId={copiedId}
+                          workspaceRole={workspaceRole}
+                          online={online}
+                          currentUserId={user?.id}
+                          onCopy={() => copyLink(share)}
+                          onDelete={() => deleteShare(share.id)}
+                        />
                       ))}
                     </div>
                   ) : (
-                    isAdmin && <p className="px-2 text-sm text-zinc-400">No link shares</p>
+                    isActionVisible(dialogAffordance.createLinkShare) && (
+                      <p className="px-2 text-sm text-zinc-400">No link shares</p>
+                    )
                   )}
                 </div>
               )}
@@ -360,6 +352,114 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ShareUserRow({
+  share,
+  label,
+  workspaceRole,
+  online,
+  currentUserId,
+  granteeIsWorkspaceMember,
+  onDelete,
+}: {
+  share: PageShare;
+  label: string;
+  workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
+  online: boolean;
+  currentUserId: string | undefined;
+  granteeIsWorkspaceMember: boolean;
+  onDelete: () => void;
+}) {
+  const rowAffordance = deriveShareDialogRowAffordance({
+    workspaceRole,
+    online,
+    currentUserId,
+    share,
+    granteeIsWorkspaceMember,
+  });
+
+  return (
+    <div className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50">
+      <div className="flex items-center gap-2 overflow-hidden">
+        <Users className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+        <span className="truncate text-sm text-zinc-300">{label}</span>
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">{share.permission}</span>
+      </div>
+      {isActionVisible(rowAffordance.revoke) && (
+        <button
+          onClick={onDelete}
+          disabled={!isActionEnabled(rowAffordance.revoke)}
+          title={rowAffordance.revoke.kind === "disabled" ? rowAffordance.revoke.reason : undefined}
+          className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400 disabled:opacity-50"
+          aria-label="Remove share"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ShareLinkRow({
+  share,
+  copiedId,
+  workspaceRole,
+  online,
+  currentUserId,
+  onCopy,
+  onDelete,
+}: {
+  share: PageShare;
+  copiedId: string | null;
+  workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
+  online: boolean;
+  currentUserId: string | undefined;
+  onCopy: () => void;
+  onDelete: () => void;
+}) {
+  const rowAffordance = deriveShareDialogRowAffordance({
+    workspaceRole,
+    online,
+    currentUserId,
+    share,
+    granteeIsWorkspaceMember: false,
+  });
+
+  return (
+    <div className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-zinc-800/50">
+      <div className="flex items-center gap-2 overflow-hidden">
+        <Link2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+        <span className="truncate text-sm text-zinc-300">{share.permission} link</span>
+      </div>
+      <div className="flex items-center gap-1">
+        {isActionVisible(rowAffordance.copyLink) && (
+          <button
+            onClick={onCopy}
+            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+            aria-label="Copy link"
+          >
+            {copiedId === share.id ? (
+              <Check className="h-3.5 w-3.5 text-green-400" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+        {isActionVisible(rowAffordance.revoke) && (
+          <button
+            onClick={onDelete}
+            disabled={!isActionEnabled(rowAffordance.revoke)}
+            title={rowAffordance.revoke.kind === "disabled" ? rowAffordance.revoke.reason : undefined}
+            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400 disabled:opacity-50"
+            aria-label="Remove link"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

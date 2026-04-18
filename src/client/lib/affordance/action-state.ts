@@ -2,6 +2,7 @@ export type UiActionState = { kind: "enabled" } | { kind: "disabled"; reason?: s
 
 export const ENABLED_ACTION: UiActionState = { kind: "enabled" };
 export const HIDDEN_ACTION: UiActionState = { kind: "hidden" };
+export const OFFLINE_ACTION_REASON = "You're offline";
 
 export function disabledAction(reason?: string): UiActionState {
   return { kind: "disabled", reason };

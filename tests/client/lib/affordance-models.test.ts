@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveEditorAffordance } from "@/client/lib/affordance/editor";
+import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import { deriveSidebarBaseAffordance, deriveSidebarRowAffordance } from "@/client/lib/affordance/sidebar";
 import { deriveWorkspacePageAffordance } from "@/client/lib/affordance/workspace-page";
@@ -126,6 +127,88 @@ describe("client affordance models", () => {
           canInsertPageMentions: false,
           canInsertImages: true,
         },
+      });
+    });
+  });
+
+  describe("share dialog affordance", () => {
+    it("lets members create user shares but not link shares", () => {
+      expect(
+        deriveShareDialogAffordance({
+          workspaceRole: "member",
+          online: true,
+          hasUserShares: false,
+          hasLinkShares: false,
+        }),
+      ).toEqual({
+        showPeopleSection: true,
+        showLinkSection: false,
+        createUserShare: { kind: "enabled" },
+        createLinkShare: { kind: "hidden" },
+      });
+    });
+
+    it("shows offline-disabled share actions while keeping populated sections visible", () => {
+      expect(
+        deriveShareDialogAffordance({
+          workspaceRole: "admin",
+          online: false,
+          hasUserShares: true,
+          hasLinkShares: true,
+        }),
+      ).toEqual({
+        showPeopleSection: true,
+        showLinkSection: true,
+        createUserShare: { kind: "disabled", reason: "You're offline" },
+        createLinkShare: { kind: "disabled", reason: "You're offline" },
+      });
+    });
+
+    it("lets members revoke only qualifying user shares and keeps copy-link local for already-loaded link rows", () => {
+      expect(
+        deriveShareDialogRowAffordance({
+          workspaceRole: "member",
+          online: true,
+          currentUserId: "user-1",
+          share: {
+            id: "share-1",
+            page_id: "page-1",
+            grantee_type: "user",
+            grantee_id: "user-2",
+            permission: "view",
+            link_token: null,
+            created_by: "user-1",
+            created_at: "2026-01-01T00:00:00.000Z",
+            grantee_user: null,
+          },
+          granteeIsWorkspaceMember: true,
+        }),
+      ).toEqual({
+        revoke: { kind: "enabled" },
+        copyLink: { kind: "hidden" },
+      });
+
+      expect(
+        deriveShareDialogRowAffordance({
+          workspaceRole: "member",
+          online: false,
+          currentUserId: "user-1",
+          share: {
+            id: "share-2",
+            page_id: "page-1",
+            grantee_type: "link",
+            grantee_id: null,
+            permission: "view",
+            link_token: "token-1",
+            created_by: "user-1",
+            created_at: "2026-01-01T00:00:00.000Z",
+            grantee_user: null,
+          },
+          granteeIsWorkspaceMember: false,
+        }),
+      ).toEqual({
+        revoke: { kind: "hidden" },
+        copyLink: { kind: "enabled" },
       });
     });
   });
