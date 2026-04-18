@@ -54,11 +54,3 @@ export function isWorkspaceReady(state: WorkspaceRouteState): state is ReadyStat
 export function hasWorkspaceIdentity(state: WorkspaceRouteState): state is WithWorkspaceId {
   return state.phase !== "error" && state.workspaceId !== null;
 }
-
-/**
- * Mention cache policy derived from route state. Live workspace data gates
- * member-context mention reads; every other phase defers to cache.
- */
-export function getMentionCachePolicy(state: WorkspaceRouteState): "live" | "cache" {
-  return state.phase === "ready" && state.cacheStatus === "live" ? "live" : "cache";
-}

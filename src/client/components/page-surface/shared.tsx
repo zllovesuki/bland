@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { SharedPageMentionSurface } from "@/client/components/page-mention/shared-surface";
 import { PageSurfaceProvider } from "@/client/components/page-surface/provider";
 import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
 import { useReadyShareView } from "@/client/components/share/use-share-view";
@@ -35,7 +36,7 @@ export function SharedPageSurface({ children }: { children: ReactNode }) {
       }
     >
       <SharedMetadataListener />
-      {children}
+      <SharedPageMentionSurface>{children}</SharedPageMentionSurface>
     </PageSurfaceProvider>
   );
 }

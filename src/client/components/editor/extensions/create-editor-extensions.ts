@@ -40,6 +40,7 @@ import {
 } from "../lib/media-actions";
 import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
+import type { PageMentionCandidate } from "@/client/components/page-mention/types";
 
 interface CreateEditorExtensionsOpts {
   fragment: Y.XmlFragment;
@@ -47,6 +48,7 @@ interface CreateEditorExtensionsOpts {
   user: { name: string; color: string; avatar_url: string | null };
   getRuntime: () => EditorRuntimeSnapshot;
   getAffordance: () => EditorAffordance;
+  getPageMentionCandidates: (excludePageId: string | undefined) => PageMentionCandidate[];
 }
 
 function countWords(text: string): number {
@@ -59,7 +61,7 @@ function countCharacters(text: string): number {
 }
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
-  const { fragment, provider, user, getRuntime, getAffordance } = opts;
+  const { fragment, provider, user, getRuntime, getAffordance, getPageMentionCandidates } = opts;
   const getUploadContext = () => {
     const runtime = getRuntime();
     return {
@@ -79,8 +81,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       if (!canOpenMentions(editor.isEditable)) return;
       launchPageMentionPicker(editor, {
         range,
-        currentPageId: getRuntime().pageId,
-        workspaceId: getRuntime().workspaceId,
+        candidates: getPageMentionCandidates(getRuntime().pageId),
       });
     },
   };
@@ -213,7 +214,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     PageMentionSuggestion.configure({
       getCurrentPageId: () => getRuntime().pageId,
       isAvailable: (editor) => canOpenMentions(editor.isEditable),
-      getRuntime,
+      getCandidates: () => getPageMentionCandidates(getRuntime().pageId),
     }),
     ...createTableExtensions(),
   ] as AnyExtension[];

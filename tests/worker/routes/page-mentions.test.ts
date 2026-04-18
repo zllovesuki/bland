@@ -24,7 +24,9 @@ function createDbMock(opts: {
   workspaceSlug: string | undefined;
   pageRows: Array<{ id: string; title: string; icon: string | null }>;
 }) {
-  const workspaceGet = vi.fn().mockResolvedValue(opts.workspaceSlug ? { slug: opts.workspaceSlug } : undefined);
+  const workspaceGet = vi
+    .fn()
+    .mockResolvedValue(opts.workspaceSlug ? { id: "ws-1", slug: opts.workspaceSlug } : undefined);
   const pagesWhere = vi.fn().mockResolvedValue(opts.pageRows);
 
   const select = vi.fn().mockImplementation(() => ({
@@ -53,7 +55,7 @@ async function postResolve(body: unknown, query = "") {
 describe("page-mentions: resolve", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns canonical viewer metadata for a full member and resolves accessible pages", async () => {
+  it("resolves accessible pages for a full member", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
     resolvePageAccessLevelsMock.mockResolvedValue(
       new Map([
@@ -75,19 +77,13 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-1", "p-2"] }));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "member",
-      principal_type: "user",
-      route_kind: "canonical",
-      workspace_slug: "demo",
-    });
     expect(body.mentions).toEqual([
       { page_id: "p-1", accessible: true, title: "Alpha", icon: "A" },
       { page_id: "p-2", accessible: true, title: "Beta", icon: null },
     ]);
   });
 
-  it("returns shared viewer metadata when the principal is a link token", async () => {
+  it("resolves shared-link mentions when the principal is a link token", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
@@ -101,19 +97,10 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-1"] }, "?share=tok"));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "shared",
-      principal_type: "link",
-      route_kind: "shared",
-      workspace_slug: null,
-    });
     expect(body.mentions[0].accessible).toBe(true);
   });
 
-  it("returns canonical viewer metadata when a full member request also carries ?share= (member precedence)", async () => {
-    // resolvePrincipal promotes a full member to a user principal even when the
-    // caller is on a /s/:token route — the resolver must reflect that by
-    // returning canonical viewer metadata and full workspace access.
+  it("keeps member precedence when a full member request also carries ?share=", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "edit"]]));
 
@@ -127,16 +114,10 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-1"] }, "?share=tok"));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "member",
-      principal_type: "user",
-      route_kind: "canonical",
-      workspace_slug: "demo",
-    });
     expect(body.mentions[0].accessible).toBe(true);
   });
 
-  it("returns canonical viewer metadata for canonical shared access without a share token", async () => {
+  it("resolves canonical shared access without a share token", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: false });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
@@ -150,12 +131,6 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-1"] }));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "shared",
-      principal_type: "user",
-      route_kind: "canonical",
-      workspace_slug: "demo",
-    });
     expect(body.mentions[0].accessible).toBe(true);
   });
 
@@ -185,7 +160,7 @@ describe("page-mentions: resolve", () => {
     expect(pagesWhere).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps shared viewer metadata even when a non-member cannot resolve any requested mention", async () => {
+  it("collapses shared non-member misses to restricted mention entries", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-blocked", "none"]]));
 
@@ -199,16 +174,10 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-blocked"] }, "?share=tok"));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "shared",
-      principal_type: "link",
-      route_kind: "shared",
-      workspace_slug: null,
-    });
     expect(body.mentions).toEqual([{ page_id: "p-blocked", accessible: false, title: null, icon: null }]);
   });
 
-  it("keeps canonical viewer metadata when a member resolves only restricted mentions", async () => {
+  it("collapses archived-or-missing accessible pages to restricted mention entries", async () => {
     resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-archived", "edit"]]));
 
@@ -219,12 +188,6 @@ describe("page-mentions: resolve", () => {
     const res = await app.request(await postResolve({ page_ids: ["p-archived"] }));
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.viewer).toEqual({
-      access_mode: "member",
-      principal_type: "user",
-      route_kind: "canonical",
-      workspace_slug: "demo",
-    });
     expect(body.mentions).toEqual([{ page_id: "p-archived", accessible: false, title: null, icon: null }]);
   });
 

@@ -1,18 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-import { isWorkspaceReady, getMentionCachePolicy } from "@/client/lib/workspace-route-model";
+import { isWorkspaceReady } from "@/client/lib/workspace-route-model";
 import { shouldBlockMemberOnlyRouteContent, shouldRedirectMemberOnlyRoute } from "@/client/lib/workspace-layout-model";
-import {
-  getCanonicalPageMentionViewer,
-  lookupCanonicalCachedMentionPage,
-} from "@/client/lib/canonical-page-mention-scope";
-import { PageMentionScopeProvider } from "@/client/components/editor/page-mention/scope-provider";
-import { selectPageMetaById, useWorkspaceStore } from "@/client/stores/workspace-store";
 import { WorkspaceViewProvider } from "./view-provider";
 import { useWorkspaceView } from "./use-workspace-view";
-import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { Header } from "@/client/components/header";
 import { Footer } from "@/client/components/footer";
 import { Banners } from "@/client/components/ui/banners";
@@ -87,7 +80,6 @@ function WorkspaceLayoutInner() {
   const navigate = useNavigate();
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
-  const canonicalPageContext = useCanonicalPageContext();
 
   const [sidebarCollapsed] = useState(() => localStorage.getItem(STORAGE_KEYS.SIDEBAR) === "true");
 
@@ -118,38 +110,6 @@ function WorkspaceLayoutInner() {
       navigate({ to: "/", replace: true });
     }
   }, [route, isMemberOnlyRoute, navigate]);
-
-  const mentionCachePolicy = getMentionCachePolicy(route);
-
-  const viewer = useMemo(
-    () =>
-      getCanonicalPageMentionViewer({
-        accessMode: canonicalPageContext.accessMode,
-        workspaceSlug: canonicalPageContext.workspace?.slug ?? null,
-        fallbackWorkspaceSlug: params.workspaceSlug,
-        cachedPage: canonicalPageContext.cachedPage,
-      }),
-    [
-      canonicalPageContext.accessMode,
-      canonicalPageContext.cachedPage,
-      canonicalPageContext.workspace?.slug,
-      params.workspaceSlug,
-    ],
-  );
-
-  const lookupCachedPage = useCallback(
-    (pageId: string) => {
-      if (!canonicalPageContext.workspaceId) return null;
-      return lookupCanonicalCachedMentionPage(
-        selectPageMetaById(useWorkspaceStore.getState()),
-        canonicalPageContext.workspaceId,
-        pageId,
-      );
-    },
-    [canonicalPageContext.workspaceId],
-  );
-
-  const workspaceId = canonicalPageContext.workspaceId ?? undefined;
 
   let mainContent: React.ReactNode = null;
 
@@ -183,12 +143,7 @@ function WorkspaceLayoutInner() {
   const showSkeleton = route.phase === "loading" || route.phase === "degraded";
 
   return (
-    <PageMentionScopeProvider
-      workspaceId={workspaceId}
-      viewer={viewer}
-      mentionCachePolicy={mentionCachePolicy}
-      lookupCachedPage={lookupCachedPage}
-    >
+    <>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
@@ -216,7 +171,7 @@ function WorkspaceLayoutInner() {
         </main>
       </div>
       <Footer expanded={expanded} />
-    </PageMentionScopeProvider>
+    </>
   );
 }
 

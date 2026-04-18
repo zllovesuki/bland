@@ -1,14 +1,13 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { FileText, Loader2, Lock } from "lucide-react";
-import { usePageMentionEntry, usePageMentionNavigate, usePageMentionResolver } from "../../page-mention/context";
 import { getPageMentionViewState } from "../../lib/page-mention/view-state";
+import { usePageMentionEntry, usePageMentionNavigate } from "@/client/components/page-mention/context";
 
 export function PageMentionView({ node }: NodeViewProps) {
   const pageId = node.attrs.pageId as string | null;
   const entry = usePageMentionEntry(pageId);
   const navigate = usePageMentionNavigate();
-  const resolver = usePageMentionResolver();
 
   if (!pageId) {
     return (
@@ -25,20 +24,19 @@ export function PageMentionView({ node }: NodeViewProps) {
   }
 
   const viewState = getPageMentionViewState(entry);
-  const routeContext = resolver?.routeContext() ?? null;
-  const canNavigate = viewState.kind === "accessible" && routeContext !== null;
+  const canNavigate = viewState.kind === "accessible";
 
   const handleClick = (e: React.MouseEvent) => {
-    if (!routeContext || viewState.kind !== "accessible") return;
+    if (viewState.kind !== "accessible") return;
     e.preventDefault();
-    navigate({ pageId, ...routeContext });
+    navigate(pageId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!routeContext || viewState.kind !== "accessible") return;
+    if (viewState.kind !== "accessible") return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      navigate({ pageId, ...routeContext });
+      navigate(pageId);
     }
   };
 

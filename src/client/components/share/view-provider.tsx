@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { PageMentionScopeProvider } from "@/client/components/editor/page-mention/scope-provider";
 import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
 import { createRequestGuard } from "@/client/lib/request-guard";
@@ -129,16 +128,5 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
     [status, workspaceId, viewer, rootPage, rootPageId, activePageId, token, navigateToPage, patchRootPage, error],
   );
 
-  return (
-    <ShareViewContext.Provider value={view}>
-      <PageMentionScopeProvider
-        workspaceId={workspaceId ?? undefined}
-        viewer={viewer}
-        shareToken={token}
-        mentionCachePolicy="live"
-      >
-        {children}
-      </PageMentionScopeProvider>
-    </ShareViewContext.Provider>
-  );
+  return <ShareViewContext.Provider value={view}>{children}</ShareViewContext.Provider>;
 }

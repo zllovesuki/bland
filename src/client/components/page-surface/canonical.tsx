@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
 import { getMyRole } from "@/client/lib/workspace-role";
+import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
@@ -60,7 +61,7 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
       onEvict={onEvict}
     >
       <CanonicalMetadataListener />
-      {children}
+      <CanonicalPageMentionSurface>{children}</CanonicalPageMentionSurface>
     </PageSurfaceProvider>
   );
 }

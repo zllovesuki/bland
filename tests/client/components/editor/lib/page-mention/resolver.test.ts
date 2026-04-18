@@ -1,31 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ResolvePageMentionsResponse, ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
+import type { ResolvePageMentionsResponse } from "@/shared/types";
+import type { PageMentionCacheMode } from "@/client/components/page-mention/types";
 
-let createPageMentionResolver: typeof import("@/client/components/editor/lib/page-mention/resolver").createPageMentionResolver;
+let createPageMentionResolver: typeof import("@/client/components/page-mention/resolver").createPageMentionResolver;
 
 const resolveMock = vi.fn();
 
-function createViewer(overrides: Partial<ResolvedViewerContext> = {}): ResolvedViewerContext {
-  return {
-    access_mode: "member",
-    principal_type: "user",
-    route_kind: "canonical",
-    workspace_slug: "demo",
-    ...overrides,
-  };
-}
-
-function createResponse(
-  pageIds: string[],
-  opts: {
-    viewer?: ResolvedViewerContext;
-    accessibleIds?: string[];
-  } = {},
-): ResolvePageMentionsResponse {
+function createResponse(pageIds: string[], opts: { accessibleIds?: string[] } = {}): ResolvePageMentionsResponse {
   const accessibleIds = new Set(opts.accessibleIds ?? pageIds);
   return {
-    viewer: opts.viewer ?? createViewer(),
     mentions: pageIds.map((pageId) =>
       accessibleIds.has(pageId)
         ? {
@@ -62,24 +45,28 @@ function createResolver(
   opts: Partial<{
     workspaceId: string;
     shareToken: string | undefined;
-    viewer: ResolvedViewerContext;
-    routeSource: WorkspaceRouteSource;
+    cacheMode: PageMentionCacheMode;
+    networkEnabled: boolean;
     lookupCachedPage: (pageId: string) => { title: string; icon: string | null } | null;
   }> = {},
 ) {
-  let routeSource = opts.routeSource ?? "live";
+  let cacheMode = opts.cacheMode ?? "live";
+  let networkEnabled = opts.networkEnabled ?? true;
   const resolver = createPageMentionResolver({
     workspaceId: opts.workspaceId ?? "ws-1",
     shareToken: opts.shareToken,
-    viewer: opts.viewer ?? createViewer(),
-    getRouteSource: () => routeSource,
+    getCacheMode: () => cacheMode,
+    getNetworkEnabled: () => networkEnabled,
     lookupCachedPage: opts.lookupCachedPage,
   });
 
   return {
     resolver,
-    setRouteSource(next: WorkspaceRouteSource) {
-      routeSource = next;
+    setCacheMode(next: PageMentionCacheMode) {
+      cacheMode = next;
+    },
+    setNetworkEnabled(next: boolean) {
+      networkEnabled = next;
     },
   };
 }
@@ -102,7 +89,7 @@ beforeEach(async () => {
       },
     },
   }));
-  const mod = await import("@/client/components/editor/lib/page-mention/resolver");
+  const mod = await import("@/client/components/page-mention/resolver");
   createPageMentionResolver = mod.createPageMentionResolver;
 });
 
@@ -138,7 +125,6 @@ describe("page mention resolver", () => {
       accessible: true,
       title: "Title p-100",
     });
-    expect(resolver.routeContext()).toEqual({ routeKind: "canonical", workspaceSlug: "demo" });
   });
 
   it("dedupes duplicate ids before resolving", async () => {
@@ -160,7 +146,7 @@ describe("page mention resolver", () => {
     const deferred = createDeferred<ResolvePageMentionsResponse>();
     resolveMock.mockReturnValueOnce(deferred.promise);
     const { resolver } = createResolver({
-      routeSource: "live",
+      cacheMode: "live",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -190,7 +176,7 @@ describe("page mention resolver", () => {
     const deferred = createDeferred<ResolvePageMentionsResponse>();
     resolveMock.mockReturnValueOnce(deferred.promise);
     const { resolver } = createResolver({
-      routeSource: "cache",
+      cacheMode: "cache",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -205,7 +191,6 @@ describe("page mention resolver", () => {
       title: "Cached title",
       icon: "C",
     });
-    expect(resolver.routeContext()).toEqual({ routeKind: "canonical", workspaceSlug: "demo" });
 
     deferred.resolve(createResponse(["p-1"]));
     await flushAsyncWork();
@@ -218,18 +203,12 @@ describe("page mention resolver", () => {
     });
   });
 
-  it("never uses cached labels on shared routes", async () => {
+  it("does not use cached labels when callers keep cache mode live", async () => {
     const deferred = createDeferred<ResolvePageMentionsResponse>();
     resolveMock.mockReturnValueOnce(deferred.promise);
     const { resolver } = createResolver({
       shareToken: "share-token",
-      viewer: createViewer({
-        access_mode: "shared",
-        principal_type: "link",
-        route_kind: "shared",
-        workspace_slug: null,
-      }),
-      routeSource: "cache",
+      cacheMode: "live",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -244,26 +223,16 @@ describe("page mention resolver", () => {
       title: null,
     });
 
-    deferred.resolve(
-      createResponse(["p-1"], {
-        viewer: createViewer({
-          access_mode: "shared",
-          principal_type: "link",
-          route_kind: "shared",
-          workspace_slug: null,
-        }),
-      }),
-    );
+    deferred.resolve(createResponse(["p-1"]));
     await flushAsyncWork();
 
-    expect(resolver.routeContext()).toEqual({ routeKind: "shared", workspaceSlug: null });
     expect(resolver.get("p-1")).toMatchObject({ status: "resolved", source: "server", accessible: true });
   });
 
   it("keeps cached labels visible when transport requests fail in cache mode", async () => {
     resolveMock.mockRejectedValueOnce(new Error("offline"));
     const { resolver } = createResolver({
-      routeSource: "cache",
+      cacheMode: "cache",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -282,11 +251,39 @@ describe("page mention resolver", () => {
     expect(resolveMock).toHaveBeenCalledTimes(1);
   });
 
+  it("stays cache-backed without firing resolve while network is disabled", async () => {
+    const { resolver, setNetworkEnabled } = createResolver({
+      cacheMode: "cache",
+      networkEnabled: false,
+      lookupCachedPage: createCachedLookup({
+        "p-1": { title: "Cached title", icon: "C" },
+      }),
+    });
+
+    resolver.request("p-1");
+    await flushAsyncWork();
+
+    expect(resolveMock).not.toHaveBeenCalled();
+    expect(resolver.get("p-1")).toMatchObject({
+      status: "resolved",
+      source: "cache",
+      accessible: true,
+      title: "Cached title",
+      icon: "C",
+    });
+
+    setNetworkEnabled(true);
+    resolver.syncCacheMode();
+    await flushAsyncWork();
+
+    expect(resolveMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps uncached ids pending until the resolver returns metadata", async () => {
     const deferred = createDeferred<ResolvePageMentionsResponse>();
     resolveMock.mockReturnValueOnce(deferred.promise);
     const { resolver } = createResolver({
-      routeSource: "cache",
+      cacheMode: "cache",
       lookupCachedPage: createCachedLookup({}),
     });
 
@@ -336,42 +333,13 @@ describe("page mention resolver", () => {
     expect(resolver.get("p-100")).toMatchObject({ status: "resolved", source: "server", accessible: true });
   });
 
-  it("accepts authoritative viewer changes from the server", async () => {
-    resolveMock.mockImplementationOnce(async (_workspaceId: string, pageIds: string[]) =>
-      createResponse(pageIds, {
-        viewer: createViewer({
-          access_mode: "member",
-          principal_type: "user",
-          route_kind: "canonical",
-          workspace_slug: "demo",
-        }),
-      }),
-    );
-
-    const { resolver } = createResolver({
-      shareToken: "share-token",
-      viewer: createViewer({
-        access_mode: "shared",
-        principal_type: "link",
-        route_kind: "shared",
-        workspace_slug: null,
-      }),
-    });
-
-    resolver.request("p-1");
-    await flushAsyncWork();
-
-    expect(resolver.routeContext()).toEqual({ routeKind: "canonical", workspaceSlug: "demo" });
-    expect(resolver.get("p-1")).toMatchObject({ status: "resolved", source: "server", accessible: true });
-  });
-
   it("overrides cached labels when the server resolves a mention as restricted", async () => {
     resolveMock.mockImplementationOnce(async (_workspaceId: string, pageIds: string[]) =>
       createResponse(pageIds, { accessibleIds: [] }),
     );
 
     const { resolver } = createResolver({
-      routeSource: "cache",
+      cacheMode: "cache",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -414,8 +382,8 @@ describe("page mention resolver", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockImplementationOnce(async (_workspaceId: string, pageIds: string[]) => createResponse(pageIds));
 
-    const { resolver, setRouteSource } = createResolver({
-      routeSource: "cache",
+    const { resolver, setCacheMode } = createResolver({
+      cacheMode: "cache",
       lookupCachedPage: createCachedLookup({
         "p-1": { title: "Cached title", icon: "C" },
       }),
@@ -430,8 +398,8 @@ describe("page mention resolver", () => {
       title: "Cached title",
     });
 
-    setRouteSource("live");
-    resolver.syncPolicy();
+    setCacheMode("live");
+    resolver.syncCacheMode();
     await flushAsyncWork();
 
     expect(resolveMock).toHaveBeenCalledTimes(2);

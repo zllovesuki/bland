@@ -4,7 +4,7 @@ import { eq, and, isNull, inArray } from "drizzle-orm";
 import { pages, workspaces } from "@/worker/db/d1/schema";
 import { optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { resolvePageAccessLevels, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
+import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { ResolvePageMentionsRequest, type ResolvedPageMentionItem } from "@/shared/types";
 import type { AppContext } from "@/worker/router";
@@ -29,12 +29,12 @@ pageMentionsRouter.post("/workspaces/:wid/page-mentions/resolve", optionalAuth, 
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
-  const workspace = await db
-    .select({ slug: workspaces.slug })
+  const workspaceExists = await db
+    .select({ id: workspaces.id })
     .from(workspaces)
     .where(eq(workspaces.id, workspaceId))
     .get();
-  if (!workspace) {
+  if (!workspaceExists) {
     return c.json({ error: "not_found", message: "Workspace not found" }, 404);
   }
 
@@ -62,10 +62,7 @@ pageMentionsRouter.post("/workspaces/:wid/page-mentions/resolve", optionalAuth, 
     return { page_id: pageId, accessible: true, title: meta.title, icon: meta.icon };
   });
 
-  return c.json({
-    viewer: toResolvedViewerContext(resolved, workspace.slug, shareToken ? "shared" : "canonical"),
-    mentions,
-  });
+  return c.json({ mentions });
 });
 
 export { pageMentionsRouter };

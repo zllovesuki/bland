@@ -1,8 +1,7 @@
 import { api } from "@/client/lib/api";
 import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
-import type { ApiError, ResolvedPageMentionItem, ResolvedViewerContext } from "@/shared/types";
-import type { WorkspaceRouteSource } from "@/client/lib/workspace-route-model";
-import { canUseCachedPageMentionData } from "./resolver-config";
+import type { ApiError, ResolvedPageMentionItem } from "@/shared/types";
+import type { PageMentionCacheMode, PageMentionCachedPage } from "./types";
 
 export type MentionEntryStatus = "pending" | "resolved";
 export type MentionEntrySource = "server" | "cache" | null;
@@ -20,27 +19,16 @@ type Listener = () => void;
 interface ResolverOpts {
   workspaceId: string;
   shareToken: string | undefined;
-  viewer: ResolvedViewerContext;
-  getRouteSource: () => WorkspaceRouteSource;
-  lookupCachedPage?: (pageId: string) => { title: string; icon: string | null } | null;
+  getCacheMode: () => PageMentionCacheMode;
+  getNetworkEnabled: () => boolean;
+  lookupCachedPage?: (pageId: string) => PageMentionCachedPage | null;
 }
-
-export type PageMentionRouteContext =
-  | {
-      routeKind: "canonical";
-      workspaceSlug: string;
-    }
-  | {
-      routeKind: "shared";
-      workspaceSlug: null;
-    };
 
 export interface PageMentionResolver {
   get(pageId: string | null): MentionEntry;
   request(pageId: string | null): void;
   subscribe(pageId: string | null, listener: Listener): () => void;
-  routeContext(): PageMentionRouteContext | null;
-  syncPolicy(): void;
+  syncCacheMode(): void;
   dispose(): void;
 }
 
@@ -79,16 +67,6 @@ function shouldRetryMentionResolveError(err: unknown): boolean {
   return Number(match[1]) >= 500;
 }
 
-function toRouteContext(viewer: ResolvedViewerContext): PageMentionRouteContext | null {
-  if (viewer.route_kind === "shared") {
-    return { routeKind: "shared", workspaceSlug: null };
-  }
-  if (!viewer.workspace_slug) {
-    return null;
-  }
-  return { routeKind: "canonical", workspaceSlug: viewer.workspace_slug };
-}
-
 export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolver {
   const entries = new Map<string, MentionEntry>();
   const listeners = new Map<string, Set<Listener>>();
@@ -100,11 +78,13 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
   let retryDelayIndex = 0;
   let epoch = 0;
   let disposed = false;
-  const initialRouteContext = toRouteContext(opts.viewer);
-  let routeContext: PageMentionRouteContext | null = initialRouteContext;
 
   function canUseCache() {
-    return canUseCachedPageMentionData(opts.viewer, opts.getRouteSource());
+    return opts.getCacheMode() === "cache";
+  }
+
+  function canResolveNetwork() {
+    return opts.getNetworkEnabled();
   }
 
   function notify(pageId: string) {
@@ -160,8 +140,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
   }
 
   function scheduleRetry() {
-    if (disposed) return;
-    if (retryTimer !== null) return;
+    if (disposed || retryTimer !== null) return;
     const delay = RETRY_DELAYS_MS[Math.min(retryDelayIndex, RETRY_DELAYS_MS.length - 1)];
     retryDelayIndex = Math.min(retryDelayIndex + 1, RETRY_DELAYS_MS.length - 1);
     retryTimer = setTimeout(() => {
@@ -173,6 +152,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
 
   function scheduleFlush() {
     if (disposed) return;
+    if (!canResolveNetwork()) return;
     clearRetryTimer();
     if (isFlushing) {
       flushScheduled = true;
@@ -204,7 +184,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
           }
 
           resetRetryBackoff();
-          routeContext = toRouteContext(response.viewer);
 
           const byId = new Map<string, ResolvedPageMentionItem>();
           for (const item of response.mentions) byId.set(item.page_id, item);
@@ -254,7 +233,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
     }
   }
 
-  function syncPolicy() {
+  function syncCacheMode() {
     if (disposed) return;
 
     let shouldFlush = false;
@@ -272,12 +251,14 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
         ) {
           setEntry(pageId, cachedEntry);
         }
-        shouldFlush = true;
-        pendingQueue.add(pageId);
+        if (canResolveNetwork()) {
+          shouldFlush = true;
+          pendingQueue.add(pageId);
+        }
         continue;
       }
 
-      if (entry.source === "cache") {
+      if (entry.source === "cache" && canResolveNetwork()) {
         shouldFlush = true;
         pendingQueue.add(pageId);
       }
@@ -308,6 +289,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
         setEntry(pageId, cachedEntry);
       }
 
+      if (!canResolveNetwork()) return;
       if (inflight.has(pageId)) return;
       pendingQueue.add(pageId);
       scheduleFlush();
@@ -325,10 +307,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
         if (set && set.size === 0) listeners.delete(pageId);
       };
     },
-    routeContext() {
-      return routeContext;
-    },
-    syncPolicy,
+    syncCacheMode,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -337,7 +316,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
       inflight.clear();
       isFlushing = false;
       flushScheduled = false;
-      routeContext = initialRouteContext;
       resetRetryBackoff();
       listeners.clear();
     },

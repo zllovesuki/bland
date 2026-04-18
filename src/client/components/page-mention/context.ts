@@ -1,22 +1,27 @@
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
-import type { MentionEntry, PageMentionResolver, PageMentionRouteContext } from "../lib/page-mention/resolver";
-
-export type PageMentionNavigateTarget = { pageId: string } & PageMentionRouteContext;
+import type { MentionEntry, PageMentionResolver } from "./resolver";
+import type { PageMentionCandidate } from "./types";
 
 export interface PageMentionContextValue {
   resolver: PageMentionResolver | null;
-  navigate: (target: PageMentionNavigateTarget) => void;
+  navigate: (pageId: string) => void;
+  getInsertablePages: (excludePageId: string | undefined) => PageMentionCandidate[];
 }
+
+const EMPTY_ENTRY: MentionEntry = { status: "pending", source: null, accessible: false, title: null, icon: null };
 
 export const PageMentionContext = createContext<PageMentionContextValue>({
   resolver: null,
   navigate: () => {},
+  getInsertablePages: () => [],
 });
 
-const EMPTY_ENTRY: MentionEntry = { status: "pending", source: null, accessible: false, title: null, icon: null };
+export function usePageMentions(): PageMentionContextValue {
+  return useContext(PageMentionContext);
+}
 
 export function usePageMentionEntry(pageId: string | null): MentionEntry {
-  const { resolver } = useContext(PageMentionContext);
+  const { resolver } = usePageMentions();
 
   useEffect(() => {
     if (!resolver || !pageId) return;
@@ -34,9 +39,5 @@ export function usePageMentionEntry(pageId: string | null): MentionEntry {
 }
 
 export function usePageMentionNavigate() {
-  return useContext(PageMentionContext).navigate;
-}
-
-export function usePageMentionResolver() {
-  return useContext(PageMentionContext).resolver;
+  return usePageMentions().navigate;
 }

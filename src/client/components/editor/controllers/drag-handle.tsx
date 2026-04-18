@@ -8,6 +8,7 @@ import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRuntime } from "../editor-runtime-context";
 import { primeTopLevelBlockDragState } from "../lib/block-drag-state";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
+import { usePageMentions } from "@/client/components/page-mention/context";
 import {
   canMoveTopLevelBlock,
   deleteTopLevelBlock,
@@ -34,13 +35,17 @@ export function DragHandle() {
   const groupRef = useRef<HTMLDivElement>(null);
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const affordance = useEditorAffordance();
+  const pageMentions = usePageMentions();
   const [menuBid, setMenuBid] = useState<string | null>(null);
   const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
   pageMentionRef.current = affordance.canInsertPageMentions
     ? {
         isAvailable: ({ editor: currentEditor }) => affordance.canInsertPageMentions && currentEditor.isEditable,
         openPicker: ({ editor: currentEditor, range }) => {
-          launchPageMentionPicker(currentEditor, { range, currentPageId: pageId, workspaceId });
+          launchPageMentionPicker(currentEditor, {
+            range,
+            candidates: pageMentions.getInsertablePages(pageId),
+          });
         },
       }
     : null;

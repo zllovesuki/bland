@@ -1,53 +1,40 @@
 import type { Editor, Range } from "@tiptap/core";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import type { Page } from "@/shared/types";
+import type { PageMentionCandidate } from "@/client/components/page-mention/types";
 import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
 import type { PageMentionItem } from "../../controllers/page-mention/picker-panel";
 
 const MAX_SUGGESTIONS = 20;
 
 /** Filter pages by query for the [[ suggestion path. Also caps to MAX_SUGGESTIONS. */
-export function filterPageMentionItems(
-  pages: Page[],
-  query: string,
-  excludePageId: string | undefined,
-): PageMentionItem[] {
+export function filterPageMentionItems(candidates: PageMentionCandidate[], query: string): PageMentionItem[] {
   const q = query.trim().toLowerCase();
   const filtered: PageMentionItem[] = [];
-  for (const page of pages) {
-    if (page.id === excludePageId) continue;
-    if (page.archived_at) continue;
-    const title = page.title || "Untitled";
+  for (const candidate of candidates) {
+    const title = candidate.title || "Untitled";
     if (q.length > 0 && !title.toLowerCase().includes(q)) continue;
-    filtered.push({ pageId: page.id, title, icon: page.icon });
+    filtered.push({ pageId: candidate.pageId, title, icon: candidate.icon });
     if (filtered.length >= MAX_SUGGESTIONS) break;
   }
   return filtered;
 }
 
 /** Build the full unfiltered item list for the slash-launched picker. */
-function collectAllVisibleItems(pages: Page[], excludePageId: string | undefined): PageMentionItem[] {
-  const items: PageMentionItem[] = [];
-  for (const page of pages) {
-    if (page.id === excludePageId) continue;
-    if (page.archived_at) continue;
-    items.push({ pageId: page.id, title: page.title || "Untitled", icon: page.icon });
-  }
-  return items;
+function collectAllVisibleItems(candidates: PageMentionCandidate[]): PageMentionItem[] {
+  return candidates.map((candidate) => ({
+    pageId: candidate.pageId,
+    title: candidate.title || "Untitled",
+    icon: candidate.icon,
+  }));
 }
 
 interface OpenPickerOpts {
   range: Range;
   clientRect: (() => DOMRect | null) | null;
-  currentPageId: string;
-  workspaceId: string | undefined;
+  candidates: PageMentionCandidate[];
 }
 
 function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentionPickerHandle {
-  const pages = opts.workspaceId
-    ? (useWorkspaceStore.getState().snapshotsByWorkspaceId[opts.workspaceId]?.pages ?? [])
-    : [];
-  const items = collectAllVisibleItems(pages, opts.currentPageId);
+  const items = collectAllVisibleItems(opts.candidates);
 
   let handle: PageMentionPickerHandle | null = null;
 
@@ -82,8 +69,7 @@ function openPageMentionPicker(editor: Editor, opts: OpenPickerOpts): PageMentio
 
 interface LaunchPickerOpts {
   range: Range;
-  currentPageId: string;
-  workspaceId: string | undefined;
+  candidates: PageMentionCandidate[];
 }
 
 export function launchPageMentionPicker(editor: Editor, opts: LaunchPickerOpts): PageMentionPickerHandle {
@@ -92,8 +78,7 @@ export function launchPageMentionPicker(editor: Editor, opts: LaunchPickerOpts):
 
   return openPageMentionPicker(editor, {
     range: { from, to: from },
-    currentPageId: opts.currentPageId,
-    workspaceId: opts.workspaceId,
+    candidates: opts.candidates,
     clientRect: () => {
       const coords = editor.view.coordsAtPos(from);
       return new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top);

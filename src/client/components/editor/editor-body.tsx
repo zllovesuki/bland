@@ -12,13 +12,12 @@ import { LinkToolbar } from "./controllers/link-toolbar";
 import { ImageToolbar } from "./controllers/image/toolbar";
 import { TableMenu } from "./controllers/table-menu";
 import { EDITOR_CORE_EXTENSION_OPTIONS } from "./lib/clipboard";
-import { PageMentionContext } from "./page-mention/context";
-import { usePageMentionScope } from "./page-mention/scope-context";
 import { EditorAffordanceContext } from "./editor-affordance-context";
 import { EditorRuntimeContext, type EditorRuntimeSnapshot } from "./editor-runtime-context";
 import { EditorMetrics } from "./editor-metrics";
 import { EditorOutline } from "./editor-outline";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
+import { PageMentionContext, usePageMentions } from "@/client/components/page-mention/context";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
@@ -49,7 +48,7 @@ export const EditorBody = memo(function EditorBody({
   outlinePortalTarget,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
-  const pageMentionScope = usePageMentionScope();
+  const pageMentions = usePageMentions();
   const affordanceRef = useRef(affordance);
   affordanceRef.current = affordance;
   const runtimeRef = useRef<EditorRuntimeSnapshot>({
@@ -90,6 +89,7 @@ export const EditorBody = memo(function EditorBody({
         user: collaborationUser,
         getRuntime,
         getAffordance,
+        getPageMentionCandidates: (excludePageId) => pageMentions.getInsertablePages(excludePageId),
       }),
       editable: affordance.documentEditable,
       enableContentCheck: true,
@@ -141,7 +141,7 @@ export const EditorBody = memo(function EditorBody({
         },
       },
     },
-    [fragment, getAffordance, pageId, provider],
+    [fragment, getAffordance, pageId, pageMentions, provider],
   );
 
   useEffect(() => {
@@ -172,7 +172,7 @@ export const EditorBody = memo(function EditorBody({
             Re-providing the existing mention scope here keeps the stable
             route-level resolver lifetime while ensuring node views can still
             consume PageMentionContext. */}
-        <PageMentionContext.Provider value={pageMentionScope}>
+        <PageMentionContext.Provider value={pageMentions}>
           <Tiptap editor={editor}>
             <div className="relative">
               <Tiptap.Content />

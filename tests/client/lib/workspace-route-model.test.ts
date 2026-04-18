@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  isWorkspaceReady,
-  hasWorkspaceIdentity,
-  getMentionCachePolicy,
-  type WorkspaceRouteState,
-} from "@/client/lib/workspace-route-model";
+import { isWorkspaceReady, hasWorkspaceIdentity, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
 
 const WS_ID = "ws-1";
 
@@ -79,25 +74,5 @@ describe("hasWorkspaceIdentity", () => {
     if (hasWorkspaceIdentity(state)) {
       expect(state.workspaceId).toBe(WS_ID);
     }
-  });
-});
-
-describe("getMentionCachePolicy", () => {
-  it("returns live only for ready states with live cacheStatus", () => {
-    expect(getMentionCachePolicy(states.readyMemberLive)).toBe("live");
-    expect(getMentionCachePolicy(states.readySharedLive)).toBe("live");
-  });
-
-  it("returns cache for ready states backed by cache", () => {
-    expect(getMentionCachePolicy(states.readyMemberCache)).toBe("cache");
-    expect(getMentionCachePolicy(states.readySharedCache)).toBe("cache");
-  });
-
-  it("returns cache for non-ready phases", () => {
-    expect(getMentionCachePolicy(states.loadingEmpty)).toBe("cache");
-    expect(getMentionCachePolicy(states.loadingSeeded)).toBe("cache");
-    expect(getMentionCachePolicy(states.degradedStaleSharedNoIdentity)).toBe("cache");
-    expect(getMentionCachePolicy(states.degradedStaleShared)).toBe("cache");
-    expect(getMentionCachePolicy(states.errorNotFound)).toBe("cache");
   });
 });

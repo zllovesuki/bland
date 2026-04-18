@@ -310,7 +310,6 @@ export const ResolvedPageMentionItem = z.object({
 export type ResolvedPageMentionItem = z.infer<typeof ResolvedPageMentionItem>;
 
 export const ResolvePageMentionsResponse = z.object({
-  viewer: ResolvedViewerContext,
   mentions: z.array(ResolvedPageMentionItem),
 });
 export type ResolvePageMentionsResponse = z.infer<typeof ResolvePageMentionsResponse>;
