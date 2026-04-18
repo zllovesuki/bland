@@ -4,6 +4,13 @@ import { useMemo } from "react";
 import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
+import {
+  addSnapshotPage,
+  archiveSnapshotPage,
+  patchSnapshotPage,
+  removeSnapshotPage,
+  upsertSnapshotPage,
+} from "@/client/lib/workspace-snapshot-pages";
 
 export type WorkspaceAccessMode = "member" | "shared";
 
@@ -31,6 +38,7 @@ interface WorkspaceState {
   removeWorkspaceSnapshot(workspaceId: string): void;
 
   addPageToSnapshot(workspaceId: string, page: Page): void;
+  upsertPageInSnapshot(workspaceId: string, page: Page): void;
   updatePageInSnapshot(workspaceId: string, pageId: string, updates: Partial<Page>): void;
   removePageFromSnapshot(workspaceId: string, pageId: string): void;
   archivePageInSnapshot(workspaceId: string, pageId: string): void;
@@ -157,7 +165,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return {
             snapshotsByWorkspaceId: {
               ...state.snapshotsByWorkspaceId,
-              [workspaceId]: { ...snap, pages: [...snap.pages, page] },
+              [workspaceId]: addSnapshotPage(snap, page),
+            },
+          };
+        });
+      },
+
+      upsertPageInSnapshot(workspaceId, page) {
+        set((state) => {
+          const snap = state.snapshotsByWorkspaceId[workspaceId];
+          if (!snap) return state;
+          return {
+            snapshotsByWorkspaceId: {
+              ...state.snapshotsByWorkspaceId,
+              [workspaceId]: upsertSnapshotPage(snap, page),
             },
           };
         });
@@ -167,11 +188,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((state) => {
           const snap = state.snapshotsByWorkspaceId[workspaceId];
           if (!snap) return state;
-          const updatedPages = snap.pages.map((p) => (p.id === pageId ? { ...p, ...updates } : p));
           return {
             snapshotsByWorkspaceId: {
               ...state.snapshotsByWorkspaceId,
-              [workspaceId]: { ...snap, pages: updatedPages },
+              [workspaceId]: patchSnapshotPage(snap, pageId, updates),
             },
           };
         });
@@ -184,7 +204,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return {
             snapshotsByWorkspaceId: {
               ...state.snapshotsByWorkspaceId,
-              [workspaceId]: { ...snap, pages: snap.pages.filter((p) => p.id !== pageId) },
+              [workspaceId]: removeSnapshotPage(snap, pageId),
             },
           };
         });
@@ -194,13 +214,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((state) => {
           const snap = state.snapshotsByWorkspaceId[workspaceId];
           if (!snap) return state;
-          const updatedPages = snap.pages
-            .filter((p) => p.id !== pageId)
-            .map((p) => (p.parent_id === pageId ? { ...p, parent_id: null } : p));
           return {
             snapshotsByWorkspaceId: {
               ...state.snapshotsByWorkspaceId,
-              [workspaceId]: { ...snap, pages: updatedPages },
+              [workspaceId]: archiveSnapshotPage(snap, pageId),
             },
           };
         });

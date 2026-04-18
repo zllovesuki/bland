@@ -26,20 +26,15 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
 
-  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
-  const addPage = useWorkspaceStore((s) => s.addPageToSnapshot);
+  const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);
 
   const onLivePageLoaded = useMemo(
     () => (page: Page & { can_edit?: boolean }) => {
       if (!effectiveWorkspaceId) return;
-      const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId[effectiveWorkspaceId];
-      if (!snap) return;
-      const exists = snap.pages.some((p) => p.id === page.id);
-      if (exists) updatePage(effectiveWorkspaceId, page.id, page);
-      else addPage(effectiveWorkspaceId, page);
+      upsertPage(effectiveWorkspaceId, page);
     },
-    [effectiveWorkspaceId, updatePage, addPage],
+    [effectiveWorkspaceId, upsertPage],
   );
 
   const onEvict = useMemo(

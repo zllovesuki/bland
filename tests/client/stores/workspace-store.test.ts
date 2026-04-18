@@ -112,6 +112,24 @@ describe("workspace-store", () => {
       expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages).toHaveLength(1);
     });
 
+    it("upsertPageInSnapshot updates an existing page without a caller-side existence check", () => {
+      const existing = createPage({ id: "p1", workspace_id: "ws-1", title: "Old", icon: null });
+      useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
+        workspace: createWorkspace({ id: "ws-1" }),
+        accessMode: "member",
+        pages: [existing],
+        members: [],
+      });
+
+      const incoming = { ...existing, title: "New", icon: "🌿", can_edit: false };
+      useWorkspaceStore.getState().upsertPageInSnapshot("ws-1", incoming);
+
+      const page = useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages[0];
+      expect(page.title).toBe("New");
+      expect(page.icon).toBe("🌿");
+      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"].title).toBe("New");
+    });
+
     it("updatePageInSnapshot reflects updates in selectPageMetaById", () => {
       const page = createPage({ id: "p1", workspace_id: "ws-1", title: "Old" });
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {

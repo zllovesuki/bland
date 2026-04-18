@@ -33,6 +33,15 @@ export function useCanonicalPageActions({
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
 
+  const patchRuntimeAndSnapshot = useCallback(
+    (updates: Partial<Page>) => {
+      if (!workspace || !page) return;
+      patchPage(updates);
+      updatePage(workspace.id, page.id, updates);
+    },
+    [workspace, page, patchPage, updatePage],
+  );
+
   const handleArchive = useCallback(async () => {
     if (!workspace || !page || isArchiving) return;
     const ok = await confirm({
@@ -58,26 +67,22 @@ export function useCanonicalPageActions({
 
   const handleTitleChange = useCallback(
     (title: string) => {
-      if (!page || !workspace) return;
-      patchPage({ title });
-      updatePage(workspace.id, page.id, { title });
+      patchRuntimeAndSnapshot({ title });
     },
-    [page, workspace, updatePage, patchPage],
+    [patchRuntimeAndSnapshot],
   );
 
   const handleIconChange = useCallback(
     async (icon: string | null) => {
       if (!workspace || !page) return;
       const version = ++iconVersionRef.current;
-      patchPage({ icon });
-      updatePage(workspace.id, page.id, { icon });
+      patchRuntimeAndSnapshot({ icon });
       try {
         await api.pages.update(workspace.id, page.id, { icon });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (iconVersionRef.current === version) {
-          patchPage({ icon: page.icon });
-          updatePage(workspace.id, page.id, { icon: page.icon });
+          patchRuntimeAndSnapshot({ icon: page.icon });
         }
         reportClientError({
           source: "page.icon-update",
@@ -90,22 +95,20 @@ export function useCanonicalPageActions({
         });
       }
     },
-    [workspace, page, updatePage, wsProvider, patchPage],
+    [workspace, page, patchRuntimeAndSnapshot, wsProvider],
   );
 
   const handleCoverChange = useCallback(
     async (cover_url: string | null) => {
       if (!workspace || !page) return;
       const version = ++coverVersionRef.current;
-      patchPage({ cover_url });
-      updatePage(workspace.id, page.id, { cover_url });
+      patchRuntimeAndSnapshot({ cover_url });
       try {
         await api.pages.update(workspace.id, page.id, { cover_url });
         wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (coverVersionRef.current === version) {
-          patchPage({ cover_url: page.cover_url });
-          updatePage(workspace.id, page.id, { cover_url: page.cover_url });
+          patchRuntimeAndSnapshot({ cover_url: page.cover_url });
         }
         reportClientError({
           source: "page.cover-update",
@@ -118,7 +121,7 @@ export function useCanonicalPageActions({
         });
       }
     },
-    [workspace, page, updatePage, wsProvider, patchPage],
+    [workspace, page, patchRuntimeAndSnapshot, wsProvider],
   );
 
   return {
