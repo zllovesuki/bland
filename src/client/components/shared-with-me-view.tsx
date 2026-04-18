@@ -8,6 +8,7 @@ import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useSharedInbox } from "@/client/hooks/use-shared-inbox";
 import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
 import { getSharedInboxReturnTo } from "@/client/lib/shared-inbox-navigation";
+import { formatRelativeDate } from "@/client/lib/format-date";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import type { SharedWithMeItem } from "@/shared/types";
 
@@ -22,20 +23,6 @@ function groupByWorkspace(items: SharedWithMeItem[]) {
     group.pages.push(item);
   }
   return [...groups.values()];
-}
-
-function formatRelativeDate(iso: string): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return "Today";
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 30) return `${diffDays}d ago`;
-  const diffMonths = Math.floor(diffDays / 30);
-  if (diffMonths < 12) return `${diffMonths}mo ago`;
-  return date.toLocaleDateString();
 }
 
 export function SharedWithMeView() {

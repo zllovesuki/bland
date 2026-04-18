@@ -13,10 +13,13 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 function ShareLoadingShell() {
   return (
     <>
-      <header className="z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
+      <header className="z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-900/95 backdrop-blur-sm">
+        <div className="flex items-center px-4 py-3 sm:px-6">
           <Skeleton className="h-9 w-9 rounded-lg" />
-          <Skeleton className="ml-4 h-4 w-32" />
+          <div className="ml-3 hidden space-y-1.5 sm:block">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-3 w-28" />
+          </div>
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
@@ -32,7 +35,7 @@ function ShareLoadingShell() {
           </div>
         </main>
       </div>
-      <Footer expanded={false} />
+      <Footer expanded={true} />
     </>
   );
 }
@@ -49,7 +52,7 @@ function ShareReadyShell() {
           <Outlet />
         </main>
       </div>
-      <Footer expanded={false} />
+      <Footer expanded={true} />
     </SharedActivePageBoundary>
   );
 }

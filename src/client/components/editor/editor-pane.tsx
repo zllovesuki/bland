@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import YProvider from "y-partyserver/provider";
 import { reportClientError } from "@/client/lib/report-client-error";
@@ -20,6 +20,7 @@ interface EditorPaneProps {
   workspaceId?: string;
   affordance: EditorAffordance;
   outline?: EditorOutlinePlacement;
+  docFooterLeading?: ReactNode;
 }
 
 export type EditorOutlinePlacement = { kind: "inline" } | { kind: "rail"; target: HTMLDivElement | null };
@@ -33,6 +34,7 @@ export function EditorPane({
   workspaceId,
   affordance,
   outline,
+  docFooterLeading,
 }: EditorPaneProps) {
   const [schemaError, setSchemaError] = useState<Error | null>(null);
   const schemaErrorReportedRef = useRef(false);
@@ -97,6 +99,7 @@ export function EditorPane({
           affordance={affordance}
           onSchemaError={handleSchemaError}
           outline={outline}
+          docFooterLeading={docFooterLeading}
         />
       ) : (
         <div className="space-y-3 pl-7">

@@ -1,12 +1,18 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
+import { Avatar } from "@/client/components/ui/avatar";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { useAuthStore, selectHasLocalSession } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuth } from "@/client/hooks/use-auth";
-import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
 import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
+
+const MENU_ITEM_CLASS =
+  "group flex min-h-8 w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] text-zinc-300 transition-[background-color,color] hover:bg-zinc-700 hover:text-zinc-100 focus-visible:bg-zinc-700 focus-visible:text-zinc-100 focus-visible:outline-none";
+const MENU_ICON_CLASS =
+  "flex w-4 shrink-0 items-center justify-center text-zinc-400 transition-colors group-hover:text-current group-focus-visible:text-current";
 
 interface HeaderProps {
   expanded: boolean;
@@ -22,7 +28,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const location = useLocation();
   const visible = useScrollVisibility("main-content");
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isLoginPage = location.pathname === "/login";
   const homeSlug = useWorkspaceStore((s) => {
@@ -36,11 +42,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   });
   const { canLeaveSharedInbox, isSharedInbox, toggleSharedInbox } = useSharedInboxNavigation();
 
-  useClickOutside(
-    menuRef,
-    useCallback(() => setMenuOpen(false), []),
-    menuOpen,
-  );
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const handleLogout = useCallback(async () => {
     setMenuOpen(false);
@@ -105,43 +107,54 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
           )}
 
           {hasLocalSession ? (
-            <div className="relative" ref={menuRef}>
+            <>
               <button
+                ref={menuTriggerRef}
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-700 transition-colors hover:border-zinc-600"
                 aria-label="User menu"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
               >
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="h-full w-full rounded-full object-cover" />
+                {user?.name ? (
+                  <Avatar
+                    name={user.name}
+                    avatarUrl={user.avatar_url}
+                    className="h-full w-full text-sm hover:text-zinc-100"
+                  />
                 ) : (
-                  <span>{user?.name?.charAt(0).toUpperCase() ?? <UserIcon className="h-4 w-4" />}</span>
+                  <UserIcon className="h-4 w-4 text-zinc-300" />
                 )}
               </button>
-
               {menuOpen && (
-                <div className="animate-scale-fade origin-top-right absolute right-0 top-full mt-2 w-48 rounded-lg border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
-                  <div className="border-b border-zinc-700/60 px-3 py-2">
-                    <p className="truncate text-sm font-medium text-zinc-200">{user?.name}</p>
-                    <p className="truncate text-xs text-zinc-400">{user?.email}</p>
+                <DropdownPortal
+                  triggerRef={menuTriggerRef}
+                  width={208}
+                  className="p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+                  onClose={closeMenu}
+                >
+                  <div role="menu" aria-label="User menu">
+                    <div className="px-2 py-1.5">
+                      <p className="truncate text-[13px] font-medium text-zinc-200">{user?.name}</p>
+                      <p className="truncate text-xs text-zinc-400">{user?.email}</p>
+                    </div>
+                    <div className="my-1 h-px bg-zinc-800" role="separator" />
+                    <Link to="/profile" onClick={closeMenu} role="menuitem" className={MENU_ITEM_CLASS}>
+                      <span className={MENU_ICON_CLASS}>
+                        <UserIcon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="flex-1">Profile</span>
+                    </Link>
+                    <button onClick={handleLogout} role="menuitem" className={MENU_ITEM_CLASS}>
+                      <span className={MENU_ICON_CLASS}>
+                        <LogOut className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="flex-1">Sign out</span>
+                    </button>
                   </div>
-                  <Link
-                    to="/profile"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition-colors hover:bg-zinc-700/50 hover:text-zinc-200"
-                  >
-                    <UserIcon className="h-3.5 w-3.5" />
-                    Profile
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-400 transition-colors hover:bg-zinc-700/50 hover:text-zinc-200"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Sign out
-                  </button>
-                </div>
+                </DropdownPortal>
               )}
-            </div>
+            </>
           ) : (
             !isLoginPage && (
               <Link

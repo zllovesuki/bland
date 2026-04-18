@@ -16,6 +16,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { Avatar } from "@/client/components/ui/avatar";
 import { Button } from "@/client/components/ui/button";
 import { useCurrentWorkspace, useWorkspaceMembers } from "./use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
@@ -348,17 +349,11 @@ export function WorkspaceSettings() {
                 style={{ animationDelay: `${Math.min(memberIndex, 7) * 60}ms` }}
               >
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-300">
-                    {user?.avatar_url ? (
-                      <img
-                        src={user.avatar_url}
-                        alt={displayName}
-                        className="h-full w-full rounded-full object-cover"
-                      />
-                    ) : (
-                      displayName.charAt(0).toUpperCase()
-                    )}
-                  </div>
+                  <Avatar
+                    name={displayName}
+                    avatarUrl={user?.avatar_url}
+                    className="h-8 w-8 border border-zinc-700 text-sm"
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-zinc-200">
                       {displayName}

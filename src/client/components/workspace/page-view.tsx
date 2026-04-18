@@ -9,6 +9,7 @@ import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
+import { PageByline } from "@/client/components/ui/page-byline";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
@@ -62,6 +63,11 @@ function PageViewContent() {
 
   const page = activePageState.kind === "ready" ? activePageState.snapshot : null;
   const ancestors = activePageState.kind === "ready" ? activePageState.ancestors : [];
+  const creator = currentPageMeta
+    ? (members.find((m) => m.user_id === currentPageMeta.created_by)?.user ?? null)
+    : null;
+  const docFooterLeading =
+    creator && currentPageMeta ? <PageByline creator={creator} createdAt={currentPageMeta.created_at} /> : undefined;
   const pageAffordance =
     page && activePageState.kind === "ready"
       ? deriveWorkspacePageAffordance({
@@ -228,6 +234,7 @@ function PageViewContent() {
                 canInsertImages: false,
               }
             }
+            docFooterLeading={docFooterLeading}
           />
         </ErrorBoundary>
       </div>

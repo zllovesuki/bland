@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
@@ -35,6 +35,7 @@ interface EditorBodyProps {
   affordance: EditorAffordance;
   onSchemaError?: (error: Error) => void;
   outline?: EditorOutlinePlacement;
+  docFooterLeading?: ReactNode;
 }
 
 export const EditorBody = memo(function EditorBody({
@@ -46,6 +47,7 @@ export const EditorBody = memo(function EditorBody({
   affordance,
   onSchemaError,
   outline = { kind: "inline" },
+  docFooterLeading,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
   const pageMentions = usePageMentions();
@@ -177,7 +179,10 @@ export const EditorBody = memo(function EditorBody({
             </div>
             <div className="mt-4 space-y-4 pl-4 sm:pl-7">
               {outline.kind === "inline" ? outlineContent : null}
-              <EditorMetrics className="justify-end" />
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                {docFooterLeading ?? <span aria-hidden="true" />}
+                <EditorMetrics />
+              </div>
             </div>
             {outline.kind === "rail" && outline.target ? createPortal(outlineContent, outline.target) : null}
           </Tiptap>
