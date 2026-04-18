@@ -33,7 +33,7 @@ function TreeNode({
     <div>
       <div
         className={`flex h-8 w-full items-center gap-1 rounded-md text-sm transition-colors ${
-          isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-300"
+          isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
         style={{ paddingLeft: getSidebarTreePaddingLeft(depth) }}
       >
@@ -169,7 +169,9 @@ export function SharedPageTree({
       <button
         onClick={() => onNavigate(rootPage.id)}
         className={`mb-1 flex h-8 w-full items-center gap-1 rounded-md text-left text-sm font-medium transition-colors ${
-          activePageId === rootPage.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800/50"
+          activePageId === rootPage.id
+            ? "bg-accent-500/10 text-accent-400"
+            : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
         style={{ paddingLeft: getSidebarTreePaddingLeft(0) }}
       >

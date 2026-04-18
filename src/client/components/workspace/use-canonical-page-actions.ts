@@ -1,10 +1,6 @@
-import { useCallback, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useCallback, useRef } from "react";
 import type YProvider from "y-partyserver/provider";
 import { api } from "@/client/lib/api";
-import { confirm } from "@/client/components/confirm";
-import { toast } from "@/client/components/toast";
-import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import type { Workspace } from "@/shared/types";
@@ -13,24 +9,12 @@ import type { ActivePagePatch, ActivePageSnapshot } from "@/client/lib/active-pa
 interface UseCanonicalPageActionsInput {
   workspace: Workspace | null;
   page: ActivePageSnapshot | null;
-  workspaceSlug: string;
-  directChildCount: number;
   syncProvider: YProvider | null;
   patchPage: (updates: ActivePagePatch) => void;
 }
 
-export function useCanonicalPageActions({
-  workspace,
-  page,
-  workspaceSlug,
-  directChildCount,
-  syncProvider,
-  patchPage,
-}: UseCanonicalPageActionsInput) {
-  const navigate = useNavigate();
+export function useCanonicalPageActions({ workspace, page, syncProvider, patchPage }: UseCanonicalPageActionsInput) {
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
-  const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
-  const [isArchiving, setIsArchiving] = useState(false);
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
 
@@ -46,29 +30,6 @@ export function useCanonicalPageActions({
     },
     [workspace, page, patchPage, updatePage],
   );
-
-  const handleArchive = useCallback(async () => {
-    if (!workspace || !page || isArchiving) return;
-    const ok = await confirm({
-      title: "Archive page",
-      message: getArchivePageConfirmMessage(page.title, directChildCount),
-      variant: "danger",
-      confirmLabel: "Archive",
-    });
-    if (!ok) return;
-    setIsArchiving(true);
-    try {
-      await api.pages.delete(workspace.id, page.id);
-      archivePage(workspace.id, page.id);
-      navigate({
-        to: "/$workspaceSlug",
-        params: { workspaceSlug },
-      });
-    } catch {
-      toast.error("Failed to archive page");
-      setIsArchiving(false);
-    }
-  }, [workspace, page, directChildCount, isArchiving, archivePage, navigate, workspaceSlug]);
 
   const handleTitleChange = useCallback(
     (title: string) => {
@@ -130,8 +91,6 @@ export function useCanonicalPageActions({
   );
 
   return {
-    isArchiving,
-    handleArchive,
     handleTitleChange,
     handleIconChange,
     handleCoverChange,

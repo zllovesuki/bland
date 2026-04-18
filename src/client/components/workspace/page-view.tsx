@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -9,6 +8,7 @@ import { deriveWorkspacePageAffordance } from "@/client/lib/affordance/workspace
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
+import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
@@ -19,7 +19,6 @@ import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
-import type { Page, PageAncestor } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
@@ -30,116 +29,6 @@ import {
   useActivePageSync,
 } from "@/client/components/active-page/use-active-page";
 import { useCanonicalPageActions } from "@/client/components/workspace/use-canonical-page-actions";
-
-function Breadcrumbs({
-  currentTitle,
-  currentIcon,
-  currentParentId,
-  workspaceSlug,
-  workspaceName,
-  pages,
-}: {
-  currentTitle: string;
-  currentIcon: string | null;
-  currentParentId: string | null;
-  workspaceSlug: string;
-  workspaceName?: string | null;
-  pages: Page[];
-}) {
-  const ancestors = useMemo(() => {
-    const chain: Page[] = [];
-    const byId = new Map(pages.map((p) => [p.id, p]));
-    let cur = currentParentId ? byId.get(currentParentId) : undefined;
-    while (cur && chain.length < 10) {
-      chain.push(cur);
-      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
-    }
-    return chain.reverse();
-  }, [pages, currentParentId]);
-
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
-
-  return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <Link
-        to="/$workspaceSlug"
-        params={{ workspaceSlug }}
-        className="truncate text-zinc-400 transition-colors hover:text-zinc-300"
-      >
-        {workspaceName ?? workspaceSlug}
-      </Link>
-      {ancestors.map((a) => (
-        <span key={a.id} className="flex items-center gap-1">
-          {sep}
-          <Link
-            to="/$workspaceSlug/$pageId"
-            params={{ workspaceSlug, pageId: a.id }}
-            className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
-          >
-            {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-            {a.title || DEFAULT_PAGE_TITLE}
-          </Link>
-        </span>
-      ))}
-      <span className="flex items-center gap-1">
-        {sep}
-        <span className="inline-flex items-center gap-1 truncate text-zinc-300">
-          {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
-          {currentTitle || DEFAULT_PAGE_TITLE}
-        </span>
-      </span>
-    </nav>
-  );
-}
-
-function SharedBreadcrumbs({
-  currentTitle,
-  currentIcon,
-  workspaceSlug,
-  workspaceName,
-  ancestors,
-}: {
-  currentTitle: string;
-  currentIcon: string | null;
-  workspaceSlug: string;
-  workspaceName?: string | null;
-  ancestors: PageAncestor[];
-}) {
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
-
-  return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <span className="truncate text-zinc-400">{workspaceName ?? workspaceSlug}</span>
-      {ancestors.map((a) => (
-        <span key={a.id} className="flex items-center gap-1">
-          {sep}
-          {a.accessible ? (
-            <Link
-              to="/$workspaceSlug/$pageId"
-              params={{ workspaceSlug, pageId: a.id }}
-              className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
-            >
-              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-              {a.title || DEFAULT_PAGE_TITLE}
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1 text-zinc-500">
-              <Lock className="h-2.5 w-2.5" />
-              Restricted
-            </span>
-          )}
-        </span>
-      ))}
-      <span className="flex items-center gap-1">
-        {sep}
-        <span className="inline-flex items-center gap-1 truncate text-zinc-300">
-          {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
-          {currentTitle || DEFAULT_PAGE_TITLE}
-        </span>
-      </span>
-    </nav>
-  );
-}
 
 export function PageView() {
   const { pageId } = useParams({ strict: false }) as { pageId: string };
@@ -185,20 +74,12 @@ function PageViewContent() {
 
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
 
-  const directChildCount = useMemo(
-    () => (page ? pages.filter((candidate) => candidate.parent_id === page.id && !candidate.archived_at).length : 0),
-    [pages, page],
-  );
-
-  const { isArchiving, handleArchive, handleTitleChange, handleIconChange, handleCoverChange } =
-    useCanonicalPageActions({
-      workspace,
-      page,
-      workspaceSlug: params.workspaceSlug,
-      directChildCount,
-      syncProvider,
-      patchPage,
-    });
+  const { handleTitleChange, handleIconChange, handleCoverChange } = useCanonicalPageActions({
+    workspace,
+    page,
+    syncProvider,
+    patchPage,
+  });
 
   if (activePageState.kind === "loading") {
     return (
@@ -236,10 +117,10 @@ function PageViewContent() {
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
+    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 lg:grid lg:max-w-[62rem] lg:grid-cols-[minmax(0,48rem)_10rem] lg:gap-4 xl:max-w-[66rem] xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
       <div className="min-w-0">
         {page.coverUrl && (
-          <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
+          <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
             <PageCover coverUrl={page.coverUrl} />
             {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) && (
               <div className="absolute right-2 top-2">
@@ -262,7 +143,8 @@ function PageViewContent() {
 
         <div className="mb-6 flex min-h-6 items-center justify-between">
           {pageAffordance?.breadcrumbMode === "restricted" ? (
-            <SharedBreadcrumbs
+            <PageBreadcrumbs
+              mode="shared-in-workspace"
               currentTitle={page.title}
               currentIcon={page.icon}
               workspaceSlug={params.workspaceSlug}
@@ -270,7 +152,8 @@ function PageViewContent() {
               ancestors={ancestors}
             />
           ) : (
-            <Breadcrumbs
+            <PageBreadcrumbs
+              mode="workspace"
               currentTitle={page.title}
               currentIcon={page.icon}
               currentParentId={currentPageMeta?.parent_id ?? null}
@@ -295,13 +178,25 @@ function PageViewContent() {
           </div>
         </div>
 
-        <div className="group/actions mb-4 flex items-start justify-between pl-7">
-          <div className="flex items-center gap-3">
-            {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) ? (
-              <>
-                <IconPicker
-                  currentIcon={page.icon}
-                  onSelect={handleIconChange}
+        <div className="mb-4 flex items-center gap-3 pl-7">
+          {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) ? (
+            <>
+              <IconPicker
+                currentIcon={page.icon}
+                onSelect={handleIconChange}
+                disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
+                title={
+                  pageAffordance.editPageMetadata.kind === "disabled"
+                    ? pageAffordance.editPageMetadata.reason
+                    : undefined
+                }
+              />
+              {!page.coverUrl && (
+                <CoverPicker
+                  currentCover={null}
+                  onSelect={handleCoverChange}
+                  workspaceId={workspace.id}
+                  pageId={page.id}
                   disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
                   title={
                     pageAffordance.editPageMetadata.kind === "disabled"
@@ -309,36 +204,10 @@ function PageViewContent() {
                       : undefined
                   }
                 />
-                {!page.coverUrl && (
-                  <CoverPicker
-                    currentCover={null}
-                    onSelect={handleCoverChange}
-                    workspaceId={workspace.id}
-                    pageId={page.id}
-                    disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
-                    title={
-                      pageAffordance.editPageMetadata.kind === "disabled"
-                        ? pageAffordance.editPageMetadata.reason
-                        : undefined
-                    }
-                  />
-                )}
-              </>
-            ) : (
-              page.icon && <EmojiIcon emoji={page.icon} size={28} />
-            )}
-          </div>
-          {!isSharedMode && workspace && pageAffordance && isActionVisible(pageAffordance.archivePage) && (
-            <button
-              onClick={handleArchive}
-              disabled={isArchiving || !isActionEnabled(pageAffordance.archivePage)}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 opacity-40 transition-[colors,opacity] hover:bg-red-500/10 hover:text-red-400 group-hover/actions:opacity-100 disabled:opacity-50"
-              aria-label={pageAffordance.archivePage.kind === "disabled" ? "Archive page (offline)" : "Archive page"}
-              title={pageAffordance.archivePage.kind === "disabled" ? pageAffordance.archivePage.reason : undefined}
-            >
-              {isArchiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Archive
-            </button>
+              )}
+            </>
+          ) : (
+            page.icon && <EmojiIcon emoji={page.icon} size={28} />
           )}
         </div>
 
@@ -361,7 +230,7 @@ function PageViewContent() {
         </ErrorBoundary>
       </div>
 
-      <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">
+      <aside className="hidden pt-[5.5rem] lg:block" aria-label="Document outline">
         <div ref={setOutlineRailEl} className="sticky top-8" />
       </aside>
     </div>

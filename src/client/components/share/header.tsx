@@ -50,7 +50,10 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
         <div className="flex-1" />
 
         {pageAffordance.showViewOnlyBadge && (
-          <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+          <span
+            className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400"
+            title="Read-only. Ask the owner for edit access."
+          >
             <Eye className="h-3 w-3" />
             View only
           </span>

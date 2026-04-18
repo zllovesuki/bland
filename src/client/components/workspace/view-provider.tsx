@@ -122,6 +122,11 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   }, [route.phase, route.phase === "ready" ? route.workspaceId : null]);
 
   useEffect(() => {
+    if (route.phase !== "ready" || !pageId) return;
+    useWorkspaceStore.getState().setLastVisitedPage(route.workspaceId, pageId);
+  }, [route.phase, route.phase === "ready" ? route.workspaceId : null, pageId]);
+
+  useEffect(() => {
     activeRef.current = true;
     return () => {
       activeRef.current = false;

@@ -25,6 +25,7 @@ interface WorkspaceState {
   sharedInbox: SharedWithMeItem[];
   snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
   lastVisitedWorkspaceId: string | null;
+  lastVisitedPageIdByWorkspaceId: Record<string, string>;
   cacheUserId: string | null;
 
   setMemberWorkspaces(ws: Workspace[]): void;
@@ -44,6 +45,7 @@ interface WorkspaceState {
   replaceSnapshotMembers(workspaceId: string, members: WorkspaceMember[]): void;
 
   setLastVisitedWorkspaceId(id: string | null): void;
+  setLastVisitedPage(workspaceId: string, pageId: string): void;
 
   validateCacheOwner(userId: string | null): void;
   resetStore(cacheUserId?: string | null): void;
@@ -61,6 +63,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       sharedInbox: [],
       snapshotsByWorkspaceId: {},
       lastVisitedWorkspaceId: null,
+      lastVisitedPageIdByWorkspaceId: {},
       cacheUserId: null,
 
       setMemberWorkspaces(workspaces) {
@@ -116,9 +119,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       removeWorkspaceSnapshot(workspaceId) {
         set((state) => {
           const { [workspaceId]: _, ...rest } = state.snapshotsByWorkspaceId;
+          const { [workspaceId]: __, ...restLastPages } = state.lastVisitedPageIdByWorkspaceId;
           return {
             snapshotsByWorkspaceId: rest,
             lastVisitedWorkspaceId: state.lastVisitedWorkspaceId === workspaceId ? null : state.lastVisitedWorkspaceId,
+            lastVisitedPageIdByWorkspaceId: restLastPages,
           };
         });
       },
@@ -205,6 +210,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set({ lastVisitedWorkspaceId: id });
       },
 
+      setLastVisitedPage(workspaceId, pageId) {
+        set((state) => {
+          if (state.lastVisitedPageIdByWorkspaceId[workspaceId] === pageId) return state;
+          return {
+            lastVisitedPageIdByWorkspaceId: {
+              ...state.lastVisitedPageIdByWorkspaceId,
+              [workspaceId]: pageId,
+            },
+          };
+        });
+      },
+
       validateCacheOwner(userId) {
         const state = get();
         if (state.cacheUserId && state.cacheUserId !== userId) {
@@ -221,18 +238,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           sharedInbox: [],
           snapshotsByWorkspaceId: {},
           lastVisitedWorkspaceId: null,
+          lastVisitedPageIdByWorkspaceId: {},
         };
         set(cacheUserId === undefined ? nextState : { ...nextState, cacheUserId });
       },
     }),
     {
       name: STORAGE_KEYS.WORKSPACE,
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
         sharedInbox: state.sharedInbox,
         snapshotsByWorkspaceId: state.snapshotsByWorkspaceId,
         lastVisitedWorkspaceId: state.lastVisitedWorkspaceId,
+        lastVisitedPageIdByWorkspaceId: state.lastVisitedPageIdByWorkspaceId,
         cacheUserId: state.cacheUserId,
       }),
     },

@@ -1,9 +1,10 @@
 import { useCallback, useState } from "react";
-import { ChevronRight, Lock } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
@@ -17,51 +18,6 @@ import {
 } from "@/client/components/active-page/use-active-page";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
-import type { PageAncestor } from "@/shared/types";
-
-function SharedBreadcrumbs({
-  ancestors,
-  currentTitle,
-  currentIcon,
-  onNavigate,
-}: {
-  ancestors: PageAncestor[];
-  currentTitle: string;
-  currentIcon: string | null;
-  onNavigate: (pageId: string) => void;
-}) {
-  if (ancestors.length === 0) return null;
-
-  const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
-
-  return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      {ancestors.map((a) => (
-        <span key={a.id} className="flex items-center gap-1">
-          {a.accessible ? (
-            <button
-              onClick={() => onNavigate(a.id)}
-              className="inline-flex items-center gap-1 truncate text-zinc-500 transition-colors hover:text-zinc-300"
-            >
-              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-              {a.title || DEFAULT_PAGE_TITLE}
-            </button>
-          ) : (
-            <span className="flex items-center gap-1 text-zinc-500">
-              <Lock className="h-2.5 w-2.5" />
-              Restricted
-            </span>
-          )}
-          {sep}
-        </span>
-      ))}
-      <span className="inline-flex items-center gap-1 truncate text-zinc-300">
-        {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
-        {currentTitle || DEFAULT_PAGE_TITLE}
-      </span>
-    </nav>
-  );
-}
 
 function SharedBreadcrumbSkeleton() {
   return (
@@ -124,10 +80,10 @@ export function SharePageView() {
   });
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
+    <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 lg:grid lg:max-w-[62rem] lg:grid-cols-[minmax(0,48rem)_10rem] lg:gap-4 xl:max-w-[66rem] xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
       <div className="min-w-0">
         {presentation.displayCoverUrl && (
-          <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
+          <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
             <PageCover coverUrl={presentation.displayCoverUrl} shareToken={presentation.token} />
           </div>
         )}
@@ -137,7 +93,8 @@ export function SharePageView() {
             {presentation.isAncestorTrailLoading ? (
               <SharedBreadcrumbSkeleton />
             ) : (
-              <SharedBreadcrumbs
+              <PageBreadcrumbs
+                mode="shared"
                 ancestors={presentation.ancestors}
                 currentTitle={presentation.displayTitle}
                 currentIcon={presentation.displayIcon}
@@ -168,7 +125,7 @@ export function SharePageView() {
         </ErrorBoundary>
       </div>
 
-      <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">
+      <aside className="hidden pt-[5.5rem] lg:block" aria-label="Document outline">
         <div ref={setOutlineRailEl} className="sticky top-8" />
       </aside>
     </div>

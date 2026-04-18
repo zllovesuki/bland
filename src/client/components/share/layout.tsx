@@ -65,7 +65,7 @@ function ShareLayoutInner() {
     return (
       <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
         <PageErrorState
-          message={error ?? "This shared link is invalid or has expired."}
+          message={error ?? "This link's either wrong or done. Ask whoever sent it for a new one."}
           className="h-full"
           action={{
             label: "Go home",
