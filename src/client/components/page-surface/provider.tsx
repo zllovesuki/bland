@@ -18,7 +18,7 @@ import {
 } from "@/client/lib/page-surface-model";
 import { derivePageCapabilities, type PageCapabilities } from "@/client/lib/page-capabilities";
 import { PageSurfaceCtx, type PageLoadTarget, type PageSurfaceContextValue } from "./use-page-surface";
-import type { Page, SharedPageInfo, WorkspaceRole } from "@/shared/types";
+import type { Page, WorkspaceRole } from "@/shared/types";
 
 const NO_CAPABILITIES: PageCapabilities = {
   canEdit: false,
@@ -38,10 +38,19 @@ interface PageSurfaceProviderProps {
   pageLoadTarget: PageLoadTarget | null;
   cachedPage: Page | null;
   shareToken: string | null;
-  seedFromTokenPayload: SharedPageInfo | null;
+  seedPage: PageSurfaceSeed | null;
   onLivePageLoaded?: (page: Page & { can_edit?: boolean }) => void;
   onEvict?: (pageId: string) => void;
   children: ReactNode;
+}
+
+export interface PageSurfaceSeed {
+  pageId: string;
+  workspaceId: string;
+  title: string;
+  icon: string | null;
+  cover_url: string | null;
+  canEdit: boolean;
 }
 
 /**
@@ -92,23 +101,60 @@ function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurf
   }
 }
 
-function seedToReadyState(info: SharedPageInfo, pageId: string): PageSurfaceState | null {
-  if (info.page_id !== pageId) return null;
+function resolveAncestorsState(
+  prev: PageSurfaceState,
+  pageId: string,
+  shouldLoadRestrictedAncestors: boolean,
+): Pick<Extract<PageSurfaceState, { kind: "ready" }>, "ancestors" | "ancestorsStatus"> {
+  if (prev.kind === "ready" && prev.page.id === pageId) {
+    return {
+      ancestors: prev.ancestors,
+      ancestorsStatus: prev.ancestorsStatus,
+    };
+  }
+
+  return {
+    ancestors: [],
+    ancestorsStatus: shouldLoadRestrictedAncestors ? "loading" : "ready",
+  };
+}
+
+function buildReadyState(
+  page: Page & { can_edit?: boolean },
+  source: "live" | "cache",
+  prev: PageSurfaceState,
+  shouldLoadRestrictedAncestors: boolean,
+): PageSurfaceState {
+  return {
+    kind: "ready",
+    source,
+    page,
+    ...resolveAncestorsState(prev, page.id, shouldLoadRestrictedAncestors),
+  };
+}
+
+function seedToReadyState(
+  seed: PageSurfaceSeed,
+  pageId: string,
+  prev: PageSurfaceState,
+  shouldLoadRestrictedAncestors: boolean,
+): PageSurfaceState | null {
+  if (seed.pageId !== pageId) return null;
   const seeded: Page & { can_edit: boolean } = {
-    id: info.page_id,
-    workspace_id: info.workspace_id,
+    id: seed.pageId,
+    workspace_id: seed.workspaceId,
     parent_id: null,
-    title: info.title,
-    icon: info.icon,
-    cover_url: info.cover_url,
+    title: seed.title,
+    icon: seed.icon,
+    cover_url: seed.cover_url,
     position: 0,
     created_by: "",
     created_at: "",
     updated_at: "",
     archived_at: null,
-    can_edit: info.permission === "edit",
+    can_edit: seed.canEdit,
   };
-  return { kind: "ready", source: "cache", page: seeded, ancestors: [] };
+  return buildReadyState(seeded, "cache", prev, shouldLoadRestrictedAncestors);
 }
 
 export function PageSurfaceProvider({
@@ -120,16 +166,21 @@ export function PageSurfaceProvider({
   pageLoadTarget,
   cachedPage,
   shareToken,
-  seedFromTokenPayload,
+  seedPage,
   onLivePageLoaded,
   onEvict,
   children,
 }: PageSurfaceProviderProps) {
   const online = useOnline();
+  const shouldLoadRestrictedAncestors = needsRestrictedAncestors(accessMode, role);
 
   const [state, setState] = useState<PageSurfaceState>(() => {
-    if (seedFromTokenPayload) {
-      return seedToReadyState(seedFromTokenPayload, pageId) ?? { kind: "loading" };
+    if (seedPage) {
+      return (
+        seedToReadyState(seedPage, pageId, { kind: "loading" }, shouldLoadRestrictedAncestors) ?? {
+          kind: "loading",
+        }
+      );
     }
     return { kind: "loading" };
   });
@@ -163,12 +214,9 @@ export function PageSurfaceProvider({
     async function load() {
       // Share root-page fast path: seed payload carries title/icon/cover_url/permission,
       // so the provider can go straight to `ready` without firing api.pages.get.
-      if (seedFromTokenPayload && seedFromTokenPayload.page_id === pageId) {
-        const seeded = seedToReadyState(seedFromTokenPayload, pageId);
-        if (seeded) {
-          setState(seeded);
-          return;
-        }
+      if (seedPage && seedPage.pageId === pageId) {
+        setState((prev) => seedToReadyState(seedPage, pageId, prev, shouldLoadRestrictedAncestors) ?? prev);
+        return;
       }
 
       // Preserve the mounted editor when equivalent surface inputs reload the
@@ -178,15 +226,9 @@ export function PageSurfaceProvider({
       if (pageLoadTarget === "cached-page") {
         const cached = cachedPageRef.current;
         if (cached) {
-          setState((prev) => {
-            const ancestors = prev.kind === "ready" && prev.page.id === cached.id ? prev.ancestors : [];
-            return {
-              kind: "ready",
-              source: "cache",
-              page: cached as Page & { can_edit?: boolean },
-              ancestors,
-            };
-          });
+          setState((prev) =>
+            buildReadyState(cached as Page & { can_edit?: boolean }, "cache", prev, shouldLoadRestrictedAncestors),
+          );
         } else {
           setState({
             kind: "unavailable",
@@ -235,8 +277,7 @@ export function PageSurfaceProvider({
         onLivePageLoaded?.(data);
 
         setState((prev) => {
-          const ancestors = prev.kind === "ready" && prev.page.id === data.id ? prev.ancestors : [];
-          return { kind: "ready", source: "live", page: data, ancestors };
+          return buildReadyState(data, "live", prev, shouldLoadRestrictedAncestors);
         });
       } catch (err) {
         if (!request.isCurrent()) return;
@@ -263,15 +304,9 @@ export function PageSurfaceProvider({
           const cached = cachedPageRef.current;
           if (cached) {
             if (isDocCached(pageId)) {
-              setState((prev) => {
-                const ancestors = prev.kind === "ready" && prev.page.id === cached.id ? prev.ancestors : [];
-                return {
-                  kind: "ready",
-                  source: "cache",
-                  page: cached as Page & { can_edit?: boolean },
-                  ancestors,
-                };
-              });
+              setState((prev) =>
+                buildReadyState(cached as Page & { can_edit?: boolean }, "cache", prev, shouldLoadRestrictedAncestors),
+              );
             } else {
               setState({
                 kind: "unavailable",
@@ -311,9 +346,17 @@ export function PageSurfaceProvider({
     return () => {
       request.cancel();
     };
-  }, [surface, pageLoadTarget, workspaceId, pageId, shareToken, seedFromTokenPayload, onLivePageLoaded, onEvict]);
-
-  const shouldLoadRestrictedAncestors = needsRestrictedAncestors(accessMode, role);
+  }, [
+    surface,
+    pageLoadTarget,
+    workspaceId,
+    pageId,
+    shareToken,
+    seedPage,
+    shouldLoadRestrictedAncestors,
+    onLivePageLoaded,
+    onEvict,
+  ]);
   const readyPageId = state.kind === "ready" ? state.page.id : null;
 
   useEffect(() => {
@@ -329,10 +372,17 @@ export function PageSurfaceProvider({
         if (!request.isCurrent()) return;
         setState((prev) => {
           if (prev.kind !== "ready" || prev.page.id !== capturedPageId) return prev;
-          return { ...prev, ancestors };
+          return { ...prev, ancestors, ancestorsStatus: "ready" };
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!request.isCurrent()) return;
+        setState((prev) => {
+          if (prev.kind !== "ready" || prev.page.id !== capturedPageId) return prev;
+          if (prev.ancestorsStatus === "ready") return prev;
+          return { ...prev, ancestorsStatus: "ready" };
+        });
+      });
 
     return () => {
       request.cancel();

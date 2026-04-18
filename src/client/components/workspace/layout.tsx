@@ -2,24 +2,17 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react
 import { Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-import { isWorkspaceReady, hasWorkspaceIdentity, getMentionCachePolicy } from "@/client/lib/workspace-route-model";
+import { isWorkspaceReady, getMentionCachePolicy } from "@/client/lib/workspace-route-model";
 import { shouldBlockMemberOnlyRouteContent, shouldRedirectMemberOnlyRoute } from "@/client/lib/workspace-layout-model";
-import { getPageLoadTarget } from "@/client/lib/page-load-target";
 import {
   getCanonicalPageMentionViewer,
   lookupCanonicalCachedMentionPage,
 } from "@/client/lib/canonical-page-mention-scope";
-import { isDocCached } from "@/client/lib/doc-cache-hints";
 import { PageMentionScopeProvider } from "@/client/components/editor/page-mention/scope-provider";
-import { selectPageMetaById, usePageMetaById, useWorkspaceStore } from "@/client/stores/workspace-store";
-import { useAuthStore } from "@/client/stores/auth-store";
-import { useOnline } from "@/client/hooks/use-online";
+import { selectPageMetaById, useWorkspaceStore } from "@/client/stores/workspace-store";
 import { WorkspaceViewProvider } from "./view-provider";
 import { useWorkspaceView } from "./use-workspace-view";
-import {
-  CanonicalPageContext,
-  type CanonicalPageContextValue,
-} from "@/client/components/workspace/use-canonical-page-context";
+import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { Header } from "@/client/components/header";
 import { Footer } from "@/client/components/footer";
 import { Banners } from "@/client/components/ui/banners";
@@ -92,11 +85,9 @@ function WorkspaceLayoutInner() {
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId?: string };
   const location = useLocation();
   const navigate = useNavigate();
-  const online = useOnline();
-  const sessionMode = useAuthStore((s) => s.sessionMode);
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
   const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
-  const cachedPage = usePageMetaById(params.pageId);
+  const canonicalPageContext = useCanonicalPageContext();
 
   const [sidebarCollapsed] = useState(() => localStorage.getItem(STORAGE_KEYS.SIDEBAR) === "true");
 
@@ -129,36 +120,6 @@ function WorkspaceLayoutInner() {
   }, [route, isMemberOnlyRoute, navigate]);
 
   const mentionCachePolicy = getMentionCachePolicy(route);
-  const scopeWorkspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : (cachedPage?.workspace_id ?? null);
-  const scopeSnapshot = useWorkspaceStore((s) =>
-    scopeWorkspaceId ? (s.snapshotsByWorkspaceId[scopeWorkspaceId] ?? null) : null,
-  );
-  // Snapshot store is authoritative for workspace payload; route state only
-  // carries identity keys.
-  const workspace = scopeSnapshot?.workspace ?? null;
-  const accessMode = route.phase === "ready" ? route.accessMode : (scopeSnapshot?.accessMode ?? null);
-  const pageLoadTarget = params.pageId
-    ? getPageLoadTarget({
-        route,
-        online,
-        sessionMode,
-        cachedPage,
-        docCached: isDocCached(params.pageId),
-        workspaceId: scopeWorkspaceId,
-      })
-    : null;
-  const canonicalPageContext = useMemo<CanonicalPageContextValue>(
-    () => ({
-      workspaceId: scopeWorkspaceId,
-      cachedPage,
-      workspace,
-      pages: scopeSnapshot?.pages ?? [],
-      members: scopeSnapshot?.members ?? [],
-      accessMode,
-      pageLoadTarget,
-    }),
-    [accessMode, cachedPage, pageLoadTarget, scopeSnapshot, scopeWorkspaceId, workspace],
-  );
 
   const viewer = useMemo(
     () =>
@@ -222,42 +183,40 @@ function WorkspaceLayoutInner() {
   const showSkeleton = route.phase === "loading" || route.phase === "degraded";
 
   return (
-    <CanonicalPageContext.Provider value={canonicalPageContext}>
-      <PageMentionScopeProvider
-        workspaceId={workspaceId}
-        viewer={viewer}
-        mentionCachePolicy={mentionCachePolicy}
-        lookupCachedPage={lookupCachedPage}
+    <PageMentionScopeProvider
+      workspaceId={workspaceId}
+      viewer={viewer}
+      mentionCachePolicy={mentionCachePolicy}
+      lookupCachedPage={lookupCachedPage}
+    >
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
       >
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
-        >
-          Skip to content
-        </a>
-        <Header
-          expanded={expanded}
-          onToggleLayout={toggleLayout}
-          onToggleMobileSidebar={showFullSidebar ? toggleMobileDrawer : undefined}
-        />
-        <Banners />
-        <div
-          className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl border-l border-zinc-800/60"}`}
-        >
-          {showFullSidebar ? (
-            <Suspense fallback={<SidebarFallback collapsed={sidebarCollapsed} />}>
-              <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
-            </Suspense>
-          ) : showSkeleton ? (
-            <SidebarFallback collapsed={sidebarCollapsed} />
-          ) : null}
-          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
-            {mainContent}
-          </main>
-        </div>
-        <Footer expanded={expanded} />
-      </PageMentionScopeProvider>
-    </CanonicalPageContext.Provider>
+        Skip to content
+      </a>
+      <Header
+        expanded={expanded}
+        onToggleLayout={toggleLayout}
+        onToggleMobileSidebar={showFullSidebar ? toggleMobileDrawer : undefined}
+      />
+      <Banners />
+      <div
+        className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl border-l border-zinc-800/60"}`}
+      >
+        {showFullSidebar ? (
+          <Suspense fallback={<SidebarFallback collapsed={sidebarCollapsed} />}>
+            <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
+          </Suspense>
+        ) : showSkeleton ? (
+          <SidebarFallback collapsed={sidebarCollapsed} />
+        ) : null}
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
+          {mainContent}
+        </main>
+      </div>
+      <Footer expanded={expanded} />
+    </PageMentionScopeProvider>
   );
 }
 

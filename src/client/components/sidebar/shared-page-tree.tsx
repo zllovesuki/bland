@@ -5,6 +5,7 @@ import { api } from "@/client/lib/api";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
+import type { ShareRootPage } from "@/client/components/share/use-share-view";
 import { getSidebarTreePaddingLeft } from "./tree-metrics";
 
 interface TreeNodeData {
@@ -78,17 +79,13 @@ function TreeNode({
 
 export function SharedPageTree({
   workspaceId,
-  rootPageId,
-  rootTitle,
-  rootIcon,
+  rootPage,
   shareToken,
   activePageId,
   onNavigate,
 }: {
   workspaceId: string;
-  rootPageId: string;
-  rootTitle: string;
-  rootIcon: string | null;
+  rootPage: ShareRootPage;
   shareToken: string;
   activePageId: string;
   onNavigate: (pageId: string) => void;
@@ -100,7 +97,7 @@ export function SharedPageTree({
   useEffect(() => {
     setNodes(new Map());
     setRootChildren(null);
-  }, [rootPageId, shareToken]);
+  }, [rootPage.id, shareToken]);
 
   const loadChildren = useCallback(
     async (parentId: string) => {
@@ -133,10 +130,10 @@ export function SharedPageTree({
 
   useEffect(() => {
     if (rootChildren !== null) return;
-    loadChildren(rootPageId).then((children) => {
+    loadChildren(rootPage.id).then((children) => {
       setRootChildren(children.map((c) => c.id));
     });
-  }, [rootChildren, rootPageId, loadChildren]);
+  }, [rootChildren, rootPage.id, loadChildren]);
 
   const handleToggle = useCallback(
     async (pageId: string) => {
@@ -170,16 +167,16 @@ export function SharedPageTree({
   return (
     <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
       <button
-        onClick={() => onNavigate(rootPageId)}
+        onClick={() => onNavigate(rootPage.id)}
         className={`mb-1 flex h-8 w-full items-center gap-1 rounded-md text-left text-sm font-medium transition-colors ${
-          activePageId === rootPageId ? "bg-zinc-800 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800/50"
+          activePageId === rootPage.id ? "bg-zinc-800 text-zinc-100" : "text-zinc-300 hover:bg-zinc-800/50"
         }`}
         style={{ paddingLeft: getSidebarTreePaddingLeft(0) }}
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
-          {rootIcon ? <EmojiIcon emoji={rootIcon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
+          {rootPage.icon ? <EmojiIcon emoji={rootPage.icon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
         </span>
-        <span className="truncate">{rootTitle || DEFAULT_PAGE_TITLE}</span>
+        <span className="truncate">{rootPage.title || DEFAULT_PAGE_TITLE}</span>
       </button>
       {rootChildren === null ? (
         <div className="space-y-1 px-2 pt-1">

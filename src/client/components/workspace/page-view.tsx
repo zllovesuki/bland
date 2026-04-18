@@ -1,15 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Trash2, ChevronRight, Lock, Loader2 } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { api } from "@/client/lib/api";
-import { confirm } from "@/client/components/confirm";
-import { toast } from "@/client/components/toast";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { canArchivePage, canCreatePage, getMyRole } from "@/client/lib/permissions";
-import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { PageCover } from "@/client/components/ui/page-cover";
@@ -22,13 +17,13 @@ import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
-import { reportClientError } from "@/client/lib/report-client-error";
 import type { Page, AncestorInfo } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { CanonicalPageSurface } from "@/client/components/page-surface/canonical";
 import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { useCanonicalPageActions } from "@/client/components/workspace/use-canonical-page-actions";
 
 function Breadcrumbs({
   page,
@@ -151,16 +146,11 @@ function PageViewContent() {
   const navigate = useNavigate();
   const { state, wsProvider, setWsProvider, patchPage } = usePageSurface();
   const { workspaceId: effectiveWorkspaceId, workspace, pages, members, accessMode } = useCanonicalPageContext();
-  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
-  const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const useRestrictedBreadcrumbs = isSharedMode || role === "guest";
-  const [isArchiving, setIsArchiving] = useState(false);
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
-  const iconVersionRef = useRef(0);
-  const coverVersionRef = useRef(0);
   const { status } = useSyncStatus(wsProvider);
   const knownHasCover = pages.find((p) => p.id === params.pageId)?.cover_url;
   const online = useOnline();
@@ -175,94 +165,15 @@ function PageViewContent() {
     [pages, page],
   );
 
-  const handleArchive = useCallback(async () => {
-    if (!workspace || !page || isArchiving) return;
-    const ok = await confirm({
-      title: "Archive page",
-      message: getArchivePageConfirmMessage(page.title, directChildCount),
-      variant: "danger",
-      confirmLabel: "Archive",
+  const { isArchiving, handleArchive, handleTitleChange, handleIconChange, handleCoverChange } =
+    useCanonicalPageActions({
+      workspace,
+      page,
+      workspaceSlug: params.workspaceSlug,
+      directChildCount,
+      wsProvider,
+      patchPage,
     });
-    if (!ok) return;
-    setIsArchiving(true);
-    try {
-      await api.pages.delete(workspace.id, page.id);
-      archivePage(workspace.id, page.id);
-      navigate({
-        to: "/$workspaceSlug",
-        params: { workspaceSlug: params.workspaceSlug },
-      });
-    } catch {
-      toast.error("Failed to archive page");
-      setIsArchiving(false);
-    }
-  }, [workspace, page, directChildCount, isArchiving, archivePage, navigate, params.workspaceSlug]);
-
-  const handleTitleChange = useCallback(
-    (title: string) => {
-      if (page && workspace) {
-        patchPage({ title });
-        updatePage(workspace.id, page.id, { title });
-      }
-    },
-    [page, workspace, updatePage, patchPage],
-  );
-
-  const handleIconChange = useCallback(
-    async (icon: string | null) => {
-      if (!workspace || !page) return;
-      const version = ++iconVersionRef.current;
-      patchPage({ icon });
-      updatePage(workspace.id, page.id, { icon });
-      try {
-        await api.pages.update(workspace.id, page.id, { icon });
-        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
-      } catch (error) {
-        if (iconVersionRef.current === version) {
-          patchPage({ icon: page.icon });
-          updatePage(workspace.id, page.id, { icon: page.icon });
-        }
-        reportClientError({
-          source: "page.icon-update",
-          error,
-          context: {
-            workspaceId: workspace.id,
-            pageId: page.id,
-            icon,
-          },
-        });
-      }
-    },
-    [workspace, page, updatePage, wsProvider, patchPage],
-  );
-
-  const handleCoverChange = useCallback(
-    async (cover_url: string | null) => {
-      if (!workspace || !page) return;
-      const version = ++coverVersionRef.current;
-      patchPage({ cover_url });
-      updatePage(workspace.id, page.id, { cover_url });
-      try {
-        await api.pages.update(workspace.id, page.id, { cover_url });
-        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
-      } catch (error) {
-        if (coverVersionRef.current === version) {
-          patchPage({ cover_url: page.cover_url });
-          updatePage(workspace.id, page.id, { cover_url: page.cover_url });
-        }
-        reportClientError({
-          source: "page.cover-update",
-          error,
-          context: {
-            workspaceId: workspace.id,
-            pageId: page.id,
-            hasCover: !!cover_url,
-          },
-        });
-      }
-    },
-    [workspace, page, updatePage, wsProvider, patchPage],
-  );
 
   if (state.kind === "loading") {
     return (

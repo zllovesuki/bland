@@ -60,7 +60,7 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
       pageLoadTarget={pageLoadTarget}
       cachedPage={cachedPage}
       shareToken={null}
-      seedFromTokenPayload={null}
+      seedPage={null}
       onLivePageLoaded={onLivePageLoaded}
       onEvict={onEvict}
     >

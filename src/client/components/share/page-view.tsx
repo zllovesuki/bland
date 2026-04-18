@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ChevronRight, Lock } from "lucide-react";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
@@ -7,9 +7,10 @@ import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
-import { useShareView } from "@/client/components/share/use-share-view";
-import { useOptionalPageSurface } from "@/client/components/page-surface/use-page-surface";
+import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
 import type { AncestorInfo } from "@/shared/types";
 
 function SharedBreadcrumbs({
@@ -56,121 +57,105 @@ function SharedBreadcrumbs({
   );
 }
 
+function SharedBreadcrumbSkeleton() {
+  return (
+    <div className="flex items-center gap-2 text-xs" aria-hidden="true">
+      <Skeleton className="h-3.5 w-20 rounded-sm" />
+      <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
+      <Skeleton className="h-3.5 w-24 rounded-sm" />
+      <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
+      <Skeleton className="h-3.5 w-28 rounded-sm" />
+    </div>
+  );
+}
+
 export function SharePageView() {
-  const { status, info, error, displayPageId, setWsProvider, handleNavigate, handleTitleChange } = useShareView();
-  const surface = useOptionalPageSurface();
-  const state = surface?.state;
-
-  const readyPage = state?.kind === "ready" ? state.page : null;
-  const ancestors = state?.kind === "ready" ? state.ancestors : [];
-  const title = readyPage?.title ?? "";
-  const icon = readyPage?.icon ?? null;
-  const coverUrl = readyPage?.cover_url ?? null;
-  const isViewOnly = readyPage ? readyPage.can_edit === false : true;
-
+  const { state, patchPage, setWsProvider } = usePageSurface();
+  const presentation = useSharedPagePresentation();
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
-  useDocumentTitle(title || DEFAULT_PAGE_TITLE);
+  const handleTitleChange = useCallback(
+    (titleOverride: string) => {
+      patchPage({ title: titleOverride });
+      if (presentation.isRootActive) {
+        presentation.patchRootPage({ title: titleOverride });
+      }
+    },
+    [patchPage, presentation.isRootActive, presentation.patchRootPage],
+  );
 
-  if (status === "loading") {
+  useDocumentTitle(presentation.displayTitle || DEFAULT_PAGE_TITLE);
+
+  if (state.kind === "unavailable") {
     return (
-      <div className="mx-auto max-w-3xl px-8 py-10" aria-busy="true">
+      <PageErrorState
+        message={presentation.unavailableMessage ?? state.message}
+        className="h-full"
+        action={{
+          label: "Back to shared page",
+          onClick: () => presentation.navigate(presentation.rootPageId),
+        }}
+      />
+    );
+  }
+
+  if (presentation.isPageLoading || !presentation.page) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
         <PageLoadingSkeleton />
       </div>
     );
   }
 
-  if (error || !info) {
-    return (
-      <PageErrorState
-        message={error ?? "This shared link is invalid or has expired."}
-        className="h-full"
-        action={{
-          label: "Go home",
-          onClick: () => {
-            window.location.href = "/";
-          },
-        }}
-      />
-    );
-  }
-
-  if (state?.kind === "unavailable") {
-    return (
-      <PageErrorState
-        message={state.message}
-        className="h-full"
-        action={{
-          label: "Back to shared page",
-          onClick: () => handleNavigate(info.page_id),
-        }}
-      />
-    );
-  }
-
-  const effectivePageId = displayPageId ?? info.page_id;
-  const isPageLoading = !state || state.kind === "loading";
-  const activePage = displayPageId !== info.page_id ? displayPageId : undefined;
+  const page = presentation.page;
+  const showBreadcrumbSlot = presentation.isAncestorTrailLoading || presentation.ancestors.length > 0;
 
   return (
     <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
       <div className="min-w-0">
-        {isPageLoading && (
-          <div className="py-10" aria-busy="true">
-            <PageLoadingSkeleton />
-          </div>
-        )}
-
-        {!isPageLoading && coverUrl && (
+        {presentation.displayCoverUrl && (
           <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
-            <PageCover coverUrl={coverUrl} shareToken={info.token} />
+            <PageCover coverUrl={presentation.displayCoverUrl} shareToken={presentation.token} />
           </div>
         )}
 
-        {!isPageLoading && ancestors.length > 0 && (
-          <div className="mb-6">
-            <SharedBreadcrumbs
-              ancestors={ancestors}
-              currentTitle={title}
-              currentIcon={icon}
-              onNavigate={handleNavigate}
-            />
+        {showBreadcrumbSlot && (
+          <div className="mb-6 min-h-6">
+            {presentation.isAncestorTrailLoading ? (
+              <SharedBreadcrumbSkeleton />
+            ) : (
+              <SharedBreadcrumbs
+                ancestors={presentation.ancestors}
+                currentTitle={presentation.displayTitle}
+                currentIcon={presentation.displayIcon}
+                onNavigate={presentation.navigate}
+              />
+            )}
           </div>
         )}
 
-        {!isPageLoading && icon && (
+        {presentation.displayIcon && (
           <div className="mb-4 pl-7">
-            <EmojiIcon emoji={icon} size={28} />
+            <EmojiIcon emoji={presentation.displayIcon} size={28} />
           </div>
         )}
 
-        {/* Hide the editor container during the loading pass to avoid layout
-            jump while the skeleton renders above. Sub-page navigation still
-            remounts the editor because effectivePageId keys this boundary and
-            the EditorPane itself. */}
-        <ErrorBoundary key={effectivePageId}>
-          {/* don't hide the mounted editor with display: none and
-            use a layout-preserving hidden state for title height stability */}
-          <div
-            className={isPageLoading ? "invisible h-0 overflow-hidden" : undefined}
-            aria-hidden={isPageLoading || undefined}
-          >
-            <EditorPane
-              key={effectivePageId}
-              pageId={effectivePageId}
-              initialTitle={activePage ? title : info.title}
-              onTitleChange={handleTitleChange}
-              onProvider={setWsProvider}
-              shareToken={info.token}
-              readOnly={isViewOnly}
-              workspaceId={info.workspace_id}
-              outlinePortalTarget={isPageLoading ? null : outlineRailEl}
-            />
-          </div>
+        <ErrorBoundary key={page.id}>
+          <EditorPane
+            key={page.id}
+            pageId={page.id}
+            initialTitle={page.title}
+            onTitleChange={handleTitleChange}
+            onProvider={setWsProvider}
+            shareToken={presentation.token}
+            readOnly={presentation.isViewOnly}
+            workspaceId={presentation.workspaceId}
+            outlinePortalTarget={outlineRailEl}
+          />
         </ErrorBoundary>
       </div>
 
       <aside className="hidden pt-[5.5rem] xl:block" aria-label="Document outline">
-        <div ref={setOutlineRailEl} className={isPageLoading ? "sticky top-8 invisible" : "sticky top-8"} />
+        <div ref={setOutlineRailEl} className="sticky top-8" />
       </aside>
     </div>
   );

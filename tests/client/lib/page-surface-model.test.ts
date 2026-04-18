@@ -89,6 +89,7 @@ describe("shouldReconcile", () => {
         archived_at: null,
       },
       ancestors: [],
+      ancestorsStatus: "ready",
     };
     expect(shouldReconcile(state)).toBe(false);
   });

@@ -4,13 +4,10 @@ import { PageMentionScopeProvider } from "@/client/components/editor/page-mentio
 import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
 import { createRequestGuard } from "@/client/lib/request-guard";
-import { PageSurfaceProvider } from "@/client/components/page-surface/provider";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { parseDocMessage } from "@/shared/doc-messages";
 import { reportClientError } from "@/client/lib/report-client-error";
-import { ShareViewContext, type ShareViewState, type ShareViewStatus } from "./use-share-view";
-import type { SharedPageInfo } from "@/shared/types";
+import { ShareViewContext, type ShareRootPage, type ShareViewState, type ShareViewStatus } from "./use-share-view";
+import type { ResolvedViewerContext } from "@/shared/types";
 
 interface ShareViewProviderProps {
   token: string;
@@ -19,10 +16,13 @@ interface ShareViewProviderProps {
 }
 
 export function ShareViewProvider({ token, activePage, children }: ShareViewProviderProps) {
+  const navigate = useNavigate();
   const sessionMode = useAuthStore((s) => s.sessionMode);
   const userId = useAuthStore((s) => s.user?.id ?? null);
 
-  const [info, setInfo] = useState<SharedPageInfo | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<ResolvedViewerContext | null>(null);
+  const [rootPage, setRootPage] = useState<ShareRootPage | null>(null);
   const [status, setStatus] = useState<ShareViewStatus>("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -46,13 +46,23 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
     // Clear resolved info so sibling consumers collapse to their own loading
     // state during auth/user re-resolution instead of leaving the previous
     // share tree visible and clickable.
-    setInfo(null);
+    setWorkspaceId(null);
+    setViewer(null);
+    setRootPage(null);
 
     api.shares
       .resolve(token)
       .then((data) => {
         if (!request.isCurrent()) return;
-        setInfo(data);
+        setWorkspaceId(data.workspace_id);
+        setViewer(data.viewer);
+        setRootPage({
+          id: data.page_id,
+          title: data.title,
+          icon: data.icon,
+          cover_url: data.cover_url,
+          permission: data.permission,
+        });
         setStatus("ready");
       })
       .catch((err) => {
@@ -74,113 +84,55 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
     };
   }, [sessionMode, token, userId]);
 
-  if (status !== "ready" || !info) {
-    // Before the token resolves we cannot mount the page surface (no workspace
-    // id / page id known). Expose a minimal view so share-layout / share-header
-    // can render loading or error chrome.
-    return (
-      <ShareViewContext.Provider
-        value={{
-          status,
-          info,
-          error,
-          displayPageId: null,
-          wsProvider: null,
-          setWsProvider: () => undefined,
-          handleNavigate: () => undefined,
-          handleTitleChange: () => undefined,
-        }}
-      >
-        <PageMentionScopeProvider workspaceId={undefined} viewer={null} shareToken={token} mentionCachePolicy="live">
-          {children}
-        </PageMentionScopeProvider>
-      </ShareViewContext.Provider>
-    );
-  }
+  const rootPageId = rootPage?.id ?? null;
+  const activePageId = rootPageId ? (activePage ?? rootPageId) : null;
 
-  return (
-    <PageSurfaceProvider
-      surface="share"
-      workspaceId={info.workspace_id}
-      pageId={activePage ?? info.page_id}
-      accessMode="shared"
-      role={null}
-      pageLoadTarget="live"
-      cachedPage={null}
-      shareToken={token}
-      seedFromTokenPayload={activePage ? null : info}
-    >
-      <ShareViewBridge status={status} info={info} error={error} token={token} activePage={activePage}>
-        {children}
-      </ShareViewBridge>
-    </PageSurfaceProvider>
-  );
-}
+  const patchRootPage = useCallback((updates: Partial<ShareRootPage>) => {
+    setRootPage((current) => (current ? { ...current, ...updates } : current));
+  }, []);
 
-interface ShareViewBridgeProps {
-  status: ShareViewStatus;
-  info: SharedPageInfo;
-  error: string | null;
-  token: string;
-  activePage: string | undefined;
-  children: ReactNode;
-}
-
-function ShareViewBridge({ status, info, error, token, activePage, children }: ShareViewBridgeProps) {
-  const navigate = useNavigate();
-  const { wsProvider, setWsProvider, patchPage } = usePageSurface();
-
-  // Real-time metadata listener: push icon / cover updates from peers into
-  // the surface state so share viewers see them live.
-  useEffect(() => {
-    if (!wsProvider) return;
-    const handler = (message: string) => {
-      const msg = parseDocMessage(message);
-      if (msg?.type === "page-metadata-updated") {
-        patchPage({ icon: msg.icon, cover_url: msg.cover_url });
-      }
-    };
-    wsProvider.on("custom-message", handler);
-    return () => wsProvider.off("custom-message", handler);
-  }, [wsProvider, patchPage]);
-
-  const handleNavigate = useCallback(
+  const navigateToPage = useCallback(
     (pageId: string) => {
-      const page = pageId === info.page_id ? undefined : pageId;
+      if (!rootPageId) return;
+      const page = pageId === rootPageId ? undefined : pageId;
       navigate({ to: "/s/$token", params: { token }, search: { page } });
     },
-    [info.page_id, token, navigate],
+    [rootPageId, token, navigate],
   );
-
-  const handleTitleChange = useCallback(
-    (titleOverride: string) => {
-      patchPage({ title: titleOverride });
-    },
-    [patchPage],
-  );
-
-  const displayPageId = activePage ?? info.page_id;
 
   const view = useMemo<ShareViewState>(
-    () => ({
-      status,
-      info,
-      error,
-      displayPageId,
-      wsProvider,
-      setWsProvider,
-      handleNavigate,
-      handleTitleChange,
-    }),
-    [status, info, error, displayPageId, wsProvider, setWsProvider, handleNavigate, handleTitleChange],
+    () =>
+      status === "ready" && workspaceId && viewer && rootPage && rootPageId && activePageId
+        ? {
+            status: "ready",
+            error: null,
+            token,
+            workspaceId,
+            viewer,
+            rootPageId,
+            rootPage,
+            activePageId,
+            navigate: navigateToPage,
+            patchRootPage,
+          }
+        : status === "error" && error
+          ? {
+              status: "error",
+              error,
+              token,
+            }
+          : {
+              status: "loading",
+              error: null,
+              token,
+            },
+    [status, workspaceId, viewer, rootPage, rootPageId, activePageId, token, navigateToPage, patchRootPage, error],
   );
-
-  const viewer = info.viewer ?? null;
 
   return (
     <ShareViewContext.Provider value={view}>
       <PageMentionScopeProvider
-        workspaceId={info.workspace_id}
+        workspaceId={workspaceId ?? undefined}
         viewer={viewer}
         shareToken={token}
         mentionCachePolicy="live"

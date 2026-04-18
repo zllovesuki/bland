@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { RootShell } from "@/client/components/root-shell";
 import { StandaloneLayout } from "@/client/components/layouts/standalone-layout";
-import { ShareLayout } from "@/client/components/layouts/share-layout";
+import { ShareLayout } from "@/client/components/share/layout";
 import { WorkspaceLayout } from "@/client/components/workspace/layout";
 import { useAuthStore, selectHasLocalSession, selectIsAuthenticated } from "@/client/stores/auth-store";
 

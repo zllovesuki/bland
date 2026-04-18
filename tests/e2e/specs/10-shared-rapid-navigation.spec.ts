@@ -24,6 +24,7 @@ interface SharedNavigationFixture {
 const ROOT_TITLE = "Shared Root";
 const ROOT_BODY_TEXT = "Root remains view only";
 const CHILD_TITLES = ["Child Alpha", "Child Beta", "Child Gamma"] as const;
+const SHARED_PAGE_METADATA_DELAY_MS = 1_200;
 
 async function createChildPage(
   page: PlaywrightPage,
@@ -52,6 +53,14 @@ async function expectSharedUrl(page: PlaywrightPage, token: string, pageId?: str
       message: pageId ? `URL should settle on shared child ${pageId}` : "URL should drop ?page= on shared root",
     })
     .toBe(pageId ?? null);
+}
+
+function isSharedPageMetadataRequest(url: string, workspaceId: string, pageId: string, shareToken: string): boolean {
+  const parsed = new URL(url);
+  return (
+    parsed.pathname === `/api/v1/workspaces/${workspaceId}/pages/${pageId}` &&
+    parsed.searchParams.get("share") === shareToken
+  );
 }
 
 async function setupSharedNavigationFixture(
@@ -176,6 +185,73 @@ test.describe("rapid page navigation - shared view", () => {
     const returnedRootEditor = page.locator(".tiptap[contenteditable='false']");
     await returnedRootEditor.waitFor({ timeout: 30_000 });
     await expect(returnedRootEditor).toContainText(rootBodyText);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("authenticated member root-child-root races keep the shared root responsive", async ({
+    authenticatedPage: { page, accessToken },
+  }) => {
+    const { root, share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken);
+    const [delayedChild] = children;
+
+    const pageErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    await page.route("**/api/v1/workspaces/**", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+
+      if (isSharedPageMetadataRequest(route.request().url(), root.workspaceId, delayedChild.id, share.token)) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, SHARED_PAGE_METADATA_DELAY_MS);
+        });
+        await route.continue();
+        return;
+      }
+
+      await route.continue();
+    });
+
+    await page.goto(`/s/${share.token}`);
+
+    const rootEditor = page.locator(".tiptap[contenteditable='false']");
+    const childLink = page.locator("button").filter({ hasText: delayedChild.title }).first();
+    const rootLink = page.locator("button").filter({ hasText: ROOT_TITLE }).first();
+    const rootHeaderTitle = page.locator("header span").filter({ hasText: ROOT_TITLE });
+
+    await rootEditor.waitFor({ timeout: 30_000 });
+    await expectSharedUrl(page, share.token);
+    await expect(rootEditor).toContainText(rootBodyText);
+    await childLink.waitFor({ timeout: 15_000 });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await childLink.click();
+      await expectSharedUrl(page, share.token, delayedChild.id);
+
+      await rootLink.click();
+      await expectSharedUrl(page, share.token);
+      await expect(rootHeaderTitle).toBeVisible({ timeout: 10_000 });
+      await expect(rootEditor).toBeVisible({ timeout: 30_000 });
+    }
+
+    await rootEditor.waitFor({ timeout: 30_000 });
+    const rootContentBefore = await rootEditor.textContent();
+    await rootEditor.click();
+    await page.keyboard.type("still read only on root");
+    await expect(rootEditor).toHaveAttribute("contenteditable", "false");
+    expect(await rootEditor.textContent()).toBe(rootContentBefore);
+
+    await childLink.click();
+    await expectSharedUrl(page, share.token, delayedChild.id);
+
+    const childEditor = page.locator(".tiptap[contenteditable='true']");
+    await childEditor.waitFor({ timeout: 30_000 });
+    await childEditor.click();
+    await page.keyboard.type("Delayed child remains editable");
+    await expect(childEditor).toContainText("Delayed child remains editable");
+
     expect(pageErrors).toEqual([]);
   });
 });

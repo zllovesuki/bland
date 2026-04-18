@@ -24,6 +24,7 @@ export type PageSurfaceState =
       source: "live" | "cache";
       page: Page & { can_edit?: boolean };
       ancestors: AncestorInfo[];
+      ancestorsStatus: "loading" | "ready";
     }
   | {
       kind: "unavailable";

@@ -23,16 +23,6 @@ export function usePageSurface(): PageSurfaceContextValue {
   return ctx;
 }
 
-/**
- * Non-throwing variant for surfaces (e.g. share-link header / page-view) that
- * are mounted by a layout *before* the page-surface itself exists. Returns
- * `null` until the provider is in scope; consumers must treat null as
- * "no surface yet" and render a loading affordance.
- */
-export function useOptionalPageSurface(): PageSurfaceContextValue | null {
-  return useContext(PageSurfaceCtx);
-}
-
 export function usePageCapabilities(): PageCapabilities {
   return usePageSurface().capabilities;
 }
