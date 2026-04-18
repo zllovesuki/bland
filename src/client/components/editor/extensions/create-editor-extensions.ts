@@ -159,7 +159,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     }),
     TopLevelBlockIdentity,
     BlockDragDropBehavior,
-    ShareAwareImage.configure({ inline: false, allowBase64: false }),
+    ShareAwareImage.configure({ inline: false, allowBase64: false, getRuntime }),
     TaskList,
     TaskItem.configure({ nested: true }),
     FileHandler.configure({
