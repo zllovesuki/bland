@@ -55,9 +55,9 @@ export interface PageSurfaceSeed {
 
 /**
  * Build an `unavailable` PageSurfaceState from a classified failure. `reason`
- * distinguishes definitive loss (`gone`, no retry affordance) from retryable
- * problems (`error`); message copy reflects `failureKind` so connection
- * errors are not rendered as "page is gone".
+ * distinguishes definitive loss (`gone`) from recoverable classes like
+ * network/session issues (`error`); message copy reflects `failureKind` so
+ * connection errors are not rendered as "page is gone".
  */
 function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurfaceState {
   switch (failureKind) {
@@ -65,28 +65,24 @@ function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurf
       return {
         kind: "unavailable",
         reason: "gone",
-        retryable: false,
         message: "You no longer have access to this page.",
       };
     case "not-found":
       return {
         kind: "unavailable",
         reason: "gone",
-        retryable: false,
         message: "This page is no longer available.",
       };
     case "network":
       return {
         kind: "unavailable",
         reason: "error",
-        retryable: true,
         message: "Couldn't reach the server. Check your connection and try again.",
       };
     case "auth-ambiguous":
       return {
         kind: "unavailable",
         reason: "error",
-        retryable: true,
         message: "Your session may have expired. Please refresh.",
       };
     case "server":
@@ -95,7 +91,6 @@ function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurf
       return {
         kind: "unavailable",
         reason: "error",
-        retryable: true,
         message: toApiError(err).message,
       };
   }
@@ -233,7 +228,6 @@ export function PageSurfaceProvider({
           setState({
             kind: "unavailable",
             reason: "offline-miss",
-            retryable: true,
             message: "This page isn't available offline yet.",
           });
         }
@@ -247,7 +241,6 @@ export function PageSurfaceProvider({
             : {
                 kind: "unavailable",
                 reason: "offline-miss",
-                retryable: true,
                 message: "This page isn't available offline yet.",
               },
         );
@@ -261,7 +254,6 @@ export function PageSurfaceProvider({
             : {
                 kind: "unavailable",
                 reason: "error",
-                retryable: true,
                 message: "This page can't be loaded right now and isn't available in cache.",
               },
         );
@@ -294,7 +286,6 @@ export function PageSurfaceProvider({
           setState({
             kind: "unavailable",
             reason: "gone",
-            retryable: false,
             message: "You no longer have access to this page.",
           });
           return;
@@ -311,7 +302,6 @@ export function PageSurfaceProvider({
               setState({
                 kind: "unavailable",
                 reason: "offline-miss",
-                retryable: true,
                 message: "This page isn't available offline yet.",
               });
             }
@@ -319,7 +309,6 @@ export function PageSurfaceProvider({
             setState({
               kind: "unavailable",
               reason: "offline-miss",
-              retryable: true,
               message: "This page isn't available offline yet.",
             });
           }

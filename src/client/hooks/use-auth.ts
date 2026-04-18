@@ -7,7 +7,6 @@ import type { LoginRequest } from "@/shared/types";
 export function useAuth() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const user = useAuthStore((s) => s.user);
-  const bootstrapped = useAuthStore((s) => s.bootstrapped);
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
@@ -30,5 +29,5 @@ export function useAuth() {
     useWorkspaceStore.getState().resetStore();
   }, [clearAuth]);
 
-  return { isLoading: !bootstrapped, isAuthenticated, user, login, logout };
+  return { isAuthenticated, user, login, logout };
 }

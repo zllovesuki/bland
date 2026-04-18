@@ -4,8 +4,7 @@ import type { Page, AncestorInfo, WorkspaceRole } from "@/shared/types";
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 
 /** Which surface the page-surface model is running under. Canonical pages
- * live inside a resolved workspace and can trigger reconcile via
- * `pages.context`; share-token pages cannot. */
+ * live inside a resolved workspace; share-token pages do not. */
 export type PageSurfaceKind = "canonical" | "share";
 
 /** Why the page is currently unavailable. */
@@ -14,8 +13,8 @@ export type UnavailableReason = "offline-miss" | "gone" | "error";
 /**
  * Render state for a single active page. The `ready` variant is the only one
  * that carries `page` / `ancestors`. The `unavailable` variant carries a
- * `reason` for the cause and a `retryable` flag indicating whether the
- * surface may recover (e.g. via reconcile or reconnection).
+ * `reason` for the cause so consumers can distinguish offline misses,
+ * definitive losses, and transient errors.
  */
 export type PageSurfaceState =
   | { kind: "loading" }
@@ -29,18 +28,8 @@ export type PageSurfaceState =
   | {
       kind: "unavailable";
       reason: UnavailableReason;
-      retryable: boolean;
       message: string;
     };
-
-/**
- * True when an `unavailable` state may benefit from a reconcile attempt.
- * Definitive losses (`reason: "gone"`) never qualify; offline misses and
- * transient network errors do.
- */
-export function shouldReconcile(state: PageSurfaceState): boolean {
-  return state.kind === "unavailable" && state.retryable && state.reason !== "gone";
-}
 
 /**
  * Action the page-surface should take after a load failure. Drives the

@@ -88,7 +88,6 @@ async function bootstrap() {
   // Validate cache ownership before route loaders trust persisted data
   const currentUser = useAuthStore.getState().user;
   useWorkspaceStore.getState().validateCacheOwner(currentUser?.id ?? null);
-  useAuthStore.getState().setBootstrapped();
 
   createRoot(document.getElementById("root")!, {
     onUncaughtError(error, errorInfo) {

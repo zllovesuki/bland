@@ -28,7 +28,6 @@ describe("auth-store", () => {
       expect(state.accessToken).toBeNull();
       expect(selectIsAuthenticated(state)).toBe(false);
       expect(selectHasLocalSession(state)).toBe(false);
-      expect(state.bootstrapped).toBe(false);
     });
 
     it("rehydrates cached user from localStorage", async () => {
@@ -112,13 +111,6 @@ describe("auth-store", () => {
       expect(state.sessionMode).toBe(mode);
       expect(selectIsAuthenticated(state)).toBe(expectAuth);
       expect(selectHasLocalSession(state)).toBe(expectLocal);
-    });
-  });
-
-  describe("setBootstrapped", () => {
-    it("sets bootstrapped to true", () => {
-      useAuthStore.getState().setBootstrapped();
-      expect(useAuthStore.getState().bootstrapped).toBe(true);
     });
   });
 });

@@ -7,7 +7,6 @@ export interface AuthState {
   accessToken: string | null;
   user: User | null;
   sessionMode: SessionMode;
-  bootstrapped: boolean;
   setAuth(token: string, user: User): void;
   /** Full clear -- only on explicit logout. */
   clearAuth(): void;
@@ -15,7 +14,6 @@ export interface AuthState {
   markExpired(): void;
   setUser(user: User): void;
   setSessionMode(mode: SessionMode): void;
-  setBootstrapped(): void;
 }
 
 export const selectIsAuthenticated = (s: AuthState): boolean => s.sessionMode === SESSION_MODES.AUTHENTICATED;
@@ -38,7 +36,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: storedUser,
   sessionMode: SESSION_MODES.ANONYMOUS,
-  bootstrapped: false,
 
   setAuth(token, user) {
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
@@ -75,9 +72,5 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setSessionMode(mode) {
     set({ sessionMode: mode });
-  },
-
-  setBootstrapped() {
-    set({ bootstrapped: true });
   },
 }));

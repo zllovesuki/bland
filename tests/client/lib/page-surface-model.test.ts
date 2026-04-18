@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPageLoadFailureAction,
   needsRestrictedAncestors,
-  shouldReconcile,
   type PageSurfaceKind,
-  type PageSurfaceState,
 } from "@/client/lib/page-surface-model";
 import { SESSION_MODES } from "@/client/lib/constants";
 import type { FailureKind } from "@/client/lib/classify-failure";
@@ -62,76 +60,6 @@ describe("getPageLoadFailureAction", () => {
       expect(getPageLoadFailureAction(kind, true, SESSION_MODES.AUTHENTICATED, "share")).toBe("terminal-gone");
       expect(getPageLoadFailureAction(kind, false, SESSION_MODES.AUTHENTICATED, "share")).toBe("terminal-gone");
     });
-  });
-});
-
-describe("shouldReconcile", () => {
-  it("returns false for loading state", () => {
-    const state: PageSurfaceState = { kind: "loading" };
-    expect(shouldReconcile(state)).toBe(false);
-  });
-
-  it("returns false for ready state", () => {
-    const state: PageSurfaceState = {
-      kind: "ready",
-      source: "live",
-      page: {
-        id: "p",
-        workspace_id: "w",
-        parent_id: null,
-        title: "",
-        icon: null,
-        cover_url: null,
-        position: 0,
-        created_by: "u",
-        created_at: "",
-        updated_at: "",
-        archived_at: null,
-      },
-      ancestors: [],
-      ancestorsStatus: "ready",
-    };
-    expect(shouldReconcile(state)).toBe(false);
-  });
-
-  it("returns false for unavailable when reason is gone", () => {
-    const state: PageSurfaceState = {
-      kind: "unavailable",
-      reason: "gone",
-      retryable: false,
-      message: "Not found",
-    };
-    expect(shouldReconcile(state)).toBe(false);
-  });
-
-  it("returns false for unavailable when not retryable", () => {
-    const state: PageSurfaceState = {
-      kind: "unavailable",
-      reason: "error",
-      retryable: false,
-      message: "Fatal",
-    };
-    expect(shouldReconcile(state)).toBe(false);
-  });
-
-  it("returns true for unavailable retryable error", () => {
-    const state: PageSurfaceState = {
-      kind: "unavailable",
-      reason: "error",
-      retryable: true,
-      message: "Try again",
-    };
-    expect(shouldReconcile(state)).toBe(true);
-  });
-
-  it("returns true for unavailable retryable offline-miss", () => {
-    const state: PageSurfaceState = {
-      kind: "unavailable",
-      reason: "offline-miss",
-      retryable: true,
-      message: "Offline",
-    };
-    expect(shouldReconcile(state)).toBe(true);
   });
 });
 
