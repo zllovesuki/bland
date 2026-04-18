@@ -11,7 +11,10 @@ import { useAuthStore } from "./stores/auth-store";
 import { useWorkspaceStore } from "./stores/workspace-store";
 import "./styles/app.css";
 
-const router = createRouter({ routeTree });
+const router = createRouter({
+  routeTree,
+  defaultPreload: "render",
+});
 
 declare module "@tanstack/react-router" {
   interface Register {
