@@ -2,20 +2,11 @@ import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
-import {
-  getSlashMenuItems,
-  filterItems,
-  type SlashMenuEmojiConfig,
-  type SlashMenuImageConfig,
-  type SlashMenuItem,
-  type SlashMenuPageMentionConfig,
-} from "./items";
+import { filterItems, type SlashMenuItem } from "./items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./overlay";
 
 interface SlashCommandsOptions {
-  pageMention: SlashMenuPageMentionConfig | null;
-  image: SlashMenuImageConfig;
-  emoji: SlashMenuEmojiConfig;
+  getItems: () => SlashMenuItem[];
 }
 
 export const SlashCommands = Extension.create<SlashCommandsOptions>({
@@ -23,31 +14,19 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
 
   addOptions() {
     return {
-      pageMention: null,
-      image: {
-        insertImage: () => {
-          throw new Error("slash image config missing");
-        },
-      },
-      emoji: {
-        openPicker: () => {
-          throw new Error("slash emoji config missing");
-        },
-      },
+      getItems: () => [],
     };
   },
 
   addProseMirrorPlugins() {
-    const pageMention = this.options.pageMention;
-    const image = this.options.image;
-    const emoji = this.options.emoji;
+    const getItems = this.options.getItems;
 
     return [
       Suggestion<SlashMenuItem, SlashMenuItem>({
         editor: this.editor,
         char: "/",
         shouldShow: ({ transaction }) => !isChangeOrigin(transaction),
-        items: ({ query, editor }) => filterItems(getSlashMenuItems({ pageMention, image, emoji }), query, { editor }),
+        items: ({ query, editor }) => filterItems(getItems(), query, { editor }),
         command: ({ editor, range, props: item }) => {
           item.command({ editor, range });
         },

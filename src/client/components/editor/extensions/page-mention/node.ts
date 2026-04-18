@@ -1,14 +1,7 @@
-import { Node, mergeAttributes, type Range } from "@tiptap/core";
+import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageMentionView } from "./node-view";
-
-declare module "@tiptap/core" {
-  interface Commands<ReturnType> {
-    pageMention: {
-      insertPageMention: (attrs: { pageId: string; range?: Range }) => ReturnType;
-    };
-  }
-}
+import "./commands";
 
 export const PageMentionNode = Node.create({
   name: "pageMention",

@@ -2,6 +2,8 @@ import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { uploadFile } from "@/client/lib/uploads";
 import { toast } from "@/client/components/toast";
+import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
+import type { EditorAffordance } from "@/client/lib/affordance/editor";
 
 export const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic"];
 export const IMAGE_TARGET_MISSING_MESSAGE = "That image block no longer exists.";
@@ -20,6 +22,11 @@ export interface ImageNodeTarget {
 export interface InsertedImagePlaceholder {
   target: ImageNodeTarget;
   nextPos: number;
+}
+
+interface CreateImageFileHandlerConfigOptions {
+  getRuntime: () => EditorRuntimeSnapshot;
+  getAffordance: () => EditorAffordance;
 }
 
 function findInsertedImagePos(doc: Editor["state"]["doc"], pendingInsertId: string | null): number | null {
@@ -41,6 +48,14 @@ export function resolveShareUrl(src: string, shareToken?: string): string {
     return `${src}?share=${shareToken}`;
   }
   return src;
+}
+
+export function runtimeToUploadContext(runtime: EditorRuntimeSnapshot): UploadContext {
+  return {
+    workspaceId: runtime.workspaceId,
+    pageId: runtime.pageId,
+    shareToken: runtime.shareToken,
+  };
 }
 
 export function createImageNodeTarget(editor: Editor, pos: number): ImageNodeTarget {
@@ -188,6 +203,69 @@ export function insertImagePlaceholderAtPos(editor: Editor, pos: number): Insert
 
   editor.chain().focus(null, { scrollIntoView: false }).insertContentAt(pos, pending.content).run();
   return finalizeInsertedImagePlaceholder(editor, pending.pendingInsertId);
+}
+
+function collectImageTargetsAtRange(editor: Editor, range: Range, fileCount: number): ImageNodeTarget[] {
+  const targets: ImageNodeTarget[] = [];
+  const first = insertImagePlaceholderAtRange(editor, range);
+  if (!first) return targets;
+
+  targets.push(first.target);
+  let insertPos = first.nextPos;
+  for (const _file of Array.from({ length: Math.max(0, fileCount - 1) })) {
+    const placeholder = insertImagePlaceholderAtPos(editor, insertPos);
+    if (!placeholder) break;
+    targets.push(placeholder.target);
+    insertPos = placeholder.nextPos;
+  }
+
+  return targets;
+}
+
+function collectImageTargetsAtPos(editor: Editor, pos: number, fileCount: number): ImageNodeTarget[] {
+  const targets: ImageNodeTarget[] = [];
+  let insertPos = pos;
+
+  for (const _file of Array.from({ length: fileCount })) {
+    const placeholder = insertImagePlaceholderAtPos(editor, insertPos);
+    if (!placeholder) break;
+    targets.push(placeholder.target);
+    insertPos = placeholder.nextPos;
+  }
+
+  return targets;
+}
+
+async function uploadFilesAtTargets(editor: Editor, ctx: UploadContext, files: File[], targets: ImageNodeTarget[]) {
+  for (const [index, file] of files.entries()) {
+    const target = targets[index];
+    if (!target) break;
+    await uploadAndReplaceImageAtTarget(editor, ctx, file, target);
+  }
+}
+
+export function createImageFileHandlerConfig({ getRuntime, getAffordance }: CreateImageFileHandlerConfigOptions) {
+  return {
+    allowedMimeTypes: IMAGE_MIME_TYPES,
+    onPaste: (editor: Editor, files: File[]) => {
+      const runtime = getRuntime();
+      if (!editor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0) return;
+
+      const targets = collectImageTargetsAtRange(editor, editor.state.selection, files.length);
+      if (targets.length === 0) return;
+
+      void uploadFilesAtTargets(editor, runtimeToUploadContext(runtime), files, targets);
+    },
+    onDrop: (editor: Editor, files: File[], pos: number) => {
+      const runtime = getRuntime();
+      if (!editor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0) return;
+
+      const targets = collectImageTargetsAtPos(editor, pos, files.length);
+      if (targets.length === 0) return;
+
+      void uploadFilesAtTargets(editor, runtimeToUploadContext(runtime), files, targets);
+    },
+  };
 }
 
 export async function uploadAndReplaceImageAtTarget(

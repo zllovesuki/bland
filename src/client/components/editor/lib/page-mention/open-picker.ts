@@ -2,6 +2,7 @@ import type { Editor, Range } from "@tiptap/core";
 import type { PageMentionCandidate } from "@/client/components/page-mention/types";
 import { mountPageMentionPicker, type PageMentionPickerHandle } from "../../controllers/page-mention/picker-overlay";
 import type { PageMentionItem } from "../../controllers/page-mention/picker-panel";
+import "../../extensions/page-mention/commands";
 
 const MAX_SUGGESTIONS = 20;
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DragHandle as DragHandleReact } from "@tiptap/extension-drag-handle-react";
 import { offset } from "@floating-ui/dom";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -15,10 +15,7 @@ import {
   getCurrentTopLevelBlock,
   moveTopLevelBlock,
 } from "../lib/block-actions";
-import { launchPageMentionPicker } from "../lib/page-mention/open-picker";
-import { launchEmojiPicker } from "./emoji/insert-panel";
-import { insertImageFromSlashMenu } from "./image/insert-panel";
-import { getSlashMenuItems, type SlashMenuPageMentionConfig } from "./slash/items";
+import { createInsertPaletteItems } from "../lib/insert-palette";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash/overlay";
 import "../styles/drag-handle.css";
 
@@ -37,18 +34,24 @@ export function DragHandle() {
   const affordance = useEditorAffordance();
   const pageMentions = usePageMentions();
   const [menuBid, setMenuBid] = useState<string | null>(null);
-  const pageMentionRef = useRef<SlashMenuPageMentionConfig | null>(null);
-  pageMentionRef.current = affordance.canInsertPageMentions
-    ? {
-        isAvailable: ({ editor: currentEditor }) => affordance.canInsertPageMentions && currentEditor.isEditable,
-        openPicker: ({ editor: currentEditor, range }) => {
-          launchPageMentionPicker(currentEditor, {
-            range,
-            candidates: pageMentions.getInsertablePages(pageId),
-          });
-        },
-      }
-    : null;
+  const getRuntime = useCallback(
+    () => ({
+      workspaceId,
+      pageId,
+      shareToken,
+    }),
+    [workspaceId, pageId, shareToken],
+  );
+  const getAffordance = useCallback(() => affordance, [affordance]);
+  const getInsertPaletteItems = useMemo(
+    () => () =>
+      createInsertPaletteItems({
+        getRuntime,
+        getAffordance,
+        getPageMentionCandidates: (excludePageId) => pageMentions.getInsertablePages(excludePageId),
+      }),
+    [getAffordance, getRuntime, pageMentions],
+  );
 
   const onNodeChange = useCallback(({ node, pos }: { node: PMNode | null; pos: number }) => {
     nodePos.current = pos;
@@ -95,20 +98,7 @@ export function DragHandle() {
     editor.chain().insertContentAt(insertPos, { type: "paragraph" }).setTextSelection(cursorPos).run();
     editor.commands.focus(null, { scrollIntoView: false });
 
-    const items = getSlashMenuItems({
-      pageMention: pageMentionRef.current,
-      image: {
-        isAvailable: () => affordance.canInsertImages,
-        insertImage: ({ editor: currentEditor, range }) => {
-          insertImageFromSlashMenu(currentEditor, range, { workspaceId, pageId, shareToken });
-        },
-      },
-      emoji: {
-        openPicker: ({ editor: currentEditor, range }) => {
-          launchEmojiPicker(currentEditor, range);
-        },
-      },
-    }).filter((item) => !item.isAvailable || item.isAvailable({ editor }));
+    const items = getInsertPaletteItems().filter((item) => !item.isAvailable || item.isAvailable({ editor }));
     const range = { from: cursorPos, to: cursorPos };
 
     let handle: SlashMenuOverlayHandle | null = null;
@@ -145,7 +135,7 @@ export function DragHandle() {
       handle?.destroy();
       handle = null;
     }
-  }, [closeMenu, editor, pageId, affordance.canInsertImages, shareToken, workspaceId]);
+  }, [closeMenu, editor, getInsertPaletteItems]);
 
   useEffect(() => () => setHandleLocked(false), [setHandleLocked]);
 

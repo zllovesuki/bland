@@ -22,22 +22,8 @@ import { TopLevelBlockIdentity } from "./top-level-block-identity";
 import { PageMentionNode } from "./page-mention/node";
 import { PageMentionSuggestion } from "./page-mention/suggestion";
 import { SlashCommands } from "../controllers/slash/extension";
-import { launchEmojiPicker } from "../controllers/emoji/insert-panel";
-import { insertImageFromSlashMenu } from "../controllers/image/insert-panel";
-import type {
-  SlashMenuEmojiConfig,
-  SlashMenuImageConfig,
-  SlashMenuPageMentionConfig,
-} from "../controllers/slash/items";
-import { canInsertPageMentionAtRange } from "../lib/page-mention/can-insert";
-import { launchPageMentionPicker } from "../lib/page-mention/open-picker";
-import {
-  IMAGE_MIME_TYPES,
-  insertImagePlaceholderAtPos,
-  insertImagePlaceholderAtRange,
-  uploadAndReplaceImageAtTarget,
-  type ImageNodeTarget,
-} from "../lib/media-actions";
+import { createInsertPaletteItems } from "../lib/insert-palette";
+import { createImageFileHandlerConfig } from "../lib/media-actions";
 import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import type { PageMentionCandidate } from "@/client/components/page-mention/types";
@@ -62,42 +48,12 @@ function countCharacters(text: string): number {
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
   const { fragment, provider, user, getRuntime, getAffordance, getPageMentionCandidates } = opts;
-  const getUploadContext = () => {
-    const runtime = getRuntime();
-    return {
-      workspaceId: runtime.workspaceId,
-      pageId: runtime.pageId,
-      shareToken: runtime.shareToken,
-    };
-  };
-  const canOpenMentions = (editable: boolean) => {
-    const affordance = getAffordance();
-    return editable && affordance.canInsertPageMentions;
-  };
-
-  const pageMentionSlashConfig: SlashMenuPageMentionConfig = {
-    isAvailable: ({ editor }) => canOpenMentions(editor.isEditable) && canInsertPageMentionAtRange(editor),
-    openPicker: ({ editor, range }) => {
-      if (!canOpenMentions(editor.isEditable)) return;
-      launchPageMentionPicker(editor, {
-        range,
-        candidates: getPageMentionCandidates(getRuntime().pageId),
-      });
-    },
-  };
-
-  const imageSlashConfig: SlashMenuImageConfig = {
-    isAvailable: () => getAffordance().canInsertImages,
-    insertImage: ({ editor, range }) => {
-      insertImageFromSlashMenu(editor, range, getUploadContext());
-    },
-  };
-
-  const emojiSlashConfig: SlashMenuEmojiConfig = {
-    openPicker: ({ editor, range }) => {
-      launchEmojiPicker(editor, range);
-    },
-  };
+  const getInsertPaletteItems = () =>
+    createInsertPaletteItems({
+      getRuntime,
+      getAffordance,
+      getPageMentionCandidates,
+    });
 
   return [
     StarterKit.configure({
@@ -162,58 +118,12 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     ShareAwareImage.configure({ inline: false, allowBase64: false, getRuntime }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    FileHandler.configure({
-      allowedMimeTypes: IMAGE_MIME_TYPES,
-      onPaste: (currentEditor, files) => {
-        const runtime = getRuntime();
-        if (!currentEditor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0)
-          return;
-        const selection = currentEditor.state.selection;
-        const placeholders: ImageNodeTarget[] = [];
-        const first = insertImagePlaceholderAtRange(currentEditor, { from: selection.from, to: selection.to });
-        if (!first) return;
-        placeholders.push(first.target);
-        let insertPos = first.nextPos;
-        for (const _file of files.slice(1)) {
-          const placeholder = insertImagePlaceholderAtPos(currentEditor, insertPos);
-          if (!placeholder) break;
-          placeholders.push(placeholder.target);
-          insertPos = placeholder.nextPos;
-        }
-        void (async () => {
-          for (const [index, file] of files.entries()) {
-            const target = placeholders[index];
-            if (!target) break;
-            await uploadAndReplaceImageAtTarget(currentEditor, getUploadContext(), file, target);
-          }
-        })();
-      },
-      onDrop: (currentEditor, files, pos) => {
-        const runtime = getRuntime();
-        if (!currentEditor.isEditable || !getAffordance().canInsertImages || !runtime.workspaceId || files.length === 0)
-          return;
-        const placeholders: ImageNodeTarget[] = [];
-        let insertPos = pos;
-        for (const _file of files) {
-          const placeholder = insertImagePlaceholderAtPos(currentEditor, insertPos);
-          if (!placeholder) break;
-          placeholders.push(placeholder.target);
-          insertPos = placeholder.nextPos;
-        }
-        void (async () => {
-          for (const [index, file] of files.entries()) {
-            const target = placeholders[index];
-            if (!target) break;
-            await uploadAndReplaceImageAtTarget(currentEditor, getUploadContext(), file, target);
-          }
-        })();
-      },
-    }),
-    SlashCommands.configure({ pageMention: pageMentionSlashConfig, image: imageSlashConfig, emoji: emojiSlashConfig }),
+    FileHandler.configure(createImageFileHandlerConfig({ getRuntime, getAffordance })),
+    SlashCommands.configure({ getItems: getInsertPaletteItems }),
     PageMentionNode,
     PageMentionSuggestion.configure({
       getCurrentPageId: () => getRuntime().pageId,
-      isAvailable: (editor) => canOpenMentions(editor.isEditable),
+      isAvailable: (editor) => editor.isEditable && getAffordance().canInsertPageMentions,
       getCandidates: () => getPageMentionCandidates(getRuntime().pageId),
     }),
     ...createTableExtensions(),
