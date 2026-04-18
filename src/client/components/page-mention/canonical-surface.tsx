@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { PageMentionProvider } from "./provider";
 import type { PageMentionCandidate } from "./types";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { useOnline } from "@/client/hooks/use-online";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 
@@ -13,13 +13,13 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId?: string };
   const { workspaceId, workspace, accessMode } = useCanonicalPageContext();
-  const surface = usePageSurface();
+  const activePageState = useActivePageState();
   const online = useOnline();
   const pages = useWorkspaceStore((s) =>
     workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.pages ?? EMPTY_PAGES) : EMPTY_PAGES,
   );
 
-  const cacheMode = surface.state.kind === "ready" && surface.state.source === "cache" ? "cache" : "live";
+  const cacheMode = activePageState.kind === "ready" && activePageState.backing === "cache" ? "cache" : "live";
   const workspaceSlug = workspace?.slug ?? params.workspaceSlug;
 
   const pagesById = useMemo(() => {

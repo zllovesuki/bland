@@ -1,5 +1,5 @@
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
-import { SharedPageSurface } from "@/client/components/page-surface/shared";
+import { SharedActivePageBoundary } from "@/client/components/active-page/shared";
 import { ShareViewProvider } from "@/client/components/share/view-provider";
 import { useShareView } from "@/client/components/share/use-share-view";
 import { ShareHeader } from "@/client/components/share/header";
@@ -41,7 +41,7 @@ function ShareReadyShell() {
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
 
   return (
-    <SharedPageSurface>
+    <SharedActivePageBoundary>
       <ShareHeader onToggleMobileSidebar={toggleMobileDrawer} />
       <div className="flex flex-1 overflow-hidden">
         <ShareSidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
@@ -50,7 +50,7 @@ function ShareReadyShell() {
         </main>
       </div>
       <Footer expanded={false} />
-    </SharedPageSurface>
+    </SharedActivePageBoundary>
   );
 }
 

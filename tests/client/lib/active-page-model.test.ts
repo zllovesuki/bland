@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   getPageLoadFailureAction,
   needsRestrictedAncestors,
-  type PageSurfaceKind,
-} from "@/client/lib/page-surface-model";
+  type ActivePageSurface,
+} from "@/client/lib/active-page-model";
 import { SESSION_MODES } from "@/client/lib/constants";
 import type { FailureKind } from "@/client/lib/classify-failure";
 
-const SURFACES: PageSurfaceKind[] = ["canonical", "share"];
+const SURFACES: ActivePageSurface[] = ["canonical", "shared"];
 
 describe("getPageLoadFailureAction", () => {
   describe("forbidden", () => {
@@ -37,7 +37,7 @@ describe("getPageLoadFailureAction", () => {
     });
 
     it("is terminal on share surface", () => {
-      expect(getPageLoadFailureAction("network", true, SESSION_MODES.AUTHENTICATED, "share")).toBe("terminal-gone");
+      expect(getPageLoadFailureAction("network", true, SESSION_MODES.AUTHENTICATED, "shared")).toBe("terminal-gone");
     });
   });
 
@@ -57,8 +57,8 @@ describe("getPageLoadFailureAction", () => {
     });
 
     it.each(kinds)("is terminal for %s on share surface regardless of connection", (kind) => {
-      expect(getPageLoadFailureAction(kind, true, SESSION_MODES.AUTHENTICATED, "share")).toBe("terminal-gone");
-      expect(getPageLoadFailureAction(kind, false, SESSION_MODES.AUTHENTICATED, "share")).toBe("terminal-gone");
+      expect(getPageLoadFailureAction(kind, true, SESSION_MODES.AUTHENTICATED, "shared")).toBe("terminal-gone");
+      expect(getPageLoadFailureAction(kind, false, SESSION_MODES.AUTHENTICATED, "shared")).toBe("terminal-gone");
     });
   });
 });

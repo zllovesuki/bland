@@ -6,6 +6,7 @@ import type {
   User,
   Workspace,
   Page,
+  GetPageResponse,
   WorkspaceMember,
   ApiError,
   InvitePreview,
@@ -13,8 +14,8 @@ import type {
   PageShare,
   SharedPageInfo,
   SharedWithMeItem,
-  AncestorInfo,
-  PageRouteBootstrap,
+  GetPageAncestorsResponse,
+  PageRouteBootstrapResponse,
   ResolvePageMentionsResponse,
 } from "@/shared/types";
 
@@ -189,8 +190,8 @@ export const api = {
     },
     get: async (workspaceId: string, pageId: string, shareToken?: string) => {
       const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
-      const res = await apiFetch<{ page: Page; can_edit?: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}${qs}`);
-      return { ...res.page, can_edit: res.can_edit ?? true };
+      const res = await apiFetch<GetPageResponse>(`/workspaces/${workspaceId}/pages/${pageId}${qs}`);
+      return res;
     },
     create: async (workspaceId: string, data: { title?: string; parent_id?: string; icon?: string }) => {
       const res = await apiFetch<{ page: Page }>(`/workspaces/${workspaceId}/pages`, {
@@ -219,13 +220,11 @@ export const api = {
     },
     ancestors: async (workspaceId: string, pageId: string, shareToken?: string) => {
       const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
-      const res = await apiFetch<{ ancestors: AncestorInfo[] }>(
-        `/workspaces/${workspaceId}/pages/${pageId}/ancestors${qs}`,
-      );
+      const res = await apiFetch<GetPageAncestorsResponse>(`/workspaces/${workspaceId}/pages/${pageId}/ancestors${qs}`);
       return res.ancestors;
     },
     context: async (pageId: string) => {
-      const res = await apiFetch<PageRouteBootstrap>(`/pages/${pageId}/context`);
+      const res = await apiFetch<PageRouteBootstrapResponse>(`/pages/${pageId}/context`);
       return res;
     },
   },

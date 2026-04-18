@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { deriveSharePagePresentation } from "@/client/lib/share-page-model";
 import type { ResolvedViewerContext, SharePermission } from "@/shared/types";
 
@@ -59,8 +59,8 @@ export function useReadyShareView(): ShareViewReadyState {
 
 export function useSharedPagePresentation() {
   const share = useReadyShareView();
-  const surface = usePageSurface();
-  const presentation = deriveSharePagePresentation(share.rootPage, share.activePageId, surface.state);
+  const activePageState = useActivePageState();
+  const presentation = deriveSharePagePresentation(share.rootPage, share.activePageId, activePageState);
   const isRootActive = presentation.isRootActive;
 
   return {
@@ -73,6 +73,6 @@ export function useSharedPagePresentation() {
     token: share.token,
     navigate: share.navigate,
     patchRootPage: share.patchRootPage,
-    unavailableMessage: surface.state.kind === "unavailable" ? surface.state.message : null,
+    unavailableMessage: activePageState.kind === "unavailable" ? activePageState.message : null,
   };
 }

@@ -7,15 +7,16 @@ import { toast } from "@/client/components/toast";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import type { Page, Workspace } from "@/shared/types";
+import type { Workspace } from "@/shared/types";
+import type { ActivePagePatch, ActivePageSnapshot } from "@/client/lib/active-page-model";
 
 interface UseCanonicalPageActionsInput {
   workspace: Workspace | null;
-  page: (Page & { can_edit?: boolean }) | null;
+  page: ActivePageSnapshot | null;
   workspaceSlug: string;
   directChildCount: number;
-  wsProvider: YProvider | null;
-  patchPage: (updates: Partial<Page & { can_edit?: boolean }>) => void;
+  syncProvider: YProvider | null;
+  patchPage: (updates: ActivePagePatch) => void;
 }
 
 export function useCanonicalPageActions({
@@ -23,7 +24,7 @@ export function useCanonicalPageActions({
   page,
   workspaceSlug,
   directChildCount,
-  wsProvider,
+  syncProvider,
   patchPage,
 }: UseCanonicalPageActionsInput) {
   const navigate = useNavigate();
@@ -34,10 +35,14 @@ export function useCanonicalPageActions({
   const coverVersionRef = useRef(0);
 
   const patchRuntimeAndSnapshot = useCallback(
-    (updates: Partial<Page>) => {
+    (updates: ActivePagePatch) => {
       if (!workspace || !page) return;
       patchPage(updates);
-      updatePage(workspace.id, page.id, updates);
+      updatePage(workspace.id, page.id, {
+        ...(updates.title !== undefined ? { title: updates.title } : {}),
+        ...(updates.icon !== undefined ? { icon: updates.icon } : {}),
+        ...(updates.coverUrl !== undefined ? { cover_url: updates.coverUrl } : {}),
+      });
     },
     [workspace, page, patchPage, updatePage],
   );
@@ -79,7 +84,7 @@ export function useCanonicalPageActions({
       patchRuntimeAndSnapshot({ icon });
       try {
         await api.pages.update(workspace.id, page.id, { icon });
-        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
+        syncProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (iconVersionRef.current === version) {
           patchRuntimeAndSnapshot({ icon: page.icon });
@@ -95,20 +100,20 @@ export function useCanonicalPageActions({
         });
       }
     },
-    [workspace, page, patchRuntimeAndSnapshot, wsProvider],
+    [workspace, page, patchRuntimeAndSnapshot, syncProvider],
   );
 
   const handleCoverChange = useCallback(
-    async (cover_url: string | null) => {
+    async (coverUrl: string | null) => {
       if (!workspace || !page) return;
       const version = ++coverVersionRef.current;
-      patchRuntimeAndSnapshot({ cover_url });
+      patchRuntimeAndSnapshot({ coverUrl });
       try {
-        await api.pages.update(workspace.id, page.id, { cover_url });
-        wsProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
+        await api.pages.update(workspace.id, page.id, { cover_url: coverUrl });
+        syncProvider?.sendMessage(JSON.stringify({ type: "page-metadata-refresh" }));
       } catch (error) {
         if (coverVersionRef.current === version) {
-          patchRuntimeAndSnapshot({ cover_url: page.cover_url });
+          patchRuntimeAndSnapshot({ coverUrl: page.coverUrl });
         }
         reportClientError({
           source: "page.cover-update",
@@ -116,12 +121,12 @@ export function useCanonicalPageActions({
           context: {
             workspaceId: workspace.id,
             pageId: page.id,
-            hasCover: !!cover_url,
+            hasCover: !!coverUrl,
           },
         });
       }
     },
-    [workspace, page, patchRuntimeAndSnapshot, wsProvider],
+    [workspace, page, patchRuntimeAndSnapshot, syncProvider],
   );
 
   return {

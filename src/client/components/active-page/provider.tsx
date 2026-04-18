@@ -11,45 +11,42 @@ import { useOnline } from "@/client/hooks/use-online";
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import {
-  type PageSurfaceKind,
-  type PageSurfaceState,
+  type ActivePageAccess,
+  type ActivePagePatch,
+  type ActivePageSnapshot,
+  type ActivePageState,
+  type ActivePageSurface,
   getPageLoadFailureAction,
   needsRestrictedAncestors,
-} from "@/client/lib/page-surface-model";
-import { PageSurfaceCtx, type PageLoadTarget, type PageSurfaceContextValue } from "./use-page-surface";
-import type { Page, WorkspaceRole } from "@/shared/types";
+} from "@/client/lib/active-page-model";
+import { ActivePageContexts, type PageLoadTarget } from "./use-active-page";
+import type { GetPageResponse, Page, WorkspaceRole } from "@/shared/types";
 
-interface PageSurfaceProviderProps {
-  surface: PageSurfaceKind;
+interface ActivePageProviderProps {
+  surface: ActivePageSurface;
   workspaceId: string | null;
   pageId: string;
   accessMode: WorkspaceAccessMode | null;
   role: WorkspaceRole | null;
   pageLoadTarget: PageLoadTarget | null;
-  cachedPage: Page | null;
+  cachedPageMeta: Page | null;
   shareToken: string | null;
-  seedPage: PageSurfaceSeed | null;
-  onLivePageLoaded?: (page: Page & { can_edit?: boolean }) => void;
+  seedPage: ActivePageSeed | null;
+  onLivePageLoaded?: (page: Page) => void;
   onEvict?: (pageId: string) => void;
   children: ReactNode;
 }
 
-export interface PageSurfaceSeed {
+export interface ActivePageSeed {
   pageId: string;
   workspaceId: string;
   title: string;
   icon: string | null;
-  cover_url: string | null;
-  canEdit: boolean;
+  coverUrl: string | null;
+  accessMode: "view" | "edit";
 }
 
-/**
- * Build an `unavailable` PageSurfaceState from a classified failure. `reason`
- * distinguishes definitive loss (`gone`) from recoverable classes like
- * network/session issues (`error`); message copy reflects `failureKind` so
- * connection errors are not rendered as "page is gone".
- */
-function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurfaceState {
+function buildUnavailableState(failureKind: FailureKind, err: unknown): ActivePageState {
   switch (failureKind) {
     case "forbidden":
       return {
@@ -86,12 +83,45 @@ function buildUnavailableState(failureKind: FailureKind, err: unknown): PageSurf
   }
 }
 
+function snapshotFromPage(
+  page: Pick<Page, "id" | "workspace_id" | "title" | "icon" | "cover_url">,
+): ActivePageSnapshot {
+  return {
+    id: page.id,
+    workspaceId: page.workspace_id,
+    title: page.title,
+    icon: page.icon,
+    coverUrl: page.cover_url,
+  };
+}
+
+function accessFromLivePage(page: GetPageResponse): ActivePageAccess {
+  return {
+    mode: page.can_edit ? "edit" : "view",
+    confidence: "authoritative",
+  };
+}
+
+function accessFromCachedPage(): ActivePageAccess {
+  return {
+    mode: "edit",
+    confidence: "optimistic",
+  };
+}
+
+function accessFromSeed(seed: ActivePageSeed): ActivePageAccess {
+  return {
+    mode: seed.accessMode,
+    confidence: "authoritative",
+  };
+}
+
 function resolveAncestorsState(
-  prev: PageSurfaceState,
+  prev: ActivePageState,
   pageId: string,
   shouldLoadRestrictedAncestors: boolean,
-): Pick<Extract<PageSurfaceState, { kind: "ready" }>, "ancestors" | "ancestorsStatus"> {
-  if (prev.kind === "ready" && prev.page.id === pageId) {
+): Pick<Extract<ActivePageState, { kind: "ready" }>, "ancestors" | "ancestorsStatus"> {
+  if (prev.kind === "ready" && prev.snapshot.id === pageId) {
     return {
       ancestors: prev.ancestors,
       ancestorsStatus: prev.ancestorsStatus,
@@ -105,61 +135,61 @@ function resolveAncestorsState(
 }
 
 function buildReadyState(
-  page: Page & { can_edit?: boolean },
-  source: "live" | "cache",
-  prev: PageSurfaceState,
+  snapshot: ActivePageSnapshot,
+  backing: "live" | "cache" | "seed",
+  access: ActivePageAccess,
+  prev: ActivePageState,
   shouldLoadRestrictedAncestors: boolean,
-): PageSurfaceState {
+): ActivePageState {
   return {
     kind: "ready",
-    source,
-    page,
-    ...resolveAncestorsState(prev, page.id, shouldLoadRestrictedAncestors),
+    backing,
+    snapshot,
+    access,
+    ...resolveAncestorsState(prev, snapshot.id, shouldLoadRestrictedAncestors),
   };
 }
 
 function seedToReadyState(
-  seed: PageSurfaceSeed,
+  seed: ActivePageSeed,
   pageId: string,
-  prev: PageSurfaceState,
+  prev: ActivePageState,
   shouldLoadRestrictedAncestors: boolean,
-): PageSurfaceState | null {
+): ActivePageState | null {
   if (seed.pageId !== pageId) return null;
-  const seeded: Page & { can_edit: boolean } = {
-    id: seed.pageId,
-    workspace_id: seed.workspaceId,
-    parent_id: null,
-    title: seed.title,
-    icon: seed.icon,
-    cover_url: seed.cover_url,
-    position: 0,
-    created_by: "",
-    created_at: "",
-    updated_at: "",
-    archived_at: null,
-    can_edit: seed.canEdit,
-  };
-  return buildReadyState(seeded, "cache", prev, shouldLoadRestrictedAncestors);
+  return buildReadyState(
+    {
+      id: seed.pageId,
+      workspaceId: seed.workspaceId,
+      title: seed.title,
+      icon: seed.icon,
+      coverUrl: seed.coverUrl,
+    },
+    "seed",
+    accessFromSeed(seed),
+    prev,
+    shouldLoadRestrictedAncestors,
+  );
 }
 
-export function PageSurfaceProvider({
+export function ActivePageProvider({
   surface,
   workspaceId,
   pageId,
   accessMode,
   role,
   pageLoadTarget,
-  cachedPage,
+  cachedPageMeta,
   shareToken,
   seedPage,
   onLivePageLoaded,
   onEvict,
   children,
-}: PageSurfaceProviderProps) {
+}: ActivePageProviderProps) {
   const online = useOnline();
   const shouldLoadRestrictedAncestors = needsRestrictedAncestors(accessMode, role);
 
-  const [state, setState] = useState<PageSurfaceState>(() => {
+  const [state, setState] = useState<ActivePageState>(() => {
     if (seedPage) {
       return (
         seedToReadyState(seedPage, pageId, { kind: "loading" }, shouldLoadRestrictedAncestors) ?? {
@@ -169,13 +199,13 @@ export function PageSurfaceProvider({
     }
     return { kind: "loading" };
   });
-  const [wsProvider, setWsProvider] = useState<YProvider | null>(null);
+  const [syncProvider, setSyncProvider] = useState<YProvider | null>(null);
   const epochRef = useRef(0);
   const ancestorEpochRef = useRef(0);
   const activeRef = useRef(true);
-  const cachedPageRef = useRef(cachedPage);
+  const cachedPageRef = useRef(cachedPageMeta);
   const onlineRef = useRef(online);
-  cachedPageRef.current = cachedPage;
+  cachedPageRef.current = cachedPageMeta;
   onlineRef.current = online;
 
   useEffect(() => {
@@ -185,10 +215,18 @@ export function PageSurfaceProvider({
     };
   }, []);
 
-  const patchPage = useCallback((updates: Partial<Page & { can_edit?: boolean }>) => {
+  const patchPage = useCallback((updates: ActivePagePatch) => {
     setState((prev) => {
       if (prev.kind !== "ready") return prev;
-      return { ...prev, page: { ...prev.page, ...updates } };
+      return {
+        ...prev,
+        snapshot: {
+          ...prev.snapshot,
+          ...(updates.title !== undefined ? { title: updates.title } : {}),
+          ...(updates.icon !== undefined ? { icon: updates.icon } : {}),
+          ...(updates.coverUrl !== undefined ? { coverUrl: updates.coverUrl } : {}),
+        },
+      };
     });
   }, []);
 
@@ -197,22 +235,24 @@ export function PageSurfaceProvider({
     const request = createRequestGuard(epochRef, activeRef);
 
     async function load() {
-      // Share root-page fast path: seed payload carries title/icon/cover_url/permission,
-      // so the provider can go straight to `ready` without firing api.pages.get.
       if (seedPage && seedPage.pageId === pageId) {
         setState((prev) => seedToReadyState(seedPage, pageId, prev, shouldLoadRestrictedAncestors) ?? prev);
         return;
       }
 
-      // Preserve the mounted editor when equivalent surface inputs reload the
-      // same page id instead of tearing down to a skeleton.
-      setState((prev) => (prev.kind === "ready" && prev.page.id === pageId ? prev : { kind: "loading" }));
+      setState((prev) => (prev.kind === "ready" && prev.snapshot.id === pageId ? prev : { kind: "loading" }));
 
       if (pageLoadTarget === "cached-page") {
         const cached = cachedPageRef.current;
         if (cached) {
           setState((prev) =>
-            buildReadyState(cached as Page & { can_edit?: boolean }, "cache", prev, shouldLoadRestrictedAncestors),
+            buildReadyState(
+              snapshotFromPage(cached),
+              "cache",
+              accessFromCachedPage(),
+              prev,
+              shouldLoadRestrictedAncestors,
+            ),
           );
         } else {
           setState({
@@ -226,7 +266,7 @@ export function PageSurfaceProvider({
 
       if (pageLoadTarget === "offline-unavailable") {
         setState((prev) =>
-          prev.kind === "ready" && prev.page.id === pageId
+          prev.kind === "ready" && prev.snapshot.id === pageId
             ? prev
             : {
                 kind: "unavailable",
@@ -239,7 +279,7 @@ export function PageSurfaceProvider({
 
       if (pageLoadTarget === "cache-unavailable") {
         setState((prev) =>
-          prev.kind === "ready" && prev.page.id === pageId
+          prev.kind === "ready" && prev.snapshot.id === pageId
             ? prev
             : {
                 kind: "unavailable",
@@ -256,11 +296,17 @@ export function PageSurfaceProvider({
         const data = await api.pages.get(workspaceId, pageId, shareToken ?? undefined);
         if (!request.isCurrent()) return;
 
-        onLivePageLoaded?.(data);
+        onLivePageLoaded?.(data.page);
 
-        setState((prev) => {
-          return buildReadyState(data, "live", prev, shouldLoadRestrictedAncestors);
-        });
+        setState((prev) =>
+          buildReadyState(
+            snapshotFromPage(data.page),
+            "live",
+            accessFromLivePage(data),
+            prev,
+            shouldLoadRestrictedAncestors,
+          ),
+        );
       } catch (err) {
         if (!request.isCurrent()) return;
 
@@ -286,7 +332,13 @@ export function PageSurfaceProvider({
           if (cached) {
             if (isDocCached(pageId)) {
               setState((prev) =>
-                buildReadyState(cached as Page & { can_edit?: boolean }, "cache", prev, shouldLoadRestrictedAncestors),
+                buildReadyState(
+                  snapshotFromPage(cached),
+                  "cache",
+                  accessFromCachedPage(),
+                  prev,
+                  shouldLoadRestrictedAncestors,
+                ),
               );
             } else {
               setState({
@@ -305,7 +357,6 @@ export function PageSurfaceProvider({
           return;
         }
 
-        // action === "terminal-gone"
         reportClientError({
           source: surface === "canonical" ? "page.load" : "shared-page.load",
           error: err,
@@ -336,28 +387,29 @@ export function PageSurfaceProvider({
     onLivePageLoaded,
     onEvict,
   ]);
-  const readyPageId = state.kind === "ready" ? state.page.id : null;
+
+  const readyPageId = state.kind === "ready" ? state.snapshot.id : null;
 
   useEffect(() => {
     if (state.kind !== "ready") return;
     if (!shouldLoadRestrictedAncestors || !workspaceId) return;
 
     const request = createRequestGuard(ancestorEpochRef, activeRef);
-    const capturedPageId = state.page.id;
+    const capturedPageId = state.snapshot.id;
 
     api.pages
       .ancestors(workspaceId, capturedPageId, shareToken ?? undefined)
       .then((ancestors) => {
         if (!request.isCurrent()) return;
         setState((prev) => {
-          if (prev.kind !== "ready" || prev.page.id !== capturedPageId) return prev;
+          if (prev.kind !== "ready" || prev.snapshot.id !== capturedPageId) return prev;
           return { ...prev, ancestors, ancestorsStatus: "ready" };
         });
       })
       .catch(() => {
         if (!request.isCurrent()) return;
         setState((prev) => {
-          if (prev.kind !== "ready" || prev.page.id !== capturedPageId) return prev;
+          if (prev.kind !== "ready" || prev.snapshot.id !== capturedPageId) return prev;
           if (prev.ancestorsStatus === "ready") return prev;
           return { ...prev, ancestorsStatus: "ready" };
         });
@@ -368,10 +420,14 @@ export function PageSurfaceProvider({
     };
   }, [state.kind, readyPageId, workspaceId, shouldLoadRestrictedAncestors, shareToken]);
 
-  const contextValue = useMemo<PageSurfaceContextValue>(
-    () => ({ state, wsProvider, setWsProvider, patchPage }),
-    [state, wsProvider, patchPage],
-  );
+  const syncValue = useMemo(() => ({ syncProvider, setSyncProvider }), [syncProvider]);
+  const actionsValue = useMemo(() => ({ patchPage }), [patchPage]);
 
-  return <PageSurfaceCtx.Provider value={contextValue}>{children}</PageSurfaceCtx.Provider>;
+  return (
+    <ActivePageContexts.State.Provider value={state}>
+      <ActivePageContexts.Sync.Provider value={syncValue}>
+        <ActivePageContexts.Actions.Provider value={actionsValue}>{children}</ActivePageContexts.Actions.Provider>
+      </ActivePageContexts.Sync.Provider>
+    </ActivePageContexts.State.Provider>
+  );
 }

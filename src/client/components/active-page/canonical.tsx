@@ -5,24 +5,24 @@ import { CanonicalPageMentionSurface } from "@/client/components/page-mention/ca
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
-import { PageSurfaceProvider } from "@/client/components/page-surface/provider";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { ActivePageProvider } from "@/client/components/active-page/provider";
+import { useActivePageActions, useActivePageSync } from "@/client/components/active-page/use-active-page";
 import { parseDocMessage } from "@/shared/doc-messages";
 import type { Page } from "@/shared/types";
 
 /**
- * Canonical adapter: mounts the shared PageSurfaceProvider with canonical
+ * Canonical boundary: mounts the shared ActivePageProvider with canonical
  * inputs, wires snapshot mutators as cache side-effects, and listens for
  * real-time metadata updates on the active doc's WebSocket.
  */
-export function CanonicalPageSurface({ children }: { children: ReactNode }) {
+export function CanonicalActivePageBoundary({ children }: { children: ReactNode }) {
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId: string };
   const {
     workspaceId: effectiveWorkspaceId,
     members,
     accessMode,
     pageLoadTarget,
-    cachedPage,
+    currentPageMeta,
   } = useCanonicalPageContext();
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
@@ -31,7 +31,7 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
   const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);
 
   const onLivePageLoaded = useMemo(
-    () => (page: Page & { can_edit?: boolean }) => {
+    () => (page: Page) => {
       if (!effectiveWorkspaceId) return;
       upsertPage(effectiveWorkspaceId, page);
     },
@@ -47,14 +47,14 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
   );
 
   return (
-    <PageSurfaceProvider
+    <ActivePageProvider
       surface="canonical"
       workspaceId={effectiveWorkspaceId}
       pageId={params.pageId}
       accessMode={accessMode}
       role={role}
       pageLoadTarget={pageLoadTarget}
-      cachedPage={cachedPage}
+      cachedPageMeta={currentPageMeta}
       shareToken={null}
       seedPage={null}
       onLivePageLoaded={onLivePageLoaded}
@@ -62,27 +62,27 @@ export function CanonicalPageSurface({ children }: { children: ReactNode }) {
     >
       <CanonicalMetadataListener />
       <CanonicalPageMentionSurface>{children}</CanonicalPageMentionSurface>
-    </PageSurfaceProvider>
+    </ActivePageProvider>
   );
 }
 
-/** Subscribes to the active doc's WebSocket for metadata updates pushed from peers. */
 function CanonicalMetadataListener() {
-  const { wsProvider, patchPage } = usePageSurface();
+  const { syncProvider } = useActivePageSync();
+  const { patchPage } = useActivePageActions();
   const { workspace } = useCanonicalPageContext();
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
 
   useEffect(() => {
-    if (!wsProvider || !workspace) return;
+    if (!syncProvider || !workspace) return;
     const handler = (message: string) => {
       const msg = parseDocMessage(message);
       if (msg?.type === "page-metadata-updated") {
-        patchPage({ icon: msg.icon, cover_url: msg.cover_url });
+        patchPage({ icon: msg.icon, coverUrl: msg.cover_url });
         updatePage(workspace.id, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
       }
     };
-    wsProvider.on("custom-message", handler);
-    return () => wsProvider.off("custom-message", handler);
-  }, [wsProvider, workspace, updatePage, patchPage]);
+    syncProvider.on("custom-message", handler);
+    return () => syncProvider.off("custom-message", handler);
+  }, [syncProvider, workspace, updatePage, patchPage]);
   return null;
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveSharePagePresentation } from "@/client/lib/share-page-model";
-import { createPage } from "@tests/client/util/fixtures";
-import type { PageSurfaceState } from "@/client/lib/page-surface-model";
+import type { ActivePageState } from "@/client/lib/active-page-model";
 import type { ShareRootPage } from "@/client/components/share/use-share-view";
 
 const ROOT_PAGE: ShareRootPage = {
@@ -14,10 +13,11 @@ const ROOT_PAGE: ShareRootPage = {
 
 describe("deriveSharePagePresentation", () => {
   it("uses the ready page when the active page is loaded", () => {
-    const state: PageSurfaceState = {
+    const state: ActivePageState = {
       kind: "ready",
-      source: "live",
-      page: { ...createPage({ id: "page-child", title: "Child", icon: "🌿" }), can_edit: true },
+      backing: "live",
+      snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: "🌿", coverUrl: null },
+      access: { mode: "edit", confidence: "authoritative" },
       ancestors: [],
       ancestorsStatus: "ready",
     };
@@ -34,7 +34,7 @@ describe("deriveSharePagePresentation", () => {
   });
 
   it("falls back to the root seed while the root page is still loading", () => {
-    const state: PageSurfaceState = { kind: "loading" };
+    const state: ActivePageState = { kind: "loading" };
 
     expect(deriveSharePagePresentation(ROOT_PAGE, "page-root", state)).toMatchObject({
       activePageId: "page-root",
@@ -49,10 +49,11 @@ describe("deriveSharePagePresentation", () => {
   });
 
   it("does not leak stale ready data from a previous page id", () => {
-    const state: PageSurfaceState = {
+    const state: ActivePageState = {
       kind: "ready",
-      source: "live",
-      page: { ...createPage({ id: "page-old", title: "Old" }), can_edit: false },
+      backing: "live",
+      snapshot: { id: "page-old", workspaceId: "ws-1", title: "Old", icon: null, coverUrl: null },
+      access: { mode: "view", confidence: "authoritative" },
       ancestors: [],
       ancestorsStatus: "ready",
     };
@@ -70,10 +71,11 @@ describe("deriveSharePagePresentation", () => {
   });
 
   it("surfaces ancestor trail loading separately from page readiness", () => {
-    const state: PageSurfaceState = {
+    const state: ActivePageState = {
       kind: "ready",
-      source: "live",
-      page: { ...createPage({ id: "page-child", title: "Child" }), can_edit: false },
+      backing: "live",
+      snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: null, coverUrl: null },
+      access: { mode: "view", confidence: "authoritative" },
       ancestors: [],
       ancestorsStatus: "loading",
     };

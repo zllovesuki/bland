@@ -4,7 +4,6 @@ import { createPage, createWorkspace, createMember } from "@tests/client/util/fi
 import { STORAGE_KEYS } from "@/client/lib/constants";
 
 let useWorkspaceStore: typeof import("@/client/stores/workspace-store").useWorkspaceStore;
-let selectPageMetaById: typeof import("@/client/stores/workspace-store").selectPageMetaById;
 
 beforeEach(async () => {
   installLocalStorageStub();
@@ -12,7 +11,6 @@ beforeEach(async () => {
   const wsMod = await import("@/client/stores/workspace-store");
   const cacheMod = await import("@/client/lib/doc-cache-hints");
   useWorkspaceStore = wsMod.useWorkspaceStore;
-  selectPageMetaById = wsMod.selectPageMetaById;
   vi.spyOn(cacheMod, "clearAllCachedDocs").mockImplementation(() => {});
 });
 
@@ -31,8 +29,7 @@ describe("workspace-store", () => {
       const originalWindow = (globalThis as Record<string, unknown>).window;
 
       // Legacy persisted blob still carries pageMetaById. The current store
-      // shape does not declare it; hydration must ignore it (not crash) and
-      // serve reads through the derived selector instead.
+      // shape does not declare it; hydration must ignore it without crashing.
       localStorage.setItem(
         STORAGE_KEYS.WORKSPACE,
         JSON.stringify({
@@ -70,7 +67,6 @@ describe("workspace-store", () => {
         expect(state.memberWorkspaces).toEqual([workspace]);
         expect(state.snapshotsByWorkspaceId["ws-1"]?.pages).toEqual([page]);
         expect(state.snapshotsByWorkspaceId["ws-1"]?.members).toEqual([member]);
-        expect(mod.selectPageMetaById(state)["p1"]).toEqual(page);
         expect(state.lastVisitedWorkspaceId).toBe("ws-1");
         expect(state.cacheUserId).toBe("user-1");
       } finally {
@@ -88,7 +84,7 @@ describe("workspace-store", () => {
   });
 
   describe("snapshot mutations", () => {
-    it("replaceWorkspaceSnapshot exposes new pages via selectPageMetaById", () => {
+    it("replaceWorkspaceSnapshot stores new pages in the snapshot", () => {
       const pages = [createPage({ id: "p1", workspace_id: "ws-1" })];
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
@@ -96,10 +92,10 @@ describe("workspace-store", () => {
         pages,
         members: [],
       });
-      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"]).toEqual(pages[0]);
+      expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages).toEqual(pages);
     });
 
-    it("addPageToSnapshot exposes the new page via selectPageMetaById", () => {
+    it("addPageToSnapshot appends the new page", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
@@ -108,8 +104,8 @@ describe("workspace-store", () => {
       });
       const page = createPage({ id: "p1", workspace_id: "ws-1" });
       useWorkspaceStore.getState().addPageToSnapshot("ws-1", page);
-      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"]).toEqual(page);
       expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages).toHaveLength(1);
+      expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages[0]).toEqual(page);
     });
 
     it("upsertPageInSnapshot updates an existing page without a caller-side existence check", () => {
@@ -121,16 +117,15 @@ describe("workspace-store", () => {
         members: [],
       });
 
-      const incoming = { ...existing, title: "New", icon: "🌿", can_edit: false };
+      const incoming = { ...existing, title: "New", icon: "🌿" };
       useWorkspaceStore.getState().upsertPageInSnapshot("ws-1", incoming);
 
       const page = useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages[0];
       expect(page.title).toBe("New");
       expect(page.icon).toBe("🌿");
-      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"].title).toBe("New");
     });
 
-    it("updatePageInSnapshot reflects updates in selectPageMetaById", () => {
+    it("updatePageInSnapshot reflects updates in the workspace snapshot", () => {
       const page = createPage({ id: "p1", workspace_id: "ws-1", title: "Old" });
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
@@ -140,10 +135,9 @@ describe("workspace-store", () => {
       });
       useWorkspaceStore.getState().updatePageInSnapshot("ws-1", "p1", { title: "New" });
       expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages[0].title).toBe("New");
-      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"].title).toBe("New");
     });
 
-    it("removePageFromSnapshot drops the page from selectPageMetaById", () => {
+    it("removePageFromSnapshot removes the page from the workspace snapshot", () => {
       const page = createPage({ id: "p1", workspace_id: "ws-1" });
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
@@ -153,7 +147,6 @@ describe("workspace-store", () => {
       });
       useWorkspaceStore.getState().removePageFromSnapshot("ws-1", "p1");
       expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"].pages).toHaveLength(0);
-      expect(selectPageMetaById(useWorkspaceStore.getState())["p1"]).toBeUndefined();
     });
 
     it("archivePageInSnapshot removes page and promotes children", () => {
@@ -173,10 +166,9 @@ describe("workspace-store", () => {
       expect(pages.find((p) => p.id === "parent")).toBeUndefined();
       expect(pages.find((p) => p.id === "child")!.parent_id).toBeNull();
       expect(pages.find((p) => p.id === "sibling")!.parent_id).toBeNull();
-      expect(selectPageMetaById(useWorkspaceStore.getState())["parent"]).toBeUndefined();
     });
 
-    it("removeWorkspaceSnapshot drops that workspace's pages from selectPageMetaById", () => {
+    it("removeWorkspaceSnapshot drops the workspace snapshot only", () => {
       const page = createPage({ id: "p1", workspace_id: "ws-1" });
       const otherPage = createPage({ id: "p2", workspace_id: "ws-2" });
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
@@ -193,33 +185,8 @@ describe("workspace-store", () => {
       });
 
       useWorkspaceStore.getState().removeWorkspaceSnapshot("ws-1");
-      const meta = selectPageMetaById(useWorkspaceStore.getState());
-      expect(meta["p1"]).toBeUndefined();
-      expect(meta["p2"]).toEqual(otherPage);
-    });
-  });
-
-  describe("selectPageMetaById", () => {
-    it("returns an empty object when there are no snapshots", () => {
-      expect(selectPageMetaById(useWorkspaceStore.getState())).toEqual({});
-    });
-
-    it("flattens pages from multiple workspaces by id", () => {
-      const a = createPage({ id: "a", workspace_id: "ws-1" });
-      const b = createPage({ id: "b", workspace_id: "ws-2" });
-      useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
-        workspace: createWorkspace({ id: "ws-1" }),
-        accessMode: "member",
-        pages: [a],
-        members: [],
-      });
-      useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-2", {
-        workspace: createWorkspace({ id: "ws-2" }),
-        accessMode: "shared",
-        pages: [b],
-        members: [],
-      });
-      expect(selectPageMetaById(useWorkspaceStore.getState())).toEqual({ a, b });
+      expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"]).toBeUndefined();
+      expect(useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-2"]?.pages[0]).toEqual(otherPage);
     });
   });
 
@@ -271,7 +238,6 @@ describe("workspace-store", () => {
       const state = useWorkspaceStore.getState();
       expect(state.memberWorkspaces).toEqual([]);
       expect(state.snapshotsByWorkspaceId).toEqual({});
-      expect(selectPageMetaById(state)).toEqual({});
     });
 
     it("updates cacheUserId when provided", () => {

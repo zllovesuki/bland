@@ -19,21 +19,29 @@ import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
-import type { Page, AncestorInfo } from "@/shared/types";
+import type { Page, PageAncestor } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
-import { CanonicalPageSurface } from "@/client/components/page-surface/canonical";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import { CanonicalActivePageBoundary } from "@/client/components/active-page/canonical";
+import {
+  useActivePageActions,
+  useActivePageState,
+  useActivePageSync,
+} from "@/client/components/active-page/use-active-page";
 import { useCanonicalPageActions } from "@/client/components/workspace/use-canonical-page-actions";
 
 function Breadcrumbs({
-  page,
+  currentTitle,
+  currentIcon,
+  currentParentId,
   workspaceSlug,
   workspaceName,
   pages,
 }: {
-  page: Page;
+  currentTitle: string;
+  currentIcon: string | null;
+  currentParentId: string | null;
   workspaceSlug: string;
   workspaceName?: string | null;
   pages: Page[];
@@ -41,13 +49,13 @@ function Breadcrumbs({
   const ancestors = useMemo(() => {
     const chain: Page[] = [];
     const byId = new Map(pages.map((p) => [p.id, p]));
-    let cur = page.parent_id ? byId.get(page.parent_id) : undefined;
+    let cur = currentParentId ? byId.get(currentParentId) : undefined;
     while (cur && chain.length < 10) {
       chain.push(cur);
       cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
     }
     return chain.reverse();
-  }, [pages, page.parent_id]);
+  }, [pages, currentParentId]);
 
   const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
@@ -76,8 +84,8 @@ function Breadcrumbs({
       <span className="flex items-center gap-1">
         {sep}
         <span className="inline-flex items-center gap-1 truncate text-zinc-300">
-          {page.icon && <EmojiIcon emoji={page.icon} size={12} />}
-          {page.title || DEFAULT_PAGE_TITLE}
+          {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
+          {currentTitle || DEFAULT_PAGE_TITLE}
         </span>
       </span>
     </nav>
@@ -85,15 +93,17 @@ function Breadcrumbs({
 }
 
 function SharedBreadcrumbs({
-  page,
+  currentTitle,
+  currentIcon,
   workspaceSlug,
   workspaceName,
   ancestors,
 }: {
-  page: Page;
+  currentTitle: string;
+  currentIcon: string | null;
   workspaceSlug: string;
   workspaceName?: string | null;
-  ancestors: AncestorInfo[];
+  ancestors: PageAncestor[];
 }) {
   const sep = <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />;
 
@@ -123,8 +133,8 @@ function SharedBreadcrumbs({
       <span className="flex items-center gap-1">
         {sep}
         <span className="inline-flex items-center gap-1 truncate text-zinc-300">
-          {page.icon && <EmojiIcon emoji={page.icon} size={12} />}
-          {page.title || DEFAULT_PAGE_TITLE}
+          {currentIcon && <EmojiIcon emoji={currentIcon} size={12} />}
+          {currentTitle || DEFAULT_PAGE_TITLE}
         </span>
       </span>
     </nav>
@@ -134,9 +144,9 @@ function SharedBreadcrumbs({
 export function PageView() {
   const { pageId } = useParams({ strict: false }) as { pageId: string };
   return (
-    <CanonicalPageSurface key={pageId}>
+    <CanonicalActivePageBoundary key={pageId}>
       <PageViewContent />
-    </CanonicalPageSurface>
+    </CanonicalActivePageBoundary>
   );
 }
 
@@ -146,28 +156,32 @@ function PageViewContent() {
     pageId: string;
   };
   const navigate = useNavigate();
-  const { state, wsProvider, setWsProvider, patchPage } = usePageSurface();
+  const activePageState = useActivePageState();
+  const { syncProvider, setSyncProvider } = useActivePageSync();
+  const { patchPage } = useActivePageActions();
   const { workspaceId: effectiveWorkspaceId, workspace, pages, members, accessMode } = useCanonicalPageContext();
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
-  const { status } = useSyncStatus(wsProvider);
-  const knownHasCover = pages.find((p) => p.id === params.pageId)?.cover_url;
+  const { status } = useSyncStatus(syncProvider);
+  const currentPageMeta = pages.find((candidate) => candidate.id === params.pageId) ?? null;
+  const knownHasCover = currentPageMeta?.cover_url;
   const online = useOnline();
 
-  const page = state.kind === "ready" ? state.page : null;
-  const ancestors = state.kind === "ready" ? state.ancestors : [];
-  const pageAffordance = page
-    ? deriveWorkspacePageAffordance({
-        accessMode,
-        workspaceRole: role ?? "none",
-        pageAccess: page.can_edit === false ? "view" : "edit",
-        ownsPage: currentUser?.id === page.created_by,
-        workspaceId: effectiveWorkspaceId ?? undefined,
-        online,
-      })
-    : null;
+  const page = activePageState.kind === "ready" ? activePageState.snapshot : null;
+  const ancestors = activePageState.kind === "ready" ? activePageState.ancestors : [];
+  const pageAffordance =
+    page && activePageState.kind === "ready"
+      ? deriveWorkspacePageAffordance({
+          accessMode,
+          workspaceRole: role ?? "none",
+          pageAccess: activePageState.access.mode,
+          ownsPage: currentUser?.id === currentPageMeta?.created_by,
+          workspaceId: effectiveWorkspaceId ?? undefined,
+          online,
+        })
+      : null;
 
   useDocumentTitle(page?.title || DEFAULT_PAGE_TITLE);
 
@@ -182,11 +196,11 @@ function PageViewContent() {
       page,
       workspaceSlug: params.workspaceSlug,
       directChildCount,
-      wsProvider,
+      syncProvider,
       patchPage,
     });
 
-  if (state.kind === "loading") {
+  if (activePageState.kind === "loading") {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
         {knownHasCover && (
@@ -199,10 +213,10 @@ function PageViewContent() {
     );
   }
 
-  if (state.kind === "unavailable" || !page || !effectiveWorkspaceId) {
+  if (activePageState.kind === "unavailable" || !page || !effectiveWorkspaceId) {
     return (
       <PageErrorState
-        message={state.kind === "unavailable" ? state.message : "Page not found."}
+        message={activePageState.kind === "unavailable" ? activePageState.message : "Page not found."}
         className="h-full"
         action={{
           label: "Go back",
@@ -224,13 +238,13 @@ function PageViewContent() {
   return (
     <div className="animate-fade-in mx-auto max-w-3xl px-4 py-10 sm:px-8 xl:max-w-[66rem] xl:grid xl:grid-cols-[minmax(0,48rem)_12rem] xl:gap-6">
       <div className="min-w-0">
-        {page.cover_url && (
+        {page.coverUrl && (
           <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 xl:mx-0">
-            <PageCover coverUrl={page.cover_url} />
+            <PageCover coverUrl={page.coverUrl} />
             {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) && (
               <div className="absolute right-2 top-2">
                 <CoverPicker
-                  currentCover={page.cover_url}
+                  currentCover={page.coverUrl}
                   onSelect={handleCoverChange}
                   workspaceId={workspace.id}
                   pageId={page.id}
@@ -249,14 +263,17 @@ function PageViewContent() {
         <div className="mb-6 flex min-h-6 items-center justify-between">
           {pageAffordance?.breadcrumbMode === "restricted" ? (
             <SharedBreadcrumbs
-              page={page}
+              currentTitle={page.title}
+              currentIcon={page.icon}
               workspaceSlug={params.workspaceSlug}
               workspaceName={workspace?.name}
               ancestors={ancestors}
             />
           ) : (
             <Breadcrumbs
-              page={page}
+              currentTitle={page.title}
+              currentIcon={page.icon}
+              currentParentId={currentPageMeta?.parent_id ?? null}
               workspaceSlug={params.workspaceSlug}
               workspaceName={workspace?.name}
               pages={pages}
@@ -271,8 +288,8 @@ function PageViewContent() {
               />
             )}
             <AvatarStack
-              awareness={wsProvider?.awareness ?? null}
-              localClientId={wsProvider?.awareness.clientID ?? null}
+              awareness={syncProvider?.awareness ?? null}
+              localClientId={syncProvider?.awareness.clientID ?? null}
             />
             <SyncStatusDot status={status} />
           </div>
@@ -292,7 +309,7 @@ function PageViewContent() {
                       : undefined
                   }
                 />
-                {!page.cover_url && (
+                {!page.coverUrl && (
                   <CoverPicker
                     currentCover={null}
                     onSelect={handleCoverChange}
@@ -330,7 +347,7 @@ function PageViewContent() {
             pageId={page.id}
             initialTitle={page.title}
             onTitleChange={handleTitleChange}
-            onProvider={setWsProvider}
+            onProvider={setSyncProvider}
             workspaceId={effectiveWorkspaceId}
             affordance={
               pageAffordance?.editor ?? {

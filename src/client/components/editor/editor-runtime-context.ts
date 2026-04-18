@@ -1,5 +1,4 @@
 import { createContext, useContext } from "react";
-import type { UploadContext } from "./lib/media-actions";
 
 export interface EditorRuntimeSnapshot {
   workspaceId: string | undefined;
@@ -7,10 +6,7 @@ export interface EditorRuntimeSnapshot {
   shareToken: string | undefined;
 }
 
-export interface EditorRuntimeContextValue extends EditorRuntimeSnapshot {
-  getRuntime(): EditorRuntimeSnapshot;
-  getUploadContext(): UploadContext;
-}
+export type EditorRuntimeContextValue = EditorRuntimeSnapshot;
 
 const EMPTY_RUNTIME: EditorRuntimeSnapshot = {
   workspaceId: undefined,
@@ -20,12 +16,6 @@ const EMPTY_RUNTIME: EditorRuntimeSnapshot = {
 
 export const EditorRuntimeContext = createContext<EditorRuntimeContextValue>({
   ...EMPTY_RUNTIME,
-  getRuntime: () => EMPTY_RUNTIME,
-  getUploadContext: () => ({
-    workspaceId: undefined,
-    pageId: "",
-    shareToken: undefined,
-  }),
 });
 
 export function useEditorRuntime(): EditorRuntimeContextValue {

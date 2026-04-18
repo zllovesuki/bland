@@ -277,22 +277,30 @@ export const SharedWithMeItem = z.object({
 });
 export type SharedWithMeItem = z.infer<typeof SharedWithMeItem>;
 
-export interface PageWithAccess {
-  page: Page;
-  can_edit: boolean;
-}
+export const GetPageResponse = z.object({
+  page: Page,
+  can_edit: z.boolean(),
+});
+export type GetPageResponse = z.infer<typeof GetPageResponse>;
 
-export interface AncestorInfo {
-  id: string;
-  title: string | null;
-  icon: string | null;
-  accessible: boolean;
-}
+export const PageAncestor = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  icon: z.string().nullable(),
+  accessible: z.boolean(),
+});
+export type PageAncestor = z.infer<typeof PageAncestor>;
 
-export interface PageRouteBootstrap {
-  workspace: Workspace;
-  viewer: ResolvedViewerContext;
-}
+export const GetPageAncestorsResponse = z.object({
+  ancestors: z.array(PageAncestor),
+});
+export type GetPageAncestorsResponse = z.infer<typeof GetPageAncestorsResponse>;
+
+export const PageRouteBootstrapResponse = z.object({
+  workspace: Workspace,
+  viewer: ResolvedViewerContext,
+});
+export type PageRouteBootstrapResponse = z.infer<typeof PageRouteBootstrapResponse>;
 
 export const ResolvePageMentionsRequest = z.object({
   page_ids: z.array(z.string().min(1)).min(1).max(MAX_PAGE_MENTION_BATCH),

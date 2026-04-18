@@ -5,7 +5,7 @@ import { hasWorkspaceIdentity } from "@/client/lib/workspace-route-model";
 import { isDocCached } from "@/client/lib/doc-cache-hints";
 import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { usePageMetaById, useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import { useWorkspaceView } from "./use-workspace-view";
 import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
 
@@ -13,7 +13,7 @@ export type { PageLoadTarget };
 
 export interface CanonicalPageContextValue {
   workspaceId: string | null;
-  cachedPage: Page | null;
+  currentPageMeta: Page | null;
   workspace: Workspace | null;
   pages: Page[];
   members: WorkspaceMember[];
@@ -31,19 +31,19 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
   const sessionMode = useAuthStore((s) => s.sessionMode);
-  const cachedPage = usePageMetaById(params.pageId);
 
-  const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : (cachedPage?.workspace_id ?? null);
+  const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
   const snapshot = useWorkspaceStore((s) => (workspaceId ? (s.snapshotsByWorkspaceId[workspaceId] ?? null) : null));
 
   const workspace = snapshot?.workspace ?? null;
   const accessMode = route.phase === "ready" ? route.accessMode : (snapshot?.accessMode ?? null);
+  const currentPageMeta = params.pageId ? (snapshot?.pages.find((page) => page.id === params.pageId) ?? null) : null;
   const pageLoadTarget = params.pageId
     ? getPageLoadTarget({
         route,
         online,
         sessionMode,
-        cachedPage,
+        cachedPage: currentPageMeta,
         docCached: isDocCached(params.pageId),
         workspaceId,
       })
@@ -52,13 +52,13 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
   return useMemo(
     () => ({
       workspaceId,
-      cachedPage,
+      currentPageMeta,
       workspace,
       pages: snapshot?.pages ?? [],
       members: snapshot?.members ?? [],
       accessMode,
       pageLoadTarget,
     }),
-    [accessMode, cachedPage, pageLoadTarget, snapshot, workspaceId, workspace],
+    [accessMode, currentPageMeta, pageLoadTarget, snapshot, workspaceId, workspace],
   );
 }

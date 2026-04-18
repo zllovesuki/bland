@@ -63,14 +63,6 @@ export const EditorBody = memo(function EditorBody({
   };
 
   const getRuntime = useCallback(() => runtimeRef.current, []);
-  const getUploadContext = useCallback(() => {
-    const runtime = runtimeRef.current;
-    return {
-      workspaceId: runtime.workspaceId,
-      pageId: runtime.pageId,
-      shareToken: runtime.shareToken,
-    };
-  }, []);
   const getAffordance = useCallback(() => affordanceRef.current, []);
   const collaborationUser = useMemo(
     () => ({
@@ -157,10 +149,8 @@ export const EditorBody = memo(function EditorBody({
       workspaceId,
       pageId,
       shareToken,
-      getRuntime,
-      getUploadContext,
     }),
-    [getRuntime, getUploadContext, pageId, shareToken, workspaceId],
+    [pageId, shareToken, workspaceId],
   );
 
   if (!editor) return null;

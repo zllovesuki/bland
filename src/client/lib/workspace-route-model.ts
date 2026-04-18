@@ -32,7 +32,7 @@ export type WorkspaceRouteState =
   /**
    * Cached workspace identity exists but live access could not be confirmed
    * (e.g. shared-downgrade probe failed). Page routes can still render from
-   * cache via the page-surface; member-only routes (index, settings) are
+   * cache via the active-page boundary; member-only routes (index, settings) are
    * blocked.
    */
   | {

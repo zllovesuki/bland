@@ -10,10 +10,14 @@ import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleto
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useOnline } from "@/client/hooks/use-online";
-import { usePageSurface } from "@/client/components/page-surface/use-page-surface";
+import {
+  useActivePageActions,
+  useActivePageState,
+  useActivePageSync,
+} from "@/client/components/active-page/use-active-page";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
-import type { AncestorInfo } from "@/shared/types";
+import type { PageAncestor } from "@/shared/types";
 
 function SharedBreadcrumbs({
   ancestors,
@@ -21,7 +25,7 @@ function SharedBreadcrumbs({
   currentIcon,
   onNavigate,
 }: {
-  ancestors: AncestorInfo[];
+  ancestors: PageAncestor[];
   currentTitle: string;
   currentIcon: string | null;
   onNavigate: (pageId: string) => void;
@@ -72,7 +76,9 @@ function SharedBreadcrumbSkeleton() {
 }
 
 export function SharePageView() {
-  const { state, patchPage, setWsProvider } = usePageSurface();
+  const activePageState = useActivePageState();
+  const { patchPage } = useActivePageActions();
+  const { setSyncProvider } = useActivePageSync();
   const presentation = useSharedPagePresentation();
   const online = useOnline();
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
@@ -88,10 +94,10 @@ export function SharePageView() {
 
   useDocumentTitle(presentation.displayTitle || DEFAULT_PAGE_TITLE);
 
-  if (state.kind === "unavailable") {
+  if (activePageState.kind === "unavailable") {
     return (
       <PageErrorState
-        message={presentation.unavailableMessage ?? state.message}
+        message={presentation.unavailableMessage ?? activePageState.message}
         className="h-full"
         action={{
           label: "Back to shared page",
@@ -153,7 +159,7 @@ export function SharePageView() {
             pageId={page.id}
             initialTitle={page.title}
             onTitleChange={handleTitleChange}
-            onProvider={setWsProvider}
+            onProvider={setSyncProvider}
             shareToken={presentation.token}
             workspaceId={presentation.workspaceId}
             affordance={pageAffordance.editor}

@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useMemo } from "react";
 import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
@@ -53,40 +52,6 @@ interface WorkspaceState {
 export function selectWorkspaceSnapshot(state: WorkspaceState, workspaceId: string | null): WorkspaceSnapshot | null {
   if (!workspaceId) return null;
   return state.snapshotsByWorkspaceId[workspaceId] ?? null;
-}
-
-/**
- * Flatten every snapshot's pages into a `pageId -> Page` map. Derived; no
- * persisted state backs this. Callers who already know the workspace id
- * should prefer reading from the snapshot directly — this exists for
- * consumers that receive a bare page id (canonical cached-page lookup,
- * mention resolver cache reads).
- */
-export function selectPageMetaById(state: WorkspaceState): Record<string, Page> {
-  const out: Record<string, Page> = {};
-  for (const snap of Object.values(state.snapshotsByWorkspaceId)) {
-    for (const page of snap.pages) {
-      out[page.id] = page;
-    }
-  }
-  return out;
-}
-
-/**
- * Targeted `pageId -> Page | null` subscription. Returns null when no snapshot
- * contains the id. Uses referential equality on the snapshots map so the
- * subscriber re-renders only when the relevant page mutates.
- */
-export function usePageMetaById(pageId: string | undefined | null): Page | null {
-  const snapshots = useWorkspaceStore((s) => s.snapshotsByWorkspaceId);
-  return useMemo(() => {
-    if (!pageId) return null;
-    for (const snap of Object.values(snapshots)) {
-      const found = snap.pages.find((p) => p.id === pageId);
-      if (found) return found;
-    }
-    return null;
-  }, [snapshots, pageId]);
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(

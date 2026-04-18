@@ -10,7 +10,15 @@ import { useOnline } from "@/client/hooks/use-online";
 import { WorkspaceViewCtx, type WorkspaceViewContext } from "./use-workspace-view";
 import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
 
-function seedFromCache(workspaceSlug: string): WorkspaceRouteState {
+function findCachedWorkspaceIdForPage(pageId: string): string | null {
+  const store = useWorkspaceStore.getState();
+  for (const snap of Object.values(store.snapshotsByWorkspaceId)) {
+    if (snap.pages.some((page) => page.id === pageId)) return snap.workspace.id;
+  }
+  return null;
+}
+
+function seedFromCache(workspaceSlug: string, pageId: string | null): WorkspaceRouteState {
   const store = useWorkspaceStore.getState();
 
   const memberWs = store.memberWorkspaces.find((w) => w.slug === workspaceSlug);
@@ -35,6 +43,22 @@ function seedFromCache(workspaceSlug: string): WorkspaceRouteState {
       accessMode: snap.accessMode,
       cacheStatus: "cache",
     };
+  }
+
+  if (pageId) {
+    const pageWorkspaceId = findCachedWorkspaceIdForPage(pageId);
+    if (pageWorkspaceId) {
+      const snap = store.snapshotsByWorkspaceId[pageWorkspaceId];
+      if (snap) {
+        return {
+          phase: "ready",
+          workspaceId: pageWorkspaceId,
+          accessMode: snap.accessMode,
+          cacheStatus: "cache",
+        };
+      }
+      return { phase: "loading", workspaceId: pageWorkspaceId };
+    }
   }
 
   return { phase: "loading", workspaceId: null };
@@ -68,10 +92,10 @@ interface WorkspaceViewProviderProps {
  *   `api.workspaces.list`, with a shared-downgrade probe via `api.pages.list`
  *   when the slug is no longer in member scope.
  * - Once `route.phase === "ready"`, we do not re-resolve on page navigation
- *   within the same workspace (the page-surface handles per-page loads).
+ *   within the same workspace (the active-page boundary handles per-page loads).
  */
 export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: WorkspaceViewProviderProps) {
-  const [route, setRoute] = useState<WorkspaceRouteState>(() => seedFromCache(workspaceSlug));
+  const [route, setRoute] = useState<WorkspaceRouteState>(() => seedFromCache(workspaceSlug, pageId));
   const [canonicalSlug, setCanonicalSlug] = useState<string | undefined>();
 
   const epochRef = useRef(0);

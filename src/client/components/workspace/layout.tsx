@@ -124,7 +124,7 @@ function WorkspaceLayoutInner() {
         />
       );
     } else {
-      // Page route on degraded workspace: render Outlet so the page-surface
+      // Page route on degraded workspace: render Outlet so the active-page
       // can render from cache or surface its own unavailable state.
       mainContent = <Outlet />;
     }

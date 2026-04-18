@@ -1,5 +1,5 @@
-import type { PageSurfaceState } from "@/client/lib/page-surface-model";
-import type { AncestorInfo, Page } from "@/shared/types";
+import type { ActivePageSnapshot, ActivePageState } from "@/client/lib/active-page-model";
+import type { PageAncestor } from "@/shared/types";
 import type { ShareRootPage } from "@/client/components/share/use-share-view";
 
 export interface SharePagePresentation {
@@ -7,8 +7,8 @@ export interface SharePagePresentation {
   isRootActive: boolean;
   isPageLoading: boolean;
   isAncestorTrailLoading: boolean;
-  page: (Page & { can_edit?: boolean }) | null;
-  ancestors: AncestorInfo[];
+  page: ActivePageSnapshot | null;
+  ancestors: PageAncestor[];
   displayTitle: string;
   displayIcon: string | null;
   displayCoverUrl: string | null;
@@ -18,21 +18,22 @@ export interface SharePagePresentation {
 export function deriveSharePagePresentation(
   rootPage: ShareRootPage,
   activePageId: string,
-  surfaceState: PageSurfaceState,
+  activePageState: ActivePageState,
 ): SharePagePresentation {
   const isRootActive = activePageId === rootPage.id;
-  const readyState = surfaceState.kind === "ready" && surfaceState.page.id === activePageId ? surfaceState : null;
+  const readyState =
+    activePageState.kind === "ready" && activePageState.snapshot.id === activePageId ? activePageState : null;
 
   return {
     activePageId,
     isRootActive,
-    isPageLoading: !readyState && surfaceState.kind !== "unavailable",
+    isPageLoading: !readyState && activePageState.kind !== "unavailable",
     isAncestorTrailLoading: readyState?.ancestorsStatus === "loading",
-    page: readyState?.page ?? null,
+    page: readyState?.snapshot ?? null,
     ancestors: readyState?.ancestors ?? [],
-    displayTitle: readyState?.page.title ?? (isRootActive ? rootPage.title : ""),
-    displayIcon: readyState?.page.icon ?? (isRootActive ? rootPage.icon : null),
-    displayCoverUrl: readyState?.page.cover_url ?? (isRootActive ? rootPage.cover_url : null),
-    isViewOnly: readyState ? readyState.page.can_edit === false : rootPage.permission === "view",
+    displayTitle: readyState?.snapshot.title ?? (isRootActive ? rootPage.title : ""),
+    displayIcon: readyState?.snapshot.icon ?? (isRootActive ? rootPage.icon : null),
+    displayCoverUrl: readyState?.snapshot.coverUrl ?? (isRootActive ? rootPage.cover_url : null),
+    isViewOnly: readyState ? readyState.access.mode === "view" : rootPage.permission === "view",
   };
 }
