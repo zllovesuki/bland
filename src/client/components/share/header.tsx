@@ -6,6 +6,7 @@ import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import { useOnline } from "@/client/hooks/use-online";
+import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
 
 interface ShareHeaderProps {
   onToggleMobileSidebar: () => void;
@@ -14,6 +15,7 @@ interface ShareHeaderProps {
 export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
   const presentation = useSharedPagePresentation();
   const online = useOnline();
+  const visible = useScrollVisibility("main-content");
   const pageAffordance = deriveSharePageAffordance({
     pageAccess: presentation.isViewOnly ? "view" : "edit",
     workspaceId: presentation.workspaceId,
@@ -21,7 +23,11 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
   });
 
   return (
-    <header className="z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm">
+    <header
+      className={`relative z-50 shrink-0 border-b border-zinc-800/60 bg-zinc-900/80 backdrop-blur-sm transition-[margin-top] duration-300 ease-out ${
+        visible ? "mt-0" : "-mt-[61px]"
+      }`}
+    >
       <div className="mx-auto flex max-w-5xl items-center px-4 py-3 sm:px-8">
         <button
           onClick={onToggleMobileSidebar}

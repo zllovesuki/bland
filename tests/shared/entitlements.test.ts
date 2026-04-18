@@ -48,6 +48,21 @@ describe("shared entitlements", () => {
         archivePage: false,
       });
     });
+
+    it("exposes archive ownership scope so affordances can distinguish hidden from ownership-restricted", () => {
+      expect(getPageStructureEntitlements("owner", false)).toMatchObject({
+        archiveAnyPage: true,
+        archiveOwnPage: true,
+      });
+      expect(getPageStructureEntitlements("member", false)).toMatchObject({
+        archiveAnyPage: false,
+        archiveOwnPage: true,
+      });
+      expect(getPageStructureEntitlements("none", false)).toMatchObject({
+        archiveAnyPage: false,
+        archiveOwnPage: false,
+      });
+    });
   });
 
   describe("share management entitlements", () => {

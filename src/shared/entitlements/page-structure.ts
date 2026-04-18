@@ -4,6 +4,8 @@ export interface PageStructureEntitlements {
   createPage: boolean;
   movePage: boolean;
   archivePage: boolean;
+  archiveAnyPage: boolean;
+  archiveOwnPage: boolean;
 }
 
 const PAGE_STRUCTURE_ROLE_TABLE: Record<
@@ -52,6 +54,8 @@ export function getPageStructureEntitlements(
     createPage: roleEntitlements.createPage,
     movePage: roleEntitlements.movePage,
     archivePage: roleEntitlements.archiveAnyPage || (roleEntitlements.archiveOwnPage && ownsPage),
+    archiveAnyPage: roleEntitlements.archiveAnyPage,
+    archiveOwnPage: roleEntitlements.archiveOwnPage,
   };
 }
 

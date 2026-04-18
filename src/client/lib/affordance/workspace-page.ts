@@ -12,6 +12,7 @@ import {
   OFFLINE_ACTION_REASON,
   type UiActionState,
 } from "@/client/lib/affordance/action-state";
+import { resolveArchiveAffordance } from "@/client/lib/affordance/archive";
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 
 export interface WorkspacePageAffordance {
@@ -43,11 +44,12 @@ export function deriveWorkspacePageAffordance(input: {
         ? ENABLED_ACTION
         : disabledAction(OFFLINE_ACTION_REASON)
       : HIDDEN_ACTION,
-    archivePage: structureEntitlements.archivePage
-      ? online
-        ? ENABLED_ACTION
-        : disabledAction(OFFLINE_ACTION_REASON)
-      : HIDDEN_ACTION,
+    archivePage: resolveArchiveAffordance({
+      archiveAnyPage: structureEntitlements.archiveAnyPage,
+      archiveOwnPage: structureEntitlements.archiveOwnPage,
+      ownsPage,
+      online,
+    }),
     editor: deriveEditorAffordance({
       surface: "canonical",
       pageAccess,

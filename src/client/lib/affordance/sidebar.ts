@@ -6,16 +6,16 @@ import {
   OFFLINE_ACTION_REASON,
   type UiActionState,
 } from "@/client/lib/affordance/action-state";
+import { resolveArchiveAffordance } from "@/client/lib/affordance/archive";
 
 export interface SidebarBaseAffordance {
   createPage: UiActionState;
-  dragTree: UiActionState;
 }
 
 export interface SidebarRowAffordance {
   createSubpage: UiActionState;
+  movePage: UiActionState;
   archivePage: UiActionState;
-  dragPage: UiActionState;
 }
 
 export function deriveSidebarBaseAffordance(input: {
@@ -31,7 +31,6 @@ export function deriveSidebarBaseAffordance(input: {
         ? ENABLED_ACTION
         : disabledAction(OFFLINE_ACTION_REASON)
       : HIDDEN_ACTION,
-    dragTree: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
   };
 }
 
@@ -49,11 +48,12 @@ export function deriveSidebarRowAffordance(input: {
         ? ENABLED_ACTION
         : disabledAction(OFFLINE_ACTION_REASON)
       : HIDDEN_ACTION,
-    archivePage: entitlements.archivePage
-      ? online
-        ? ENABLED_ACTION
-        : disabledAction(OFFLINE_ACTION_REASON)
-      : HIDDEN_ACTION,
-    dragPage: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
+    movePage: entitlements.movePage ? (online ? ENABLED_ACTION : disabledAction(OFFLINE_ACTION_REASON)) : HIDDEN_ACTION,
+    archivePage: resolveArchiveAffordance({
+      archiveAnyPage: entitlements.archiveAnyPage,
+      archiveOwnPage: entitlements.archiveOwnPage,
+      ownsPage,
+      online,
+    }),
   };
 }

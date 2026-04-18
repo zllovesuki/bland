@@ -39,22 +39,40 @@ describe("client affordance models", () => {
   });
 
   describe("sidebar affordance", () => {
-    it("blocks guest create and drag affordances", () => {
+    it("hides guest create/move affordances but surfaces archive as ownership-restricted", () => {
       expect(deriveSidebarBaseAffordance({ workspaceRole: "guest", online: true })).toEqual({
         createPage: { kind: "hidden" },
-        dragTree: { kind: "hidden" },
       });
       expect(deriveSidebarRowAffordance({ workspaceRole: "guest", ownsPage: false, online: true })).toEqual({
         createSubpage: { kind: "hidden" },
-        archivePage: { kind: "hidden" },
-        dragPage: { kind: "hidden" },
+        movePage: { kind: "hidden" },
+        archivePage: { kind: "disabled", reason: "Only the page creator can archive this" },
       });
     });
 
-    it("shows offline-disabled writer affordances instead of hiding them", () => {
+    it("shows offline-disabled writer affordances and keeps archive blocked by ownership when the member does not own the page", () => {
       expect(deriveSidebarBaseAffordance({ workspaceRole: "member", online: false })).toEqual({
         createPage: { kind: "disabled", reason: "You're offline" },
-        dragTree: { kind: "disabled", reason: "You're offline" },
+      });
+      expect(deriveSidebarRowAffordance({ workspaceRole: "member", ownsPage: false, online: false })).toEqual({
+        createSubpage: { kind: "disabled", reason: "You're offline" },
+        movePage: { kind: "disabled", reason: "You're offline" },
+        archivePage: { kind: "disabled", reason: "Only the page creator can archive this" },
+      });
+    });
+
+    it("surfaces the offline reason over enabled when the member owns the page", () => {
+      expect(
+        deriveSidebarRowAffordance({ workspaceRole: "member", ownsPage: true, online: false }).archivePage,
+      ).toEqual({ kind: "disabled", reason: "You're offline" });
+      expect(deriveSidebarRowAffordance({ workspaceRole: "member", ownsPage: true, online: true }).archivePage).toEqual(
+        { kind: "enabled" },
+      );
+    });
+
+    it("hides archive entirely for the none role so non-members see no archive affordance", () => {
+      expect(deriveSidebarRowAffordance({ workspaceRole: "none", ownsPage: false, online: true }).archivePage).toEqual({
+        kind: "hidden",
       });
     });
   });
@@ -74,7 +92,7 @@ describe("client affordance models", () => {
         breadcrumbMode: "normal",
         shareDialog: { kind: "disabled", reason: "You're offline" },
         editPageMetadata: { kind: "disabled", reason: "You're offline" },
-        archivePage: { kind: "hidden" },
+        archivePage: { kind: "disabled", reason: "Only the page creator can archive this" },
         editor: {
           documentEditable: true,
           canInsertPageMentions: true,

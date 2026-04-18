@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface DialogProps {
   open: boolean;
@@ -54,7 +55,7 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
 
   if (!open) return null;
 
-  return (
+  const content = (
     <div
       className="fixed inset-0 z-[90] flex items-start justify-center pt-[20vh]"
       role="presentation"
@@ -72,4 +73,6 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

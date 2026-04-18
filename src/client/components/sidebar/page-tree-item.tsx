@@ -1,10 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 
-import { ChevronRight, FileText, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  FileText,
+  ListIndentDecrease,
+  ListIndentIncrease,
+  MoreHorizontal,
+  Move,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
-import { api } from "@/client/lib/api";
+import { api, toApiError } from "@/client/lib/api";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -15,7 +26,17 @@ import { confirm } from "@/client/components/confirm";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { deriveSidebarRowAffordance } from "@/client/lib/affordance/sidebar";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
-import { getSidebarTreePaddingLeft } from "./tree-metrics";
+import {
+  resolveIndent,
+  resolveMoveDown,
+  resolveMoveUp,
+  resolveOutdent,
+  type MoveResolution,
+  type MoveResult,
+} from "@/client/lib/page-tree-model";
+import { toast } from "@/client/components/toast";
+import { SidebarMoveDialog } from "./sidebar-move-dialog";
+import { getSidebarTreeChevronLeft, getSidebarTreeContentPaddingLeft } from "./tree-metrics";
 
 interface PageTreeItemProps {
   page: Page;
@@ -24,17 +45,22 @@ interface PageTreeItemProps {
   allPages: Page[];
   alwaysShowActions: boolean;
   activeAncestorIds: Set<string>;
-  expandedDuringDrag: Set<string>;
-  draggedId: string | null;
-  dropAnchorId: string | null;
-  renderDropPreview: () => ReactNode;
   menuZIndex?: number;
-  onDragStart: (e: React.DragEvent, pageId: string) => void;
-  onDragEnd: () => void;
-  canDrag: boolean;
   workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
   online: boolean;
 }
+
+const MENU_ITEM_CLASS =
+  "group flex min-h-8 w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] text-left transition-[background-color,color] focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent";
+const MENU_NEUTRAL_ITEM_CLASS =
+  "text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 focus-visible:bg-zinc-700 focus-visible:text-zinc-100 disabled:hover:text-zinc-300";
+const MENU_DANGER_ITEM_CLASS =
+  "text-red-400 hover:bg-red-500/10 hover:text-red-300 focus-visible:bg-red-500/10 focus-visible:text-red-300 disabled:hover:text-red-400";
+const MENU_ICON_CLASS =
+  "flex w-4 shrink-0 items-center justify-center text-zinc-400 transition-colors group-hover:text-current group-focus-visible:text-current";
+const MENU_DANGER_ICON_CLASS = MENU_ICON_CLASS;
+const MENU_LABEL_CLASS = "flex-1";
+const MENU_SEPARATOR_CLASS = "my-1 h-px bg-zinc-800";
 
 export function PageTreeItem({
   page,
@@ -43,14 +69,7 @@ export function PageTreeItem({
   allPages,
   alwaysShowActions,
   activeAncestorIds,
-  expandedDuringDrag,
-  draggedId,
-  dropAnchorId,
-  renderDropPreview,
   menuZIndex,
-  onDragStart,
-  onDragEnd,
-  canDrag,
   workspaceRole,
   online,
 }: PageTreeItemProps) {
@@ -61,6 +80,8 @@ export function PageTreeItem({
   const navigate = useNavigate();
   const currentWorkspace = useCurrentWorkspace();
   const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
+  const patchPage = useWorkspaceStore((s) => s.updatePageInSnapshot);
+  const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const currentUser = useAuthStore((s) => s.user);
   const rowAffordance = deriveSidebarRowAffordance({
     workspaceRole,
@@ -76,20 +97,58 @@ export function PageTreeItem({
     if (shouldExpand) setUserExpanded(true);
   }, [shouldExpand]);
 
-  const isExpanded = userExpanded || expandedDuringDrag.has(page.id);
+  const isExpanded = userExpanded;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [moving, setMoving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasChildren = childPages.length > 0;
   const moreVisibility =
     alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-40 group-hover:opacity-100";
   const addVisibility = alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
+  const moveUp = useMemo(() => resolveMoveUp(allPages, page), [allPages, page]);
+  const moveDown = useMemo(() => resolveMoveDown(allPages, page), [allPages, page]);
+  const indent = useMemo(() => resolveIndent(allPages, page), [allPages, page]);
+  const outdent = useMemo(() => resolveOutdent(allPages, page), [allPages, page]);
+
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setUserExpanded((v) => !v);
   }, []);
+
+  const executeMove = useCallback(
+    async (resolution: MoveResolution) => {
+      if (!currentWorkspace || moving) return;
+      setMoving(true);
+      setMenuOpen(false);
+      const previousParentId = page.parent_id;
+      const previousPosition = page.position;
+      patchPage(currentWorkspace.id, page.id, {
+        parent_id: resolution.proposal.parentId,
+        position: resolution.proposal.position,
+      });
+      try {
+        const updated = await api.pages.update(currentWorkspace.id, page.id, {
+          parent_id: resolution.proposal.parentId,
+          position: resolution.proposal.position,
+        });
+        upsertPage(currentWorkspace.id, updated);
+      } catch (err) {
+        patchPage(currentWorkspace.id, page.id, {
+          parent_id: previousParentId,
+          position: previousPosition,
+        });
+        toast.error(toApiError(err).message || "Failed to move page");
+        throw err;
+      } finally {
+        setMoving(false);
+      }
+    },
+    [currentWorkspace, moving, page.id, page.parent_id, page.position, patchPage, upsertPage],
+  );
 
   const handleArchive = useCallback(
     async (e: React.MouseEvent) => {
@@ -136,45 +195,63 @@ export function PageTreeItem({
     [createPage, page.id],
   );
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
+  const openMoveDialog = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isActionEnabled(rowAffordance.movePage)) return;
       setMenuOpen(false);
-      onDragStart(e, page.id);
+      setMoveDialogOpen(true);
     },
-    [onDragStart, page.id],
+    [rowAffordance.movePage],
   );
 
-  const isDragged = draggedId === page.id;
-  const showPreviewBefore = dropAnchorId === page.id;
+  const runQuickMove = useCallback(
+    (e: React.MouseEvent, result: MoveResult) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isActionEnabled(rowAffordance.movePage) || !result.ok) return;
+      void executeMove(result);
+    },
+    [executeMove, rowAffordance.movePage],
+  );
+
+  const rowPaddingLeft = getSidebarTreeContentPaddingLeft(depth);
+  const chevronLeft = getSidebarTreeChevronLeft(depth);
+
+  const moveTitle = rowAffordance.movePage.kind === "disabled" ? rowAffordance.movePage.reason : undefined;
+  const moveDisabledReason = useCallback(
+    (result: MoveResult) => {
+      if (rowAffordance.movePage.kind === "disabled") return rowAffordance.movePage.reason;
+      return result.ok ? undefined : result.message;
+    },
+    [rowAffordance.movePage],
+  );
 
   return (
     <div>
-      {showPreviewBefore && renderDropPreview()}
       <Link
         to="/$workspaceSlug/$pageId"
         params={{ workspaceSlug: params.workspaceSlug || currentWorkspace?.slug || "", pageId: page.id }}
-        draggable={canDrag}
-        onDragStart={handleDragStart}
-        onDragEnd={onDragEnd}
         data-page-row
         data-page-id={page.id}
         data-depth={depth}
-        data-dragging={isDragged ? "true" : undefined}
-        className={`group flex h-8 items-center gap-1 rounded-md px-2 text-sm transition-colors ${
+        className={`group relative flex h-8 items-center gap-1 rounded-md px-2 text-sm transition-colors ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
-        style={{ paddingLeft: getSidebarTreePaddingLeft(depth) }}
+        style={{ paddingLeft: rowPaddingLeft }}
       >
-        <button
-          onClick={toggleExpand}
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
-            hasChildren ? "text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300" : "pointer-events-none opacity-0"
-          }`}
-          tabIndex={-1}
-          aria-label={isExpanded ? "Collapse" : "Expand"}
-        >
-          <ChevronRight className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-        </button>
+        {hasChildren && (
+          <button
+            onClick={toggleExpand}
+            className="absolute top-1/2 flex h-5 w-4 -translate-y-1/2 items-center justify-center rounded text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+            style={{ left: chevronLeft }}
+            tabIndex={-1}
+            aria-label={isExpanded ? "Collapse" : "Expand"}
+          >
+            <ChevronRight className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+          </button>
+        )}
 
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
           {page.icon ? <EmojiIcon emoji={page.icon} size={14} /> : <FileText className="h-3.5 w-3.5 text-zinc-500" />}
@@ -197,7 +274,7 @@ export function PageTreeItem({
           </button>
         )}
 
-        {isActionVisible(rowAffordance.archivePage) && (
+        {(isActionVisible(rowAffordance.movePage) || isActionVisible(rowAffordance.archivePage)) && (
           <div ref={menuRef} className="shrink-0">
             <button
               onClick={(e) => {
@@ -205,29 +282,132 @@ export function PageTreeItem({
                 e.stopPropagation();
                 setMenuOpen((v) => !v);
               }}
-              disabled={!isActionEnabled(rowAffordance.archivePage)}
               className={`flex h-6 w-6 items-center justify-center rounded hover:bg-zinc-700 ${moreVisibility}`}
               tabIndex={-1}
               aria-label="Page options"
-              title={rowAffordance.archivePage.kind === "disabled" ? rowAffordance.archivePage.reason : undefined}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
-            {menuOpen && isActionEnabled(rowAffordance.archivePage) && (
-              <DropdownPortal triggerRef={menuRef} zIndex={menuZIndex} onClose={() => setMenuOpen(false)}>
-                <button
-                  onClick={handleArchive}
-                  disabled={archiving}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 text-xs text-red-400 hover:bg-zinc-700 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  {archiving ? "Archiving..." : "Archive"}
-                </button>
+            {menuOpen && (
+              <DropdownPortal
+                triggerRef={menuRef}
+                zIndex={menuZIndex}
+                width={208}
+                className="p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+                onClose={() => setMenuOpen(false)}
+              >
+                <div role="menu" aria-label="Page actions">
+                  {isActionVisible(rowAffordance.movePage) && (
+                    <>
+                      <button
+                        role="menuitem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={openMoveDialog}
+                        disabled={!isActionEnabled(rowAffordance.movePage)}
+                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                        title={moveTitle}
+                      >
+                        <span className={MENU_ICON_CLASS}>
+                          <Move className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={MENU_LABEL_CLASS}>Move…</span>
+                      </button>
+
+                      <div className={MENU_SEPARATOR_CLASS} role="separator" />
+
+                      <button
+                        role="menuitem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => runQuickMove(e, moveUp)}
+                        disabled={!isActionEnabled(rowAffordance.movePage) || !moveUp.ok}
+                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                        title={moveDisabledReason(moveUp)}
+                      >
+                        <span className={MENU_ICON_CLASS}>
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={MENU_LABEL_CLASS}>Move up</span>
+                      </button>
+                      <button
+                        role="menuitem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => runQuickMove(e, moveDown)}
+                        disabled={!isActionEnabled(rowAffordance.movePage) || !moveDown.ok}
+                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                        title={moveDisabledReason(moveDown)}
+                      >
+                        <span className={MENU_ICON_CLASS}>
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={MENU_LABEL_CLASS}>Move down</span>
+                      </button>
+
+                      <div className={MENU_SEPARATOR_CLASS} role="separator" />
+
+                      <button
+                        role="menuitem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => runQuickMove(e, indent)}
+                        disabled={!isActionEnabled(rowAffordance.movePage) || !indent.ok}
+                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                        title={moveDisabledReason(indent)}
+                      >
+                        <span className={MENU_ICON_CLASS}>
+                          <ListIndentIncrease className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={MENU_LABEL_CLASS}>Indent</span>
+                      </button>
+                      <button
+                        role="menuitem"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => runQuickMove(e, outdent)}
+                        disabled={!isActionEnabled(rowAffordance.movePage) || !outdent.ok}
+                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                        title={moveDisabledReason(outdent)}
+                      >
+                        <span className={MENU_ICON_CLASS}>
+                          <ListIndentDecrease className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={MENU_LABEL_CLASS}>Outdent</span>
+                      </button>
+                    </>
+                  )}
+
+                  {isActionVisible(rowAffordance.movePage) && isActionVisible(rowAffordance.archivePage) && (
+                    <div className={MENU_SEPARATOR_CLASS} role="separator" />
+                  )}
+
+                  {isActionVisible(rowAffordance.archivePage) && (
+                    <button
+                      role="menuitem"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={handleArchive}
+                      disabled={archiving || !isActionEnabled(rowAffordance.archivePage)}
+                      className={`${MENU_ITEM_CLASS} ${MENU_DANGER_ITEM_CLASS}`}
+                      title={
+                        rowAffordance.archivePage.kind === "disabled" ? rowAffordance.archivePage.reason : undefined
+                      }
+                    >
+                      <span className={MENU_DANGER_ICON_CLASS}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </span>
+                      <span className={MENU_LABEL_CLASS}>{archiving ? "Archiving..." : "Archive"}</span>
+                    </button>
+                  )}
+                </div>
               </DropdownPortal>
             )}
           </div>
         )}
       </Link>
+
+      <SidebarMoveDialog
+        open={moveDialogOpen}
+        page={page}
+        allPages={allPages}
+        onClose={() => setMoveDialogOpen(false)}
+        onConfirm={executeMove}
+      />
 
       {isExpanded && hasChildren && (
         <div>
@@ -236,18 +416,11 @@ export function PageTreeItem({
               key={child.id}
               page={child}
               depth={depth + 1}
-              childPages={allPages.filter((p) => p.parent_id === child.id && !p.archived_at)}
+              childPages={allPages.filter((candidate) => candidate.parent_id === child.id && !candidate.archived_at)}
               allPages={allPages}
               alwaysShowActions={alwaysShowActions}
               activeAncestorIds={activeAncestorIds}
-              expandedDuringDrag={expandedDuringDrag}
-              draggedId={draggedId}
-              dropAnchorId={dropAnchorId}
-              renderDropPreview={renderDropPreview}
               menuZIndex={menuZIndex}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              canDrag={canDrag}
               workspaceRole={workspaceRole}
               online={online}
             />

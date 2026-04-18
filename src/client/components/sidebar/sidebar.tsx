@@ -147,30 +147,32 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
             <WorkspaceSwitcher />
           )}
 
-          <div className="flex items-center gap-1 px-2 py-2">
-            {isActionVisible(sidebarAffordance.createPage) && (
+          <div className="h-[46px] px-2 py-2">
+            <div className="flex h-full items-center gap-1">
+              {isActionVisible(sidebarAffordance.createPage) && (
+                <button
+                  onClick={() => createPage()}
+                  disabled={isCreating || !isActionEnabled(sidebarAffordance.createPage)}
+                  className="flex flex-1 items-center gap-1.5 rounded-md border border-zinc-700/50 bg-zinc-800/30 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600/50 hover:bg-zinc-800/60 hover:text-zinc-100 disabled:opacity-50"
+                  title={
+                    sidebarAffordance.createPage.kind === "disabled" ? sidebarAffordance.createPage.reason : undefined
+                  }
+                >
+                  {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  New page
+                </button>
+              )}
               <button
-                onClick={() => createPage()}
-                disabled={isCreating || !isActionEnabled(sidebarAffordance.createPage)}
-                className="flex flex-1 items-center gap-1.5 rounded-md border border-zinc-700/50 bg-zinc-800/30 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600/50 hover:bg-zinc-800/60 hover:text-zinc-100 disabled:opacity-50"
-                title={
-                  sidebarAffordance.createPage.kind === "disabled" ? sidebarAffordance.createPage.reason : undefined
-                }
+                onClick={openSearch}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+                aria-label="Search pages"
               >
-                {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                New page
+                <Search className="h-3.5 w-3.5" />
+                <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-400 sm:inline">
+                  {searchShortcutLabel}
+                </kbd>
               </button>
-            )}
-            <button
-              onClick={openSearch}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
-              aria-label="Search pages"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <kbd className="hidden rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 font-mono text-[10px] text-zinc-400 sm:inline">
-                {searchShortcutLabel}
-              </kbd>
-            </button>
+            </div>
           </div>
 
           <nav className="flex-1 overflow-y-auto px-1">

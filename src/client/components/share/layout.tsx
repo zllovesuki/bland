@@ -21,7 +21,7 @@ function ShareLoadingShell() {
       </header>
       <div className="flex flex-1 overflow-hidden">
         <nav
-          className="hidden w-56 shrink-0 border-r border-zinc-800/60 bg-zinc-900 px-2 py-4 md:block"
+          className="hidden w-[260px] shrink-0 border-r border-zinc-800/60 bg-zinc-900 px-2 py-4 md:block"
           aria-hidden="true"
         >
           <Skeleton className="h-5 w-3/4" />

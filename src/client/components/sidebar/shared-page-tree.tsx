@@ -6,7 +6,11 @@ import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import type { ShareRootPage } from "@/client/components/share/use-share-view";
-import { getSidebarTreePaddingLeft } from "./tree-metrics";
+import {
+  getSidebarTreeChevronLeft,
+  getSidebarTreeContentPaddingLeft,
+  getSidebarTreeStandalonePaddingLeft,
+} from "./tree-metrics";
 
 interface TreeNodeData {
   page: Page;
@@ -28,26 +32,28 @@ function TreeNode({
   onToggle: (pageId: string) => void;
 }) {
   const isActive = node.page.id === activePageId;
+  const showChevron = node.children === null || node.children.length > 0;
+  const rowPaddingLeft = getSidebarTreeContentPaddingLeft(depth);
+  const chevronLeft = getSidebarTreeChevronLeft(depth);
 
   return (
     <div>
       <div
-        className={`flex h-8 w-full items-center gap-1 rounded-md text-sm transition-colors ${
+        className={`relative flex h-8 w-full items-center gap-1 rounded-md text-sm transition-colors ${
           isActive ? "bg-accent-500/10 text-accent-400" : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
-        style={{ paddingLeft: getSidebarTreePaddingLeft(depth) }}
+        style={{ paddingLeft: rowPaddingLeft }}
       >
-        <button
-          onClick={() => onToggle(node.page.id)}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
-          aria-label={node.expanded ? "Collapse" : "Expand"}
-        >
-          <ChevronRight
-            className={`h-3 w-3 transition-transform ${node.expanded ? "rotate-90" : ""} ${
-              node.children !== null && node.children.length === 0 ? "opacity-0" : ""
-            }`}
-          />
-        </button>
+        {showChevron && (
+          <button
+            onClick={() => onToggle(node.page.id)}
+            className="absolute top-1/2 flex h-5 w-4 -translate-y-1/2 items-center justify-center rounded text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
+            style={{ left: chevronLeft }}
+            aria-label={node.expanded ? "Collapse" : "Expand"}
+          >
+            <ChevronRight className={`h-3 w-3 transition-transform ${node.expanded ? "rotate-90" : ""}`} />
+          </button>
+        )}
         <button onClick={() => onNavigate(node.page.id)} className="flex min-w-0 flex-1 items-center gap-1 text-left">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
             {node.page.icon ? <EmojiIcon emoji={node.page.icon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
@@ -57,7 +63,7 @@ function TreeNode({
       </div>
       {node.expanded &&
         (node.children === null ? (
-          <div className="space-y-1 py-0.5" style={{ paddingLeft: getSidebarTreePaddingLeft(depth + 1) }}>
+          <div className="space-y-1 py-0.5" style={{ paddingLeft: getSidebarTreeContentPaddingLeft(depth + 1) }}>
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
           </div>
@@ -146,7 +152,7 @@ export function SharedPageTree({
         return next;
       });
 
-      // Load children if not yet loaded
+      // Load children when the node is expanded with unresolved descendants.
       const node = nodes.get(pageId);
       if (node && node.children === null) {
         const children = await loadChildren(pageId);
@@ -165,7 +171,7 @@ export function SharedPageTree({
   );
 
   return (
-    <nav className="w-56 shrink-0 overflow-y-auto border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
+    <nav className="w-[260px] shrink-0 overflow-y-auto border-r border-zinc-800/60 bg-zinc-900 px-2 py-4">
       <button
         onClick={() => onNavigate(rootPage.id)}
         className={`mb-1 flex h-8 w-full items-center gap-1 rounded-md text-left text-sm font-medium transition-colors ${
@@ -173,7 +179,7 @@ export function SharedPageTree({
             ? "bg-accent-500/10 text-accent-400"
             : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-200"
         }`}
-        style={{ paddingLeft: getSidebarTreePaddingLeft(0) }}
+        style={{ paddingLeft: getSidebarTreeStandalonePaddingLeft(0) }}
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs">
           {rootPage.icon ? <EmojiIcon emoji={rootPage.icon} size={14} /> : <FileText className="h-3.5 w-3.5" />}
@@ -193,7 +199,7 @@ export function SharedPageTree({
             <TreeNode
               key={id}
               node={node}
-              depth={1}
+              depth={0}
               activePageId={activePageId}
               onNavigate={onNavigate}
               onToggle={handleToggle}
