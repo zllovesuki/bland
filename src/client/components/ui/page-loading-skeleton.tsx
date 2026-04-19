@@ -1,5 +1,13 @@
 import { Skeleton } from "@/client/components/ui/skeleton";
 
+const OUTLINE_RAIL_ROWS = [
+  { indent: 0, width: "w-4/5" },
+  { indent: 0.875, width: "w-3/5" },
+  { indent: 0.875, width: "w-2/3" },
+  { indent: 1.75, width: "w-1/2" },
+  { indent: 0, width: "w-3/4" },
+];
+
 export function PageLoadingSkeleton() {
   return (
     <div
@@ -10,13 +18,13 @@ export function PageLoadingSkeleton() {
         <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
           <Skeleton className="h-48 w-full rounded-b-lg" />
         </div>
-        <div className="mb-6 flex items-center gap-2">
+        <div className="mb-6 flex min-h-6 items-center gap-2">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-3 w-3" />
           <Skeleton className="h-3 w-24" />
         </div>
         <div className="mb-4 pl-7">
-          <Skeleton className="h-7 w-7 rounded-md" />
+          <Skeleton className="h-9 w-11 rounded-md" />
         </div>
         <div className="mb-6 pl-4 sm:pl-7">
           <Skeleton className="h-10 w-2/3 sm:h-12" />
@@ -30,11 +38,23 @@ export function PageLoadingSkeleton() {
         </div>
       </div>
       <aside className="hidden pt-[5.5rem] lg:block" aria-hidden="true">
-        <div className="sticky top-8 space-y-3">
-          <Skeleton className="h-3 w-4/5" />
-          <Skeleton className="ml-3 h-3 w-3/5" />
-          <Skeleton className="h-3 w-2/3" />
-          <Skeleton className="ml-3 h-3 w-1/2" />
+        <div className="sticky top-8">
+          <div className="mb-3 flex items-center gap-2">
+            <Skeleton className="h-3.5 w-3.5 shrink-0" />
+            <Skeleton className="h-2 w-16" />
+          </div>
+          <ul className="flex flex-col gap-[0.2rem]">
+            {OUTLINE_RAIL_ROWS.map((row, i) => (
+              <li
+                key={i}
+                className="flex items-center gap-[0.45rem] py-[0.45rem]"
+                style={{ paddingInlineStart: `${row.indent}rem` }}
+              >
+                <Skeleton className="h-3 w-3 shrink-0" />
+                <Skeleton className={`h-3 ${row.width}`} />
+              </li>
+            ))}
+          </ul>
         </div>
       </aside>
     </div>

@@ -99,3 +99,7 @@
   max-width: none;
   max-height: calc(100vh - 6rem);
 }
+
+.tiptap-outline--rail .tiptap-outline__button {
+  border-radius: 0;
+}
