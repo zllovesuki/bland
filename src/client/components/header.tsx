@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
 import { Avatar } from "@/client/components/ui/avatar";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
@@ -34,12 +34,10 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const user = useAuthStore((s) => s.user);
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const visible = useScrollVisibility("main-content");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const isLoginPage = location.pathname === "/login";
   const memberSlug = useWorkspaceStore(selectFirstMemberSlug);
   const homeSlug = hasLocalSession ? memberSlug : null;
   const { canLeaveSharedInbox, isSharedInbox, toggleSharedInbox } = useSharedInboxNavigation();
@@ -108,7 +106,7 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
             </button>
           )}
 
-          {hasLocalSession ? (
+          {hasLocalSession && (
             <>
               <button
                 ref={menuTriggerRef}
@@ -157,16 +155,6 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
                 </DropdownPortal>
               )}
             </>
-          ) : (
-            !isLoginPage && (
-              <Link
-                to="/login"
-                search={{ redirect: undefined }}
-                className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
-              >
-                Sign in
-              </Link>
-            )
           )}
         </div>
       </div>

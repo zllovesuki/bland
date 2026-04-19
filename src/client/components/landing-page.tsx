@@ -26,13 +26,6 @@ export function LandingPage() {
             </div>
             <strong className="text-sm font-semibold text-zinc-100">bland</strong>
           </Link>
-          <Link
-            to="/login"
-            search={{ redirect: undefined }}
-            className="rounded-lg border border-zinc-700/60 bg-zinc-800/60 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
-          >
-            Sign in
-          </Link>
         </div>
       </nav>
 
