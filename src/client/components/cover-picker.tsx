@@ -80,9 +80,16 @@ export function CoverPicker({
         </button>
       )}
 
-      <Dialog open={open && !disabled} onClose={() => setOpen(false)} className="w-full max-w-sm p-4">
+      <Dialog
+        open={open && !disabled}
+        onClose={() => setOpen(false)}
+        ariaLabelledBy="cover-picker-title"
+        className="w-full max-w-sm p-4"
+      >
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-base font-medium text-zinc-300">Cover</span>
+          <h2 id="cover-picker-title" className="text-base font-medium text-zinc-300">
+            Cover
+          </h2>
           <div className="flex items-center gap-2">
             {currentCover && (
               <button

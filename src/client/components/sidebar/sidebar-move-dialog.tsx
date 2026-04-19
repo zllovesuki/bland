@@ -209,6 +209,13 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
       const hasChildren = node.children.length > 0;
       const expanded = isExpanded(id);
       const isMatch = matches?.has(id) ?? false;
+      const rowState: TreeRowState = isMoving
+        ? "moving"
+        : isInMovingSubtree
+          ? "blocked"
+          : isSelected
+            ? "selected"
+            : "selectable";
 
       return (
         <div key={id}>
@@ -225,10 +232,7 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
             hasChildren={hasChildren}
             expanded={expanded}
             onToggle={() => toggleNode(id)}
-            selectable={isSelectable}
-            selected={isSelected}
-            muted={isMoving || isInMovingSubtree}
-            movingMarker={isMoving}
+            state={rowState}
             emphasized={isMatch}
             onSelect={() => isSelectable && selectTarget({ kind: "page", pageId: id })}
           />
@@ -244,10 +248,14 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
     <Dialog
       open={open}
       onClose={submitting ? () => {} : onClose}
+      ariaLabelledBy="sidebar-move-dialog-title"
       className="flex w-full max-w-lg flex-col overflow-hidden max-h-[min(640px,85vh)]"
     >
       <div className="flex items-baseline justify-between gap-4 px-5 pt-5">
-        <h2 className="min-w-0 truncate text-[15px] font-medium tracking-tight text-zinc-100">
+        <h2
+          id="sidebar-move-dialog-title"
+          className="min-w-0 truncate text-[15px] font-medium tracking-tight text-zinc-100"
+        >
           Move <span className="text-zinc-400">&ldquo;{page.title || DEFAULT_PAGE_TITLE}&rdquo;</span>
         </h2>
         <kbd className="shrink-0 font-mono text-[11px] text-zinc-600">esc</kbd>
@@ -303,6 +311,8 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
   );
 }
 
+type TreeRowState = "selectable" | "selected" | "moving" | "blocked";
+
 interface TreeRowProps {
   label: string;
   depth: number;
@@ -310,29 +320,17 @@ interface TreeRowProps {
   hasChildren: boolean;
   expanded: boolean;
   onToggle: () => void;
-  selectable: boolean;
-  selected: boolean;
-  muted: boolean;
-  movingMarker: boolean;
+  state: TreeRowState;
   emphasized: boolean;
   onSelect: () => void;
 }
 
-function TreeRow({
-  label,
-  depth,
-  icon,
-  hasChildren,
-  expanded,
-  onToggle,
-  selectable,
-  selected,
-  muted,
-  movingMarker,
-  emphasized,
-  onSelect,
-}: TreeRowProps) {
+function TreeRow({ label, depth, icon, hasChildren, expanded, onToggle, state, emphasized, onSelect }: TreeRowProps) {
   const indent = INDENT_BASE_PX + depth * INDENT_PER_DEPTH_PX;
+  const selected = state === "selected";
+  const selectable = state === "selectable" || state === "selected";
+  const muted = state === "moving" || state === "blocked";
+  const movingMarker = state === "moving";
   return (
     <div
       className={`flex items-stretch transition-colors ${

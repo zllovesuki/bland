@@ -6,9 +6,11 @@ interface DialogProps {
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  ariaLabelledBy?: string;
+  ariaLabel?: string;
 }
 
-export function Dialog({ open, onClose, children, className }: DialogProps) {
+export function Dialog({ open, onClose, children, className, ariaLabelledBy, ariaLabel }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,6 +68,8 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={ariaLabelledBy}
+        aria-label={ariaLabelledBy ? undefined : ariaLabel}
         className={`animate-slide-up relative rounded-xl border border-zinc-700 bg-zinc-800 shadow-2xl ${className ?? ""}`}
         onClick={(e) => e.stopPropagation()}
       >

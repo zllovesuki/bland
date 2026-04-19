@@ -97,17 +97,23 @@ export function WorkspaceSwitcher() {
                       onKeyDown={(e) => {
                         if (e.key === "Escape") setRenaming(false);
                       }}
+                      aria-label="Workspace name"
                       className="flex-1 rounded border border-zinc-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:border-accent-500"
                     />
-                    <button type="submit" className="text-zinc-400 hover:text-accent-400">
-                      <Check className="h-3.5 w-3.5" />
+                    <button
+                      type="submit"
+                      aria-label="Save workspace name"
+                      className="text-zinc-400 hover:text-accent-400"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setRenaming(false)}
+                      aria-label="Cancel rename"
                       className="text-zinc-400 hover:text-zinc-200"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </form>
                 ) : (
@@ -150,6 +156,7 @@ export function WorkspaceSwitcher() {
                 <input
                   autoFocus
                   placeholder="Workspace name"
+                  aria-label="New workspace name"
                   value={createName}
                   onChange={(e) => {
                     setCreateName(e.target.value);
@@ -159,6 +166,7 @@ export function WorkspaceSwitcher() {
                 />
                 <input
                   placeholder="slug"
+                  aria-label="New workspace URL slug"
                   value={createSlug}
                   onChange={(e) => setCreateSlug(e.target.value)}
                   className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs text-zinc-300 outline-none focus:border-accent-500"
