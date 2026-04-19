@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { PageTitle } from "@/client/components/ui/page-title";
 import YProvider from "y-partyserver/provider";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { toast } from "@/client/components/toast";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
-import { EditorTitle } from "./editor-title";
 import { EditorBody } from "./editor-body";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { useEditorSession } from "./use-editor-session";
@@ -76,7 +76,7 @@ export function EditorPane({
 
   return (
     <div>
-      <EditorTitle
+      <PageTitle
         title={session.title}
         onInput={session.onTitleInput}
         disabled={session.kind !== "ready" || !!schemaError}
