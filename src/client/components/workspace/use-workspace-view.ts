@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import { hasWorkspaceIdentity, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
@@ -14,7 +14,7 @@ const EMPTY_PAGES: Page[] = [];
 const EMPTY_MEMBERS: WorkspaceMember[] = [];
 
 export function useWorkspaceView(): WorkspaceViewContext {
-  const ctx = useContext(WorkspaceViewCtx);
+  const ctx = use(WorkspaceViewCtx);
   if (!ctx) throw new Error("useWorkspaceView must be used inside WorkspaceViewProvider");
   return ctx;
 }

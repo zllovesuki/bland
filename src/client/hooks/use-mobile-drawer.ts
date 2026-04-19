@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 export interface MobileDrawerState {
   open: boolean;
@@ -13,5 +13,5 @@ export const MobileDrawerContext = createContext<MobileDrawerState>({
 });
 
 export function useMobileDrawer(): MobileDrawerState {
-  return useContext(MobileDrawerContext);
+  return use(MobileDrawerContext);
 }

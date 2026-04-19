@@ -20,6 +20,15 @@ interface HeaderProps {
   onToggleMobileSidebar?: () => void;
 }
 
+function selectFirstMemberSlug(state: ReturnType<typeof useWorkspaceStore.getState>): string | null {
+  const lastId = state.lastVisitedWorkspaceId;
+  if (lastId) {
+    const match = state.memberWorkspaces.find((w) => w.id === lastId);
+    if (match) return match.slug;
+  }
+  return state.memberWorkspaces[0]?.slug ?? null;
+}
+
 export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: HeaderProps) {
   const hasLocalSession = useAuthStore(selectHasLocalSession);
   const user = useAuthStore((s) => s.user);
@@ -31,15 +40,8 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isLoginPage = location.pathname === "/login";
-  const homeSlug = useWorkspaceStore((s) => {
-    if (!hasLocalSession) return null;
-    const lastId = s.lastVisitedWorkspaceId;
-    if (lastId) {
-      const match = s.memberWorkspaces.find((w) => w.id === lastId);
-      if (match) return match.slug;
-    }
-    return s.memberWorkspaces[0]?.slug ?? null;
-  });
+  const memberSlug = useWorkspaceStore(selectFirstMemberSlug);
+  const homeSlug = hasLocalSession ? memberSlug : null;
   const { canLeaveSharedInbox, isSharedInbox, toggleSharedInbox } = useSharedInboxNavigation();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);

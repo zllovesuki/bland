@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useRouterState } from "@tanstack/react-router";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
@@ -49,11 +49,10 @@ export function RootShell() {
     }
   }, [location.pathname, isResolving]);
 
-  const drawerState: MobileDrawerState = {
-    open: mobileDrawerOpen,
-    toggle: toggleDrawer,
-    close: closeDrawer,
-  };
+  const drawerState = useMemo<MobileDrawerState>(
+    () => ({ open: mobileDrawerOpen, toggle: toggleDrawer, close: closeDrawer }),
+    [mobileDrawerOpen, toggleDrawer, closeDrawer],
+  );
 
   return (
     <MobileDrawerContext.Provider value={drawerState}>

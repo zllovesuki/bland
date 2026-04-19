@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 export interface EditorRuntimeSnapshot {
   workspaceId: string | undefined;
@@ -19,5 +19,5 @@ export const EditorRuntimeContext = createContext<EditorRuntimeContextValue>({
 });
 
 export function useEditorRuntime(): EditorRuntimeContextValue {
-  return useContext(EditorRuntimeContext);
+  return use(EditorRuntimeContext);
 }

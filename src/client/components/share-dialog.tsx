@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from "lucide-react";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
@@ -87,19 +87,19 @@ const SharePeopleContext = createContext<SharePeopleValue | null>(null);
 const ShareLinkContext = createContext<ShareLinkValue | null>(null);
 
 function useShareDialogShell(): ShareDialogShellValue {
-  const ctx = useContext(ShareDialogShellContext);
+  const ctx = use(ShareDialogShellContext);
   if (!ctx) throw new Error("useShareDialogShell must be used inside ShareDialog");
   return ctx;
 }
 
 function useSharePeople(): SharePeopleValue {
-  const ctx = useContext(SharePeopleContext);
+  const ctx = use(SharePeopleContext);
   if (!ctx) throw new Error("useSharePeople must be used inside ShareDialog");
   return ctx;
 }
 
 function useShareLink(): ShareLinkValue {
-  const ctx = useContext(ShareLinkContext);
+  const ctx = use(ShareLinkContext);
   if (!ctx) throw new Error("useShareLink must be used inside ShareDialog");
   return ctx;
 }

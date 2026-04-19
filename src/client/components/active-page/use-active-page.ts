@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import type YProvider from "y-partyserver/provider";
 import type { ActivePagePatch, ActivePageState } from "@/client/lib/active-page-model";
 import type { PageLoadTarget } from "@/client/lib/page-load-target";
@@ -19,19 +19,19 @@ const ActivePageSyncCtx = createContext<ActivePageSyncValue | null>(null);
 const ActivePageActionsCtx = createContext<ActivePageActionsValue | null>(null);
 
 export function useActivePageState(): ActivePageState {
-  const ctx = useContext(ActivePageStateCtx);
+  const ctx = use(ActivePageStateCtx);
   if (!ctx) throw new Error("useActivePageState must be used inside ActivePageProvider");
   return ctx;
 }
 
 export function useActivePageSync(): ActivePageSyncValue {
-  const ctx = useContext(ActivePageSyncCtx);
+  const ctx = use(ActivePageSyncCtx);
   if (!ctx) throw new Error("useActivePageSync must be used inside ActivePageProvider");
   return ctx;
 }
 
 export function useActivePageActions(): ActivePageActionsValue {
-  const ctx = useContext(ActivePageActionsCtx);
+  const ctx = use(ActivePageActionsCtx);
   if (!ctx) throw new Error("useActivePageActions must be used inside ActivePageProvider");
   return ctx;
 }

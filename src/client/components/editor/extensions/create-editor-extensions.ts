@@ -37,9 +37,11 @@ interface CreateEditorExtensionsOpts {
   getPageMentionCandidates: (excludePageId: string | undefined) => PageMentionCandidate[];
 }
 
+const WORD_SPLIT = /\s+/;
+
 function countWords(text: string): number {
   const trimmed = text.trim();
-  return trimmed === "" ? 0 : trimmed.split(/\s+/).length;
+  return trimmed === "" ? 0 : trimmed.split(WORD_SPLIT).length;
 }
 
 function countCharacters(text: string): number {

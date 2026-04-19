@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import { createContext, use, useEffect, useSyncExternalStore } from "react";
 import type { MentionEntry, PageMentionResolver } from "./resolver";
 import type { PageMentionCandidate } from "./types";
 
@@ -17,7 +17,7 @@ export const PageMentionContext = createContext<PageMentionContextValue>({
 });
 
 export function usePageMentions(): PageMentionContextValue {
-  return useContext(PageMentionContext);
+  return use(PageMentionContext);
 }
 
 export function usePageMentionEntry(pageId: string | null): MentionEntry {

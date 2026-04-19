@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { deriveSharePagePresentation } from "@/client/lib/share-page-model";
 import type { ResolvedViewerContext, SharePermission } from "@/shared/types";
@@ -44,7 +44,7 @@ export type ShareViewState = ShareViewLoadingState | ShareViewErrorState | Share
 export const ShareViewContext = createContext<ShareViewState | null>(null);
 
 export function useShareView(): ShareViewState {
-  const ctx = useContext(ShareViewContext);
+  const ctx = use(ShareViewContext);
   if (!ctx) throw new Error("useShareView must be used inside ShareViewProvider");
   return ctx;
 }

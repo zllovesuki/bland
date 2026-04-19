@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 
 const EMPTY_AFFORDANCE: EditorAffordance = {
@@ -10,5 +10,5 @@ const EMPTY_AFFORDANCE: EditorAffordance = {
 export const EditorAffordanceContext = createContext<EditorAffordance>(EMPTY_AFFORDANCE);
 
 export function useEditorAffordance(): EditorAffordance {
-  return useContext(EditorAffordanceContext);
+  return use(EditorAffordanceContext);
 }
