@@ -28,6 +28,16 @@ export function rowCellSelection(doc: PMNode, tablePos: number, table: PMNode, r
   return CellSelection.rowSelection(doc.resolve(start + firstCellPos), doc.resolve(start + lastCellPos));
 }
 
+export function allCellsSelection(doc: PMNode, tablePos: number, table: PMNode): CellSelection | null {
+  const map = TableMap.get(table);
+  if (map.width === 0 || map.height === 0) return null;
+
+  const start = tablePos + 1;
+  const firstCellPos = map.positionAt(0, 0, table);
+  const lastCellPos = map.positionAt(map.height - 1, map.width - 1, table);
+  return CellSelection.create(doc, start + firstCellPos, start + lastCellPos);
+}
+
 export function setCaretInCell(view: EditorView, table: PMNode, tablePos: number, row: number, col: number) {
   const map = TableMap.get(table);
   if (row < 0 || row >= map.height || col < 0 || col >= map.width) return;

@@ -18,6 +18,7 @@ import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
+import { ContextAwareSelectAll } from "./context-aware-select-all";
 import { TopLevelBlockIdentity } from "./top-level-block-identity";
 import { PageMentionNode } from "./page-mention/node";
 import { PageMentionSuggestion } from "./page-mention/suggestion";
@@ -129,5 +130,9 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       getCandidates: () => getPageMentionCandidates(getRuntime().pageId),
     }),
     ...createTableExtensions(),
+    // Registered last so Tiptap's keymap resolver (runs most-recently-added
+    // shortcuts first) picks this Mod-a handler before StarterKit's default
+    // selectAll, enabling the container-scoped escalation ladder.
+    ContextAwareSelectAll,
   ] as AnyExtension[];
 }

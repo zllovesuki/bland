@@ -19,7 +19,6 @@ import {
   type TableMenuSection,
 } from "./table-menu-actions";
 import {
-  activeCellInfo,
   resolveOpenMenuState,
   tableHandleSelector,
   tableHandlesKey,
@@ -32,8 +31,6 @@ interface MenuDerivedState {
   openMenu: OpenMenuState | null;
   rowCount: number;
   colCount: number;
-  canMerge: boolean;
-  canSplit: boolean;
   canResetWidths: boolean;
 }
 
@@ -52,14 +49,10 @@ export function TableMenu() {
       colCount = resolved.colCount;
       canResetWidths = hasExplicitColumnWidths(resolved.table);
     }
-    const active = activeCellInfo(e.state);
-    const selectionInOpenTable = !!resolved && active?.tablePos === resolved.tablePos;
     return {
       openMenu,
       rowCount,
       colCount,
-      canMerge: selectionInOpenTable && e.can().mergeCells(),
-      canSplit: selectionInOpenTable && e.can().splitCell(),
       canResetWidths,
     };
   });
@@ -114,12 +107,10 @@ export function TableMenu() {
     return buildTableMenuSections({
       editor,
       openMenu,
-      canMerge: state.canMerge,
-      canSplit: state.canSplit,
       canResetWidths: state.canResetWidths,
       onDone: close,
     });
-  }, [close, editor, openMenu, state.canMerge, state.canResetWidths, state.canSplit, state.colCount, state.rowCount]);
+  }, [close, editor, openMenu, state.canResetWidths, state.colCount, state.rowCount]);
 
   const virtualReference = useMemo<VirtualElement | null>(() => {
     if (!selector) return null;

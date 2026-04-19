@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { useTiptap, useTiptapState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { CellSelection } from "@tiptap/pm/tables";
 import {
   Bold,
   Italic,
@@ -16,6 +17,8 @@ import {
   AlignRight,
   Baseline,
   Highlighter,
+  Merge,
+  Split,
 } from "lucide-react";
 import { ColorPickerPanel } from "./color-picker-panel";
 import { TEXT_COLORS, BG_COLORS } from "./colors";
@@ -42,6 +45,9 @@ export function FormattingToolbar() {
     bgColor: (ctx.editor.getAttributes("textStyle").backgroundColor as string) ?? null,
     isAlignCenter: ctx.editor.isActive({ textAlign: "center" }),
     isAlignRight: ctx.editor.isActive({ textAlign: "right" }),
+    isCellSelection: ctx.editor.state.selection instanceof CellSelection,
+    canMerge: ctx.editor.can().mergeCells(),
+    canSplit: ctx.editor.can().splitCell(),
     shouldShowToolbar: shouldShowFormattingToolbar({
       editor: ctx.editor,
       from: ctx.editor.state.selection.from,
@@ -91,7 +97,7 @@ export function FormattingToolbar() {
         shift: { padding: 10 },
       }}
     >
-      <div className="tiptap-toolbar" style={{ zIndex: 40 }}>
+      <div className="tiptap-toolbar">
         {linkMode ? (
           <div className="flex items-center gap-1">
             <input
@@ -273,6 +279,36 @@ export function FormattingToolbar() {
             >
               <AlignRight size={16} />
             </button>
+
+            {editorState.isCellSelection && (
+              <>
+                <div className="tiptap-toolbar-sep" />
+                <button
+                  type="button"
+                  title="Merge cells"
+                  aria-label="Merge cells"
+                  disabled={!editorState.canMerge}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    editor.chain().focus(null, { scrollIntoView: false }).mergeCells().run();
+                  }}
+                >
+                  <Merge size={16} />
+                </button>
+                <button
+                  type="button"
+                  title="Split cell"
+                  aria-label="Split cell"
+                  disabled={!editorState.canSplit}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    editor.chain().focus(null, { scrollIntoView: false }).splitCell().run();
+                  }}
+                >
+                  <Split size={16} />
+                </button>
+              </>
+            )}
           </>
         )}
       </div>

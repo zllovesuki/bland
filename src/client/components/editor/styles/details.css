@@ -24,7 +24,10 @@
   display: grid;
   place-items: center;
   width: 1.75rem;
-  height: 1.75rem;
+  /* Match the summary's line box (min-height 1.5rem, line-height 1.4) so the
+     chevron's optical center lines up with the title's cap-center when the
+     block is collapsed. Width stays wider for click-target comfort. */
+  height: 1.5rem;
   margin: 0;
   border: none;
   border-radius: 0.5rem;

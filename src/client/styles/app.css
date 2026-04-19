@@ -38,6 +38,9 @@
   /* Canvas (lifted dark body background — warmed) */
   --color-canvas: #221f21;
 
+  /* Floating overlay surface (toolbars, popovers) — sits above every editor surface via shadow, not value */
+  --color-overlay-surface: var(--color-zinc-700);
+
   /* Animations */
   --animate-fade-in: fade-in 0.4s ease-out both;
   --animate-slide-up: slide-up 0.35s ease-out both;

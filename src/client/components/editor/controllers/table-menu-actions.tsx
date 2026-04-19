@@ -16,10 +16,8 @@ import {
   Columns3,
   EqualApproximately,
   Heading,
-  Merge,
   RotateCcw,
   Rows3,
-  Split,
   Trash2,
 } from "lucide-react";
 import { findTableElement } from "../extensions/table/dom";
@@ -304,15 +302,11 @@ export function buildColumnMenuSections({
 export function buildTableMenuSections({
   editor,
   openMenu,
-  canMerge,
-  canSplit,
   canResetWidths,
   onDone,
 }: {
   editor: Editor;
   openMenu: OpenMenuState;
-  canMerge: boolean;
-  canSplit: boolean;
   canResetWidths: boolean;
   onDone: (focusTrigger?: boolean) => void;
 }): TableMenuSection[] {
@@ -346,22 +340,6 @@ export function buildTableMenuSections({
             focusTableTarget(editor, resolved);
             return editor.chain().focus(null, { scrollIntoView: false }).toggleHeaderColumn().run();
           }),
-      },
-    ],
-    [
-      {
-        key: "table-merge-cells",
-        icon: <Merge size={14} />,
-        label: "Merge cells",
-        disabled: !canMerge,
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).mergeCells().run()),
-      },
-      {
-        key: "table-split-cell",
-        icon: <Split size={14} />,
-        label: "Split cell",
-        disabled: !canSplit,
-        onSelect: () => run(() => editor.chain().focus(null, { scrollIntoView: false }).splitCell().run()),
       },
     ],
     [
