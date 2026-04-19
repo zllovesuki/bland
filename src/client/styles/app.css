@@ -35,6 +35,12 @@
   --color-zinc-900: #1b181a;
   --color-zinc-950: #0c090b;
 
+  /* Callout kind labels — OKLCH, low chroma for astigmatism comfort,
+     hues orbiting the amethyst accent (290) so they feel related. */
+  --color-callout-info: oklch(0.82 0.06 265);
+  --color-callout-tip: oklch(0.89 0.05 295);
+  --color-callout-warning: oklch(0.82 0.07 62);
+
   /* Canvas (lifted dark body background — warmed) */
   --color-canvas: #221f21;
 

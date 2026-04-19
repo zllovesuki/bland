@@ -4,6 +4,7 @@ import {
   Heading2,
   Heading3,
   ChevronDown,
+  Info,
   List,
   ListOrdered,
   ListChecks,
@@ -16,6 +17,7 @@ import {
   FileText,
   SmilePlus,
 } from "lucide-react";
+import { insertCalloutBlock } from "../callout";
 import { insertDetailsBlock } from "../details-block";
 import { canInsertPageMentionAtRange } from "../../lib/page-mention/can-insert";
 
@@ -111,6 +113,15 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
       aliases: ["details", "spoiler", "collapse"],
       command: ({ editor, range }) => {
         insertDetailsBlock(editor, range);
+      },
+    },
+    {
+      title: "Callout",
+      group: "Basic blocks",
+      icon: Info,
+      aliases: ["callout", "note", "tip", "warning"],
+      command: ({ editor, range }) => {
+        insertCalloutBlock(editor, range);
       },
     },
     {

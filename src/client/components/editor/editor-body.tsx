@@ -22,6 +22,7 @@ import { PageMentionContext, usePageMentions } from "@/client/components/page-me
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
+import "./styles/callout.css";
 import "./styles/emoji.css";
 import "./styles/menu.css";
 import "./styles/page-mention.css";

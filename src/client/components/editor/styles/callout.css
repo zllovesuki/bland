@@ -1,0 +1,129 @@
+/* Content: callout block */
+.tiptap .tiptap-callout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-zinc-700);
+  border-radius: 0.75rem;
+  background: var(--color-zinc-900);
+  color: var(--color-zinc-100);
+  overflow: clip;
+}
+
+.tiptap .tiptap-callout-kind-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-zinc-100);
+  background: var(--color-zinc-800);
+  border: 1px solid var(--color-zinc-700);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.1s,
+    border-color 0.1s,
+    color 0.1s;
+}
+
+.tiptap .tiptap-callout-kind-btn:hover:not(:disabled) {
+  background: var(--color-zinc-700);
+  border-color: var(--color-zinc-600);
+}
+
+.tiptap .tiptap-callout-kind-btn:focus-visible {
+  outline: 1px solid var(--color-accent-500);
+  outline-offset: 2px;
+}
+
+/* Read-only: drop the pill chrome so the kind label reads as an inline tag,
+   not a clickable control. Icon + label keep their kind tint. */
+.tiptap .tiptap-callout-kind-btn:disabled {
+  cursor: default;
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.tiptap .tiptap-callout[data-callout-kind="info"] .tiptap-callout-kind-btn {
+  color: var(--color-callout-info);
+}
+.tiptap .tiptap-callout[data-callout-kind="tip"] .tiptap-callout-kind-btn {
+  color: var(--color-callout-tip);
+}
+.tiptap .tiptap-callout[data-callout-kind="warning"] .tiptap-callout-kind-btn {
+  color: var(--color-callout-warning);
+}
+
+.tiptap .tiptap-callout-body {
+  min-width: 0;
+}
+
+.tiptap .tiptap-callout-body > :first-child {
+  margin-top: 0;
+}
+
+.tiptap .tiptap-callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Empty-callout placeholder — only in editable mode so shared read-only
+   pages don't show editing prompts. */
+.tiptap[contenteditable="true"]
+  .tiptap-callout-body
+  > p:only-child:has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Say the thing.";
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-zinc-500);
+}
+
+/* Overlay: callout kind menu */
+.tiptap-callout-kind-menu {
+  min-width: 180px;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tiptap-callout-kind-item {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-zinc-200);
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s;
+}
+
+.tiptap-callout-kind-item:hover {
+  background: var(--color-zinc-700);
+  color: var(--color-zinc-100);
+}
+
+.tiptap-callout-kind-item.is-active {
+  background: color-mix(in srgb, var(--color-accent-500) 14%, transparent);
+  color: var(--color-accent-200);
+}
+
+.tiptap-callout-kind-item.is-active:hover {
+  background: color-mix(in srgb, var(--color-accent-500) 22%, transparent);
+  color: var(--color-accent-100);
+}

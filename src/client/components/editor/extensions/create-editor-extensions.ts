@@ -16,6 +16,7 @@ import { ShareAwareImage } from "./image/node";
 import { EditorEmoji } from "./emoji";
 import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
+import { CalloutExtension } from "./callout";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
 import { ContextAwareSelectAll } from "./context-aware-select-all";
@@ -100,6 +101,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     BackgroundColor,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     ...DetailsBlockExtensions,
+    CalloutExtension,
     HighlightedCodeBlock.configure({
       defaultLanguage: "text",
       enableTabIndentation: true,

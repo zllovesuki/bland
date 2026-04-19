@@ -20,6 +20,7 @@ const CONTAINER_TEXT_TYPES = new Set([
   "detailsSummary",
   "detailsContent",
   "details",
+  "callout",
   "tableCell",
   "tableHeader",
   "taskItem",

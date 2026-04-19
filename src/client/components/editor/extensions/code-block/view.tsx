@@ -61,9 +61,10 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
         onClick={() => documentEditable && setOpen((p) => !p)}
         onMouseDown={(e) => e.preventDefault()}
         contentEditable={false}
-        aria-label={`Language: ${displayName}`}
-        aria-expanded={open}
-        aria-haspopup="menu"
+        aria-label={documentEditable ? `Language: ${displayName}. Click to change.` : `Language: ${displayName}`}
+        aria-expanded={documentEditable ? open : undefined}
+        aria-haspopup={documentEditable ? "menu" : undefined}
+        disabled={!documentEditable}
       >
         {displayName}
       </button>

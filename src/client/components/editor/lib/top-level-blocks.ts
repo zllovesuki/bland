@@ -20,6 +20,7 @@ export const TOP_LEVEL_MOVABLE_NODE_TYPES = [
   "codeBlock",
   "horizontalRule",
   "details",
+  "callout",
   "image",
   "table",
 ] as const;
