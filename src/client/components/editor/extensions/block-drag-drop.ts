@@ -123,12 +123,29 @@ function createDropPlaceholder(view: EditorView) {
 
   const preview = dragPreviews.get(view);
   if (preview) {
+    // Reserve the dragged block's own vertical margins on the placeholder
+    // wrapper so its outlined footprint matches where the block will land —
+    // important for blocks with meaningful space above/below like headings.
     wrapper.style.marginTop = preview.marginTop;
     wrapper.style.marginBottom = preview.marginBottom;
 
+    // Zero vertical margins on the clone AND its immediate children. React
+    // node views (callout, code block) sit inside an extra
+    // `.react-renderer.node-<name>` wrapper, so `view.nodeDOM(pos)` returns a
+    // wrapper whose own margin is 0 while the real block
+    // (`.tiptap-callout`, `.tiptap-code-block-wrapper`) one level in carries
+    // `margin: 0.75rem 0` via CSS. Without zeroing that inner margin it
+    // renders inside the outlined placeholder and reads as phantom padding
+    // top and bottom. Native nodes like details/headings sit at the top
+    // level and are handled by the outer zero alone; the child walk is a
+    // no-op for them because their own children don't carry block margins.
     const clone = preview.dom.cloneNode(true) as HTMLElement;
     clone.style.marginTop = "0";
     clone.style.marginBottom = "0";
+    for (const child of Array.from(clone.children) as HTMLElement[]) {
+      child.style.marginTop = "0";
+      child.style.marginBottom = "0";
+    }
     wrapper.appendChild(clone);
   }
 
@@ -414,6 +431,14 @@ export function setDraggedBlockPreview(
   sourcePos: number,
   sourceEnd: number,
 ) {
+  // Read the margin off `dom` directly. For native nodes (headings, details,
+  // paragraphs) `dom` is the block element and its margin is the real value
+  // the preview should reserve. For React node views (callout, code block),
+  // `dom` is the outer `.react-renderer` wrapper whose own margin is 0 —
+  // which collapses the preview flush to neighbors, and is exactly what we
+  // want because the inner block's margin is zeroed out in
+  // createDropPlaceholder to prevent it from rendering as phantom padding
+  // inside the outlined placeholder.
   const styles = window.getComputedStyle(dom);
   dragPreviews.set(view, {
     dom: dom.cloneNode(true) as HTMLElement,

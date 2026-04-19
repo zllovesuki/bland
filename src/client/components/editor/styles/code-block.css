@@ -28,11 +28,18 @@
   line-height: 1.4;
 }
 
-.tiptap-code-block-wrapper:hover .tiptap-code-block-lang-btn,
-.tiptap-code-block-lang-btn:hover {
+.tiptap-code-block-wrapper:hover .tiptap-code-block-lang-btn:not(:disabled),
+.tiptap-code-block-lang-btn:not(:disabled):hover {
   opacity: 1;
   color: var(--color-zinc-400);
   border-color: var(--color-zinc-700);
+}
+
+/* Read-only: lock the language label at a quiet opacity with no hover
+   affordance so it reads as a corner label, not a clickable control. */
+.tiptap-code-block-lang-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .tiptap-code-block-pre {
