@@ -52,13 +52,13 @@ function PageViewContent() {
   const { patchPage } = useActivePageActions();
   const { workspaceId: effectiveWorkspaceId, workspace, pages, members, accessMode } = useCanonicalPageContext();
   const currentUser = useAuthStore((s) => s.user);
+  const online = useOnline();
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
   const showOutlineRail = useMediaQuery("(min-width: 1024px)");
-  const { status } = useSyncStatus(syncProvider);
+  const { status } = useSyncStatus(syncProvider, online);
   const currentPageMeta = pages.find((candidate) => candidate.id === params.pageId) ?? null;
-  const online = useOnline();
 
   const page = activePageState.kind === "ready" ? activePageState.snapshot : null;
   const ancestors = activePageState.kind === "ready" ? activePageState.ancestors : [];

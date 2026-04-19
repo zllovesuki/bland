@@ -1,40 +1,53 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
+import { type SyncStatus } from "@/client/lib/doc-sync-provider";
 
-export type SyncStatus = "connected" | "connecting" | "disconnected";
+export type { SyncStatus } from "@/client/lib/doc-sync-provider";
 
-export function useSyncStatus(provider: YProvider | null): {
+function deriveProviderStatus(provider: YProvider | null): SyncStatus {
+  if (!provider) return "disconnected";
+  if (provider.wsconnected) return "connected";
+  if (provider.shouldConnect || provider.wsconnecting) return "connecting";
+  return "disconnected";
+}
+
+export function useSyncStatus(
+  provider: YProvider | null,
+  online: boolean,
+): {
   status: SyncStatus;
   synced: boolean;
 } {
-  const [status, setStatus] = useState<SyncStatus>("disconnected");
-  const [synced, setSynced] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<SyncStatus>(() => deriveProviderStatus(provider));
+  const [synced, setSynced] = useState(provider?.synced ?? false);
 
   useEffect(() => {
     if (!provider) {
-      setStatus("disconnected");
+      setProviderStatus("disconnected");
       setSynced(false);
       return;
     }
 
-    if (provider.wsconnected) setStatus("connected");
-    else setStatus("connecting");
+    setProviderStatus(deriveProviderStatus(provider));
     setSynced(provider.synced);
 
-    const onStatus = ({ status: s }: { status: string }) => setStatus(s as SyncStatus);
-    const onSync = (isSynced: boolean) => setSynced(isSynced);
+    const onStatus = () => setProviderStatus(deriveProviderStatus(provider));
+    const onSynced = (next: boolean) => setSynced(next);
 
     provider.on("status", onStatus);
-    provider.on("synced", onSync);
+    provider.on("synced", onSynced);
 
     return () => {
       provider.off("status", onStatus);
-      provider.off("synced", onSync);
+      provider.off("synced", onSynced);
     };
   }, [provider]);
 
-  return { status, synced };
+  return {
+    status: online ? providerStatus : "disconnected",
+    synced,
+  };
 }
 
 export interface AwarenessUser {

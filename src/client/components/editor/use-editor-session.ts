@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
-import type { Awareness } from "y-protocols/awareness";
 import { getCachedDocKey } from "@/client/lib/constants";
 import { markDocCached } from "@/client/lib/doc-cache-hints";
+import { reconcileDocSyncProvider } from "@/client/lib/doc-sync-provider";
+import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { YJS_DOCUMENT_STORE, YJS_PAGE_TITLE } from "@/shared/constants";
 
 interface EditorSessionInternalState {
   fragment: Y.XmlFragment;
-  provider: { awareness: Awareness };
+  provider: YProvider;
   ydoc: Y.Doc;
 }
 
@@ -46,6 +47,10 @@ export function useEditorSession({
   shareToken,
   enabled = true,
 }: UseEditorSessionOptions): EditorSessionState {
+  const online = useOnline();
+  const isAuthed = useAuthStore((s) => !!s.accessToken);
+  const wantsConnection = online && (!!shareToken || isAuthed);
+
   const [title, setTitle] = useState(initialTitle);
   const [session, setSession] = useState<EditorSessionInternalState | null>(null);
 
@@ -55,6 +60,8 @@ export function useEditorSession({
   onTitleChangeRef.current = onTitleChange;
   const onProviderRef = useRef(onProvider);
   onProviderRef.current = onProvider;
+  const wantsConnectionRef = useRef(wantsConnection);
+  wantsConnectionRef.current = wantsConnection;
 
   useEffect(() => {
     setTitle(initialTitleRef.current);
@@ -71,11 +78,15 @@ export function useEditorSession({
     const idb = new IndexeddbPersistence(getCachedDocKey(pageId), ydoc);
     const fragment = ydoc.getXmlFragment(YJS_DOCUMENT_STORE);
     const titleText = ydoc.getText(YJS_PAGE_TITLE);
-    let wsProvider: YProvider | null = null;
-    let seedTitleTimeout: ReturnType<typeof window.setTimeout> | null = null;
-    let unsubAuth: (() => void) | null = null;
+    const wsProvider = new YProvider(window.location.host, pageId, ydoc, {
+      party: "doc-sync",
+      connect: false,
+      params: shareToken ? () => ({ share: shareToken }) : () => ({ token: useAuthStore.getState().accessToken || "" }),
+    });
+
     let mounted = true;
     let seededTitle = false;
+    let seedTitleTimeout: ReturnType<typeof window.setTimeout> | null = null;
 
     const titleObserver = () => {
       if (!mounted) return;
@@ -92,7 +103,6 @@ export function useEditorSession({
         window.clearTimeout(seedTitleTimeout);
         seedTitleTimeout = null;
       }
-
       const seed = initialTitleRef.current;
       if (titleText.length === 0 && seed) {
         titleText.insert(0, seed);
@@ -104,8 +114,9 @@ export function useEditorSession({
       maybeSeedTitle();
       markDocCached(pageId);
     };
+    wsProvider.on("sync", handleProviderSync);
 
-    function handleIndexedDbSync() {
+    const handleIdbSync = () => {
       if (!mounted) return;
 
       if (titleText.length > 0) {
@@ -115,53 +126,37 @@ export function useEditorSession({
         markDocCached(pageId);
       }
 
-      const hasToken = !!shareToken || !!useAuthStore.getState().accessToken;
-      wsProvider = new YProvider(window.location.host, pageId, ydoc, {
-        party: "doc-sync",
-        connect: hasToken,
-        params: shareToken
-          ? () => ({ share: shareToken })
-          : () => ({ token: useAuthStore.getState().accessToken || "" }),
-      });
-      wsProvider.on("sync", handleProviderSync);
-
-      if (!hasToken) {
-        seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
-      }
-
-      if (!shareToken) {
-        unsubAuth = useAuthStore.subscribe((state) => {
-          if (state.accessToken && wsProvider && !wsProvider.wsconnected) {
-            wsProvider.connect();
-          }
-        });
-      }
-
       onProviderRef.current?.(wsProvider);
       setSession({ fragment, provider: wsProvider, ydoc });
-    }
+
+      if (!wantsConnectionRef.current) {
+        seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
+      }
+    };
 
     if (idb.synced) {
-      handleIndexedDbSync();
+      handleIdbSync();
     } else {
-      idb.on("synced", handleIndexedDbSync);
+      idb.on("synced", handleIdbSync);
     }
 
     return () => {
       mounted = false;
-      idb.off("synced", handleIndexedDbSync);
+      idb.off("synced", handleIdbSync);
       titleText.unobserve(titleObserver);
-      if (seedTitleTimeout !== null) {
-        window.clearTimeout(seedTitleTimeout);
-      }
-      unsubAuth?.();
-      wsProvider?.off("sync", handleProviderSync);
+      if (seedTitleTimeout !== null) window.clearTimeout(seedTitleTimeout);
+      wsProvider.off("sync", handleProviderSync);
       onProviderRef.current?.(null);
-      wsProvider?.destroy();
+      wsProvider.destroy();
       idb.destroy();
       ydoc.destroy();
     };
   }, [enabled, pageId, shareToken]);
+
+  useEffect(() => {
+    if (!session) return;
+    reconcileDocSyncProvider(session.provider, wantsConnection);
+  }, [session, wantsConnection]);
 
   const onTitleInput = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
