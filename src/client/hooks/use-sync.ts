@@ -51,9 +51,7 @@ export function useSyncStatus(
 }
 
 export interface AwarenessUser {
-  name: string;
-  color: string;
-  avatar_url?: string | null;
+  userId: string | null;
 }
 
 export interface AwarenessState {
@@ -83,10 +81,14 @@ const EMPTY_MAP = new Map<number, AwarenessState>();
 
 const COLORS = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#9d6ee8", "#ec4899", "#06b6d4", "#f97316"];
 
-export function userColor(userId: string): string {
+function hashToColor(seed: string): string {
   let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
   }
   return COLORS[Math.abs(hash) % COLORS.length];
+}
+
+export function awarenessColor(userId: string | null, clientId: number): string {
+  return hashToColor(userId ?? `anon:${clientId}`);
 }

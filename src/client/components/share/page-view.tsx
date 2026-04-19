@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
+import { friendlyName } from "@/client/lib/friendly-name";
+import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
@@ -51,6 +53,14 @@ export function SharePageView() {
   );
 
   useDocumentTitle(presentation.displayTitle || DEFAULT_PAGE_TITLE);
+
+  const resolveIdentity = useCallback<ResolveIdentity>(
+    (userId, clientId) => ({
+      name: friendlyName(userId ?? String(clientId)),
+      avatar_url: null,
+    }),
+    [],
+  );
 
   if (activePageState.kind === "unavailable") {
     return (
@@ -119,6 +129,7 @@ export function SharePageView() {
             workspaceId={presentation.workspaceId}
             outline={showOutlineRail ? { kind: "rail", target: outlineRailEl } : { kind: "inline" }}
             affordance={pageAffordance.editor}
+            resolveIdentity={resolveIdentity}
           />
         </ErrorBoundary>
       </div>

@@ -7,6 +7,7 @@ import { toast } from "@/client/components/toast";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { EditorBody } from "./editor-body";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
+import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { useEditorSession } from "./use-editor-session";
 
 const INVALID_SCHEMA_MESSAGE = "This page contains content this editor version can't safely load. Refresh to update.";
@@ -19,6 +20,7 @@ interface EditorPaneProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: EditorAffordance;
+  resolveIdentity: ResolveIdentity;
   outline?: EditorOutlinePlacement;
   docFooterLeading?: ReactNode;
 }
@@ -33,6 +35,7 @@ export function EditorPane({
   shareToken,
   workspaceId,
   affordance,
+  resolveIdentity,
   outline,
   docFooterLeading,
 }: EditorPaneProps) {
@@ -97,6 +100,7 @@ export function EditorPane({
           shareToken={shareToken}
           workspaceId={workspaceId}
           affordance={affordance}
+          resolveIdentity={resolveIdentity}
           onSchemaError={handleSchemaError}
           outline={outline}
           docFooterLeading={docFooterLeading}

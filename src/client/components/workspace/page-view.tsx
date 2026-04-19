@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
 import { deriveWorkspacePageAffordance } from "@/client/lib/affordance/workspace-page";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
+import { friendlyName } from "@/client/lib/friendly-name";
+import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { EditorPane } from "@/client/components/editor/editor-pane";
 import { ErrorBoundary } from "@/client/components/error-boundary";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
@@ -86,6 +88,18 @@ function PageViewContent() {
     syncProvider,
     patchPage,
   });
+
+  const membersById = useMemo(() => new Map(members.map((m) => [m.user_id, m.user])), [members]);
+  const resolveIdentity = useCallback<ResolveIdentity>(
+    (userId, clientId) => {
+      const real = userId ? membersById.get(userId) : undefined;
+      if (real) {
+        return { name: real.name, avatar_url: real.avatar_url };
+      }
+      return { name: friendlyName(userId ?? String(clientId)), avatar_url: null };
+    },
+    [membersById],
+  );
 
   if (activePageState.kind === "loading") {
     return <PageLoadingSkeleton />;
@@ -170,6 +184,7 @@ function PageViewContent() {
             <AvatarStack
               awareness={syncProvider?.awareness ?? null}
               localClientId={syncProvider?.awareness.clientID ?? null}
+              resolveIdentity={resolveIdentity}
             />
             <SyncStatusDot status={status} />
           </div>
@@ -223,6 +238,7 @@ function PageViewContent() {
                 canInsertImages: false,
               }
             }
+            resolveIdentity={resolveIdentity}
             docFooterLeading={docFooterLeading}
           />
         </ErrorBoundary>

@@ -4,7 +4,7 @@ import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { userColor } from "@/client/hooks/use-sync";
+import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { createEditorExtensions } from "./extensions/create-editor-extensions";
 import { DragHandle } from "./controllers/drag-handle";
 import { FormattingToolbar } from "./controllers/formatting-toolbar";
@@ -34,6 +34,7 @@ interface EditorBodyProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: EditorAffordance;
+  resolveIdentity: ResolveIdentity;
   onSchemaError?: (error: Error) => void;
   outline?: EditorOutlinePlacement;
   docFooterLeading?: ReactNode;
@@ -46,11 +47,18 @@ export const EditorBody = memo(function EditorBody({
   shareToken,
   workspaceId,
   affordance,
+  resolveIdentity,
   onSchemaError,
   outline = { kind: "inline" },
   docFooterLeading,
 }: EditorBodyProps) {
   const user = useAuthStore((s) => s.user);
+  const resolveIdentityRef = useRef(resolveIdentity);
+  resolveIdentityRef.current = resolveIdentity;
+  const getResolveIdentity = useCallback<ResolveIdentity>(
+    (userId, clientId) => resolveIdentityRef.current(userId, clientId),
+    [],
+  );
   const pageMentions = usePageMentions();
   const affordanceRef = useRef(affordance);
   affordanceRef.current = affordance;
@@ -69,11 +77,9 @@ export const EditorBody = memo(function EditorBody({
   const getAffordance = useCallback(() => affordanceRef.current, []);
   const collaborationUser = useMemo(
     () => ({
-      name: user?.name ?? "Anonymous",
-      color: userColor(user?.id ?? "anon"),
-      avatar_url: user?.avatar_url ?? null,
+      userId: user?.id ?? null,
     }),
-    [user?.avatar_url, user?.id, user?.name],
+    [user?.id],
   );
 
   const editor = useEditor(
@@ -82,6 +88,7 @@ export const EditorBody = memo(function EditorBody({
         fragment,
         provider,
         user: collaborationUser,
+        resolveIdentity: getResolveIdentity,
         getRuntime,
         getAffordance,
         getPageMentionCandidates: (excludePageId) => pageMentions.getInsertablePages(excludePageId),

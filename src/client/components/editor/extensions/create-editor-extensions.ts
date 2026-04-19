@@ -5,13 +5,14 @@ import { StarterKit } from "@tiptap/starter-kit";
 import { TextStyle, Color, BackgroundColor } from "@tiptap/extension-text-style";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Collaboration } from "@tiptap/extension-collaboration";
-import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
 import { FileHandler } from "@tiptap/extension-file-handler";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
+import type { ResolveIdentity } from "@/client/lib/presence-identity";
+import { createCollaborationCaret } from "./collaboration-caret";
 import { ShareAwareImage } from "./image/node";
 import { EditorEmoji } from "./emoji";
 import { HighlightedCodeBlock } from "./code-block/extension";
@@ -33,7 +34,8 @@ import type { PageMentionCandidate } from "@/client/components/page-mention/type
 interface CreateEditorExtensionsOpts {
   fragment: Y.XmlFragment;
   provider: { awareness: Awareness };
-  user: { name: string; color: string; avatar_url: string | null };
+  user: { userId: string | null };
+  resolveIdentity: ResolveIdentity;
   getRuntime: () => EditorRuntimeSnapshot;
   getAffordance: () => EditorAffordance;
   getPageMentionCandidates: (excludePageId: string | undefined) => PageMentionCandidate[];
@@ -51,7 +53,7 @@ function countCharacters(text: string): number {
 }
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {
-  const { fragment, provider, user, getRuntime, getAffordance, getPageMentionCandidates } = opts;
+  const { fragment, provider, user, resolveIdentity, getRuntime, getAffordance, getPageMentionCandidates } = opts;
   const getInsertPaletteItems = () =>
     createInsertPaletteItems({
       getRuntime,
@@ -107,14 +109,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
       enableTabIndentation: true,
     }),
     Collaboration.configure({ fragment }),
-    CollaborationCaret.configure({
-      provider,
-      user: {
-        name: user.name,
-        color: user.color,
-        avatar_url: user.avatar_url,
-      },
-    }),
+    createCollaborationCaret({ provider, user, resolveIdentity }),
     Placeholder.configure({
       placeholder: "Start typing, or press / for blocks",
     }),
