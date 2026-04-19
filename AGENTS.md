@@ -42,7 +42,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Avoid review feedback that only shuffles the bug or defers the same issue to a follow-up diff. Review churn from an underscoped fix is worse than a slightly larger correct patch.
 - Prefer explicit code over clever code. Small duplication is fine when it keeps ownership obvious.
 - Reuse existing helpers, stores, contracts, route patterns, and UI primitives before adding new ones.
-- Reuse security-sensitive worker helpers before inlining logic: `src/worker/lib/auth.ts` (`getJwtSecret`, `verifyAccessToken`, `setRefreshCookie`, `clearRefreshCookie`, `generateSecureToken`), `src/worker/lib/origins.ts` (`getAllowedOrigins`, `isAllowedOrigin`), and `src/worker/lib/membership.ts` (`requireMembership`).
+- Reuse security-sensitive worker helpers before inlining logic: `src/worker/lib/auth.ts` (`getJwtSecret`, `verifyAccessToken`, `setRefreshCookie`, `clearRefreshCookie`, `generateSecureToken`), `src/worker/lib/origins.ts` (`getAllowedOrigins`, `isAllowedOrigin`), `src/worker/lib/membership.ts` (`requireMembership`), and `src/worker/lib/permissions.ts` (`resolvePrincipal`, `resolvePageAccessLevels`, `canAccessPage`, `canAccessPages`, `toResolvedViewerContext`).
 - Preserve the split between `src/client`, `src/worker`, and `src/shared`.
 - If request or response shapes change, update both the worker boundary and `src/shared/types.ts`.
 - If DocSync custom message shapes change, update `src/shared/doc-messages.ts`.
@@ -75,7 +75,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 - Express app chrome through explicit layout routes rooted at `src/client/route-tree.tsx` and `src/client/components/root-shell.tsx`, not route metadata switches.
 - Keep asynchronous route and page loading in providers or components, not route `beforeLoad`. Use `beforeLoad` only for synchronous auth and redirect guards.
-- Keep workspace route resolution in `src/client/components/workspace/view-provider.tsx`, the shared active-page state machine in `src/client/components/active-page/provider.tsx` with canonical glue in `src/client/components/active-page/canonical.tsx`, and share-link state in `src/client/components/share/view-provider.tsx`. Keep `workspace/page-view.tsx` and `share/page-view.tsx` focused on rendering and page-local actions.
+- Keep workspace route resolution in `src/client/components/workspace/view-provider.tsx`, canonical page-context derivation in `src/client/components/workspace/use-canonical-page-context.ts`, the shared active-page state machine in `src/client/components/active-page/provider.tsx` with canonical glue in `src/client/components/active-page/canonical.tsx`, canonical mention wiring in `src/client/components/page-mention/canonical-surface.tsx`, and share-link state in `src/client/components/share/view-provider.tsx`. Keep `workspace/page-view.tsx` and `share/page-view.tsx` focused on rendering and page-local actions.
 - Keep stable allow/deny permission semantics in `src/shared/entitlements/`. Keep client UX action visibility and disabled state in `src/client/lib/affordance/`. Do not collapse these back into one monolithic client permission bag.
 - Keep `src/client/stores/workspace-store.ts` as a persisted cache and snapshot store, not a home for transient request lifecycle or active-route state.
 - Prefer discriminated unions like `WorkspaceRouteState` and `ActivePageState`, plus pure helpers under `src/client/lib/`, for non-trivial routing and loading logic.
@@ -84,13 +84,15 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Treat `useEffect` dependency arrays as correctness-critical. Do not introduce circular update paths where an effect depends on state that the effect itself mutates unless the guard is explicit, necessary, and obviously safe on a second read.
 - Keep network calls centralized in `src/client/lib/api.ts`.
 - Extend the shared editor under `src/client/components/editor/` instead of creating parallel editor shells or abstractions.
+- Treat editor features as cross-cutting work, not isolated node or command changes. If a change adds new document structure or editing UI, verify the surrounding extension registry, controller surfaces, slash or insert entry points, affordance or runtime plumbing, and selection semantics such as `context-aware-select-all` still compose correctly.
 - Keep `src/client/components/editor/editor-runtime-context.ts` operational only, and keep UI editing affordances in `src/client/components/editor/editor-affordance-context.ts`. Do not infer mention/upload affordances from raw runtime fields when the affordance layer already owns them.
 - Keep the authenticated workspace surface and the share surface aligned through shared primitives such as `src/client/components/ui/mobile-drawer.tsx`, `page-cover.tsx`, `page-error-state.tsx`, and `page-loading-skeleton.tsx`, rather than parallel rewrites.
-- When changing collaboration or route-loading behavior, verify both member and share flows and update focused regression coverage, including `tests/e2e/specs/08-rapid-page-navigation.spec.ts` and `tests/e2e/specs/10-shared-rapid-navigation.spec.ts` when applicable.
+- When changing collaboration or route-loading behavior, verify both member and share flows and update focused regression coverage, including `tests/e2e/specs/08-rapid-page-navigation.spec.ts`, `tests/e2e/specs/10-shared-rapid-navigation.spec.ts`, and `tests/e2e/specs/12-canonical-page-cold-deep-link.spec.ts` when applicable.
 
 ### Worker
 
 - Register HTTP behavior in the owning module under `src/worker/routes/` and keep top-level wiring in `src/worker/router.ts`.
+- Keep page-access resolution and viewer-surface context in `src/worker/lib/permissions.ts`. Reuse `resolvePrincipal`, `resolvePageAccessLevels`, and `toResolvedViewerContext` from routes and WebSocket auth instead of re-encoding page-share walks or member-vs-share branching inline.
 - Validate requests at the boundary with `zod` or shared schemas.
 - Put reusable worker logic in helpers or middleware instead of bloating route handlers.
 - Keep 4xx failures explicit and actionable. Reserve 500s for genuinely unexpected errors.
@@ -134,6 +136,8 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - `src/client/route-tree.tsx`
 - `src/client/components/root-shell.tsx`
 - `src/client/components/workspace/`
+- `src/client/components/active-page/`
+- `src/client/components/page-mention/`
 - `src/client/components/share/`
 - `src/client/components/editor/`
 - `src/client/lib/affordance/`
@@ -143,6 +147,7 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - `src/worker/index.ts`
 - `src/worker/router.ts`
 - `src/worker/routes/`
+- `src/worker/lib/permissions.ts`
 - `src/worker/db/*/schema.ts`
 - `src/worker/durable-objects/`
 - `src/worker/queues/search-indexer.ts`
