@@ -190,7 +190,7 @@ function PageViewContent() {
           </div>
         </div>
 
-        <div className="mb-4 flex items-center gap-3 pl-7">
+        <div className="mb-4 flex min-h-9 items-center gap-3 pl-7">
           {workspace && pageAffordance && isActionVisible(pageAffordance.editPageMetadata) ? (
             <>
               <IconPicker
