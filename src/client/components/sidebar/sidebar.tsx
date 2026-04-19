@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { Plus, Search, ChevronsLeft, ChevronsRight, Loader2, Settings, ArrowLeft } from "lucide-react";
 import {
@@ -10,7 +10,9 @@ import { useCreatePage } from "@/client/hooks/use-create-page";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { PageTree } from "./page-tree";
-import { SearchDialog, searchShortcutLabel } from "./search-dialog";
+import { searchShortcutLabel } from "./search-shortcut";
+
+const SearchDialog = lazy(() => import("./search-dialog").then((mod) => ({ default: mod.SearchDialog })));
 import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
@@ -211,7 +213,11 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
           </div>
         </>
       )}
-      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {searchOpen && (
+        <Suspense fallback={null}>
+          <SearchDialog open onClose={() => setSearchOpen(false)} />
+        </Suspense>
+      )}
     </aside>
   );
 

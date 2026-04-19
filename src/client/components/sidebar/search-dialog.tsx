@@ -6,9 +6,6 @@ import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace
 import type { SearchResult } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
-const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
-export const searchShortcutLabel = isMac ? "⌘K" : "Ctrl+K";
-
 export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const workspace = useCurrentWorkspace();
