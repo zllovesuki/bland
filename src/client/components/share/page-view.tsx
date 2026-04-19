@@ -66,14 +66,7 @@ export function SharePageView() {
   }
 
   if (presentation.isPageLoading || !presentation.page) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
-        <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
-          <Skeleton className="h-48 w-full rounded-b-lg" />
-        </div>
-        <PageLoadingSkeleton />
-      </div>
-    );
+    return <PageLoadingSkeleton />;
   }
 
   const page = presentation.page;

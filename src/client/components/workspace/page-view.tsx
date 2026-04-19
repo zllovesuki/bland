@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { Skeleton } from "@/client/components/ui/skeleton";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
@@ -89,14 +88,7 @@ function PageViewContent() {
   });
 
   if (activePageState.kind === "loading") {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
-        <div className="-mx-4 -mt-10 mb-6 sm:-mx-8">
-          <Skeleton className="h-48 w-full rounded-b-lg" />
-        </div>
-        <PageLoadingSkeleton />
-      </div>
-    );
+    return <PageLoadingSkeleton />;
   }
 
   if (activePageState.kind === "unavailable" || !page || !effectiveWorkspaceId) {
