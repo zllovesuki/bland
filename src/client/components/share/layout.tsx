@@ -47,9 +47,7 @@ function ShareLoadingShell() {
           </div>
         </nav>
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
-          <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">
-            <PageLoadingSkeleton />
-          </div>
+          <PageLoadingSkeleton />
         </main>
       </div>
       <Footer expanded={true} />

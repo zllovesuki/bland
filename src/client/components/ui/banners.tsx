@@ -9,6 +9,10 @@ export function Banners() {
   const refreshState = useAuthStore((s) => s.refreshState);
   const pathname = useLocation({ select: (l) => l.pathname });
 
+  const hasDegradedSession = sessionMode === SESSION_MODES.LOCAL_ONLY || sessionMode === SESSION_MODES.EXPIRED;
+  const showRestoring = refreshState === "refreshing" && hasDegradedSession;
+  const showExpired = sessionMode === SESSION_MODES.EXPIRED && !showRestoring;
+
   return (
     <>
       {!online && (
@@ -20,7 +24,7 @@ export function Banners() {
           Offline. Your edits are saved locally and will sync when you're back.
         </div>
       )}
-      {refreshState === "refreshing" && (
+      {showRestoring && (
         <div
           role="status"
           aria-live="polite"
@@ -32,7 +36,7 @@ export function Banners() {
           </span>
         </div>
       )}
-      {sessionMode === SESSION_MODES.EXPIRED && (
+      {showExpired && (
         <div
           role="alert"
           className="animate-slide-up border-b border-red-500/20 bg-red-500/10 py-1.5 text-center text-xs text-red-400"
