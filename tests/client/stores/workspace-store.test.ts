@@ -48,7 +48,7 @@ describe("workspace-store", () => {
             lastVisitedWorkspaceId: "ws-1",
             cacheUserId: "user-1",
           },
-          version: 2,
+          version: 3,
         }),
       );
 

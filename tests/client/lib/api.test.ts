@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 import { createUser } from "@tests/client/util/fixtures";
 import { SESSION_MODES } from "@/client/lib/constants";
+import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 
 let useAuthStore: typeof import("@/client/stores/auth-store").useAuthStore;
 let selectHasLocalSession: typeof import("@/client/stores/auth-store").selectHasLocalSession;
@@ -152,6 +153,20 @@ describe("apiFetch auto-refresh", () => {
     await expect(api.workspaces.list()).rejects.toEqual(expect.objectContaining({ error: "forbidden" }));
 
     // Only 1 call — no refresh attempted for non-unauthorized 403
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not throw when reading or writing bookmark storage fails", async () => {
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { workspaces: [] }, { [D1_BOOKMARK_HEADER]: "bookmark-123" }));
+
+    await expect(api.workspaces.list()).resolves.toEqual([]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

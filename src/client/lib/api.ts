@@ -1,5 +1,6 @@
 import { useAuthStore } from "@/client/stores/auth-store";
 import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
+import { readStorageString, writeStorageString } from "@/client/lib/storage";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import type {
   LoginRequest,
@@ -21,6 +22,9 @@ import type {
 
 const API_BASE = "/api/v1";
 const AUTH_REFRESH_PATH = "/auth/refresh";
+let pendingSessionRefresh: Promise<
+  { ok: true; data: { user: User; accessToken: string } } | { ok: false; reason: "rejected" | "network" }
+> | null = null;
 
 export function toApiError(err: unknown): ApiError {
   if (err && typeof err === "object" && "message" in err) {
@@ -37,6 +41,48 @@ export function requestSessionRefresh(): Promise<Response> {
   });
 }
 
+export function refreshSession(): Promise<
+  { ok: true; data: { user: User; accessToken: string } } | { ok: false; reason: "rejected" | "network" }
+> {
+  if (pendingSessionRefresh) return pendingSessionRefresh;
+
+  useAuthStore.getState().setRefreshState("refreshing");
+
+  pendingSessionRefresh = (async () => {
+    try {
+      const res = await requestSessionRefresh();
+      if (!res.ok) {
+        const state = useAuthStore.getState();
+        if (state.user) {
+          state.markExpired();
+        } else {
+          useAuthStore.setState({
+            accessToken: null,
+            user: null,
+            sessionMode: SESSION_MODES.ANONYMOUS,
+          });
+        }
+        return { ok: false as const, reason: "rejected" as const };
+      }
+
+      const data = (await res.json()) as { user: User; accessToken: string };
+      useAuthStore.getState().setAuth(data.accessToken, data.user);
+      return { ok: true as const, data };
+    } catch {
+      const state = useAuthStore.getState();
+      if (state.user) {
+        state.markLocalOnly();
+      }
+      return { ok: false as const, reason: "network" as const };
+    } finally {
+      useAuthStore.getState().setRefreshState("idle");
+      pendingSessionRefresh = null;
+    }
+  })();
+
+  return pendingSessionRefresh;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = useAuthStore.getState().accessToken;
   const headers: Record<string, string> = {
@@ -46,7 +92,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const bookmark = localStorage.getItem(STORAGE_KEYS.D1_BOOKMARK);
+  const bookmark = readStorageString(STORAGE_KEYS.D1_BOOKMARK);
   if (bookmark) {
     headers[D1_BOOKMARK_HEADER] = bookmark;
   }
@@ -59,7 +105,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   const returnedBookmark = res.headers.get(D1_BOOKMARK_HEADER);
   if (returnedBookmark) {
-    localStorage.setItem(STORAGE_KEYS.D1_BOOKMARK, returnedBookmark);
+    writeStorageString(STORAGE_KEYS.D1_BOOKMARK, returnedBookmark);
   }
 
   if (!res.ok) {
@@ -74,36 +120,20 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
       path !== AUTH_REFRESH_PATH &&
       path !== "/auth/login"
     ) {
-      // Phase 1: Refresh — clear auth only if this fails
-      let refreshData: { user: User; accessToken: string };
-      try {
-        const refreshRes = await requestSessionRefresh();
-        if (!refreshRes.ok) {
-          useAuthStore.getState().markExpired();
-          throw err;
-        }
-        refreshData = (await refreshRes.json()) as { user: User; accessToken: string };
-        useAuthStore.getState().setAuth(refreshData.accessToken, refreshData.user);
-      } catch (e) {
-        if (e === err) throw e; // re-thrown from !refreshRes.ok
-        // Network/transport error during refresh — don't assume session is dead.
-        // Transition to local-only so cached content stays accessible.
-        const s = useAuthStore.getState();
-        if (s.sessionMode === SESSION_MODES.AUTHENTICATED) {
-          s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
-        }
+      const refreshResult = await refreshSession();
+      if (!refreshResult.ok) {
         throw err;
       }
 
       // Phase 2: Retry — refresh succeeded, never clear auth here
-      headers["Authorization"] = `Bearer ${refreshData.accessToken}`;
+      headers["Authorization"] = `Bearer ${refreshResult.data.accessToken}`;
       const retry = await fetch(`${API_BASE}${path}`, {
         ...options,
         credentials: "include",
         headers: { ...headers, ...(options?.headers as Record<string, string>) },
       });
       const retryBookmark = retry.headers.get(D1_BOOKMARK_HEADER);
-      if (retryBookmark) localStorage.setItem(STORAGE_KEYS.D1_BOOKMARK, retryBookmark);
+      if (retryBookmark) writeStorageString(STORAGE_KEYS.D1_BOOKMARK, retryBookmark);
       if (retry.ok) {
         if (retry.status === 204) return undefined as T;
         return retry.json();

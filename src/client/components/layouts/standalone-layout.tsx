@@ -4,14 +4,15 @@ import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "@/client/components/header";
 import { Footer } from "@/client/components/footer";
 import { Banners } from "@/client/components/ui/banners";
+import { readStorageString, writeStorageString } from "@/client/lib/storage";
 
 export function StandaloneLayout() {
-  const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
+  const [expanded, setExpanded] = useState(() => readStorageString(STORAGE_KEYS.LAYOUT) === "expanded");
 
   const toggleLayout = useCallback(() => {
     setExpanded((prev) => {
       const next = !prev;
-      localStorage.setItem(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
+      writeStorageString(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
       return next;
     });
   }, []);

@@ -35,7 +35,7 @@ describe("doc-cache-hints", () => {
       markDocCached("p1");
       markDocCached("p1");
       const raw = localStorage.getItem("bland:cached-docs");
-      expect(JSON.parse(raw!)).toEqual(["p1"]);
+      expect(JSON.parse(raw!)).toEqual({ version: 1, value: ["p1"] });
     });
 
     it("tracks multiple docs independently", () => {

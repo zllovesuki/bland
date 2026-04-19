@@ -26,16 +26,18 @@ describe("auth-store", () => {
       const state = useAuthStore.getState();
       expect(state.sessionMode).toBe(SESSION_MODES.ANONYMOUS);
       expect(state.accessToken).toBeNull();
+      expect(state.refreshState).toBe("idle");
       expect(selectIsAuthenticated(state)).toBe(false);
       expect(selectHasLocalSession(state)).toBe(false);
     });
 
     it("rehydrates cached user from localStorage", async () => {
       const user = createUser();
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({ version: 1, value: user }));
       vi.resetModules();
       const mod = await import("@/client/stores/auth-store");
       expect(mod.useAuthStore.getState().user).toEqual(user);
+      expect(mod.useAuthStore.getState().sessionMode).toBe(SESSION_MODES.LOCAL_ONLY);
     });
 
     it("handles malformed user JSON gracefully", async () => {
@@ -62,7 +64,15 @@ describe("auth-store", () => {
     it("persists user to localStorage", () => {
       const user = createUser();
       useAuthStore.getState().setAuth("tok-123", user);
-      expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.USER)!)).toEqual(user);
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.USER)!)).toEqual({ version: 1, value: user });
+    });
+
+    it("does not throw when localStorage writes fail", () => {
+      const user = createUser();
+      vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+        throw new Error("quota");
+      });
+      expect(() => useAuthStore.getState().setAuth("tok-123", user)).not.toThrow();
     });
   });
 
@@ -76,6 +86,21 @@ describe("auth-store", () => {
       expect(state.accessToken).toBeNull();
       expect(state.user).toEqual(user);
       expect(state.sessionMode).toBe(SESSION_MODES.EXPIRED);
+      expect(selectIsAuthenticated(state)).toBe(false);
+      expect(selectHasLocalSession(state)).toBe(true);
+    });
+  });
+
+  describe("markLocalOnly", () => {
+    it("clears token but keeps the cached user for local-only flows", () => {
+      const user = createUser();
+      useAuthStore.getState().setAuth("tok-123", user);
+      useAuthStore.getState().markLocalOnly();
+
+      const state = useAuthStore.getState();
+      expect(state.accessToken).toBeNull();
+      expect(state.user).toEqual(user);
+      expect(state.sessionMode).toBe(SESSION_MODES.LOCAL_ONLY);
       expect(selectIsAuthenticated(state)).toBe(false);
       expect(selectHasLocalSession(state)).toBe(true);
     });
@@ -111,6 +136,15 @@ describe("auth-store", () => {
       expect(state.sessionMode).toBe(mode);
       expect(selectIsAuthenticated(state)).toBe(expectAuth);
       expect(selectHasLocalSession(state)).toBe(expectLocal);
+    });
+  });
+
+  describe("setRefreshState", () => {
+    it("tracks the non-persisted refresh lifecycle", () => {
+      useAuthStore.getState().setRefreshState("refreshing");
+      expect(useAuthStore.getState().refreshState).toBe("refreshing");
+      useAuthStore.getState().setRefreshState("idle");
+      expect(useAuthStore.getState().refreshState).toBe("idle");
     });
   });
 });

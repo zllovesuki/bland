@@ -1,11 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
-import { requestSessionRefresh } from "./lib/api";
+import { refreshSession } from "./lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "./lib/client-config";
-import { shouldBootstrapSession } from "./lib/session-bootstrap";
+import { getSessionBootstrapStrategy } from "./lib/session-bootstrap";
 import { routeTree } from "./route-tree";
-import { SESSION_MODES } from "./lib/constants";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
 import { useAuthStore } from "./stores/auth-store";
 import { useWorkspaceStore } from "./stores/workspace-store";
@@ -64,28 +63,10 @@ async function bootstrap() {
   }
 
   const store = useAuthStore.getState();
-  const shouldRefresh = shouldBootstrapSession(window.location.pathname, !!store.user);
+  const bootstrapStrategy = getSessionBootstrapStrategy(window.location.pathname, !!store.user, document.cookie);
 
-  if (shouldRefresh) {
-    try {
-      const res = await requestSessionRefresh();
-      if (res.ok) {
-        const data = (await res.json()) as { accessToken: string; user: import("@/shared/types").User };
-        useAuthStore.getState().setAuth(data.accessToken, data.user);
-      } else {
-        // Server reachable, explicit auth rejection
-        const s = useAuthStore.getState();
-        if (s.user) {
-          s.markExpired();
-        }
-      }
-    } catch {
-      // Network error / timeout / server unreachable
-      const s = useAuthStore.getState();
-      if (s.user) {
-        s.setSessionMode(SESSION_MODES.LOCAL_ONLY);
-      }
-    }
+  if (bootstrapStrategy === "block") {
+    await refreshSession();
   }
 
   // Validate cache ownership before route loaders trust persisted data
@@ -126,6 +107,10 @@ async function bootstrap() {
       <RouterProvider router={router} />
     </StrictMode>,
   );
+
+  if (bootstrapStrategy === "background") {
+    void refreshSession();
+  }
 }
 
 registerGlobalErrorListeners();

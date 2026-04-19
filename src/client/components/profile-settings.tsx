@@ -5,11 +5,42 @@ import { Button } from "@/client/components/ui/button";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore, selectWorkspaceSnapshot } from "@/client/stores/workspace-store";
 import { api, toApiError } from "@/client/lib/api";
+import { SESSION_MODES } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { Skeleton } from "@/client/components/ui/skeleton";
+
+function ProfileSettingsSkeleton() {
+  return (
+    <div className="mx-auto max-w-2xl px-8 py-10" aria-busy="true">
+      <Skeleton className="mb-6 h-5 w-24 rounded-md" />
+      <Skeleton className="mb-8 h-6 w-24 rounded-md" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-6">
+          <Skeleton className="h-20 w-20 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-28 rounded-md" />
+            <Skeleton className="h-3 w-48 rounded-md" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16 rounded-md" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16 rounded-md" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </div>
+        <Skeleton className="h-9 w-28 rounded-lg" />
+      </div>
+    </div>
+  );
+}
 
 export function ProfileSettings() {
   useDocumentTitle("Profile");
   const user = useAuthStore((s) => s.user);
+  const sessionMode = useAuthStore((s) => s.sessionMode);
+  const refreshState = useAuthStore((s) => s.refreshState);
   const lastWsId = useWorkspaceStore((s) => s.lastVisitedWorkspaceId);
   const lastWsSnapshot = useWorkspaceStore((s) => selectWorkspaceSnapshot(s, lastWsId));
   const currentWorkspace = lastWsSnapshot?.workspace ?? null;
@@ -22,12 +53,13 @@ export function ProfileSettings() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const canMutateProfile = sessionMode === SESSION_MODES.AUTHENTICATED && refreshState !== "refreshing";
   const hasChanges = name.trim() !== (user?.name ?? "") || (avatarUrl.trim() || null) !== (user?.avatar_url ?? null);
 
   const handleAvatarUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file || !currentWorkspace) return;
+      if (!file || !currentWorkspace || !canMutateProfile) return;
 
       if (!file.type.startsWith("image/")) {
         setError("Please select an image file");
@@ -55,11 +87,11 @@ export function ProfileSettings() {
         setUploading(false);
       }
     },
-    [currentWorkspace],
+    [currentWorkspace, canMutateProfile],
   );
 
   const handleSave = useCallback(async () => {
-    if (saving || !name.trim()) return;
+    if (saving || !name.trim() || !canMutateProfile) return;
     setSaving(true);
     setError(null);
     setSuccess(false);
@@ -76,9 +108,9 @@ export function ProfileSettings() {
     } finally {
       setSaving(false);
     }
-  }, [name, avatarUrl, saving]);
+  }, [name, avatarUrl, saving, canMutateProfile]);
 
-  if (!user) return null;
+  if (!user) return <ProfileSettingsSkeleton />;
 
   const backSlug = currentWorkspace?.slug;
 
@@ -117,7 +149,7 @@ export function ProfileSettings() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || !canMutateProfile}
               className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-50"
               aria-label="Change avatar"
             >
@@ -131,6 +163,7 @@ export function ProfileSettings() {
             {avatarUrl && (
               <button
                 onClick={() => setAvatarUrl("")}
+                disabled={!canMutateProfile}
                 className="mt-1 flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 <X className="h-3 w-3" />
@@ -160,13 +193,19 @@ export function ProfileSettings() {
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
+        {refreshState === "refreshing" && (
+          <p className="text-sm text-zinc-400">Restoring your session before profile changes.</p>
+        )}
+        {refreshState !== "refreshing" && sessionMode !== SESSION_MODES.AUTHENTICATED && (
+          <p className="text-sm text-zinc-500">Sign in again to edit your profile.</p>
+        )}
 
         <div className="flex items-center gap-3">
           <Button
             variant="primary"
             size="sm"
             onClick={handleSave}
-            disabled={saving || !name.trim() || !hasChanges}
+            disabled={saving || !name.trim() || !hasChanges || !canMutateProfile}
             icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           >
             {saving ? "Saving..." : "Save"}

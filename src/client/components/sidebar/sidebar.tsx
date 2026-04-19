@@ -19,6 +19,7 @@ import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action
 import { toast } from "@/client/components/toast";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { MobileDrawer } from "@/client/components/ui/mobile-drawer";
+import { readStorageString, writeStorageString } from "@/client/lib/storage";
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -34,13 +35,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   const { createPage, isCreating } = useCreatePage();
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    const stored = localStorage.getItem(STORAGE_KEYS.SIDEBAR);
+    const stored = readStorageString(STORAGE_KEYS.SIDEBAR);
     if (stored !== null) return stored === "true";
     return window.innerWidth < 768;
   });
   const [manualToggle, setManualToggle] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem(STORAGE_KEYS.SIDEBAR) !== null;
+    return readStorageString(STORAGE_KEYS.SIDEBAR) !== null;
   });
   const [searchOpen, setSearchOpen] = useState(false);
   const online = useOnline();
@@ -50,12 +51,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
   onlineRef.current = online;
 
   const openSearch = useCallback(() => {
-    if (!online) {
+    if (!onlineRef.current) {
       toast.info("Search requires a connection");
       return;
     }
     setSearchOpen(true);
-  }, [online]);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -114,7 +115,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
             onClick={() => {
               setManualToggle(true);
               setCollapsed(false);
-              localStorage.setItem(STORAGE_KEYS.SIDEBAR, "false");
+              writeStorageString(STORAGE_KEYS.SIDEBAR, "false");
             }}
             className="mb-3 flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
             aria-label="Expand sidebar"
@@ -198,7 +199,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps = {}) {
                 onClick={() => {
                   setManualToggle(true);
                   setCollapsed(true);
-                  localStorage.setItem(STORAGE_KEYS.SIDEBAR, "true");
+                  writeStorageString(STORAGE_KEYS.SIDEBAR, "true");
                 }}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
                 aria-label="Collapse sidebar"

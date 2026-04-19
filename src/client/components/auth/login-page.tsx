@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
@@ -8,12 +8,14 @@ import { toApiError } from "@/client/lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
 import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
+import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
 import { TurnstileWidget } from "./turnstile-widget";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = useSearch({ from: "/login" });
   const { login } = useAuth();
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   useDocumentTitle("Login");
   const config = getClientConfigSnapshot();
   const configError = getClientConfigErrorSnapshot();
@@ -25,6 +27,11 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const showVerificationUnavailable = !!configError || !config || turnstileUnavailable;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    navigate({ to: redirectTo || "/" });
+  }, [isAuthenticated, navigate, redirectTo]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

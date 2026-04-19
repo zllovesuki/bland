@@ -75,7 +75,7 @@ const profileWrapper = createRoute({
   path: "/profile",
   component: StandaloneLayout,
   beforeLoad: async () => {
-    if (!selectIsAuthenticated(useAuthStore.getState())) {
+    if (!selectHasLocalSession(useAuthStore.getState())) {
       throw redirect({ to: "/login", search: { redirect: "/profile" } });
     }
   },

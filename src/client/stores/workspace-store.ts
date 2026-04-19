@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
+import { safeJsonStorage } from "@/client/lib/storage";
 import {
   addSnapshotPage,
   archiveSnapshotPage,
@@ -246,6 +247,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     {
       name: STORAGE_KEYS.WORKSPACE,
       version: 3,
+      storage: safeJsonStorage,
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
         sharedInbox: state.sharedInbox,

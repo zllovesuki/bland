@@ -12,6 +12,7 @@ import { Banners } from "@/client/components/ui/banners";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { Button } from "@/client/components/ui/button";
 import { useMobileDrawer } from "@/client/hooks/use-mobile-drawer";
+import { readStorageString, writeStorageString } from "@/client/lib/storage";
 
 const Sidebar = lazy(() => import("@/client/components/sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
 
@@ -79,14 +80,14 @@ function WorkspaceLayoutInner() {
   const location = useLocation();
   const navigate = useNavigate();
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
-  const [expanded, setExpanded] = useState(() => localStorage.getItem(STORAGE_KEYS.LAYOUT) === "expanded");
+  const [expanded, setExpanded] = useState(() => readStorageString(STORAGE_KEYS.LAYOUT) === "expanded");
 
-  const [sidebarCollapsed] = useState(() => localStorage.getItem(STORAGE_KEYS.SIDEBAR) === "true");
+  const [sidebarCollapsed] = useState(() => readStorageString(STORAGE_KEYS.SIDEBAR) === "true");
 
   const toggleLayout = useCallback(() => {
     setExpanded((prev) => {
       const next = !prev;
-      localStorage.setItem(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
+      writeStorageString(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
       return next;
     });
   }, []);
