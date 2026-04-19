@@ -98,7 +98,7 @@ export function useViewportActiveHeading(
     recompute();
 
     scrollEl.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
+    window.addEventListener("resize", schedule, { passive: true });
 
     // Observe the scroll container's content wrapper so we recompute when
     // anything above the editor reflows (title edits, cover toggles, image

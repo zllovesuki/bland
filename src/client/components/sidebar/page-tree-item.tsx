@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 
 import {
@@ -117,11 +117,6 @@ export function PageTreeItem({
     alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-40 group-hover:opacity-100";
   const addVisibility = alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
-  const moveUp = useMemo(() => resolveMoveUp(allPages, page, index), [allPages, page, index]);
-  const moveDown = useMemo(() => resolveMoveDown(allPages, page, index), [allPages, page, index]);
-  const indent = useMemo(() => resolveIndent(allPages, page, index), [allPages, page, index]);
-  const outdent = useMemo(() => resolveOutdent(allPages, page, index), [allPages, page, index]);
-
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -228,14 +223,126 @@ export function PageTreeItem({
   const rowPaddingLeft = getSidebarTreeContentPaddingLeft(depth);
   const chevronLeft = getSidebarTreeChevronLeft(depth);
 
-  const moveTitle = rowAffordance.movePage.kind === "disabled" ? rowAffordance.movePage.reason : undefined;
-  const moveDisabledReason = useCallback(
-    (result: MoveResult) => {
-      if (rowAffordance.movePage.kind === "disabled") return rowAffordance.movePage.reason;
-      return result.ok ? undefined : result.message;
-    },
-    [rowAffordance.movePage],
-  );
+  const renderActionsMenu = () => {
+    const moveUp = resolveMoveUp(allPages, page, index);
+    const moveDown = resolveMoveDown(allPages, page, index);
+    const indent = resolveIndent(allPages, page, index);
+    const outdent = resolveOutdent(allPages, page, index);
+    const moveTitle = rowAffordance.movePage.kind === "disabled" ? rowAffordance.movePage.reason : undefined;
+    const moveDisabledReason = (result: MoveResult) =>
+      rowAffordance.movePage.kind === "disabled"
+        ? rowAffordance.movePage.reason
+        : result.ok
+          ? undefined
+          : result.message;
+    return (
+      <DropdownPortal
+        triggerRef={menuRef}
+        zIndex={menuZIndex}
+        width={208}
+        className="p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+        onClose={() => setMenuOpen(false)}
+      >
+        <div role="menu" aria-label="Page actions">
+          {isActionVisible(rowAffordance.movePage) && (
+            <>
+              <button
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={openMoveDialog}
+                disabled={!isActionEnabled(rowAffordance.movePage)}
+                className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                title={moveTitle}
+              >
+                <span className={MENU_ICON_CLASS}>
+                  <Move className="h-3.5 w-3.5" />
+                </span>
+                <span className={MENU_LABEL_CLASS}>Move…</span>
+              </button>
+
+              <div className={MENU_SEPARATOR_CLASS} role="separator" />
+
+              <button
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => runQuickMove(e, moveUp)}
+                disabled={!isActionEnabled(rowAffordance.movePage) || !moveUp.ok}
+                className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                title={moveDisabledReason(moveUp)}
+              >
+                <span className={MENU_ICON_CLASS}>
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </span>
+                <span className={MENU_LABEL_CLASS}>Move up</span>
+              </button>
+              <button
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => runQuickMove(e, moveDown)}
+                disabled={!isActionEnabled(rowAffordance.movePage) || !moveDown.ok}
+                className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                title={moveDisabledReason(moveDown)}
+              >
+                <span className={MENU_ICON_CLASS}>
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </span>
+                <span className={MENU_LABEL_CLASS}>Move down</span>
+              </button>
+
+              <div className={MENU_SEPARATOR_CLASS} role="separator" />
+
+              <button
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => runQuickMove(e, indent)}
+                disabled={!isActionEnabled(rowAffordance.movePage) || !indent.ok}
+                className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                title={moveDisabledReason(indent)}
+              >
+                <span className={MENU_ICON_CLASS}>
+                  <ListIndentIncrease className="h-3.5 w-3.5" />
+                </span>
+                <span className={MENU_LABEL_CLASS}>Indent</span>
+              </button>
+              <button
+                role="menuitem"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => runQuickMove(e, outdent)}
+                disabled={!isActionEnabled(rowAffordance.movePage) || !outdent.ok}
+                className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
+                title={moveDisabledReason(outdent)}
+              >
+                <span className={MENU_ICON_CLASS}>
+                  <ListIndentDecrease className="h-3.5 w-3.5" />
+                </span>
+                <span className={MENU_LABEL_CLASS}>Outdent</span>
+              </button>
+            </>
+          )}
+
+          {isActionVisible(rowAffordance.movePage) && isActionVisible(rowAffordance.archivePage) && (
+            <div className={MENU_SEPARATOR_CLASS} role="separator" />
+          )}
+
+          {isActionVisible(rowAffordance.archivePage) && (
+            <button
+              role="menuitem"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleArchive}
+              disabled={archiving || !isActionEnabled(rowAffordance.archivePage)}
+              className={`${MENU_ITEM_CLASS} ${MENU_DANGER_ITEM_CLASS}`}
+              title={rowAffordance.archivePage.kind === "disabled" ? rowAffordance.archivePage.reason : undefined}
+            >
+              <span className={MENU_DANGER_ICON_CLASS}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </span>
+              <span className={MENU_LABEL_CLASS}>{archiving ? "Archiving..." : "Archive"}</span>
+            </button>
+          )}
+        </div>
+      </DropdownPortal>
+    );
+  };
 
   return (
     <div>
@@ -297,115 +404,7 @@ export function PageTreeItem({
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
-            {menuOpen && (
-              <DropdownPortal
-                triggerRef={menuRef}
-                zIndex={menuZIndex}
-                width={208}
-                className="p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-                onClose={() => setMenuOpen(false)}
-              >
-                <div role="menu" aria-label="Page actions">
-                  {isActionVisible(rowAffordance.movePage) && (
-                    <>
-                      <button
-                        role="menuitem"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={openMoveDialog}
-                        disabled={!isActionEnabled(rowAffordance.movePage)}
-                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
-                        title={moveTitle}
-                      >
-                        <span className={MENU_ICON_CLASS}>
-                          <Move className="h-3.5 w-3.5" />
-                        </span>
-                        <span className={MENU_LABEL_CLASS}>Move…</span>
-                      </button>
-
-                      <div className={MENU_SEPARATOR_CLASS} role="separator" />
-
-                      <button
-                        role="menuitem"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => runQuickMove(e, moveUp)}
-                        disabled={!isActionEnabled(rowAffordance.movePage) || !moveUp.ok}
-                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
-                        title={moveDisabledReason(moveUp)}
-                      >
-                        <span className={MENU_ICON_CLASS}>
-                          <ArrowUp className="h-3.5 w-3.5" />
-                        </span>
-                        <span className={MENU_LABEL_CLASS}>Move up</span>
-                      </button>
-                      <button
-                        role="menuitem"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => runQuickMove(e, moveDown)}
-                        disabled={!isActionEnabled(rowAffordance.movePage) || !moveDown.ok}
-                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
-                        title={moveDisabledReason(moveDown)}
-                      >
-                        <span className={MENU_ICON_CLASS}>
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        </span>
-                        <span className={MENU_LABEL_CLASS}>Move down</span>
-                      </button>
-
-                      <div className={MENU_SEPARATOR_CLASS} role="separator" />
-
-                      <button
-                        role="menuitem"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => runQuickMove(e, indent)}
-                        disabled={!isActionEnabled(rowAffordance.movePage) || !indent.ok}
-                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
-                        title={moveDisabledReason(indent)}
-                      >
-                        <span className={MENU_ICON_CLASS}>
-                          <ListIndentIncrease className="h-3.5 w-3.5" />
-                        </span>
-                        <span className={MENU_LABEL_CLASS}>Indent</span>
-                      </button>
-                      <button
-                        role="menuitem"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(e) => runQuickMove(e, outdent)}
-                        disabled={!isActionEnabled(rowAffordance.movePage) || !outdent.ok}
-                        className={`${MENU_ITEM_CLASS} ${MENU_NEUTRAL_ITEM_CLASS}`}
-                        title={moveDisabledReason(outdent)}
-                      >
-                        <span className={MENU_ICON_CLASS}>
-                          <ListIndentDecrease className="h-3.5 w-3.5" />
-                        </span>
-                        <span className={MENU_LABEL_CLASS}>Outdent</span>
-                      </button>
-                    </>
-                  )}
-
-                  {isActionVisible(rowAffordance.movePage) && isActionVisible(rowAffordance.archivePage) && (
-                    <div className={MENU_SEPARATOR_CLASS} role="separator" />
-                  )}
-
-                  {isActionVisible(rowAffordance.archivePage) && (
-                    <button
-                      role="menuitem"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={handleArchive}
-                      disabled={archiving || !isActionEnabled(rowAffordance.archivePage)}
-                      className={`${MENU_ITEM_CLASS} ${MENU_DANGER_ITEM_CLASS}`}
-                      title={
-                        rowAffordance.archivePage.kind === "disabled" ? rowAffordance.archivePage.reason : undefined
-                      }
-                    >
-                      <span className={MENU_DANGER_ICON_CLASS}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </span>
-                      <span className={MENU_LABEL_CLASS}>{archiving ? "Archiving..." : "Archive"}</span>
-                    </button>
-                  )}
-                </div>
-              </DropdownPortal>
-            )}
+            {menuOpen && renderActionsMenu()}
           </div>
         )}
       </Link>

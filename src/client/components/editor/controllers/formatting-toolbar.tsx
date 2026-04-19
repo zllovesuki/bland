@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { useTiptap, useTiptapState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -77,11 +77,7 @@ export function FormattingToolbar() {
     editor.chain().focus(null, { scrollIntoView: false }).run();
   };
 
-  useEffect(() => {
-    if (linkMode || !editorState.shouldShowToolbar) {
-      setColorPanel(null);
-    }
-  }, [editorState.shouldShowToolbar, linkMode]);
+  const effectiveColorPanel = linkMode || !editorState.shouldShowToolbar ? null : colorPanel;
 
   if (!editor) return null;
 
@@ -281,7 +277,7 @@ export function FormattingToolbar() {
         )}
       </div>
 
-      {colorPanel === "text" && (
+      {effectiveColorPanel === "text" && (
         <ColorPickerPanel
           colors={TEXT_COLORS}
           activeColor={editorState.textColor}
@@ -298,7 +294,7 @@ export function FormattingToolbar() {
           onClose={() => setColorPanel(null)}
         />
       )}
-      {colorPanel === "highlight" && (
+      {effectiveColorPanel === "highlight" && (
         <ColorPickerPanel
           colors={BG_COLORS}
           activeColor={editorState.bgColor}

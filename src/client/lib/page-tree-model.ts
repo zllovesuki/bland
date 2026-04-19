@@ -31,6 +31,7 @@ export interface PageTreeIndex {
   byId: Map<string, Page>;
   // Children sorted by position, archived pages excluded. Use null key for roots.
   childrenByParent: Map<string | null, Page[]>;
+  activePages: Page[];
 }
 
 function getPageLabel(page: Page): string {
@@ -44,15 +45,17 @@ export function buildPageMap(allPages: Page[]): Map<string, Page> {
 export function buildPageTreeIndex(allPages: Page[]): PageTreeIndex {
   const byId = new Map<string, Page>();
   const childrenByParent = new Map<string | null, Page[]>();
+  const activePages: Page[] = [];
   for (const page of allPages) {
     byId.set(page.id, page);
     if (page.archived_at) continue;
+    activePages.push(page);
     const arr = childrenByParent.get(page.parent_id);
     if (arr) arr.push(page);
     else childrenByParent.set(page.parent_id, [page]);
   }
   for (const arr of childrenByParent.values()) arr.sort((a, b) => a.position - b.position);
-  return { byId, childrenByParent };
+  return { byId, childrenByParent, activePages };
 }
 
 export function getPageDepth(byId: Map<string, Page>, pageId: string): number {

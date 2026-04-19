@@ -23,7 +23,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
   const workspaceRole = getMyRole(members, currentUser) ?? "none";
 
   const index = useMemo(() => buildPageTreeIndex(pages), [pages]);
-  const activePages = useMemo(() => pages.filter((page) => !page.archived_at), [pages]);
+  const activePages = index.activePages;
 
   const activeAncestorIds = useMemo(() => {
     const ids = new Set<string>();

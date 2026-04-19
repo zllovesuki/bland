@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
 import { getMyRole } from "@/client/lib/workspace-role";
 import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
@@ -30,21 +30,15 @@ export function CanonicalActivePageBoundary({ children }: { children: ReactNode 
   const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);
 
-  const onLivePageLoaded = useMemo(
-    () => (page: Page) => {
-      if (!effectiveWorkspaceId) return;
-      upsertPage(effectiveWorkspaceId, page);
-    },
-    [effectiveWorkspaceId, upsertPage],
-  );
+  const onLivePageLoaded = (page: Page) => {
+    if (!effectiveWorkspaceId) return;
+    upsertPage(effectiveWorkspaceId, page);
+  };
 
-  const onEvict = useMemo(
-    () => (id: string) => {
-      if (!effectiveWorkspaceId) return;
-      removePage(effectiveWorkspaceId, id);
-    },
-    [effectiveWorkspaceId, removePage],
-  );
+  const onEvict = (id: string) => {
+    if (!effectiveWorkspaceId) return;
+    removePage(effectiveWorkspaceId, id);
+  };
 
   return (
     <ActivePageProvider

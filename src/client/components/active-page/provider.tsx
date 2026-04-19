@@ -204,8 +204,12 @@ export function ActivePageProvider({
   const activeRef = useRef(true);
   const cachedPageRef = useRef(cachedPageMeta);
   const onlineRef = useRef(online);
+  const onLivePageLoadedRef = useRef(onLivePageLoaded);
+  const onEvictRef = useRef(onEvict);
   cachedPageRef.current = cachedPageMeta;
   onlineRef.current = online;
+  onLivePageLoadedRef.current = onLivePageLoaded;
+  onEvictRef.current = onEvict;
 
   useEffect(() => {
     activeRef.current = true;
@@ -322,7 +326,7 @@ export function ActivePageProvider({
         const data = await api.pages.get(workspaceId, pageId, shareToken ?? undefined);
         if (!request.isCurrent()) return;
 
-        onLivePageLoaded?.(data.page);
+        onLivePageLoadedRef.current?.(data.page);
 
         setState((prev) =>
           buildReadyState(
@@ -343,7 +347,7 @@ export function ActivePageProvider({
         const action = getPageLoadFailureAction(failureKind, currentOnline, sessionMode, surface);
 
         if (action === "evict") {
-          onEvict?.(pageId);
+          onEvictRef.current?.(pageId);
           removeDocHint(pageId);
           import("y-indexeddb").then((m) => m.clearDocument(getCachedDocKey(pageId))).catch(() => {});
           setState({
@@ -404,17 +408,7 @@ export function ActivePageProvider({
     return () => {
       request.cancel();
     };
-  }, [
-    surface,
-    pageLoadTarget,
-    workspaceId,
-    pageId,
-    shareToken,
-    seedPage,
-    shouldLoadRestrictedAncestors,
-    onLivePageLoaded,
-    onEvict,
-  ]);
+  }, [surface, pageLoadTarget, workspaceId, pageId, shareToken, seedPage, shouldLoadRestrictedAncestors]);
 
   const syncValue = useMemo(() => ({ syncProvider, setSyncProvider }), [syncProvider]);
   const actionsValue = useMemo(() => ({ patchPage }), [patchPage]);
