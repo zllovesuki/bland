@@ -27,8 +27,32 @@ export interface MoveRejection {
 
 export type MoveResult = MoveResolution | MoveRejection;
 
+export interface PageTreeIndex {
+  byId: Map<string, Page>;
+  // Children sorted by position, archived pages excluded. Use null key for roots.
+  childrenByParent: Map<string | null, Page[]>;
+}
+
 function getPageLabel(page: Page): string {
   return page.title || DEFAULT_PAGE_TITLE;
+}
+
+export function buildPageMap(allPages: Page[]): Map<string, Page> {
+  return new Map(allPages.map((page) => [page.id, page]));
+}
+
+export function buildPageTreeIndex(allPages: Page[]): PageTreeIndex {
+  const byId = new Map<string, Page>();
+  const childrenByParent = new Map<string | null, Page[]>();
+  for (const page of allPages) {
+    byId.set(page.id, page);
+    if (page.archived_at) continue;
+    const arr = childrenByParent.get(page.parent_id);
+    if (arr) arr.push(page);
+    else childrenByParent.set(page.parent_id, [page]);
+  }
+  for (const arr of childrenByParent.values()) arr.sort((a, b) => a.position - b.position);
+  return { byId, childrenByParent };
 }
 
 export function getPageDepth(byId: Map<string, Page>, pageId: string): number {
@@ -41,20 +65,30 @@ export function getPageDepth(byId: Map<string, Page>, pageId: string): number {
   return depth;
 }
 
-export function getSubtreeDepth(allPages: Page[], pageId: string): number {
-  const children = allPages.filter((page) => page.parent_id === pageId && !page.archived_at);
-  if (children.length === 0) return 0;
-  return 1 + Math.max(...children.map((child) => getSubtreeDepth(allPages, child.id)));
+function getSubtreeDepth(index: PageTreeIndex, pageId: string): number {
+  const children = index.childrenByParent.get(pageId);
+  if (!children || children.length === 0) return 0;
+  let max = 0;
+  for (const child of children) {
+    const d = getSubtreeDepth(index, child.id);
+    if (d > max) max = d;
+  }
+  return 1 + max;
 }
 
-export function isDescendant(allPages: Page[], draggedId: string, targetId: string): boolean {
-  const byId = new Map(allPages.map((page) => [page.id, page]));
+function isDescendant(byId: Map<string, Page>, draggedId: string, targetId: string): boolean {
   let cur = byId.get(targetId);
   while (cur) {
     if (cur.parent_id === draggedId) return true;
     cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
   }
   return false;
+}
+
+function siblingsFromIndex(index: PageTreeIndex, parentId: string | null, excludeId?: string): Page[] {
+  const arr = index.childrenByParent.get(parentId);
+  if (!arr) return [];
+  return excludeId ? arr.filter((p) => p.id !== excludeId) : arr.slice();
 }
 
 export function getSortedSiblings(allPages: Page[], parentId: string | null, excludeId?: string): Page[] {
@@ -68,10 +102,6 @@ export function computePosition(siblings: Page[], index: number): number {
   if (index <= 0) return siblings[0].position - 1;
   if (index >= siblings.length) return siblings[siblings.length - 1].position + 1;
   return (siblings[index - 1].position + siblings[index].position) / 2;
-}
-
-export function buildPageMap(allPages: Page[]): Map<string, Page> {
-  return new Map(allPages.map((page) => [page.id, page]));
 }
 
 export function getPagePathLabel(byId: Map<string, Page>, pageId: string): string {
@@ -98,18 +128,17 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-function validateMoveParent(allPages: Page[], page: Page, targetParentId: string | null): MoveRejection | null {
+function validateMoveParent(index: PageTreeIndex, page: Page, targetParentId: string | null): MoveRejection | null {
   if (targetParentId === page.id) {
     return { ok: false, reason: "self", message: "A page cannot move inside itself" };
   }
 
-  if (targetParentId !== null && isDescendant(allPages, page.id, targetParentId)) {
+  if (targetParentId !== null && isDescendant(index.byId, page.id, targetParentId)) {
     return { ok: false, reason: "cycle", message: "That move would place the page inside its own subtree" };
   }
 
-  const byId = buildPageMap(allPages);
-  const newDepth = targetParentId ? getPageDepth(byId, targetParentId) + 1 : 0;
-  const subtreeDepth = getSubtreeDepth(allPages, page.id);
+  const newDepth = targetParentId ? getPageDepth(index.byId, targetParentId) + 1 : 0;
+  const subtreeDepth = getSubtreeDepth(index, page.id);
   if (newDepth + subtreeDepth >= MAX_TREE_DEPTH) {
     return {
       ok: false,
@@ -122,7 +151,7 @@ function validateMoveParent(allPages: Page[], page: Page, targetParentId: string
 }
 
 function finalizeMoveProposal(args: {
-  allPages: Page[];
+  index: PageTreeIndex;
   page: Page;
   parentId: string | null;
   insertionIndex: number;
@@ -130,13 +159,13 @@ function finalizeMoveProposal(args: {
   kind: MoveKind;
   previewLabel: string;
 }): MoveResult {
-  const { allPages, page, parentId, insertionIndex, siblings, kind, previewLabel } = args;
+  const { index, page, parentId, insertionIndex, siblings, kind, previewLabel } = args;
 
-  const validation = validateMoveParent(allPages, page, parentId);
+  const validation = validateMoveParent(index, page, parentId);
   if (validation) return validation;
 
   if (page.parent_id === parentId) {
-    const currentOrder = getSortedSiblings(allPages, parentId).map((candidate) => candidate.id);
+    const currentOrder = siblingsFromIndex(index, parentId).map((candidate) => candidate.id);
     const nextOrder = [...siblings.slice(0, insertionIndex), page, ...siblings.slice(insertionIndex)].map(
       (candidate) => candidate.id,
     );
@@ -158,17 +187,22 @@ function finalizeMoveProposal(args: {
   };
 }
 
-export function resolveMoveUp(allPages: Page[], page: Page): MoveResult {
-  const currentSiblings = getSortedSiblings(allPages, page.parent_id);
+function resolveIndex(allPages: Page[], index?: PageTreeIndex): PageTreeIndex {
+  return index ?? buildPageTreeIndex(allPages);
+}
+
+export function resolveMoveUp(allPages: Page[], page: Page, providedIndex?: PageTreeIndex): MoveResult {
+  const index = resolveIndex(allPages, providedIndex);
+  const currentSiblings = siblingsFromIndex(index, page.parent_id);
   const currentIndex = currentSiblings.findIndex((candidate) => candidate.id === page.id);
   if (currentIndex <= 0) {
     return { ok: false, reason: "boundary", message: "Already first in this level" };
   }
 
-  const siblings = getSortedSiblings(allPages, page.parent_id, page.id);
+  const siblings = siblingsFromIndex(index, page.parent_id, page.id);
   const target = currentSiblings[currentIndex - 1];
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: page.parent_id,
     insertionIndex: currentIndex - 1,
@@ -178,17 +212,18 @@ export function resolveMoveUp(allPages: Page[], page: Page): MoveResult {
   });
 }
 
-export function resolveMoveDown(allPages: Page[], page: Page): MoveResult {
-  const currentSiblings = getSortedSiblings(allPages, page.parent_id);
+export function resolveMoveDown(allPages: Page[], page: Page, providedIndex?: PageTreeIndex): MoveResult {
+  const index = resolveIndex(allPages, providedIndex);
+  const currentSiblings = siblingsFromIndex(index, page.parent_id);
   const currentIndex = currentSiblings.findIndex((candidate) => candidate.id === page.id);
   if (currentIndex === -1 || currentIndex >= currentSiblings.length - 1) {
     return { ok: false, reason: "boundary", message: "Already last in this level" };
   }
 
-  const siblings = getSortedSiblings(allPages, page.parent_id, page.id);
+  const siblings = siblingsFromIndex(index, page.parent_id, page.id);
   const target = currentSiblings[currentIndex + 1];
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: page.parent_id,
     insertionIndex: currentIndex + 1,
@@ -198,17 +233,18 @@ export function resolveMoveDown(allPages: Page[], page: Page): MoveResult {
   });
 }
 
-export function resolveIndent(allPages: Page[], page: Page): MoveResult {
-  const currentSiblings = getSortedSiblings(allPages, page.parent_id);
+export function resolveIndent(allPages: Page[], page: Page, providedIndex?: PageTreeIndex): MoveResult {
+  const index = resolveIndex(allPages, providedIndex);
+  const currentSiblings = siblingsFromIndex(index, page.parent_id);
   const currentIndex = currentSiblings.findIndex((candidate) => candidate.id === page.id);
   if (currentIndex <= 0) {
     return { ok: false, reason: "boundary", message: "No previous sibling to indent into" };
   }
 
   const previousSibling = currentSiblings[currentIndex - 1];
-  const siblings = getSortedSiblings(allPages, previousSibling.id, page.id);
+  const siblings = siblingsFromIndex(index, previousSibling.id, page.id);
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: previousSibling.id,
     insertionIndex: siblings.length,
@@ -218,25 +254,25 @@ export function resolveIndent(allPages: Page[], page: Page): MoveResult {
   });
 }
 
-export function resolveOutdent(allPages: Page[], page: Page): MoveResult {
+export function resolveOutdent(allPages: Page[], page: Page, providedIndex?: PageTreeIndex): MoveResult {
+  const index = resolveIndex(allPages, providedIndex);
   if (!page.parent_id) {
     return { ok: false, reason: "boundary", message: "Already at the top level" };
   }
 
-  const byId = buildPageMap(allPages);
-  const parent = byId.get(page.parent_id);
+  const parent = index.byId.get(page.parent_id);
   if (!parent) {
     return { ok: false, reason: "boundary", message: "Parent page not found" };
   }
 
-  const siblings = getSortedSiblings(allPages, parent.parent_id, page.id);
+  const siblings = siblingsFromIndex(index, parent.parent_id, page.id);
   const parentIndex = siblings.findIndex((candidate) => candidate.id === parent.id);
   if (parentIndex === -1) {
     return { ok: false, reason: "boundary", message: "Parent page not found in the destination level" };
   }
 
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: parent.parent_id,
     insertionIndex: parentIndex + 1,
@@ -251,13 +287,15 @@ export function resolveMoveRelative(args: {
   page: Page;
   targetPage: Page;
   relation: "before" | "inside" | "after";
+  index?: PageTreeIndex;
 }): MoveResult {
   const { allPages, page, targetPage, relation } = args;
+  const index = resolveIndex(allPages, args.index);
 
   if (relation === "inside") {
-    const siblings = getSortedSiblings(allPages, targetPage.id, page.id);
+    const siblings = siblingsFromIndex(index, targetPage.id, page.id);
     return finalizeMoveProposal({
-      allPages,
+      index,
       page,
       parentId: targetPage.id,
       insertionIndex: siblings.length,
@@ -267,7 +305,7 @@ export function resolveMoveRelative(args: {
     });
   }
 
-  const siblings = getSortedSiblings(allPages, targetPage.parent_id, page.id);
+  const siblings = siblingsFromIndex(index, targetPage.parent_id, page.id);
   const targetIndex = siblings.findIndex((candidate) => candidate.id === targetPage.id);
   if (targetIndex === -1) {
     return { ok: false, reason: "boundary", message: "Target page is not in the expected level" };
@@ -275,7 +313,7 @@ export function resolveMoveRelative(args: {
 
   const insertionIndex = relation === "before" ? targetIndex : targetIndex + 1;
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: targetPage.parent_id,
     insertionIndex,
@@ -287,10 +325,16 @@ export function resolveMoveRelative(args: {
   });
 }
 
-export function resolveMoveToRoot(allPages: Page[], page: Page, placement: "top" | "bottom"): MoveResult {
-  const siblings = getSortedSiblings(allPages, null, page.id);
+export function resolveMoveToRoot(
+  allPages: Page[],
+  page: Page,
+  placement: "top" | "bottom",
+  providedIndex?: PageTreeIndex,
+): MoveResult {
+  const index = resolveIndex(allPages, providedIndex);
+  const siblings = siblingsFromIndex(index, null, page.id);
   return finalizeMoveProposal({
-    allPages,
+    index,
     page,
     parentId: null,
     insertionIndex: placement === "top" ? 0 : siblings.length,

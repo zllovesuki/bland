@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 
 import {
@@ -33,15 +33,18 @@ import {
   resolveOutdent,
   type MoveResolution,
   type MoveResult,
+  type PageTreeIndex,
 } from "@/client/lib/page-tree-model";
 import { toast } from "@/client/components/toast";
-import { SidebarMoveDialog } from "./sidebar-move-dialog";
+const SidebarMoveDialog = lazy(() =>
+  import("./sidebar-move-dialog").then((mod) => ({ default: mod.SidebarMoveDialog })),
+);
 import { getSidebarTreeChevronLeft, getSidebarTreeContentPaddingLeft } from "./tree-metrics";
 
 interface PageTreeItemProps {
   page: Page;
   depth: number;
-  childPages: Page[];
+  index: PageTreeIndex;
   allPages: Page[];
   alwaysShowActions: boolean;
   activeAncestorIds: Set<string>;
@@ -49,6 +52,8 @@ interface PageTreeItemProps {
   workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
   online: boolean;
 }
+
+const EMPTY_CHILDREN: readonly never[] = [];
 
 const MENU_ITEM_CLASS =
   "group flex min-h-8 w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] text-left transition-[background-color,color] focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent";
@@ -65,7 +70,7 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-zinc-800";
 export function PageTreeItem({
   page,
   depth,
-  childPages,
+  index,
   allPages,
   alwaysShowActions,
   activeAncestorIds,
@@ -73,6 +78,7 @@ export function PageTreeItem({
   workspaceRole,
   online,
 }: PageTreeItemProps) {
+  const childPages = index.childrenByParent.get(page.id) ?? EMPTY_CHILDREN;
   const params = useParams({ strict: false }) as {
     workspaceSlug?: string;
     pageId?: string;
@@ -92,11 +98,14 @@ export function PageTreeItem({
   const isActive = params.pageId === page.id;
   const shouldExpand = activeAncestorIds.has(page.id) || isActive;
   const [userExpanded, setUserExpanded] = useState(shouldExpand);
-
-  useEffect(() => {
+  const [prevShouldExpand, setPrevShouldExpand] = useState(shouldExpand);
+  // Auto-expand when becoming active or hosting an active descendant; user
+  // toggles still win until shouldExpand transitions again. Pattern from
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  if (shouldExpand !== prevShouldExpand) {
+    setPrevShouldExpand(shouldExpand);
     if (shouldExpand) setUserExpanded(true);
-  }, [shouldExpand]);
-
+  }
   const isExpanded = userExpanded;
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -108,10 +117,10 @@ export function PageTreeItem({
     alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-40 group-hover:opacity-100";
   const addVisibility = alwaysShowActions || menuOpen || isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
-  const moveUp = useMemo(() => resolveMoveUp(allPages, page), [allPages, page]);
-  const moveDown = useMemo(() => resolveMoveDown(allPages, page), [allPages, page]);
-  const indent = useMemo(() => resolveIndent(allPages, page), [allPages, page]);
-  const outdent = useMemo(() => resolveOutdent(allPages, page), [allPages, page]);
+  const moveUp = useMemo(() => resolveMoveUp(allPages, page, index), [allPages, page, index]);
+  const moveDown = useMemo(() => resolveMoveDown(allPages, page, index), [allPages, page, index]);
+  const indent = useMemo(() => resolveIndent(allPages, page, index), [allPages, page, index]);
+  const outdent = useMemo(() => resolveOutdent(allPages, page, index), [allPages, page, index]);
 
   const toggleExpand = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -401,13 +410,18 @@ export function PageTreeItem({
         )}
       </Link>
 
-      <SidebarMoveDialog
-        open={moveDialogOpen}
-        page={page}
-        allPages={allPages}
-        onClose={() => setMoveDialogOpen(false)}
-        onConfirm={executeMove}
-      />
+      {moveDialogOpen && (
+        <Suspense fallback={null}>
+          <SidebarMoveDialog
+            open
+            page={page}
+            allPages={allPages}
+            index={index}
+            onClose={() => setMoveDialogOpen(false)}
+            onConfirm={executeMove}
+          />
+        </Suspense>
+      )}
 
       {isExpanded && hasChildren && (
         <div>
@@ -416,7 +430,7 @@ export function PageTreeItem({
               key={child.id}
               page={child}
               depth={depth + 1}
-              childPages={allPages.filter((candidate) => candidate.parent_id === child.id && !candidate.archived_at)}
+              index={index}
               allPages={allPages}
               alwaysShowActions={alwaysShowActions}
               activeAncestorIds={activeAncestorIds}

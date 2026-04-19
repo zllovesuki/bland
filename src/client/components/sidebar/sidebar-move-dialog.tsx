@@ -5,11 +5,11 @@ import { Button } from "@/client/components/ui/button";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import {
   buildPageMap,
-  getAncestorIds,
   resolveMoveRelative,
   resolveMoveToRoot,
   type MoveRelation,
   type MoveResult,
+  type PageTreeIndex,
 } from "@/client/lib/page-tree-model";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import type { Page } from "@/shared/types";
@@ -18,9 +18,12 @@ interface SidebarMoveDialogProps {
   open: boolean;
   page: Page;
   allPages: Page[];
+  index?: PageTreeIndex;
   onClose: () => void;
   onConfirm: (result: Extract<MoveResult, { ok: true }>) => Promise<void>;
 }
+
+const EMPTY_ANCESTORS: ReadonlySet<string> = new Set();
 
 type TargetSelection = { kind: "root" } | { kind: "page"; pageId: string } | null;
 
@@ -59,7 +62,14 @@ function buildTree(pages: Page[]): TreeNode[] {
   return build(null);
 }
 
-export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: SidebarMoveDialogProps) {
+export function SidebarMoveDialog({
+  open,
+  page,
+  allPages,
+  index: providedIndex,
+  onClose,
+  onConfirm,
+}: SidebarMoveDialogProps) {
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<TargetSelection>(null);
   const [relation, setRelation] = useState<MoveRelation | null>(null);
@@ -75,17 +85,44 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
     setManualExpand({});
   }, [open, page.id]);
 
-  const byId = useMemo(() => buildPageMap(allPages), [allPages]);
+  const byId = useMemo(() => providedIndex?.byId ?? buildPageMap(allPages), [providedIndex, allPages]);
   const tree = useMemo(() => buildTree(allPages), [allPages]);
+
+  // Cache ancestor sets per page (amortized O(n) build, O(1) lookup), so the
+  // search/autoExpand passes don't re-walk parent chains for every node.
+  const ancestorsByPage = useMemo(() => {
+    const cache = new Map<string, Set<string>>();
+    function compute(id: string): Set<string> {
+      const cached = cache.get(id);
+      if (cached) return cached;
+      const node = byId.get(id);
+      let result: Set<string>;
+      if (!node?.parent_id) {
+        result = new Set();
+      } else {
+        result = new Set(compute(node.parent_id));
+        result.add(node.parent_id);
+      }
+      cache.set(id, result);
+      return result;
+    }
+    for (const candidate of allPages) compute(candidate.id);
+    return cache;
+  }, [allPages, byId]);
+
+  const ancestorsOf = useCallback(
+    (id: string | null): ReadonlySet<string> => (id ? (ancestorsByPage.get(id) ?? EMPTY_ANCESTORS) : EMPTY_ANCESTORS),
+    [ancestorsByPage],
+  );
 
   const movingSubtreeIds = useMemo(() => {
     const result = new Set<string>();
     for (const candidate of allPages) {
       if (candidate.archived_at || candidate.id === page.id) continue;
-      if (getAncestorIds(byId, candidate.id).has(page.id)) result.add(candidate.id);
+      if (ancestorsOf(candidate.id).has(page.id)) result.add(candidate.id);
     }
     return result;
-  }, [allPages, byId, page.id]);
+  }, [allPages, ancestorsOf, page.id]);
 
   const isSearchActive = query.trim().length > 0;
 
@@ -101,11 +138,11 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
       if (candidate.title.toLowerCase().includes(needle)) {
         hits.add(candidate.id);
         visible.add(candidate.id);
-        for (const id of getAncestorIds(byId, candidate.id)) visible.add(id);
+        for (const id of ancestorsOf(candidate.id)) visible.add(id);
       }
     }
     return { matches: hits, visibleIds: visible };
-  }, [allPages, byId, isSearchActive, movingSubtreeIds, page.id, query]);
+  }, [allPages, ancestorsOf, isSearchActive, movingSubtreeIds, page.id, query]);
 
   const effectiveTarget = useMemo<TargetSelection>(() => {
     if (!target) return null;
@@ -116,17 +153,17 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
 
   const autoExpandIds = useMemo(() => {
     const result = new Set<string>();
-    for (const id of getAncestorIds(byId, page.id)) result.add(id);
+    for (const id of ancestorsOf(page.id)) result.add(id);
     if (effectiveTarget?.kind === "page") {
-      for (const id of getAncestorIds(byId, effectiveTarget.pageId)) result.add(id);
+      for (const id of ancestorsOf(effectiveTarget.pageId)) result.add(id);
     }
     if (matches) {
       for (const id of matches) {
-        for (const anc of getAncestorIds(byId, id)) result.add(anc);
+        for (const anc of ancestorsOf(id)) result.add(anc);
       }
     }
     return result;
-  }, [byId, effectiveTarget, matches, page.id]);
+  }, [ancestorsOf, effectiveTarget, matches, page.id]);
 
   const isExpanded = useCallback(
     (id: string): boolean => (id in manualExpand ? manualExpand[id] : autoExpandIds.has(id)),
@@ -148,16 +185,22 @@ export function SidebarMoveDialog({ open, page, allPages, onClose, onConfirm }: 
       return ROOT_RELATIONS.map((candidate) => ({
         relation: candidate as MoveRelation,
         label: RELATION_LABEL[candidate],
-        result: resolveMoveToRoot(allPages, page, candidate === "root-top" ? "top" : "bottom"),
+        result: resolveMoveToRoot(allPages, page, candidate === "root-top" ? "top" : "bottom", providedIndex),
       }));
     }
     if (!selectedPage) return [];
     return PAGE_RELATIONS.map((candidate) => ({
       relation: candidate as MoveRelation,
       label: RELATION_LABEL[candidate],
-      result: resolveMoveRelative({ allPages, page, targetPage: selectedPage, relation: candidate }),
+      result: resolveMoveRelative({
+        allPages,
+        page,
+        targetPage: selectedPage,
+        relation: candidate,
+        index: providedIndex,
+      }),
     }));
-  }, [allPages, effectiveTarget, page, selectedPage]);
+  }, [allPages, effectiveTarget, page, providedIndex, selectedPage]);
 
   const selectedRelation = relation
     ? (relationResults.find((candidate) => candidate.relation === relation) ?? null)
