@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from "lucide-react";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
@@ -11,14 +11,19 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { useOnline } from "@/client/hooks/use-online";
+import { createRequestGuard } from "@/client/lib/request-guard";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
+import type { ShareDialogAffordance } from "@/client/lib/affordance/share-dialog";
 
-function PermissionSelect({ value, onChange }: { value: "view" | "edit"; onChange: (v: "view" | "edit") => void }) {
+type SharePermission = "view" | "edit";
+type WorkspaceRole = "owner" | "admin" | "member" | "guest" | "none";
+
+function PermissionSelect({ value, onChange }: { value: SharePermission; onChange: (v: SharePermission) => void }) {
   return (
     <div className="relative shrink-0">
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as "view" | "edit")}
+        onChange={(e) => onChange(e.target.value as SharePermission)}
         className="appearance-none rounded-md border border-zinc-700 bg-zinc-800 py-1 pl-2 pr-6 text-sm text-zinc-300 outline-none focus:border-zinc-600"
       >
         <option value="view">View</option>
@@ -35,52 +40,146 @@ interface ShareDialogProps {
   title?: string;
 }
 
-export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProps) {
+interface ShareDialogShellValue {
+  disabled: boolean;
+  title: string | undefined;
+  open: boolean;
+  loading: boolean;
+  creating: boolean;
+  error: string | null;
+  dialogAffordance: ShareDialogAffordance;
+  workspaceRole: WorkspaceRole;
+  online: boolean;
+  currentUserId: string | undefined;
+  toggleOpen: () => void;
+  close: () => void;
+  deleteShare: (shareId: string) => Promise<void>;
+}
+
+interface SharePeopleValue {
+  peopleInput: string;
+  peoplePermission: SharePermission;
+  showSuggestions: boolean;
+  userShares: PageShare[];
+  members: WorkspaceMember[];
+  filteredSuggestions: WorkspaceMember[];
+  memberName: (member: WorkspaceMember) => string;
+  granteeName: (share: PageShare) => string;
+  setPeopleInput: (value: string) => void;
+  setPeoplePermission: (value: SharePermission) => void;
+  openSuggestions: () => void;
+  dismissSuggestions: () => void;
+  selectMember: (member: WorkspaceMember) => void;
+  submitPeopleShare: () => Promise<void>;
+}
+
+interface ShareLinkValue {
+  linkPermission: SharePermission;
+  linkShares: PageShare[];
+  copiedId: string | null;
+  setLinkPermission: (value: SharePermission) => void;
+  createLinkShare: () => Promise<void>;
+  copyLink: (share: PageShare) => void;
+}
+
+const ShareDialogShellContext = createContext<ShareDialogShellValue | null>(null);
+const SharePeopleContext = createContext<SharePeopleValue | null>(null);
+const ShareLinkContext = createContext<ShareLinkValue | null>(null);
+
+function useShareDialogShell(): ShareDialogShellValue {
+  const ctx = useContext(ShareDialogShellContext);
+  if (!ctx) throw new Error("useShareDialogShell must be used inside ShareDialog");
+  return ctx;
+}
+
+function useSharePeople(): SharePeopleValue {
+  const ctx = useContext(SharePeopleContext);
+  if (!ctx) throw new Error("useSharePeople must be used inside ShareDialog");
+  return ctx;
+}
+
+function useShareLink(): ShareLinkValue {
+  const ctx = useContext(ShareLinkContext);
+  if (!ctx) throw new Error("useShareLink must be used inside ShareDialog");
+  return ctx;
+}
+
+interface ShareDialogSlices {
+  shell: ShareDialogShellValue;
+  people: SharePeopleValue;
+  link: ShareLinkValue;
+}
+
+function useShareDialogController({ pageId, disabled, title }: ShareDialogProps): ShareDialogSlices {
   const [open, setOpen] = useState(false);
   const [shares, setShares] = useState<PageShare[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { copiedId, copy: copyToClipboard } = useCopyFeedback<string>();
   const [creating, setCreating] = useState(false);
-
-  // People section
+  const [error, setError] = useState<string | null>(null);
   const [peopleInput, setPeopleInput] = useState("");
-  const [peoplePermission, setPeoplePermission] = useState<"view" | "edit">("view");
+  const [peoplePermission, setPeoplePermission] = useState<SharePermission>("view");
+  const [linkPermission, setLinkPermission] = useState<SharePermission>("view");
   const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // Link section
-  const [linkPermission, setLinkPermission] = useState<"view" | "edit">("view");
-
-  const panelRef = useRef<HTMLDivElement>(null);
-  useClickOutside(
-    panelRef,
-    useCallback(() => setOpen(false), []),
-    open,
-  );
-
+  const { copiedId, copy: copyToClipboard } = useCopyFeedback<string>();
   const members = useWorkspaceMembers();
   const user = useAuthStore((s) => s.user);
   const online = useOnline();
-  const workspaceRole = getMyRole(members, user) ?? "none";
+  const workspaceRole: WorkspaceRole = getMyRole(members, user) ?? "none";
+  const currentUserId = user?.id;
+  const activeRef = useRef(true);
+  const loadEpochRef = useRef(0);
+  const pageIdRef = useRef(pageId);
+  const openRef = useRef(open);
+  pageIdRef.current = pageId;
+  openRef.current = open;
+
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    const request = createRequestGuard(loadEpochRef, activeRef);
     setLoading(true);
     setError(null);
+
     api.shares
       .list(pageId)
-      .then((s) => setShares(s))
-      .catch((err) => setError(toApiError(err).message))
-      .finally(() => setLoading(false));
+      .then((nextShares) => {
+        if (!request.isCurrent()) return;
+        setShares(nextShares);
+      })
+      .catch((err) => {
+        if (!request.isCurrent()) return;
+        setError(toApiError(err).message);
+      })
+      .finally(() => {
+        if (!request.isCurrent()) return;
+        setLoading(false);
+      });
+
+    return () => {
+      request.cancel();
+    };
   }, [open, pageId]);
 
   const { linkShares, userShares, shareableMembers } = useMemo(() => {
-    const link = shares.filter((s) => s.grantee_type === "link");
-    const userS = shares.filter((s) => s.grantee_type === "user");
-    const sharedIds = new Set(userS.map((s) => s.grantee_id));
-    const shareable = members.filter((m) => m.user_id !== user?.id && !sharedIds.has(m.user_id));
-    return { linkShares: link, userShares: userS, shareableMembers: shareable };
-  }, [shares, members, user?.id]);
+    const nextLinkShares = shares.filter((share) => share.grantee_type === "link");
+    const nextUserShares = shares.filter((share) => share.grantee_type === "user");
+    const sharedIds = new Set(nextUserShares.map((share) => share.grantee_id));
+    const nextShareableMembers = members.filter(
+      (member) => member.user_id !== currentUserId && !sharedIds.has(member.user_id),
+    );
+    return {
+      linkShares: nextLinkShares,
+      userShares: nextUserShares,
+      shareableMembers: nextShareableMembers,
+    };
+  }, [shares, members, currentUserId]);
+
   const dialogAffordance = useMemo(
     () =>
       deriveShareDialogAffordance({
@@ -94,263 +193,417 @@ export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProp
 
   const filteredSuggestions = useMemo(() => {
     if (!peopleInput.trim()) return shareableMembers;
-    const q = peopleInput.toLowerCase();
+    const query = peopleInput.toLowerCase();
     return shareableMembers.filter(
-      (m) => (m.user?.name?.toLowerCase().includes(q) ?? false) || (m.user?.email?.toLowerCase().includes(q) ?? false),
+      (member) =>
+        (member.user?.name?.toLowerCase().includes(query) ?? false) ||
+        (member.user?.email?.toLowerCase().includes(query) ?? false),
     );
   }, [peopleInput, shareableMembers]);
 
-  async function handlePeopleShare() {
+  const memberName = useCallback((member: WorkspaceMember): string => {
+    return member.user?.name ?? member.user?.email ?? member.user_id;
+  }, []);
+
+  const granteeName = useCallback(
+    (share: PageShare): string => {
+      if (share.grantee_user) {
+        return share.grantee_user.name || share.grantee_user.email;
+      }
+      const member = members.find((candidate) => candidate.user_id === share.grantee_id);
+      return member ? memberName(member) : (share.grantee_id ?? "Unknown");
+    },
+    [members, memberName],
+  );
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setShowSuggestions(false);
+  }, []);
+
+  const toggleOpen = useCallback(() => {
+    if (disabled) return;
+    if (!openRef.current) {
+      setShares([]);
+      setError(null);
+      setLoading(true);
+      setShowSuggestions(false);
+    }
+    setOpen((current) => !current);
+  }, [disabled]);
+
+  const openSuggestions = useCallback(() => setShowSuggestions(true), []);
+  const dismissSuggestions = useCallback(() => setShowSuggestions(false), []);
+
+  const selectMember = useCallback((member: WorkspaceMember) => {
+    setPeopleInput(member.user?.email ?? member.user?.name ?? member.user_id);
+    setShowSuggestions(false);
+  }, []);
+
+  const submitPeopleShare = useCallback(async () => {
     if (!peopleInput.trim() || creating || !isActionEnabled(dialogAffordance.createUserShare)) return;
+    const capturedPageId = pageIdRef.current;
     setCreating(true);
     setError(null);
     try {
-      // Check if input matches a member
       const matchedMember = shareableMembers.find(
-        (m) => m.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() || m.user?.name === peopleInput.trim(),
+        (member) =>
+          member.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() ||
+          member.user?.name === peopleInput.trim(),
       );
-      let share: PageShare;
-      if (matchedMember) {
-        share = await api.shares.create(pageId, {
-          grantee_type: "user",
-          grantee_id: matchedMember.user_id,
-          permission: peoplePermission,
-        });
-      } else {
-        // Treat as email
-        share = await api.shares.create(pageId, {
-          grantee_type: "user",
-          grantee_email: peopleInput.trim(),
-          permission: peoplePermission,
-        });
-      }
+      const share = matchedMember
+        ? await api.shares.create(capturedPageId, {
+            grantee_type: "user",
+            grantee_id: matchedMember.user_id,
+            permission: peoplePermission,
+          })
+        : await api.shares.create(capturedPageId, {
+            grantee_type: "user",
+            grantee_email: peopleInput.trim(),
+            permission: peoplePermission,
+          });
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setShares((prev) => [...prev, share]);
       setPeopleInput("");
       setShowSuggestions(false);
     } catch (err) {
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setError(toApiError(err).message);
     } finally {
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setCreating(false);
     }
-  }
+  }, [peopleInput, creating, dialogAffordance.createUserShare, shareableMembers, peoplePermission]);
 
-  function selectMember(member: WorkspaceMember) {
-    setPeopleInput(member.user?.email ?? member.user?.name ?? member.user_id);
-    setShowSuggestions(false);
-  }
-
-  async function createLinkShare() {
-    if (!isActionEnabled(dialogAffordance.createLinkShare)) return;
+  const createLinkShare = useCallback(async () => {
+    if (creating || !isActionEnabled(dialogAffordance.createLinkShare)) return;
+    const capturedPageId = pageIdRef.current;
     setCreating(true);
     setError(null);
     try {
-      const share = await api.shares.create(pageId, {
+      const share = await api.shares.create(capturedPageId, {
         grantee_type: "link",
         permission: linkPermission,
       });
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setShares((prev) => [...prev, share]);
     } catch (err) {
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setError(toApiError(err).message);
     } finally {
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setCreating(false);
     }
-  }
+  }, [creating, dialogAffordance.createLinkShare, linkPermission]);
 
-  async function deleteShare(shareId: string) {
+  const deleteShare = useCallback(async (shareId: string) => {
     const ok = await confirm({
       title: "Remove share",
       message: "This person or link will lose access to the page.",
     });
     if (!ok) return;
+    const capturedPageId = pageIdRef.current;
     try {
-      await api.shares.delete(pageId, shareId);
-      setShares((prev) => prev.filter((s) => s.id !== shareId));
+      await api.shares.delete(capturedPageId, shareId);
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
+      setShares((prev) => prev.filter((share) => share.id !== shareId));
     } catch (err) {
+      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
       setError(toApiError(err).message);
     }
-  }
+  }, []);
 
-  function copyLink(share: PageShare) {
-    if (!share.link_token) return;
-    const url = `${window.location.origin}/s/${share.link_token}`;
-    copyToClipboard(share.id, url);
-  }
+  const copyLink = useCallback(
+    (share: PageShare) => {
+      if (!share.link_token) return;
+      copyToClipboard(share.id, `${window.location.origin}/s/${share.link_token}`);
+    },
+    [copyToClipboard],
+  );
 
-  function memberName(member: WorkspaceMember): string {
-    return member.user?.name ?? member.user?.email ?? member.user_id;
-  }
+  const shell = useMemo<ShareDialogShellValue>(
+    () => ({
+      disabled: disabled ?? false,
+      title,
+      open,
+      loading,
+      creating,
+      error,
+      dialogAffordance,
+      workspaceRole,
+      online,
+      currentUserId,
+      toggleOpen,
+      close,
+      deleteShare,
+    }),
+    [
+      disabled,
+      title,
+      open,
+      loading,
+      creating,
+      error,
+      dialogAffordance,
+      workspaceRole,
+      online,
+      currentUserId,
+      toggleOpen,
+      close,
+      deleteShare,
+    ],
+  );
 
-  function granteeName(share: PageShare): string {
-    if (share.grantee_user) {
-      return share.grantee_user.name || share.grantee_user.email;
-    }
-    const member = members.find((m) => m.user_id === share.grantee_id);
-    return member ? memberName(member) : (share.grantee_id ?? "Unknown");
-  }
+  const people = useMemo<SharePeopleValue>(
+    () => ({
+      peopleInput,
+      peoplePermission,
+      showSuggestions,
+      userShares,
+      members,
+      filteredSuggestions,
+      memberName,
+      granteeName,
+      setPeopleInput,
+      setPeoplePermission,
+      openSuggestions,
+      dismissSuggestions,
+      selectMember,
+      submitPeopleShare,
+    }),
+    [
+      peopleInput,
+      peoplePermission,
+      showSuggestions,
+      userShares,
+      members,
+      filteredSuggestions,
+      memberName,
+      granteeName,
+      openSuggestions,
+      dismissSuggestions,
+      selectMember,
+      submitPeopleShare,
+    ],
+  );
+
+  const link = useMemo<ShareLinkValue>(
+    () => ({
+      linkPermission,
+      linkShares,
+      copiedId,
+      setLinkPermission,
+      createLinkShare,
+      copyLink,
+    }),
+    [linkPermission, linkShares, copiedId, createLinkShare, copyLink],
+  );
+
+  return { shell, people, link };
+}
+
+function ShareDialogTrigger() {
+  const { disabled, title, toggleOpen } = useShareDialogShell();
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => {
-          if (disabled) return;
-          if (!open) {
-            setLoading(true);
-            setShares([]);
-            setError(null);
-          }
-          setOpen((o) => !o);
-        }}
-        disabled={disabled}
-        title={title}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Share2 className="h-3.5 w-3.5" />
-        Share
-      </button>
+    <button
+      onClick={toggleOpen}
+      disabled={disabled}
+      title={title}
+      className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Share2 className="h-3.5 w-3.5" />
+      Share
+    </button>
+  );
+}
 
-      {open && (
-        <div
-          ref={panelRef}
-          className="animate-scale-fade origin-top-right absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-800 p-3 shadow-lg"
-        >
-          {loading ? (
-            <div className="space-y-2 py-1" aria-busy="true">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
+function ShareDialogPanel() {
+  const { open, close, loading, error, dialogAffordance } = useShareDialogShell();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(panelRef, close, open);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={panelRef}
+      className="animate-scale-fade origin-top-right absolute right-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-800 p-3 shadow-lg"
+    >
+      {loading ? (
+        <div aria-busy="true">
+          <div className="mb-3">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Skeleton className="h-3 w-3 rounded-sm" />
+              <Skeleton className="h-3.5 w-14" />
             </div>
-          ) : (
-            <>
-              {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
-
-              {/* People section */}
-              {dialogAffordance.showPeopleSection && (
-                <div className="mb-3">
-                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
-                    <Users className="h-3 w-3" />
-                    People
-                  </p>
-                  <div className="relative mb-2 flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      placeholder="Name or email..."
-                      aria-label="Search people to share with"
-                      value={peopleInput}
-                      onChange={(e) => {
-                        setPeopleInput(e.target.value);
-                        setShowSuggestions(true);
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handlePeopleShare();
-                      }}
-                      className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
-                    />
-                    <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
-                    <button
-                      onClick={handlePeopleShare}
-                      disabled={creating || !peopleInput.trim() || !isActionEnabled(dialogAffordance.createUserShare)}
-                      title={
-                        dialogAffordance.createUserShare.kind === "disabled"
-                          ? dialogAffordance.createUserShare.reason
-                          : undefined
-                      }
-                      className="shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-                    >
-                      {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
-                    </button>
-                    {showSuggestions && filteredSuggestions.length > 0 && peopleInput.trim() && (
-                      <div className="animate-scale-fade origin-top-left absolute left-0 top-full z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
-                        {filteredSuggestions.map((m) => (
-                          <button
-                            key={m.user_id}
-                            onClick={() => selectMember(m)}
-                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
-                          >
-                            <span className="truncate">{memberName(m)}</span>
-                            {m.user?.email && m.user.name && (
-                              <span className="truncate text-zinc-500">{m.user.email}</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {userShares.length > 0 ? (
-                    <div className="space-y-1">
-                      {userShares.map((share) => (
-                        <ShareUserRow
-                          key={share.id}
-                          share={share}
-                          label={granteeName(share)}
-                          workspaceRole={workspaceRole}
-                          online={online}
-                          currentUserId={user?.id}
-                          granteeIsWorkspaceMember={members.some((m) => m.user_id === share.grantee_id)}
-                          onDelete={() => deleteShare(share.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="px-2 text-sm text-zinc-400">No people shares</p>
-                  )}
-                </div>
-              )}
-
-              {/* Link section */}
-              {dialogAffordance.showLinkSection && (
-                <div className={dialogAffordance.showPeopleSection ? "border-t border-zinc-700/50 pt-3" : ""}>
-                  <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
-                    <Link2 className="h-3 w-3" />
-                    Link
-                  </p>
-                  {isActionVisible(dialogAffordance.createLinkShare) && (
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <button
-                        onClick={createLinkShare}
-                        disabled={creating || !isActionEnabled(dialogAffordance.createLinkShare)}
-                        title={
-                          dialogAffordance.createLinkShare.kind === "disabled"
-                            ? dialogAffordance.createLinkShare.reason
-                            : undefined
-                        }
-                        className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
-                      >
-                        {creating ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Link2 className="h-3.5 w-3.5" />
-                        )}
-                        Create link
-                      </button>
-                      <PermissionSelect value={linkPermission} onChange={setLinkPermission} />
-                    </div>
-                  )}
-                  {linkShares.length > 0 ? (
-                    <div className="space-y-1">
-                      {linkShares.map((share) => (
-                        <ShareLinkRow
-                          key={share.id}
-                          share={share}
-                          copiedId={copiedId}
-                          workspaceRole={workspaceRole}
-                          online={online}
-                          currentUserId={user?.id}
-                          onCopy={() => copyLink(share)}
-                          onDelete={() => deleteShare(share.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    isActionVisible(dialogAffordance.createLinkShare) && (
-                      <p className="px-2 text-sm text-zinc-400">No link shares</p>
-                    )
-                  )}
-                </div>
-              )}
-            </>
-          )}
+            <div className="mb-2 flex items-center gap-1.5">
+              <Skeleton className="h-8 flex-1 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-12 rounded-md" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-7 w-full rounded-md" />
+              <Skeleton className="h-7 w-full rounded-md" />
+            </div>
+          </div>
+          <div className="border-t border-zinc-700/50 pt-3">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Skeleton className="h-3 w-3 rounded-sm" />
+              <Skeleton className="h-3.5 w-10" />
+            </div>
+            <Skeleton className="h-8 w-full rounded-md" />
+          </div>
         </div>
+      ) : (
+        <>
+          {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
+          {dialogAffordance.showPeopleSection && <SharePeopleSection />}
+          {dialogAffordance.showLinkSection && <ShareLinkSection />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SharePeopleSection() {
+  const { creating, dialogAffordance, workspaceRole, online, currentUserId, deleteShare } = useShareDialogShell();
+  const {
+    peopleInput,
+    peoplePermission,
+    showSuggestions,
+    userShares,
+    members,
+    filteredSuggestions,
+    memberName,
+    granteeName,
+    setPeopleInput,
+    setPeoplePermission,
+    openSuggestions,
+    selectMember,
+    submitPeopleShare,
+  } = useSharePeople();
+
+  return (
+    <div className="mb-3">
+      <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
+        <Users className="h-3 w-3" />
+        People
+      </p>
+      <div className="relative mb-2 flex items-center gap-1.5">
+        <input
+          type="text"
+          placeholder="Name or email..."
+          aria-label="Search people to share with"
+          value={peopleInput}
+          onChange={(e) => {
+            setPeopleInput(e.target.value);
+            openSuggestions();
+          }}
+          onFocus={openSuggestions}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              void submitPeopleShare();
+            }
+          }}
+          className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
+        />
+        <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
+        <button
+          onClick={() => void submitPeopleShare()}
+          disabled={creating || !peopleInput.trim() || !isActionEnabled(dialogAffordance.createUserShare)}
+          title={
+            dialogAffordance.createUserShare.kind === "disabled" ? dialogAffordance.createUserShare.reason : undefined
+          }
+          className="shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+        >
+          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
+        </button>
+        {showSuggestions && filteredSuggestions.length > 0 && peopleInput.trim() && (
+          <div className="animate-scale-fade origin-top-left absolute left-0 top-full z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
+            {filteredSuggestions.map((member) => (
+              <button
+                key={member.user_id}
+                onClick={() => selectMember(member)}
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
+              >
+                <span className="truncate">{memberName(member)}</span>
+                {member.user?.email && member.user.name && (
+                  <span className="truncate text-zinc-500">{member.user.email}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {userShares.length > 0 ? (
+        <div className="space-y-1">
+          {userShares.map((share) => (
+            <ShareUserRow
+              key={share.id}
+              share={share}
+              label={granteeName(share)}
+              workspaceRole={workspaceRole}
+              online={online}
+              currentUserId={currentUserId}
+              granteeIsWorkspaceMember={members.some((member) => member.user_id === share.grantee_id)}
+              onDelete={() => void deleteShare(share.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="px-2 text-sm text-zinc-400">No people shares</p>
+      )}
+    </div>
+  );
+}
+
+function ShareLinkSection() {
+  const { creating, dialogAffordance, workspaceRole, online, currentUserId, deleteShare } = useShareDialogShell();
+  const { linkPermission, linkShares, copiedId, setLinkPermission, createLinkShare, copyLink } = useShareLink();
+
+  return (
+    <div className={dialogAffordance.showPeopleSection ? "border-t border-zinc-700/50 pt-3" : ""}>
+      <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-zinc-400">
+        <Link2 className="h-3 w-3" />
+        Link
+      </p>
+      {isActionVisible(dialogAffordance.createLinkShare) && (
+        <div className="mb-2 flex items-center gap-1.5">
+          <button
+            onClick={() => void createLinkShare()}
+            disabled={creating || !isActionEnabled(dialogAffordance.createLinkShare)}
+            title={
+              dialogAffordance.createLinkShare.kind === "disabled" ? dialogAffordance.createLinkShare.reason : undefined
+            }
+            className="flex flex-1 items-center gap-2 rounded-md border border-dashed border-zinc-700 px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
+          >
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+            Create link
+          </button>
+          <PermissionSelect value={linkPermission} onChange={setLinkPermission} />
+        </div>
+      )}
+      {linkShares.length > 0 ? (
+        <div className="space-y-1">
+          {linkShares.map((share) => (
+            <ShareLinkRow
+              key={share.id}
+              share={share}
+              copiedId={copiedId}
+              workspaceRole={workspaceRole}
+              online={online}
+              currentUserId={currentUserId}
+              onCopy={() => copyLink(share)}
+              onDelete={() => void deleteShare(share.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        isActionVisible(dialogAffordance.createLinkShare) && (
+          <p className="px-2 text-sm text-zinc-400">No link shares</p>
+        )
       )}
     </div>
   );
@@ -367,7 +620,7 @@ function ShareUserRow({
 }: {
   share: PageShare;
   label: string;
-  workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
+  workspaceRole: WorkspaceRole;
   online: boolean;
   currentUserId: string | undefined;
   granteeIsWorkspaceMember: boolean;
@@ -414,7 +667,7 @@ function ShareLinkRow({
 }: {
   share: PageShare;
   copiedId: string | null;
-  workspaceRole: "owner" | "admin" | "member" | "guest" | "none";
+  workspaceRole: WorkspaceRole;
   online: boolean;
   currentUserId: string | undefined;
   onCopy: () => void;
@@ -461,5 +714,22 @@ function ShareLinkRow({
         )}
       </div>
     </div>
+  );
+}
+
+export function ShareDialog({ pageId, disabled = false, title }: ShareDialogProps) {
+  const { shell, people, link } = useShareDialogController({ pageId, disabled, title });
+
+  return (
+    <ShareDialogShellContext.Provider value={shell}>
+      <SharePeopleContext.Provider value={people}>
+        <ShareLinkContext.Provider value={link}>
+          <div className="relative">
+            <ShareDialogTrigger />
+            <ShareDialogPanel />
+          </div>
+        </ShareLinkContext.Provider>
+      </SharePeopleContext.Provider>
+    </ShareDialogShellContext.Provider>
   );
 }
