@@ -65,6 +65,13 @@ function reassembleChunks(rows: ChunkRow[]): Uint8Array | null {
   return result;
 }
 
+function toSnapshotChunkView(data: unknown): Uint8Array<ArrayBuffer> {
+  if (!(data instanceof ArrayBuffer)) {
+    throw new TypeError("Persisted snapshot chunk must be binary");
+  }
+  return new Uint8Array(data);
+}
+
 export class DocSync extends YServer<Env> {
   static options = { hibernate: true };
 
@@ -264,5 +271,56 @@ export class DocSync extends YServer<Env> {
     } finally {
       ydoc.destroy();
     }
+  }
+
+  async getSnapshotResponse(pageId: string): Promise<{ kind: "found"; response: Response } | { kind: "missing" }> {
+    // This RPC exists for cold editor bootstrap: uncached clients need the
+    // persisted Yjs body before mounting a live editor, otherwise an empty
+    // local Y.Doc can race with authoritative content on first sync. Stream
+    // snapshot rows directly from DO SQLite so the Worker<->DO hop never has
+    // to materialize the whole Yjs blob in memory. Drizzle does not expose an
+    // iterator over durable-sqlite query results yet, so this path uses the
+    // underlying sql.exec cursor on purpose.
+    const cursor = this.ctx.storage.sql.exec<{ data: ArrayBuffer }>(
+      "SELECT data FROM snapshot_chunks ORDER BY chunk_index",
+    );
+    const iterator = cursor[Symbol.iterator]();
+    const first = iterator.next();
+
+    if (first.done) {
+      log.debug("snapshot_response_missing", { pageId });
+      return { kind: "missing" };
+    }
+
+    let nextChunk: Uint8Array<ArrayBuffer> | null = toSnapshotChunkView(first.value.data);
+
+    return {
+      kind: "found",
+      response: new Response(
+        new ReadableStream({
+          type: "bytes",
+          pull(controller) {
+            if (nextChunk) {
+              controller.enqueue(nextChunk);
+              nextChunk = null;
+              return;
+            }
+
+            const next = iterator.next();
+            if (next.done) {
+              controller.close();
+              return;
+            }
+
+            controller.enqueue(toSnapshotChunkView(next.value.data));
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "application/octet-stream",
+          },
+        },
+      ),
+    };
   }
 }

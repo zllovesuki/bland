@@ -202,6 +202,41 @@ pagesRouter.get("/workspaces/:wid/pages/:id", optionalAuth, rateLimit("RL_API"),
   return c.json({ page, can_edit: accessLevel === "edit" });
 });
 
+// GET /workspaces/:wid/pages/:id/snapshot - Bootstrap persisted Yjs snapshot
+// Supports both JWT auth (workspace members) and ?share=<token> (shared-link users)
+pagesRouter.get("/workspaces/:wid/pages/:id/snapshot", optionalAuth, rateLimit("RL_API"), async (c) => {
+  const workspaceId = c.req.param("wid");
+  const pageId = c.req.param("id");
+  const user = c.get("user");
+  const db = c.get("db");
+  const shareToken = c.req.query("share");
+
+  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  if (!resolved) {
+    return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+  }
+
+  if (!resolved.fullMember) {
+    const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
+    if ((accessLevels.get(pageId) ?? "none") === "none") {
+      return c.json({ error: "not_found", message: "Page not found" }, 404);
+    }
+  }
+
+  const page = await getPage(db, pageId, workspaceId);
+  if (!page) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+
+  const doc = c.env.DocSync.getByName(pageId);
+  const snapshot = await doc.getSnapshotResponse(pageId);
+  if (snapshot.kind === "missing") {
+    return new Response(null, { status: 204 });
+  }
+
+  return snapshot.response;
+});
+
 // PATCH /workspaces/:wid/pages/:id - Update page
 pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("wid");

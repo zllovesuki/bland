@@ -65,7 +65,7 @@ describe("apiFetch auto-refresh", () => {
 
     // The retry should use the new token
     const retryCall = mockFetch.mock.calls[2];
-    expect((retryCall[1]?.headers as Record<string, string>)["Authorization"]).toBe("Bearer new-token");
+    expect(new Headers(retryCall[1]?.headers).get("Authorization")).toBe("Bearer new-token");
   });
 
   it("marks session expired when refresh returns non-ok", async () => {
@@ -168,5 +168,30 @@ describe("apiFetch auto-refresh", () => {
 
     await expect(api.workspaces.list()).resolves.toEqual([]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("pages.snapshot", () => {
+  it("returns binary snapshot bytes on 200", async () => {
+    const bytes = Uint8Array.from([5, 4, 3, 2]);
+    mockFetch.mockResolvedValueOnce(
+      new Response(bytes, {
+        status: 200,
+        headers: { "Content-Type": "application/octet-stream" },
+      }),
+    );
+
+    await expect(api.pages.snapshot("ws-1", "page-1")).resolves.toEqual({
+      kind: "found",
+      snapshot: bytes.buffer,
+    });
+  });
+
+  it("returns missing on 204", async () => {
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(api.pages.snapshot("ws-1", "page-1")).resolves.toEqual({
+      kind: "missing",
+    });
   });
 });

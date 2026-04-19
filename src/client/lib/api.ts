@@ -16,6 +16,7 @@ import type {
   SharedPageInfo,
   SharedWithMeItem,
   GetPageAncestorsResponse,
+  PageSnapshotResponse,
   PageRouteBootstrapResponse,
   ResolvePageMentionsResponse,
 } from "@/shared/types";
@@ -83,36 +84,47 @@ export function refreshSession(): Promise<
   return pendingSessionRefresh;
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = useAuthStore.getState().accessToken;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+function buildApiHeaders(options?: RequestInit, accessToken?: string | null): Headers {
+  const headers = new Headers(options?.headers);
+  if (options?.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
   const bookmark = readStorageString(STORAGE_KEYS.D1_BOOKMARK);
   if (bookmark) {
-    headers[D1_BOOKMARK_HEADER] = bookmark;
+    headers.set(D1_BOOKMARK_HEADER, bookmark);
   }
+  return headers;
+}
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: { ...headers, ...(options?.headers as Record<string, string>) },
-  });
-
-  const returnedBookmark = res.headers.get(D1_BOOKMARK_HEADER);
+function persistBookmark(response: Response): void {
+  const returnedBookmark = response.headers.get(D1_BOOKMARK_HEADER);
   if (returnedBookmark) {
     writeStorageString(STORAGE_KEYS.D1_BOOKMARK, returnedBookmark);
   }
+}
+
+async function parseApiError(response: Response): Promise<ApiError> {
+  return (await response.json().catch(() => ({
+    error: "request_failed",
+    message: `Request failed with status ${response.status}`,
+  }))) as ApiError;
+}
+
+async function sendApiRequest(path: string, options?: RequestInit): Promise<Response> {
+  const token = useAuthStore.getState().accessToken;
+  const headers = buildApiHeaders(options, token);
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    credentials: "include",
+    headers,
+  });
+  persistBookmark(res);
 
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({
-      error: "request_failed",
-      message: `Request failed with status ${res.status}`,
-    }))) as ApiError;
+    const err = await parseApiError(res);
 
     // Auto-refresh on 401, or the local-dev 403 workaround for unauthorized responses.
     if (
@@ -125,27 +137,26 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
         throw err;
       }
 
-      // Phase 2: Retry — refresh succeeded, never clear auth here
-      headers["Authorization"] = `Bearer ${refreshResult.data.accessToken}`;
+      const retryHeaders = buildApiHeaders(options, refreshResult.data.accessToken);
       const retry = await fetch(`${API_BASE}${path}`, {
         ...options,
         credentials: "include",
-        headers: { ...headers, ...(options?.headers as Record<string, string>) },
+        headers: retryHeaders,
       });
-      const retryBookmark = retry.headers.get(D1_BOOKMARK_HEADER);
-      if (retryBookmark) writeStorageString(STORAGE_KEYS.D1_BOOKMARK, retryBookmark);
+      persistBookmark(retry);
       if (retry.ok) {
-        if (retry.status === 204) return undefined as T;
-        return retry.json();
+        return retry;
       }
-      // Retry failed for non-auth reason — throw the retry error
-      throw (await retry.json().catch(() => ({
-        error: "request_failed",
-        message: `Request failed with status ${retry.status}`,
-      }))) as ApiError;
+      throw await parseApiError(retry);
     }
     throw err;
   }
+
+  return res;
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await sendApiRequest(path, options);
 
   if (res.status === 204) {
     return undefined as T;
@@ -252,6 +263,22 @@ export const api = {
       const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
       const res = await apiFetch<GetPageAncestorsResponse>(`/workspaces/${workspaceId}/pages/${pageId}/ancestors${qs}`);
       return res.ancestors;
+    },
+    snapshot: async (
+      workspaceId: string,
+      pageId: string,
+      shareToken?: string,
+      signal?: AbortSignal,
+    ): Promise<PageSnapshotResponse> => {
+      const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
+      const res = await sendApiRequest(`/workspaces/${workspaceId}/pages/${pageId}/snapshot${qs}`, { signal });
+      if (res.status === 204) {
+        return { kind: "missing" };
+      }
+      return {
+        kind: "found",
+        snapshot: await res.arrayBuffer(),
+      };
     },
     context: async (pageId: string) => {
       const res = await apiFetch<PageRouteBootstrapResponse>(`/pages/${pageId}/context`);

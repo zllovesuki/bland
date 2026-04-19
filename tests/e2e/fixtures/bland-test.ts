@@ -37,25 +37,31 @@ export const test = base.extend<BlandFixtures>({
   },
 
   authenticatedPage: async ({ page }, use) => {
-    // Log in via API through the browser context's request surface.
-    // page.request shares cookies with the browser context, so the
-    // Set-Cookie: bland_refresh=... lands in the context cookie jar.
-    const res = await page.request.post("/api/v1/auth/login", {
-      data: {
-        email: TEST_CREDENTIALS.email,
-        password: TEST_CREDENTIALS.password,
-        turnstileToken: "test",
-      },
-    });
-    if (!res.ok()) {
-      throw new Error(`Login failed: ${res.status()} ${await res.text()}`);
-    }
-    const body = (await res.json()) as { accessToken: string };
-    await use({ page, accessToken: body.accessToken });
+    const { accessToken } = await loginPage(page);
+    await use({ page, accessToken });
   },
 });
 
 export { expect } from "@playwright/test";
+
+/**
+ * Log in via the browser context's request surface. page.request shares cookies
+ * with the browser context, so the Set-Cookie: bland_refresh=... lands in the
+ * context cookie jar — the subsequent page.goto() is then authenticated.
+ */
+export async function loginPage(page: Page): Promise<{ accessToken: string }> {
+  const res = await page.request.post("/api/v1/auth/login", {
+    data: {
+      email: TEST_CREDENTIALS.email,
+      password: TEST_CREDENTIALS.password,
+      turnstileToken: "test",
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`Login failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()) as { accessToken: string };
+}
 
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };

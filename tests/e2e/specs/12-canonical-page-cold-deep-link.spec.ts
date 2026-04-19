@@ -1,25 +1,34 @@
-import { test, expect, createTestPage } from "../fixtures/bland-test";
+import { test, expect, createTestPage, loginPage } from "../fixtures/bland-test";
+
+const SEEDED_BODY_TEXT = "Cold deep link preserves existing body content";
 
 test.describe("canonical page route - cold deep-link", () => {
-  test("hitting /$workspaceSlug/$pageId with no localStorage cache uses pages.context as the primary bootstrap call", async ({
+  test("cold deep-link hydrates existing body content without a leading blank block", async ({
     authenticatedPage: { page, accessToken },
+    browser,
   }) => {
-    const pageErrors: string[] = [];
-    page.on("pageerror", (err) => pageErrors.push(err.message));
-
-    // Create a page via API. This does not populate the client's localStorage
-    // workspace cache because no UI has rendered yet — the only client-side
-    // state is the refresh cookie set by the login fixture.
     const testPage = await createTestPage(page, accessToken, "Cold Deep Link Page");
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
-    // Track only requests fired by the page navigation; the createTestPage call
-    // above runs through page.request and is not observed here.
+    const seedEditor = page.locator(".tiptap[contenteditable='true']");
+    await seedEditor.waitFor({ timeout: 30_000 });
+    await seedEditor.click();
+    await page.keyboard.type(SEEDED_BODY_TEXT);
+    await expect(seedEditor).toContainText(SEEDED_BODY_TEXT);
+    await page.waitForTimeout(2_500);
+
+    const coldContext = await browser.newContext();
+    const coldPage = await coldContext.newPage();
+    await loginPage(coldPage);
+
     const contextCalls: string[] = [];
     const workspacesListCalls: string[] = [];
     const pagesListCalls: string[] = [];
     const membersCalls: string[] = [];
+    const pageErrors: string[] = [];
 
-    page.on("request", (req) => {
+    coldPage.on("pageerror", (err) => pageErrors.push(err.message));
+    coldPage.on("request", (req) => {
       const url = new URL(req.url());
       if (url.pathname === `/api/v1/pages/${testPage.pageId}/context`) {
         contextCalls.push(req.url());
@@ -32,38 +41,58 @@ test.describe("canonical page route - cold deep-link", () => {
       }
     });
 
-    // Cold deep-link: workspace identity is bootstrapped from pages.context,
-    // not from a slug-first workspaces.list lookup.
-    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
+    await coldPage.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
-    const editor = page.locator(".tiptap[contenteditable='true']");
+    const editor = coldPage.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
+    await expect(editor).toContainText(SEEDED_BODY_TEXT);
 
-    // Page surface is interactive end-to-end.
     await editor.click();
-    await page.keyboard.type("Cold deep link works");
+    await coldPage.keyboard.type(" Cold deep link works");
+    await expect(editor).toContainText(SEEDED_BODY_TEXT);
     await expect(editor).toContainText("Cold deep link works");
 
-    // Architectural invariant: the canonical page-route resolver bootstraps
-    // workspace identity from pages.context — never from a slug-first
-    // workspaces.list lookup.
-    //
-    // Count tolerance: under React StrictMode the dev server double-invokes
-    // effects, so the network request can fire twice while the request guard
-    // still consumes only one result. The assertion covers the shape (one or
-    // two calls) rather than pin a dev-mode artifact.
     expect(contextCalls.length).toBeGreaterThanOrEqual(1);
     expect(contextCalls.length).toBeLessThanOrEqual(2);
-
-    // Workspace data loads in the parallel wave alongside pages.context.
     expect(pagesListCalls.length).toBeGreaterThanOrEqual(1);
     expect(membersCalls.length).toBeGreaterThanOrEqual(1);
-
-    // The canonical page-route resolver must not trigger workspaces.list.
-    // Other features (workspace switcher, etc.) may call it independently,
-    // but the page-route bootstrap never does.
     expect(workspacesListCalls).toHaveLength(0);
-
     expect(pageErrors).toEqual([]);
+
+    await coldContext.close();
+  });
+
+  test("brand-new cold deep-link waits for first sync when no persisted snapshot exists yet", async ({
+    authenticatedPage: { page, accessToken },
+    browser,
+  }) => {
+    const testPage = await createTestPage(page, accessToken, "Cold Empty Page");
+
+    const coldContext = await browser.newContext();
+    const coldPage = await coldContext.newPage();
+    await loginPage(coldPage);
+
+    const snapshotStatuses: number[] = [];
+    const pageErrors: string[] = [];
+    coldPage.on("pageerror", (err) => pageErrors.push(err.message));
+    coldPage.on("response", (response) => {
+      const url = new URL(response.url());
+      if (url.pathname === `/api/v1/workspaces/${testPage.workspaceId}/pages/${testPage.pageId}/snapshot`) {
+        snapshotStatuses.push(response.status());
+      }
+    });
+
+    await coldPage.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
+
+    const editor = coldPage.locator(".tiptap[contenteditable='true']");
+    await editor.waitFor({ timeout: 30_000 });
+    await editor.click();
+    await coldPage.keyboard.type("Fresh cold path works");
+    await expect(editor).toContainText("Fresh cold path works");
+
+    expect(snapshotStatuses).toContain(204);
+    expect(pageErrors).toEqual([]);
+
+    await coldContext.close();
   });
 });

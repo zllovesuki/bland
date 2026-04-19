@@ -1,16 +1,9 @@
 import { useEffect, useState } from "react";
 import type YProvider from "y-partyserver/provider";
 import type { Awareness } from "y-protocols/awareness";
-import { type SyncStatus } from "@/client/lib/doc-sync-provider";
+import { getDocSyncStatus, type SyncStatus } from "@/client/lib/doc-sync-provider";
 
 export type { SyncStatus } from "@/client/lib/doc-sync-provider";
-
-function deriveProviderStatus(provider: YProvider | null): SyncStatus {
-  if (!provider) return "disconnected";
-  if (provider.wsconnected) return "connected";
-  if (provider.shouldConnect || provider.wsconnecting) return "connecting";
-  return "disconnected";
-}
 
 export function useSyncStatus(
   provider: YProvider | null,
@@ -19,7 +12,7 @@ export function useSyncStatus(
   status: SyncStatus;
   synced: boolean;
 } {
-  const [providerStatus, setProviderStatus] = useState<SyncStatus>(() => deriveProviderStatus(provider));
+  const [providerStatus, setProviderStatus] = useState<SyncStatus>(() => getDocSyncStatus(provider, true));
   const [synced, setSynced] = useState(provider?.synced ?? false);
 
   useEffect(() => {
@@ -29,10 +22,10 @@ export function useSyncStatus(
       return;
     }
 
-    setProviderStatus(deriveProviderStatus(provider));
+    setProviderStatus(getDocSyncStatus(provider, true));
     setSynced(provider.synced);
 
-    const onStatus = () => setProviderStatus(deriveProviderStatus(provider));
+    const onStatus = () => setProviderStatus(getDocSyncStatus(provider, true));
     const onSynced = (next: boolean) => setSynced(next);
 
     provider.on("status", onStatus);

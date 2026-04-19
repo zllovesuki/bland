@@ -10,7 +10,8 @@ import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { useEditorSession } from "./use-editor-session";
 
-const INVALID_SCHEMA_MESSAGE = "This page contains content this editor version can't safely load. Refresh to update.";
+const INVALID_SCHEMA_MESSAGE = "This build can't parse this page. Reload to catch up.";
+const SNAPSHOT_ERROR_MESSAGE = "This page didn't load. Your connection might be flaky.";
 
 interface EditorPaneProps {
   pageId: string;
@@ -74,6 +75,7 @@ export function EditorPane({
     onTitleChange,
     onProvider,
     shareToken,
+    workspaceId,
     enabled: !schemaError,
   });
 
@@ -104,6 +106,12 @@ export function EditorPane({
           onSchemaError={handleSchemaError}
           outline={outline}
           docFooterLeading={docFooterLeading}
+        />
+      ) : session.kind === "error" ? (
+        <PageErrorState
+          message={SNAPSHOT_ERROR_MESSAGE}
+          className="min-h-[12rem]"
+          action={{ label: "Retry", onClick: session.onRetry }}
         />
       ) : (
         <div className="space-y-3 pl-7">

@@ -319,3 +319,5 @@ export const ResolvePageMentionsResponse = z.object({
   mentions: z.array(ResolvedPageMentionItem),
 });
 export type ResolvePageMentionsResponse = z.infer<typeof ResolvePageMentionsResponse>;
+
+export type PageSnapshotResponse = { kind: "found"; snapshot: ArrayBuffer } | { kind: "missing" };

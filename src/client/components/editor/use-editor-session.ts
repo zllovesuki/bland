@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
+import { api } from "@/client/lib/api";
 import { getCachedDocKey } from "@/client/lib/constants";
 import { markDocCached } from "@/client/lib/doc-cache-hints";
 import { reconcileDocSyncProvider } from "@/client/lib/doc-sync-provider";
+import { reportClientError } from "@/client/lib/report-client-error";
 import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { YJS_DOCUMENT_STORE, YJS_PAGE_TITLE } from "@/shared/constants";
@@ -28,7 +30,12 @@ export interface EditorSessionReadyState extends EditorSessionBase, EditorSessio
   kind: "ready";
 }
 
-export type EditorSessionState = EditorSessionLoadingState | EditorSessionReadyState;
+export interface EditorSessionErrorState extends EditorSessionBase {
+  kind: "error";
+  onRetry: () => void;
+}
+
+export type EditorSessionState = EditorSessionLoadingState | EditorSessionReadyState | EditorSessionErrorState;
 
 interface UseEditorSessionOptions {
   pageId: string;
@@ -36,7 +43,53 @@ interface UseEditorSessionOptions {
   onTitleChange?: (title: string) => void;
   onProvider?: (provider: YProvider | null) => void;
   shareToken?: string;
+  workspaceId?: string;
   enabled?: boolean;
+}
+
+export type EditorBootstrapStatus = "pending" | "resolved" | "error";
+
+export interface EditorPhaseInputs {
+  hasLocalBodyState: boolean;
+  wantsConnection: boolean;
+  workspaceId: string | undefined;
+  bootstrapStatus: EditorBootstrapStatus;
+}
+
+export interface EditorPhaseSnapshot {
+  ready: boolean;
+  shouldConnect: boolean;
+  snapshotFetch: { workspaceId: string } | null;
+  error: boolean;
+}
+
+export function hasLocalBodyState(fragment: Pick<Y.XmlFragment, "length">): boolean {
+  return fragment.length > 0;
+}
+
+// Cold-bootstrap rule: if the editor mounts against an empty local Y.Doc, any
+// mount-time local mutation can merge into the authoritative document before
+// remote content arrives. So when wantsConnection && !hasLocalBodyState, fetch
+// the persisted snapshot over HTTP before letting the provider connect. A
+// missing snapshot means the server is empty, which is safe to mount against.
+export function deriveEditorPhase(i: EditorPhaseInputs): EditorPhaseSnapshot {
+  if (!i.wantsConnection) {
+    return { ready: true, shouldConnect: false, snapshotFetch: null, error: false };
+  }
+  if (i.hasLocalBodyState) {
+    return { ready: true, shouldConnect: true, snapshotFetch: null, error: false };
+  }
+  if (!i.workspaceId) {
+    return { ready: false, shouldConnect: false, snapshotFetch: null, error: false };
+  }
+  switch (i.bootstrapStatus) {
+    case "pending":
+      return { ready: false, shouldConnect: false, snapshotFetch: { workspaceId: i.workspaceId }, error: false };
+    case "error":
+      return { ready: false, shouldConnect: false, snapshotFetch: null, error: true };
+    case "resolved":
+      return { ready: true, shouldConnect: true, snapshotFetch: null, error: false };
+  }
 }
 
 export function useEditorSession({
@@ -45,6 +98,7 @@ export function useEditorSession({
   onTitleChange,
   onProvider,
   shareToken,
+  workspaceId,
   enabled = true,
 }: UseEditorSessionOptions): EditorSessionState {
   const online = useOnline();
@@ -52,7 +106,9 @@ export function useEditorSession({
   const wantsConnection = online && (!!shareToken || isAuthed);
 
   const [title, setTitle] = useState(initialTitle);
-  const [session, setSession] = useState<EditorSessionInternalState | null>(null);
+  const [runtime, setRuntime] = useState<EditorSessionInternalState | null>(null);
+  const [hasCachedBody, setHasCachedBody] = useState(false);
+  const [bootstrapStatus, setBootstrapStatus] = useState<EditorBootstrapStatus>("pending");
 
   const initialTitleRef = useRef(initialTitle);
   initialTitleRef.current = initialTitle;
@@ -65,12 +121,16 @@ export function useEditorSession({
 
   useEffect(() => {
     setTitle(initialTitleRef.current);
-    setSession(null);
+    setRuntime(null);
+    setHasCachedBody(false);
+    setBootstrapStatus("pending");
   }, [pageId, shareToken]);
 
   useEffect(() => {
     if (!enabled) {
-      setSession(null);
+      setRuntime(null);
+      setHasCachedBody(false);
+      setBootstrapStatus("pending");
       return;
     }
 
@@ -86,7 +146,7 @@ export function useEditorSession({
 
     let mounted = true;
     let seededTitle = false;
-    let seedTitleTimeout: ReturnType<typeof window.setTimeout> | null = null;
+    let seedTitleTimeout: number | null = null;
 
     const titleObserver = () => {
       if (!mounted) return;
@@ -118,6 +178,7 @@ export function useEditorSession({
 
     const handleIdbSync = () => {
       if (!mounted) return;
+      const bodyReady = hasLocalBodyState(fragment);
 
       if (titleText.length > 0) {
         const nextTitle = titleText.toString();
@@ -126,8 +187,9 @@ export function useEditorSession({
         markDocCached(pageId);
       }
 
+      setHasCachedBody(bodyReady);
       onProviderRef.current?.(wsProvider);
-      setSession({ fragment, provider: wsProvider, ydoc });
+      setRuntime({ fragment, provider: wsProvider, ydoc });
 
       if (!wantsConnectionRef.current) {
         seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
@@ -153,27 +215,84 @@ export function useEditorSession({
     };
   }, [enabled, pageId, shareToken]);
 
+  const phase = deriveEditorPhase({
+    hasLocalBodyState: hasCachedBody,
+    wantsConnection,
+    workspaceId,
+    bootstrapStatus,
+  });
+
+  const snapshotWorkspaceId = phase.snapshotFetch?.workspaceId ?? null;
   useEffect(() => {
-    if (!session) return;
-    reconcileDocSyncProvider(session.provider, wantsConnection);
-  }, [session, wantsConnection]);
+    if (!runtime || !snapshotWorkspaceId) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    void api.pages
+      .snapshot(snapshotWorkspaceId, pageId, shareToken, controller.signal)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.kind === "found") {
+          Y.applyUpdate(runtime.ydoc, new Uint8Array(result.snapshot));
+          markDocCached(pageId);
+        }
+        setBootstrapStatus("resolved");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || cancelled) return;
+        reportClientError({
+          source: "editor.snapshot-bootstrap",
+          error,
+          context: {
+            pageId,
+            workspaceId: snapshotWorkspaceId,
+            hasShareToken: !!shareToken,
+          },
+        });
+        setBootstrapStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [runtime, snapshotWorkspaceId, pageId, shareToken]);
+
+  useEffect(() => {
+    if (!runtime) return;
+    reconcileDocSyncProvider(runtime.provider, phase.shouldConnect);
+  }, [runtime, phase.shouldConnect]);
 
   const onTitleInput = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       const nextTitle = event.target.value;
       setTitle(nextTitle);
-      if (!session) return;
+      if (!runtime) return;
 
-      const titleText = session.ydoc.getText(YJS_PAGE_TITLE);
-      session.ydoc.transact(() => {
+      const titleText = runtime.ydoc.getText(YJS_PAGE_TITLE);
+      runtime.ydoc.transact(() => {
         titleText.delete(0, titleText.length);
         titleText.insert(0, nextTitle);
       });
     },
-    [session],
+    [runtime],
   );
 
-  if (!session) {
+  const retrySnapshot = useCallback(() => {
+    setBootstrapStatus("pending");
+  }, []);
+
+  if (phase.error) {
+    return {
+      kind: "error",
+      title,
+      onTitleInput,
+      onRetry: retrySnapshot,
+    };
+  }
+
+  if (!runtime || !phase.ready) {
     return {
       kind: "loading",
       title,
@@ -185,6 +304,6 @@ export function useEditorSession({
     kind: "ready",
     title,
     onTitleInput,
-    ...session,
+    ...runtime,
   };
 }

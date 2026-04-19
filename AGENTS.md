@@ -62,6 +62,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Durable Object RPCs should return tagged unions for expected outcomes and reserve `throw` for truly unrecoverable errors.
 - Use `blockConcurrencyWhile` only in Durable Object constructors for setup and migration, never in RPC methods.
 - Do not rely on `this.ctx.id.name` inside Durable Objects.
+- Cold uncached editor hydration should bootstrap body content from the Worker-owned page snapshot route before mounting the editor on a live DocSync session. Do not mount a writable editor against an empty local `Y.Doc` and wait for live sync to fill it.
 - Preserve D1 bookmark propagation in `src/worker/router.ts` and `src/client/lib/api.ts`.
 - Mutating requests should continue to prefer primary D1 reads.
 - Refresh tokens live in the `bland_refresh` cookie. Access tokens stay in client state.
@@ -123,7 +124,6 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
 - **Orphaned upload garbage collection**: There is no delete uploads API. R2 objects are never removed — replacing or deleting an image from a document leaves the old blob in R2. Needs a periodic GC job that scans DocSync DOs for referenced upload URLs and deletes R2 objects not referenced by any document.
 - **DocSync DO storage cleanup on workspace delete**: Workspace deletion calls `WorkspaceIndexer.clear()` but does not explicitly clean DocSync DO storage for each page. DO auto-eviction handles this eventually.
-- **DocSync `getSnapshot` RPC**: Only `getIndexPayload` (text extraction) is implemented. A generic `getSnapshot` returning the raw Yjs blob is deferred until a real caller needs it (e.g. export, non-WebSocket page loads).
 - **Shared seeded E2E workspace coupling**: The default Playwright harness seeds a single reusable `bland` workspace for the whole run. Specs that assume a short or empty page tree, especially sidebar drag scenarios, should prefer creating isolated workspaces rather than relying on that shared seed state.
 
 ## Entrypoints
