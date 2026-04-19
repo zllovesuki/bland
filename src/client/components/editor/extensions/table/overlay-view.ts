@@ -78,11 +78,11 @@ export class TableOverlayView implements PluginView {
     this.scheduleSync();
 
     const onWindowChange = () => this.scheduleSync();
-    window.addEventListener("resize", onWindowChange);
-    window.addEventListener("scroll", onWindowChange, true);
+    window.addEventListener("resize", onWindowChange, { passive: true });
+    window.addEventListener("scroll", onWindowChange, { passive: true, capture: true });
     this.cleanupFns.push(() => {
       window.removeEventListener("resize", onWindowChange);
-      window.removeEventListener("scroll", onWindowChange, true);
+      window.removeEventListener("scroll", onWindowChange, { capture: true });
     });
   }
 

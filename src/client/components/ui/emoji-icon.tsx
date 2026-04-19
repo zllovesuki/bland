@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getEmojiAssetUrl, normalizeEmoji } from "@/client/lib/emoji";
+import { getEmojiAssetUrlSync, loadEmojiAssetUrl, normalizeEmoji } from "@/client/lib/emoji";
 
 interface EmojiIconProps {
   emoji: string;
@@ -7,13 +7,24 @@ interface EmojiIconProps {
 }
 
 export function EmojiIcon({ emoji, size = 20 }: EmojiIconProps) {
-  const assetUrl = getEmojiAssetUrl(emoji);
+  const [assetUrl, setAssetUrl] = useState<string | null>(() => getEmojiAssetUrlSync(emoji));
   const [failed, setFailed] = useState(false);
   const style = { width: size, height: size };
 
   useEffect(() => {
+    let cancelled = false;
     setFailed(false);
-  }, [assetUrl]);
+    const cached = getEmojiAssetUrlSync(emoji);
+    setAssetUrl(cached);
+    if (cached === null) {
+      loadEmojiAssetUrl(emoji).then((url) => {
+        if (!cancelled) setAssetUrl(url);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [emoji]);
 
   if (assetUrl && !failed) {
     return (

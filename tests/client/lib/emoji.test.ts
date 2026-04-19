@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emojis as tiptapEmojis } from "@tiptap/extension-emoji";
-import { getEmojiAssetUrl, normalizeEmoji } from "@/client/lib/emoji";
+import { normalizeEmoji } from "@/client/lib/emoji";
+import { getEmojiAssetUrl } from "@/client/lib/emoji/asset-lookup";
 import { PICKER_EMOJI_ITEMS } from "@/client/lib/emoji/picker-data";
 import { getEmojiSuggestionItems } from "@/client/components/editor/extensions/emoji";
 import { readRecentEmojis, writeRecentEmoji } from "@/client/lib/emoji/recents";

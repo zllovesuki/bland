@@ -1,37 +1,26 @@
-import { EMOJI_ICON_DATA } from "./generated/emoji-icon-data";
-import { buildEmojiAssetUrl, normalizeEmoji } from "./shared";
+import type * as AssetLookup from "./asset-lookup";
 
 export { buildEmojiAssetUrl, normalizeEmoji } from "./shared";
 
-const emojiIconData = EMOJI_ICON_DATA as Record<string, string>;
-const SKIN_TONE_MODIFIER_RE = /[\u{1F3FB}-\u{1F3FF}]/u;
+let assetLookup: typeof AssetLookup | null = null;
+let assetLookupPromise: Promise<typeof AssetLookup> | null = null;
 
-function deriveToneAsset(emoji: string): string | null {
-  // Support existing stored tone emoji strings without loading picker/editor data.
-  if (!SKIN_TONE_MODIFIER_RE.test(emoji)) {
-    return null;
-  }
-
-  const codePoints: string[] = [];
-  for (const glyph of emoji) {
-    const codePoint = glyph.codePointAt(0);
-    if (codePoint === undefined || codePoint === 0xfe0e) {
-      continue;
-    }
-    codePoints.push(codePoint.toString(16));
-  }
-  return codePoints.length > 0 ? `${codePoints.join("-")}.png` : null;
+// Synchronous fast-path: returns null until the asset map has been loaded at least once.
+// Callers should treat null as "not resolved yet" and fall back to a unicode glyph.
+export function getEmojiAssetUrlSync(emoji: string): string | null {
+  return assetLookup ? assetLookup.getEmojiAssetUrl(emoji) : null;
 }
 
-export function getEmojiAsset(emoji: string): string | null {
-  const normalizedEmoji = normalizeEmoji(emoji);
-  if (normalizedEmoji === "") {
-    return null;
+// Lazy loader: dynamically imports the ~54KB emoji → asset-path map on first call,
+// then resolves synchronously from the cached module on subsequent calls.
+export async function loadEmojiAssetUrl(emoji: string): Promise<string | null> {
+  if (assetLookup) return assetLookup.getEmojiAssetUrl(emoji);
+  if (!assetLookupPromise) {
+    assetLookupPromise = import("./asset-lookup").then((mod) => {
+      assetLookup = mod;
+      return mod;
+    });
   }
-  return emojiIconData[normalizedEmoji] ?? deriveToneAsset(emoji);
-}
-
-export function getEmojiAssetUrl(emoji: string): string | null {
-  const asset = getEmojiAsset(emoji);
-  return asset ? buildEmojiAssetUrl(asset) : null;
+  const mod = await assetLookupPromise;
+  return mod.getEmojiAssetUrl(emoji);
 }
