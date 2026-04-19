@@ -20,7 +20,7 @@ import {
   needsRestrictedAncestors,
 } from "@/client/lib/active-page-model";
 import { ActivePageContexts, type PageLoadTarget } from "./use-active-page";
-import type { GetPageResponse, Page, WorkspaceRole } from "@/shared/types";
+import type { GetPageResponse, Page, PageAncestor, WorkspaceRole } from "@/shared/types";
 
 interface ActivePageProviderProps {
   surface: ActivePageSurface;
@@ -201,7 +201,6 @@ export function ActivePageProvider({
   });
   const [syncProvider, setSyncProvider] = useState<YProvider | null>(null);
   const epochRef = useRef(0);
-  const ancestorEpochRef = useRef(0);
   const activeRef = useRef(true);
   const cachedPageRef = useRef(cachedPageMeta);
   const onlineRef = useRef(online);
@@ -234,9 +233,35 @@ export function ActivePageProvider({
     if (pageLoadTarget === null) return;
     const request = createRequestGuard(epochRef, activeRef);
 
+    async function syncRestrictedAncestors(targetPageId: string, ancestorsPromise: Promise<PageAncestor[]> | null) {
+      if (!ancestorsPromise) return;
+
+      try {
+        const ancestors = await ancestorsPromise;
+        if (!request.isCurrent()) return;
+        setState((prev) => {
+          if (prev.kind !== "ready" || prev.snapshot.id !== targetPageId) return prev;
+          return { ...prev, ancestors, ancestorsStatus: "ready" };
+        });
+      } catch {
+        if (!request.isCurrent()) return;
+        setState((prev) => {
+          if (prev.kind !== "ready" || prev.snapshot.id !== targetPageId) return prev;
+          if (prev.ancestorsStatus === "ready") return prev;
+          return { ...prev, ancestorsStatus: "ready" };
+        });
+      }
+    }
+
     async function load() {
+      const ancestorsPromise =
+        pageLoadTarget === "live" && shouldLoadRestrictedAncestors && workspaceId
+          ? api.pages.ancestors(workspaceId, pageId, shareToken ?? undefined)
+          : null;
+
       if (seedPage && seedPage.pageId === pageId) {
         setState((prev) => seedToReadyState(seedPage, pageId, prev, shouldLoadRestrictedAncestors) ?? prev);
+        await syncRestrictedAncestors(pageId, ancestorsPromise);
         return;
       }
 
@@ -254,6 +279,7 @@ export function ActivePageProvider({
               shouldLoadRestrictedAncestors,
             ),
           );
+          await syncRestrictedAncestors(pageId, ancestorsPromise);
         } else {
           setState({
             kind: "unavailable",
@@ -307,6 +333,7 @@ export function ActivePageProvider({
             shouldLoadRestrictedAncestors,
           ),
         );
+        await syncRestrictedAncestors(pageId, ancestorsPromise);
       } catch (err) {
         if (!request.isCurrent()) return;
 
@@ -340,6 +367,7 @@ export function ActivePageProvider({
                   shouldLoadRestrictedAncestors,
                 ),
               );
+              await syncRestrictedAncestors(pageId, ancestorsPromise);
             } else {
               setState({
                 kind: "unavailable",
@@ -387,38 +415,6 @@ export function ActivePageProvider({
     onLivePageLoaded,
     onEvict,
   ]);
-
-  const readyPageId = state.kind === "ready" ? state.snapshot.id : null;
-
-  useEffect(() => {
-    if (state.kind !== "ready") return;
-    if (!shouldLoadRestrictedAncestors || !workspaceId) return;
-
-    const request = createRequestGuard(ancestorEpochRef, activeRef);
-    const capturedPageId = state.snapshot.id;
-
-    api.pages
-      .ancestors(workspaceId, capturedPageId, shareToken ?? undefined)
-      .then((ancestors) => {
-        if (!request.isCurrent()) return;
-        setState((prev) => {
-          if (prev.kind !== "ready" || prev.snapshot.id !== capturedPageId) return prev;
-          return { ...prev, ancestors, ancestorsStatus: "ready" };
-        });
-      })
-      .catch(() => {
-        if (!request.isCurrent()) return;
-        setState((prev) => {
-          if (prev.kind !== "ready" || prev.snapshot.id !== capturedPageId) return prev;
-          if (prev.ancestorsStatus === "ready") return prev;
-          return { ...prev, ancestorsStatus: "ready" };
-        });
-      });
-
-    return () => {
-      request.cancel();
-    };
-  }, [state.kind, readyPageId, workspaceId, shouldLoadRestrictedAncestors, shareToken]);
 
   const syncValue = useMemo(() => ({ syncProvider, setSyncProvider }), [syncProvider]);
   const actionsValue = useMemo(() => ({ patchPage }), [patchPage]);

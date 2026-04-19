@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
 import { getMyRole } from "@/client/lib/workspace-role";
 import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
@@ -71,18 +71,24 @@ function CanonicalMetadataListener() {
   const { patchPage } = useActivePageActions();
   const { workspace } = useCanonicalPageContext();
   const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
+  const workspaceId = workspace?.id ?? null;
+
+  const patchPageRef = useRef(patchPage);
+  const updatePageRef = useRef(updatePage);
+  patchPageRef.current = patchPage;
+  updatePageRef.current = updatePage;
 
   useEffect(() => {
-    if (!syncProvider || !workspace) return;
+    if (!syncProvider || !workspaceId) return;
     const handler = (message: string) => {
       const msg = parseDocMessage(message);
       if (msg?.type === "page-metadata-updated") {
-        patchPage({ icon: msg.icon, coverUrl: msg.cover_url });
-        updatePage(workspace.id, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
+        patchPageRef.current({ icon: msg.icon, coverUrl: msg.cover_url });
+        updatePageRef.current(workspaceId, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
       }
     };
     syncProvider.on("custom-message", handler);
     return () => syncProvider.off("custom-message", handler);
-  }, [syncProvider, workspace, updatePage, patchPage]);
+  }, [syncProvider, workspaceId]);
   return null;
 }

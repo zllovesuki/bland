@@ -57,7 +57,8 @@ export function SharedWithMeView() {
         <div className="space-y-6">
           {[0, 1].map((g) => (
             <div key={g}>
-              <div className="mb-2 px-1">
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <Skeleton className="h-4 w-4 shrink-0 rounded" />
                 <Skeleton className="h-3 w-24" />
               </div>
               <div className="divide-y divide-zinc-800/60 rounded-lg border border-zinc-800/60 bg-zinc-900/50">
@@ -68,6 +69,7 @@ export function SharedWithMeView() {
                       <Skeleton className="h-4 w-40" />
                       <Skeleton className="h-3 w-24" />
                     </div>
+                    <Skeleton className="h-4 w-10 shrink-0 rounded" />
                   </div>
                 ))}
               </div>

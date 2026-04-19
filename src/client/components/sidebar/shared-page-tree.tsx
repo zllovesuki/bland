@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ChevronRight, FileText } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api } from "@/client/lib/api";
@@ -64,8 +64,14 @@ function TreeNode({
       {node.expanded &&
         (node.children === null ? (
           <div className="space-y-1 py-0.5" style={{ paddingLeft: getSidebarTreeContentPaddingLeft(depth + 1) }}>
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
+            <div className="flex h-8 items-center gap-1">
+              <Skeleton className="h-5 w-5 shrink-0 rounded" />
+              <Skeleton className="h-3.5 w-3/4" />
+            </div>
+            <div className="flex h-8 items-center gap-1">
+              <Skeleton className="h-5 w-5 shrink-0 rounded" />
+              <Skeleton className="h-3.5 w-1/2" />
+            </div>
           </div>
         ) : (
           node.children.map((child) => (
@@ -98,6 +104,8 @@ export function SharedPageTree({
 }) {
   const [nodes, setNodes] = useState<Map<string, TreeNodeData>>(() => new Map());
   const [rootChildren, setRootChildren] = useState<string[] | null>(null);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
 
   // Reset tree state when the root page changes (e.g. navigating to a different shared link)
   useEffect(() => {
@@ -152,8 +160,7 @@ export function SharedPageTree({
         return next;
       });
 
-      // Load children when the node is expanded with unresolved descendants.
-      const node = nodes.get(pageId);
+      const node = nodesRef.current.get(pageId);
       if (node && node.children === null) {
         const children = await loadChildren(pageId);
         setNodes((prev) => {
@@ -167,7 +174,7 @@ export function SharedPageTree({
         });
       }
     },
-    [nodes, loadChildren],
+    [loadChildren],
   );
 
   return (
@@ -188,8 +195,14 @@ export function SharedPageTree({
       </button>
       {rootChildren === null ? (
         <div className="space-y-1 px-2 pt-1">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
+          <div className="flex h-8 items-center gap-1">
+            <Skeleton className="h-5 w-5 shrink-0 rounded" />
+            <Skeleton className="h-3.5 w-3/4" />
+          </div>
+          <div className="flex h-8 items-center gap-1">
+            <Skeleton className="h-5 w-5 shrink-0 rounded" />
+            <Skeleton className="h-3.5 w-1/2" />
+          </div>
         </div>
       ) : (
         rootChildren.map((id) => {

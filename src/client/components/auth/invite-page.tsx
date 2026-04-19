@@ -111,12 +111,25 @@ export function InvitePage() {
 
   if (isLoadingInvite) {
     return (
-      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
-        <div className="w-full max-w-sm space-y-4 px-4">
-          <Skeleton className="mx-auto h-12 w-12 rounded-2xl" />
-          <Skeleton className="mx-auto h-6 w-48" />
-          <Skeleton className="mx-auto h-4 w-64" />
-          <Skeleton className="h-10 w-full rounded-lg" />
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4" aria-busy="true">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 flex flex-col items-center">
+            <Skeleton className="mb-3 h-10 w-10 rounded-full" />
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="mt-2 h-4 w-52" />
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+            <Skeleton className="h-16 w-full rounded-lg" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
         </div>
       </div>
     );

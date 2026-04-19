@@ -27,7 +27,24 @@ function ShareLoadingShell() {
           className="hidden w-[260px] shrink-0 border-r border-zinc-800/60 bg-zinc-900 px-2 py-4 md:block"
           aria-hidden="true"
         >
-          <Skeleton className="h-5 w-3/4" />
+          <div className="flex h-8 items-center gap-1 px-2">
+            <Skeleton className="h-5 w-5 shrink-0 rounded" />
+            <Skeleton className="h-3.5 w-32" />
+          </div>
+          <div className="mt-1 space-y-1 pl-3">
+            <div className="flex h-8 items-center gap-1 px-2">
+              <Skeleton className="h-5 w-5 shrink-0 rounded" />
+              <Skeleton className="h-3.5 w-28" />
+            </div>
+            <div className="flex h-8 items-center gap-1 px-2">
+              <Skeleton className="h-5 w-5 shrink-0 rounded" />
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+            <div className="flex h-8 items-center gap-1 px-2">
+              <Skeleton className="h-5 w-5 shrink-0 rounded" />
+              <Skeleton className="h-3.5 w-20" />
+            </div>
+          </div>
         </nav>
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
           <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8" aria-busy="true">

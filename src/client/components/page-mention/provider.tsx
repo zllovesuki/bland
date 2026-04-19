@@ -60,7 +60,7 @@ export function PageMentionProvider({
 
   useEffect(() => {
     resolver?.syncCacheMode();
-  }, [resolver, cacheMode, networkEnabled, lookupCachedPage]);
+  }, [resolver, cacheMode, networkEnabled]);
 
   const value = useMemo(
     () => ({

@@ -112,19 +112,20 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   const routeRef = useRef(route);
   routeRef.current = route;
 
-  useEffect(() => {
-    if (route.phase !== "ready") return;
+  const readyWorkspaceId = route.phase === "ready" ? route.workspaceId : null;
 
+  useEffect(() => {
+    if (!readyWorkspaceId) return;
     const store = useWorkspaceStore.getState();
-    if (store.lastVisitedWorkspaceId !== route.workspaceId) {
-      store.setLastVisitedWorkspaceId(route.workspaceId);
+    if (store.lastVisitedWorkspaceId !== readyWorkspaceId) {
+      store.setLastVisitedWorkspaceId(readyWorkspaceId);
     }
-  }, [route.phase, route.phase === "ready" ? route.workspaceId : null]);
+  }, [readyWorkspaceId]);
 
   useEffect(() => {
-    if (route.phase !== "ready" || !pageId) return;
-    useWorkspaceStore.getState().setLastVisitedPage(route.workspaceId, pageId);
-  }, [route.phase, route.phase === "ready" ? route.workspaceId : null, pageId]);
+    if (!readyWorkspaceId || !pageId) return;
+    useWorkspaceStore.getState().setLastVisitedPage(readyWorkspaceId, pageId);
+  }, [readyWorkspaceId, pageId]);
 
   useEffect(() => {
     activeRef.current = true;
