@@ -55,6 +55,10 @@ async function expectSharedUrl(page: PlaywrightPage, token: string, pageId?: str
     .toBe(pageId ?? null);
 }
 
+function sharedTitleField(page: PlaywrightPage) {
+  return page.locator("main textarea[placeholder='Untitled']");
+}
+
 function isSharedPageMetadataRequest(url: string, workspaceId: string, pageId: string, shareToken: string): boolean {
   const parsed = new URL(url);
   return (
@@ -103,11 +107,10 @@ test.describe("rapid page navigation - shared view", () => {
     await anonPage.goto(`/s/${share.token}`);
 
     const sharedEditor = anonPage.locator(".tiptap");
+    const sharedTitle = sharedTitleField(anonPage);
     await sharedEditor.waitFor({ timeout: 30_000 });
     await expectSharedUrl(anonPage, share.token);
-
-    const headerTitle = anonPage.locator("header span").filter({ hasText: ROOT_TITLE });
-    await expect(headerTitle).toBeVisible({ timeout: 10_000 });
+    await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
 
     const childAlphaLink = anonPage.locator("button").filter({ hasText: childAlpha.title }).first();
     const childBetaLink = anonPage.locator("button").filter({ hasText: childBeta.title }).first();
@@ -120,14 +123,13 @@ test.describe("rapid page navigation - shared view", () => {
     await expectSharedUrl(anonPage, share.token, childBeta.id);
 
     await sharedEditor.waitFor({ timeout: 30_000 });
-    const betaTitle = anonPage.locator("header span").filter({ hasText: childBeta.title });
-    await expect(betaTitle).toBeVisible({ timeout: 10_000 });
+    await expect(sharedTitle).toHaveValue(childBeta.title, { timeout: 10_000 });
 
     const rootLink = anonPage.locator("button").filter({ hasText: ROOT_TITLE }).first();
     await rootLink.click();
 
     await expectSharedUrl(anonPage, share.token);
-    await expect(headerTitle).toBeVisible({ timeout: 10_000 });
+    await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
     await expect(sharedEditor).toBeVisible({ timeout: 15_000 });
     expect(pageErrors).toEqual([]);
 
@@ -146,8 +148,10 @@ test.describe("rapid page navigation - shared view", () => {
     await page.goto(`/s/${share.token}`);
 
     const rootEditor = page.locator(".tiptap[contenteditable='false']");
+    const sharedTitle = sharedTitleField(page);
     await rootEditor.waitFor({ timeout: 30_000 });
     await expectSharedUrl(page, share.token);
+    await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
     await expect(rootEditor).toContainText(rootBodyText);
 
     const rootContentBefore = await rootEditor.textContent();
@@ -170,9 +174,7 @@ test.describe("rapid page navigation - shared view", () => {
 
     const childEditor = page.locator(".tiptap[contenteditable='true']");
     await childEditor.waitFor({ timeout: 30_000 });
-
-    const gammaTitle = page.locator("header span").filter({ hasText: childGamma.title });
-    await expect(gammaTitle).toBeVisible({ timeout: 10_000 });
+    await expect(sharedTitle).toHaveValue(childGamma.title, { timeout: 10_000 });
 
     await childEditor.click();
     await page.keyboard.type("Editable child content");
@@ -184,6 +186,7 @@ test.describe("rapid page navigation - shared view", () => {
     await expectSharedUrl(page, share.token);
     const returnedRootEditor = page.locator(".tiptap[contenteditable='false']");
     await returnedRootEditor.waitFor({ timeout: 30_000 });
+    await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
     await expect(returnedRootEditor).toContainText(rootBodyText);
     expect(pageErrors).toEqual([]);
   });
@@ -217,12 +220,13 @@ test.describe("rapid page navigation - shared view", () => {
     await page.goto(`/s/${share.token}`);
 
     const rootEditor = page.locator(".tiptap[contenteditable='false']");
+    const sharedTitle = sharedTitleField(page);
     const childLink = page.locator("button").filter({ hasText: delayedChild.title }).first();
     const rootLink = page.locator("button").filter({ hasText: ROOT_TITLE }).first();
-    const rootHeaderTitle = page.locator("header span").filter({ hasText: ROOT_TITLE });
 
     await rootEditor.waitFor({ timeout: 30_000 });
     await expectSharedUrl(page, share.token);
+    await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
     await expect(rootEditor).toContainText(rootBodyText);
     await childLink.waitFor({ timeout: 15_000 });
 
@@ -232,7 +236,7 @@ test.describe("rapid page navigation - shared view", () => {
 
       await rootLink.click();
       await expectSharedUrl(page, share.token);
-      await expect(rootHeaderTitle).toBeVisible({ timeout: 10_000 });
+      await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
       await expect(rootEditor).toBeVisible({ timeout: 30_000 });
     }
 
