@@ -165,13 +165,24 @@ export function ImageToolbar() {
   useEffect(() => {
     if (!referenceEl) return;
 
+    let rafId: number | null = null;
     const updatePlacement = () =>
       setUseInsetPosition(canInsetImageToolbar(referenceEl.getBoundingClientRect(), editingAlt));
+    const schedule = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updatePlacement();
+      });
+    };
     updatePlacement();
 
-    const observer = new ResizeObserver(updatePlacement);
+    const observer = new ResizeObserver(schedule);
     observer.observe(referenceEl);
-    return () => observer.disconnect();
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [editingAlt, referenceEl]);
 
   useEffect(() => {

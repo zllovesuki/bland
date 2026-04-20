@@ -6,6 +6,7 @@ import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "./lib/cli
 import { getSessionBootstrapStrategy } from "./lib/session-bootstrap";
 import { routeTree } from "./route-tree";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
+import { isBenignBrowserError } from "./lib/benign-browser-errors";
 import { useAuthStore } from "./stores/auth-store";
 import { useWorkspaceStore } from "./stores/workspace-store";
 import "./styles/app.css";
@@ -31,6 +32,10 @@ function registerGlobalErrorListeners() {
   listenersRegistered = true;
 
   window.addEventListener("error", (event) => {
+    if (isBenignBrowserError(event)) {
+      event.preventDefault();
+      return;
+    }
     reportClientError({
       source: "window.error",
       error: event.error ?? new Error(event.message),

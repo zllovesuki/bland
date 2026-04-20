@@ -135,11 +135,22 @@ export function EmojiPickerImpl({ onSelect, className, style }: EmojiPickerImplP
   useLayoutEffect(() => {
     if (!gridRef.current) return;
     const grid = gridRef.current;
+    let rafId: number | null = null;
     const update = () => setColumns(measureColumnCount(grid));
+    const schedule = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        update();
+      });
+    };
     update();
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(schedule);
     observer.observe(grid);
-    return () => observer.disconnect();
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [visibleEmojis]);
 
   const handleSearchKeyDown = useCallback(
