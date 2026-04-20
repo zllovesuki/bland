@@ -5,3 +5,17 @@ JWT_SECRET=dev-jwt-secret-replace-in-production
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET=1x0000000000000000000000000000000AA
 SENTRY_DSN=
+# AI backend selection.
+#   workers-ai   - production, uses Cloudflare Workers AI binding
+#   openai-compat - any OpenAI-compatible HTTP endpoint (Ollama, LM Studio, llama.cpp)
+#   mock         - deterministic in-process responses (used by E2E)
+BLAND_AI_MODE=workers-ai
+BLAND_AI_OPENAI_ENDPOINT=
+BLAND_AI_OPENAI_API_KEY=
+BLAND_AI_OPENAI_CHAT_MODEL=llama3
+BLAND_AI_OPENAI_SUMMARIZE_MODEL=
+# Workers AI model overrides. Leave blank to use defaults:
+#   chat:      @cf/meta/llama-4-scout-17b-16e-instruct
+#   summarize: @cf/google/gemma-4-26b-a4b-it
+BLAND_AI_WORKERS_CHAT_MODEL=
+BLAND_AI_WORKERS_SUMMARIZE_MODEL=

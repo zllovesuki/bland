@@ -11,6 +11,7 @@ import { pagesRouter } from "@/worker/routes/pages";
 import { pageTreeRouter } from "@/worker/routes/page-tree";
 import { pageContextRouter } from "@/worker/routes/page-context";
 import { pageMentionsRouter } from "@/worker/routes/page-mentions";
+import { aiRouter } from "@/worker/routes/ai";
 import { uploadsRouter, uploadServingRouter } from "@/worker/routes/uploads";
 import { searchRouter } from "@/worker/routes/search";
 import { sharesRouter, shareLinkRouter } from "@/worker/routes/shares";
@@ -105,6 +106,7 @@ app.route("/api/v1", sharesRouter);
 app.route("/api/v1", shareLinkRouter);
 app.route("/api/v1", pageContextRouter);
 app.route("/api/v1", pageMentionsRouter);
+app.route("/api/v1", aiRouter);
 app.route("/uploads", uploadServingRouter);
 
 app.notFound((c) => {

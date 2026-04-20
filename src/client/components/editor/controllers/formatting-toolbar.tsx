@@ -19,20 +19,30 @@ import {
   Highlighter,
   Merge,
   Split,
+  Sparkles,
 } from "lucide-react";
 import { ColorPickerPanel } from "./color-picker-panel";
 import { TEXT_COLORS, BG_COLORS } from "./colors";
 import { shouldShowFormattingToolbar } from "./formatting-toolbar-state";
+import { AiMenuPanel } from "./ai-menu";
+import { runRewrite } from "./ai-rewrite";
+import { getAiBusyReason } from "../lib/ai-busy";
+import { useEditorAffordance } from "../editor-affordance-context";
+import { useEditorRuntime } from "../editor-runtime-context";
 import "../styles/floating-controls.css";
 
 export function FormattingToolbar() {
   const { editor } = useTiptap();
+  const affordance = useEditorAffordance();
+  const runtime = useEditorRuntime();
   const [linkMode, setLinkMode] = useState(false);
   const [linkHref, setLinkHref] = useState("");
   const [colorPanel, setColorPanel] = useState<"text" | "highlight" | null>(null);
+  const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const linkInputRef = useRef<HTMLInputElement>(null);
   const textColorRef = useRef<HTMLButtonElement>(null);
   const highlightRef = useRef<HTMLButtonElement>(null);
+  const aiButtonRef = useRef<HTMLButtonElement>(null);
 
   const editorState = useTiptapState((ctx) => ({
     isBold: ctx.editor.isActive("bold"),
@@ -48,6 +58,7 @@ export function FormattingToolbar() {
     isCellSelection: ctx.editor.state.selection instanceof CellSelection,
     canMerge: ctx.editor.can().mergeCells(),
     canSplit: ctx.editor.can().splitCell(),
+    aiBlockedReason: getAiBusyReason(ctx.editor.state),
     shouldShowToolbar: shouldShowFormattingToolbar({
       editor: ctx.editor,
       from: ctx.editor.state.selection.from,
@@ -84,6 +95,8 @@ export function FormattingToolbar() {
   };
 
   const effectiveColorPanel = linkMode || !editorState.shouldShowToolbar ? null : colorPanel;
+  const effectiveAiMenuOpen =
+    linkMode || !editorState.shouldShowToolbar || editorState.aiBlockedReason ? false : aiMenuOpen;
 
   if (!editor) return null;
 
@@ -280,6 +293,29 @@ export function FormattingToolbar() {
               <AlignRight size={16} />
             </button>
 
+            {affordance.canUseAiRewrite ? (
+              <>
+                <div className="tiptap-toolbar-sep" />
+                <button
+                  ref={aiButtonRef}
+                  type="button"
+                  title={editorState.aiBlockedReason ?? "AI actions"}
+                  aria-label="AI actions"
+                  aria-disabled={editorState.aiBlockedReason ? true : undefined}
+                  disabled={Boolean(editorState.aiBlockedReason)}
+                  className={effectiveAiMenuOpen ? "is-active" : undefined}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (editorState.aiBlockedReason) return;
+                    setAiMenuOpen((prev) => !prev);
+                  }}
+                >
+                  <Sparkles size={16} />
+                </button>
+              </>
+            ) : null}
+
             {editorState.isCellSelection && (
               <>
                 <div className="tiptap-toolbar-sep" />
@@ -345,6 +381,16 @@ export function FormattingToolbar() {
           }}
           triggerRef={highlightRef}
           onClose={() => setColorPanel(null)}
+        />
+      )}
+      {effectiveAiMenuOpen && (
+        <AiMenuPanel
+          triggerRef={aiButtonRef}
+          onClose={() => setAiMenuOpen(false)}
+          onSelect={(action) => {
+            setAiMenuOpen(false);
+            void runRewrite({ editor, action, runtime });
+          }}
         />
       )}
     </BubbleMenu>

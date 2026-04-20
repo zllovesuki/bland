@@ -62,6 +62,9 @@
 			},
 		],
 	},
+	"ai": {
+		"binding": "AI",
+	},
 	"ratelimits": [
 		{
 			"name": "RL_AUTH",
@@ -76,6 +79,14 @@
 			"namespace_id": "101002",
 			"simple": {
 				"limit": 300,
+				"period": 60,
+			},
+		},
+		{
+			"name": "RL_AI",
+			"namespace_id": "101003",
+			"simple": {
+				"limit": 30,
 				"period": 60,
 			},
 		},

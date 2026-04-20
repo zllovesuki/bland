@@ -16,6 +16,7 @@ import {
   moveTopLevelBlock,
 } from "../lib/block-actions";
 import { createInsertPaletteItems } from "../lib/insert-palette";
+import { filterItems } from "./slash/items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./slash/overlay";
 import "../styles/drag-handle.css";
 
@@ -98,13 +99,14 @@ export function DragHandle() {
     editor.chain().insertContentAt(insertPos, { type: "paragraph" }).setTextSelection(cursorPos).run();
     editor.commands.focus(null, { scrollIntoView: false });
 
-    const items = getInsertPaletteItems().filter((item) => !item.isAvailable || item.isAvailable({ editor }));
+    const items = filterItems(getInsertPaletteItems(), "", { editor });
     const range = { from: cursorPos, to: cursorPos };
 
     let handle: SlashMenuOverlayHandle | null = null;
     handle = mountSlashMenu(editor, {
       items,
       command: (item) => {
+        if (item.blockedReason) return;
         item.command({ editor, range });
         cleanup();
       },

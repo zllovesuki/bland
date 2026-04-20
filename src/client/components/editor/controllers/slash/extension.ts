@@ -2,7 +2,7 @@ import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
-import { filterItems, type SlashMenuItem } from "./items";
+import { filterItems, type ResolvedSlashMenuItem, type SlashMenuItem } from "./items";
 import { mountSlashMenu, type SlashMenuOverlayHandle } from "./overlay";
 
 interface SlashCommandsOptions {
@@ -22,19 +22,20 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
     const getItems = this.options.getItems;
 
     return [
-      Suggestion<SlashMenuItem, SlashMenuItem>({
+      Suggestion<ResolvedSlashMenuItem, ResolvedSlashMenuItem>({
         editor: this.editor,
         char: "/",
         shouldShow: ({ transaction }) => !isChangeOrigin(transaction),
         items: ({ query, editor }) => filterItems(getItems(), query, { editor }),
         command: ({ editor, range, props: item }) => {
+          if (item.blockedReason) return;
           item.command({ editor, range });
         },
         render: () => {
           let handle: SlashMenuOverlayHandle | null = null;
 
           return {
-            onStart: (props: SuggestionProps<SlashMenuItem>) => {
+            onStart: (props: SuggestionProps<ResolvedSlashMenuItem>) => {
               handle = mountSlashMenu(props.editor, {
                 items: props.items,
                 command: (item) => props.command(item),
@@ -42,7 +43,7 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
               });
             },
 
-            onUpdate: (props: SuggestionProps<SlashMenuItem>) => {
+            onUpdate: (props: SuggestionProps<ResolvedSlashMenuItem>) => {
               handle?.updateProps({
                 items: props.items,
                 command: (item) => props.command(item),

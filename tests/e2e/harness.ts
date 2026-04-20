@@ -168,7 +168,11 @@ async function createE2eDevVarsFile(baseUrl: string): Promise<{ cloudflareEnv: s
   const devVarsPath = `${DEV_VARS_PATH}.${cloudflareEnv}`;
   const template = await loadDevVarsTemplate();
   const allowedOrigins = mergeAllowedOrigins(process.env.ALLOWED_ORIGINS, baseUrl);
-  const content = `${template.replace(/^ALLOWED_ORIGINS=.*$/gm, "").trimEnd()}\nALLOWED_ORIGINS=${allowedOrigins}\n`;
+  const stripped = template
+    .replace(/^ALLOWED_ORIGINS=.*$/gm, "")
+    .replace(/^BLAND_AI_MODE=.*$/gm, "")
+    .trimEnd();
+  const content = `${stripped}\nALLOWED_ORIGINS=${allowedOrigins}\nBLAND_AI_MODE=mock\n`;
 
   await writeFile(devVarsPath, content);
 

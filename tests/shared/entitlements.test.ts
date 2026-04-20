@@ -6,6 +6,7 @@ import {
   canRevealLinkTokens,
   canRevealShareGranteeEmails,
   canRevokeShare,
+  getPageAiEntitlements,
   getPageEditEntitlements,
   getPageStructureEntitlements,
 } from "@/shared/entitlements";
@@ -110,6 +111,46 @@ describe("shared entitlements", () => {
       expect(canRevealShareGranteeEmails("guest")).toBe(false);
       expect(canRevealShareGranteeEmails("none")).toBe(false);
       expect(canRevealShareGranteeEmails("member")).toBe(true);
+    });
+  });
+
+  describe("page AI entitlements", () => {
+    it("allows full members to rewrite, generate, summarize, and ask on edit pages", () => {
+      expect(getPageAiEntitlements("canonical", "edit")).toEqual({
+        useAiRewrite: true,
+        useAiGenerate: true,
+        summarizePage: true,
+        askPage: true,
+      });
+    });
+
+    it("restricts canonical view-only access to read-only AI actions", () => {
+      expect(getPageAiEntitlements("canonical", "view")).toEqual({
+        useAiRewrite: false,
+        useAiGenerate: false,
+        summarizePage: true,
+        askPage: true,
+      });
+    });
+
+    it("denies any AI action for canonical/none", () => {
+      expect(getPageAiEntitlements("canonical", "none")).toEqual({
+        useAiRewrite: false,
+        useAiGenerate: false,
+        summarizePage: false,
+        askPage: false,
+      });
+    });
+
+    it("denies all AI actions on the shared surface regardless of access level", () => {
+      for (const access of ["none", "view", "edit"] as const) {
+        expect(getPageAiEntitlements("shared", access)).toEqual({
+          useAiRewrite: false,
+          useAiGenerate: false,
+          summarizePage: false,
+          askPage: false,
+        });
+      }
     });
   });
 });

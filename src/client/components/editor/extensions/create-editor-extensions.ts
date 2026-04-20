@@ -17,6 +17,8 @@ import { ShareAwareImage } from "./image/node";
 import { EditorEmoji } from "./emoji";
 import { HighlightedCodeBlock } from "./code-block/extension";
 import { BlockDragDropBehavior } from "./block-drag-drop";
+import { AiSuggestion } from "./ai-suggestion";
+import { AiGenerateIndicator } from "./ai-generate-indicator";
 import { CalloutExtension } from "./callout";
 import { DetailsBlockExtensions } from "./details-block";
 import { createTableExtensions } from "./table-extensions";
@@ -115,6 +117,8 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     }),
     TopLevelBlockIdentity,
     BlockDragDropBehavior,
+    AiSuggestion,
+    AiGenerateIndicator,
     ShareAwareImage.configure({ inline: false, allowBase64: false, getRuntime }),
     TaskList,
     TaskItem.configure({ nested: true }),

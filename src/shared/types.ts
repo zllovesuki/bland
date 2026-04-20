@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ALLOWED_UPLOAD_TYPES, MAX_PAGE_MENTION_BATCH, MAX_UPLOAD_SIZE } from "@/shared/constants";
+import { AiUsage } from "@/shared/ai";
 
 export const WorkspaceRole = z.enum(["owner", "admin", "member", "guest"]);
 export type WorkspaceRole = z.infer<typeof WorkspaceRole>;
@@ -321,3 +322,48 @@ export const ResolvePageMentionsResponse = z.object({
 export type ResolvePageMentionsResponse = z.infer<typeof ResolvePageMentionsResponse>;
 
 export type PageSnapshotResponse = { kind: "found"; snapshot: ArrayBuffer } | { kind: "missing" };
+
+export const AiRewriteAction = z.enum(["proofread", "formal", "casual", "simplify", "expand"]);
+export type AiRewriteAction = z.infer<typeof AiRewriteAction>;
+
+const AI_BLOCK_MAX = 2000;
+const AI_SELECTION_MAX = 4000;
+
+export const AiRewriteRequest = z.object({
+  action: AiRewriteAction,
+  selectedText: z.string().min(1).max(AI_SELECTION_MAX),
+  parentBlock: z.string().max(AI_BLOCK_MAX),
+  beforeBlock: z.string().max(AI_BLOCK_MAX),
+  afterBlock: z.string().max(AI_BLOCK_MAX),
+  pageTitle: z.string().max(500),
+});
+export type AiRewriteRequest = z.infer<typeof AiRewriteRequest>;
+
+export const AiGenerateIntent = z.enum(["continue", "explain", "brainstorm"]);
+export type AiGenerateIntent = z.infer<typeof AiGenerateIntent>;
+
+export const AiGenerateRequest = z.object({
+  intent: AiGenerateIntent,
+  beforeBlock: z.string().max(AI_BLOCK_MAX),
+  afterBlock: z.string().max(AI_BLOCK_MAX),
+  pageTitle: z.string().max(500),
+});
+export type AiGenerateRequest = z.infer<typeof AiGenerateRequest>;
+
+export const AiAskHistoryMessage = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1).max(AI_BLOCK_MAX),
+});
+export type AiAskHistoryMessage = z.infer<typeof AiAskHistoryMessage>;
+
+export const AiAskRequest = z.object({
+  question: z.string().min(1).max(AI_BLOCK_MAX),
+  history: z.array(AiAskHistoryMessage).max(6).optional(),
+});
+export type AiAskRequest = z.infer<typeof AiAskRequest>;
+
+export const AiSummarizeResponse = z.object({
+  summary: z.string(),
+  usage: AiUsage.optional(),
+});
+export type AiSummarizeResponse = z.infer<typeof AiSummarizeResponse>;

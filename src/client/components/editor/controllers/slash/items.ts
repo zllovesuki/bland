@@ -16,18 +16,28 @@ import {
   Table,
   FileText,
   SmilePlus,
+  Sparkles,
+  PenLine,
+  Lightbulb,
 } from "lucide-react";
 import { insertCalloutBlock } from "../callout";
 import { insertDetailsBlock } from "../details-block";
 import { canInsertPageMentionAtRange } from "../../lib/page-mention/can-insert";
+import type { AiGenerateIntent } from "@/shared/types";
 
 export interface SlashMenuItem {
   title: string;
   group: string;
   icon: React.FC<{ size?: number; className?: string }>;
   aliases?: string[];
+  description?: string;
   isAvailable?: (props: { editor: Editor }) => boolean;
+  isBlocked?: (props: { editor: Editor }) => string | null;
   command: (props: { editor: Editor; range: Range }) => void;
+}
+
+export interface ResolvedSlashMenuItem extends SlashMenuItem {
+  blockedReason: string | null;
 }
 
 export interface SlashMenuPageMentionConfig {
@@ -44,14 +54,63 @@ export interface SlashMenuEmojiConfig {
   openPicker: (props: { editor: Editor; range: Range }) => void;
 }
 
+export interface SlashMenuAiConfig {
+  isAvailable: (props: { editor: Editor }) => boolean;
+  isBlocked?: (props: { editor: Editor }) => string | null;
+  startGenerate: (props: { editor: Editor; range: Range; intent: AiGenerateIntent }) => void;
+}
+
 export interface SlashMenuItemsOpts {
   pageMention: SlashMenuPageMentionConfig | null;
   image: SlashMenuImageConfig;
   emoji: SlashMenuEmojiConfig;
+  ai: SlashMenuAiConfig | null;
 }
 
 export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
-  const items: SlashMenuItem[] = [
+  const items: SlashMenuItem[] = [];
+
+  if (opts.ai) {
+    const aiConfig = opts.ai;
+    const aiIsAvailable = ({ editor }: { editor: Editor }) => aiConfig.isAvailable({ editor });
+    const aiIsBlocked = aiConfig.isBlocked
+      ? ({ editor }: { editor: Editor }) => aiConfig.isBlocked!({ editor })
+      : undefined;
+    items.push(
+      {
+        title: "Continue writing",
+        description: "Keep going from the cursor",
+        group: "AI",
+        icon: Sparkles,
+        aliases: ["ai", "continue", "write"],
+        isAvailable: aiIsAvailable,
+        isBlocked: aiIsBlocked,
+        command: ({ editor, range }) => aiConfig.startGenerate({ editor, range, intent: "continue" }),
+      },
+      {
+        title: "Explain",
+        description: "Expand on what's above",
+        group: "AI",
+        icon: PenLine,
+        aliases: ["ai", "explain"],
+        isAvailable: aiIsAvailable,
+        isBlocked: aiIsBlocked,
+        command: ({ editor, range }) => aiConfig.startGenerate({ editor, range, intent: "explain" }),
+      },
+      {
+        title: "Brainstorm",
+        description: "Draft related ideas",
+        group: "AI",
+        icon: Lightbulb,
+        aliases: ["ai", "brainstorm", "ideas"],
+        isAvailable: aiIsAvailable,
+        isBlocked: aiIsBlocked,
+        command: ({ editor, range }) => aiConfig.startGenerate({ editor, range, intent: "brainstorm" }),
+      },
+    );
+  }
+
+  items.push(
     {
       title: "Heading 1",
       group: "Headings",
@@ -193,7 +252,7 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
         opts.emoji.openPicker({ editor, range });
       },
     },
-  ];
+  );
 
   if (opts.pageMention) {
     const { openPicker } = opts.pageMention;
@@ -214,11 +273,20 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
   return items;
 }
 
-export function filterItems(items: SlashMenuItem[], query: string, props?: { editor: Editor }): SlashMenuItem[] {
+export function filterItems(
+  items: SlashMenuItem[],
+  query: string,
+  props?: { editor: Editor },
+): ResolvedSlashMenuItem[] {
   const q = query.toLowerCase();
-  return items.filter(
+  const editor = props?.editor;
+  const visible = items.filter(
     ({ title, aliases, isAvailable }) =>
-      (!props?.editor || !isAvailable || isAvailable({ editor: props.editor })) &&
+      (!editor || !isAvailable || isAvailable({ editor })) &&
       (title.toLowerCase().includes(q) || (aliases && aliases.some((a) => a.toLowerCase().includes(q)))),
   );
+  return visible.map((item) => ({
+    ...item,
+    blockedReason: editor && item.isBlocked ? (item.isBlocked({ editor }) ?? null) : null,
+  }));
 }

@@ -2,12 +2,12 @@ import type { Editor } from "@tiptap/core";
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { mountEditorRenderer } from "../menu/renderer";
 import { SlashMenuPanel, type SlashMenuPanelHandle, type SlashMenuPanelProps } from "./panel";
-import type { SlashMenuItem } from "./items";
+import type { ResolvedSlashMenuItem } from "./items";
 
 interface SlashMenuOverlayOpts {
   contextElement?: HTMLElement | null;
-  items: SlashMenuItem[];
-  command: (item: SlashMenuItem) => void;
+  items: ResolvedSlashMenuItem[];
+  command: (item: ResolvedSlashMenuItem) => void;
   clientRect: (() => DOMRect | null) | null;
   onClose?: () => void;
 }
@@ -21,7 +21,7 @@ export interface SlashMenuOverlayHandle {
 export function mountSlashMenu(editor: Editor, opts: SlashMenuOverlayOpts): SlashMenuOverlayHandle {
   const component = mountEditorRenderer<SlashMenuPanelHandle, SlashMenuPanelProps>(editor, SlashMenuPanel, {
     items: opts.items,
-    command: (item: SlashMenuItem) => opts.command(item),
+    command: (item: ResolvedSlashMenuItem) => opts.command(item),
     clientRect: opts.clientRect,
     contextElement: opts.contextElement ?? editor.view.dom,
     onClose: opts.onClose,
@@ -31,7 +31,9 @@ export function mountSlashMenu(editor: Editor, opts: SlashMenuOverlayOpts): Slas
     updateProps(next) {
       component.updateProps({
         ...(next.items !== undefined && { items: next.items }),
-        ...(next.command !== undefined && { command: (item: SlashMenuItem) => next.command!(item) }),
+        ...(next.command !== undefined && {
+          command: (item: ResolvedSlashMenuItem) => next.command!(item),
+        }),
         ...(next.clientRect !== undefined && { clientRect: next.clientRect }),
         ...(next.contextElement !== undefined && { contextElement: next.contextElement }),
         ...(next.onClose !== undefined && { onClose: next.onClose }),

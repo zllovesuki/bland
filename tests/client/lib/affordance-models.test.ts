@@ -19,6 +19,27 @@ describe("client affordance models", () => {
         documentEditable: true,
         canInsertPageMentions: true,
         canInsertImages: false,
+        canUseAiRewrite: false,
+        canUseAiGenerate: false,
+        canSummarizePage: false,
+        canAskPage: false,
+      });
+    });
+
+    it("enables all AI affordances for full members on canonical edit pages", () => {
+      expect(
+        deriveEditorAffordance({
+          surface: "canonical",
+          pageAccess: "edit",
+          workspaceId: "ws-1",
+          online: true,
+          isFullMember: true,
+        }),
+      ).toMatchObject({
+        canUseAiRewrite: true,
+        canUseAiGenerate: true,
+        canSummarizePage: true,
+        canAskPage: true,
       });
     });
 
@@ -34,6 +55,10 @@ describe("client affordance models", () => {
         documentEditable: true,
         canInsertPageMentions: false,
         canInsertImages: true,
+        canUseAiRewrite: false,
+        canUseAiGenerate: false,
+        canSummarizePage: false,
+        canAskPage: false,
       });
     });
   });

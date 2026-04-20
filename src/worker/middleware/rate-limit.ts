@@ -6,7 +6,7 @@ import { isLocalRequestUrl } from "@/worker/http";
 
 const log = createLogger("rate-limit");
 
-export function rateLimit(binding: "RL_AUTH" | "RL_API") {
+export function rateLimit(binding: "RL_AUTH" | "RL_API" | "RL_AI") {
   return createMiddleware<{
     Bindings: Env;
     Variables: {

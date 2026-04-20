@@ -1,0 +1,39 @@
+.tiptap-ai-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+  padding: 4px;
+}
+
+.tiptap-ai-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tiptap-ai-menu-item:hover,
+.tiptap-ai-menu-item:focus-visible {
+  background: color-mix(in oklab, var(--color-accent-500) 15%, transparent);
+}
+
+.tiptap-ai-menu-item:active {
+  background: color-mix(in oklab, var(--color-accent-500) 25%, transparent);
+}
+
+.tiptap-ai-menu-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-zinc-100);
+}
+
+.tiptap-ai-menu-desc {
+  font-size: 0.78rem;
+  color: var(--color-zinc-400);
+}

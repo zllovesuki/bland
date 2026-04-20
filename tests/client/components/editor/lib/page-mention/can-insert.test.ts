@@ -65,6 +65,7 @@ describe("page mention insertion availability", () => {
       pageMention: { openPicker: vi.fn() },
       image: { insertImage: vi.fn() },
       emoji: { openPicker: vi.fn() },
+      ai: null,
     });
 
     const paragraphTitles = filterItems(items, "", { editor: paragraphEditor }).map((item) => item.title);

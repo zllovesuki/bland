@@ -19,6 +19,8 @@ import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/icon-picker";
 import { CoverPicker } from "@/client/components/cover-picker";
 import { ShareDialog } from "@/client/components/share-dialog";
+import { SummarizeSheet } from "@/client/components/workspace/summarize-sheet";
+import { PanelRightOpen } from "lucide-react";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import { useSyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
@@ -57,6 +59,7 @@ function PageViewContent() {
   const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const [outlineRailEl, setOutlineRailEl] = useState<HTMLDivElement | null>(null);
+  const [summarizeOpen, setSummarizeOpen] = useState(false);
   const showOutlineRail = useMediaQuery("(min-width: 1024px)");
   const { status } = useSyncStatus(syncProvider, online);
   const currentPageMeta = pages.find((candidate) => candidate.id === params.pageId) ?? null;
@@ -174,6 +177,19 @@ function PageViewContent() {
             />
           )}
           <div className="flex items-center gap-3">
+            {pageAffordance?.editor.canSummarizePage && (
+              <button
+                type="button"
+                aria-label="Summarize page"
+                title="Summarize page"
+                aria-expanded={summarizeOpen}
+                className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:border-accent-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/30"
+                onClick={() => setSummarizeOpen((v) => !v)}
+              >
+                <PanelRightOpen size={14} />
+                <span className="hidden md:inline">Summarize</span>
+              </button>
+            )}
             {!isSharedMode && workspace && pageAffordance && isActionVisible(pageAffordance.shareDialog) && (
               <ShareDialog
                 pageId={page.id}
@@ -236,6 +252,10 @@ function PageViewContent() {
                 documentEditable: false,
                 canInsertPageMentions: false,
                 canInsertImages: false,
+                canUseAiRewrite: false,
+                canUseAiGenerate: false,
+                canSummarizePage: false,
+                canAskPage: false,
               }
             }
             resolveIdentity={resolveIdentity}
@@ -249,6 +269,17 @@ function PageViewContent() {
           <div ref={setOutlineRailEl} className="sticky top-8" />
         </aside>
       ) : null}
+
+      {pageAffordance?.editor && (pageAffordance.editor.canSummarizePage || pageAffordance.editor.canAskPage) && (
+        <SummarizeSheet
+          open={summarizeOpen}
+          onClose={() => setSummarizeOpen(false)}
+          workspaceId={effectiveWorkspaceId}
+          pageId={page.id}
+          canSummarize={pageAffordance.editor.canSummarizePage}
+          canAsk={pageAffordance.editor.canAskPage}
+        />
+      )}
     </div>
   );
 }

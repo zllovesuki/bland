@@ -1,6 +1,8 @@
 import { launchEmojiPicker } from "../controllers/emoji/insert-panel";
 import { insertImageFromSlashMenu } from "../controllers/image/insert-panel";
 import { getSlashMenuItems, type SlashMenuItem } from "../controllers/slash/items";
+import { startGenerateAtRange } from "../controllers/slash/ai-insert";
+import { getAiBusyReason } from "./ai-busy";
 import { runtimeToUploadContext } from "./media-actions";
 import { canInsertPageMentionAtRange } from "./page-mention/can-insert";
 import { launchPageMentionPicker } from "./page-mention/open-picker";
@@ -44,6 +46,16 @@ export function createInsertPaletteItems({
     emoji: {
       openPicker: ({ editor, range }) => {
         launchEmojiPicker(editor, range);
+      },
+    },
+    ai: {
+      isAvailable: ({ editor }) => {
+        const runtime = getRuntime();
+        return editor.isEditable && getAffordance().canUseAiGenerate && !!runtime.workspaceId && !!runtime.pageId;
+      },
+      isBlocked: ({ editor }) => getAiBusyReason(editor.state),
+      startGenerate: ({ editor, range, intent }) => {
+        void startGenerateAtRange({ editor, range, intent, runtime: getRuntime() });
       },
     },
   });

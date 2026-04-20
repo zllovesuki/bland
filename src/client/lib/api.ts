@@ -113,7 +113,7 @@ async function parseApiError(response: Response): Promise<ApiError> {
   }))) as ApiError;
 }
 
-async function sendApiRequest(path: string, options?: RequestInit): Promise<Response> {
+export async function sendApiRequest(path: string, options?: RequestInit): Promise<Response> {
   const token = useAuthStore.getState().accessToken;
   const headers = buildApiHeaders(options, token);
   const res = await fetch(`${API_BASE}${path}`, {

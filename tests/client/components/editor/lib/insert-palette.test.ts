@@ -55,6 +55,10 @@ function visibleTitles(
     documentEditable: true,
     canInsertPageMentions: true,
     canInsertImages: true,
+    canUseAiRewrite: false,
+    canUseAiGenerate: false,
+    canSummarizePage: false,
+    canAskPage: false,
   };
   const editor = createEditor(input?.blockType ?? "paragraph", affordance.documentEditable);
 
@@ -91,6 +95,10 @@ describe("insert palette", () => {
         documentEditable: true,
         canInsertPageMentions: false,
         canInsertImages: false,
+        canUseAiRewrite: false,
+        canUseAiGenerate: false,
+        canSummarizePage: false,
+        canAskPage: false,
       },
     });
 
@@ -110,6 +118,10 @@ describe("insert palette", () => {
         documentEditable: true,
         canInsertPageMentions: true,
         canInsertImages: true,
+        canUseAiRewrite: false,
+        canUseAiGenerate: false,
+        canSummarizePage: false,
+        canAskPage: false,
       },
     });
 
