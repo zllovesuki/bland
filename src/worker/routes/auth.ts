@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { eq } from "drizzle-orm";
 import { jwtVerify } from "jose";
 
@@ -12,7 +13,6 @@ import {
   createRefreshToken,
   setRefreshCookie,
   clearRefreshCookie,
-  parseCookies,
   toUserResponse,
   getJwtSecret,
   REFRESH_COOKIE,
@@ -72,8 +72,7 @@ auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
 
 // POST /auth/refresh
 auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {
-  const cookies = parseCookies(c.req.header("cookie"));
-  const refreshToken = cookies[REFRESH_COOKIE];
+  const refreshToken = getCookie(c, REFRESH_COOKIE);
   log.debug("refresh_attempt");
 
   if (!refreshToken) {

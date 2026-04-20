@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulidx";
 
@@ -10,7 +11,7 @@ import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { canEdit, canAccessPage } from "@/worker/lib/permissions";
 import { getPage } from "@/worker/lib/page-access";
-import { parseCookies, REFRESH_COOKIE, getJwtSecret } from "@/worker/lib/auth";
+import { REFRESH_COOKIE, getJwtSecret } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { JWT_ALGORITHM } from "@/worker/lib/constants";
@@ -185,8 +186,7 @@ uploadServingRouter.get("/:id", async (c) => {
   }
 
   // Try auth via refresh cookie first (same-origin browser requests)
-  const cookies = parseCookies(c.req.header("cookie"));
-  const refreshToken = cookies[REFRESH_COOKIE];
+  const refreshToken = getCookie(c, REFRESH_COOKIE);
   let authorized = false;
 
   if (refreshToken) {

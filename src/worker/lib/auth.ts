@@ -3,6 +3,8 @@ import { ulid } from "ulidx";
 import { argon2id } from "@noble/hashes/argon2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
+import { deleteCookie, setCookie } from "hono/cookie";
+import type { CookieOptions } from "hono/utils/cookie";
 
 import { SESSION_HINT_COOKIE } from "@/shared/auth";
 import { users } from "@/worker/db/d1/schema";
@@ -29,10 +31,20 @@ function base64Decode(str: string): Uint8Array {
 export const REFRESH_COOKIE = "bland_refresh";
 
 const ARGON2_PARAMS = { t: 2, m: 19456, p: 1 } as const;
-
-function appendSetCookie(c: Context, value: string): void {
-  c.header("set-cookie", value, { append: true });
-}
+const BASE_COOKIE_OPTIONS = {
+  path: "/",
+  sameSite: "Strict",
+  secure: true,
+} satisfies CookieOptions;
+const REFRESH_COOKIE_OPTIONS = {
+  ...BASE_COOKIE_OPTIONS,
+  httpOnly: true,
+  maxAge: REFRESH_COOKIE_MAX_AGE,
+} satisfies CookieOptions;
+const SESSION_HINT_COOKIE_OPTIONS = {
+  ...BASE_COOKIE_OPTIONS,
+  maxAge: REFRESH_COOKIE_MAX_AGE,
+} satisfies CookieOptions;
 
 export function getJwtSecret(env: Env): Uint8Array {
   return new TextEncoder().encode(env.JWT_SECRET);
@@ -121,26 +133,13 @@ export async function createRefreshToken(userId: string, env: Env): Promise<stri
 }
 
 export function setRefreshCookie(c: Context, token: string): void {
-  appendSetCookie(
-    c,
-    `${REFRESH_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_COOKIE_MAX_AGE}`,
-  );
-  appendSetCookie(c, `${SESSION_HINT_COOKIE}=1; Secure; SameSite=Strict; Path=/; Max-Age=${REFRESH_COOKIE_MAX_AGE}`);
+  setCookie(c, REFRESH_COOKIE, token, REFRESH_COOKIE_OPTIONS);
+  setCookie(c, SESSION_HINT_COOKIE, "1", SESSION_HINT_COOKIE_OPTIONS);
 }
 
 export function clearRefreshCookie(c: Context): void {
-  appendSetCookie(c, `${REFRESH_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
-  appendSetCookie(c, `${SESSION_HINT_COOKIE}=; Secure; SameSite=Strict; Path=/; Max-Age=0`);
-}
-
-export function parseCookies(header: string | undefined): Record<string, string> {
-  if (!header) return {};
-  const cookies: Record<string, string> = {};
-  for (const pair of header.split(";")) {
-    const [name, ...rest] = pair.trim().split("=");
-    if (name) cookies[name.trim()] = rest.join("=").trim();
-  }
-  return cookies;
+  deleteCookie(c, REFRESH_COOKIE, { ...BASE_COOKIE_OPTIONS, httpOnly: true });
+  deleteCookie(c, SESSION_HINT_COOKIE, BASE_COOKIE_OPTIONS);
 }
 
 export function toUserResponse(user: typeof users.$inferSelect) {
