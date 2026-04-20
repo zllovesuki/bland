@@ -401,7 +401,7 @@ The accent palette follows a 50-900 scale identical in structure to Tailwind's b
 | Secondary button        | `border border-zinc-700/60 bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60` |
 | Active nav item         | `bg-accent-500/10 text-accent-400`                                            |
 | Inputs (focus)          | `focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30`            |
-| Logo icon background    | `bg-accent-500`                                                               |
+| Header brand icon       | `text-accent-400` stroked lucide glyph (no background tile) — see Section 7   |
 | Unread/active indicator | `bg-accent-500`                                                               |
 
 Prefer solid accent colors over gradients. Gradient buttons (`from-accent-500 to-accent-600`) and accent-colored shadows (`shadow-accent-500/10`) are the most recognizable AI-generated patterns and should be avoided. A solid `bg-accent-600` with `hover:bg-accent-500` is cleaner and more intentional.
@@ -605,8 +605,33 @@ Every project has an `app-shell.tsx` that renders:
 - **Background**: `bg-zinc-900/95 backdrop-blur-sm` (dark), `bg-white/95 backdrop-blur-sm` (light) — chrome tier, not canvas
 - **Border**: `border-b border-zinc-800/60`
 - **Container**: `max-w-7xl mx-auto px-4 sm:px-6`
-- **Logo**: solid icon (`rounded-lg bg-accent-500`) + app name + subtitle
+- **Logo**: stroked lucide icon on the chrome surface (no filled background tile) + app name + subtitle
 - **Nav links**: Icon + label, `bg-accent-500/10 text-accent-400` when active
+
+#### Brand Icon Pattern
+
+Every project's header brand follows the same structure. The icon is a lucide-react glyph tinted with the accent color — **not** a filled `bg-accent-500` tile. A gentle `-rotate-6` on hover is the signature micro-interaction and must be preserved.
+
+```tsx
+<Link to="/" className="group flex items-center gap-3 transition-opacity hover:opacity-80">
+  <span className="inline-grid h-9 w-9 place-items-center">
+    <ProjectIcon
+      className="h-6 w-6 text-accent-400 transition-transform duration-200 group-hover:-rotate-6"
+      strokeWidth={2}
+      aria-hidden="true"
+    />
+  </span>
+  <span className="hidden sm:block">
+    <strong className="block text-sm font-semibold text-zinc-100">{project}</strong>
+    <small className="block text-xs text-zinc-400">{tagline}</small>
+  </span>
+</Link>
+```
+
+- Wrapper `<span>` is `inline-grid h-9 w-9 place-items-center` — reserves the 36px footprint without drawing a background.
+- Icon is `h-6 w-6 text-accent-400` with `strokeWidth={2}`. Light-mode projects may pair `text-accent-500 dark:text-accent-400`.
+- Always `aria-hidden="true"` on the icon — the `<strong>` app name is the accessible label.
+- The `group-hover:-rotate-6` is intentional warmth; do not remove it or substitute `hover:scale-*`.
 
 ### Footer (`footer.tsx`)
 

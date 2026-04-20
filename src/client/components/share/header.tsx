@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { FileText, Eye, Menu } from "lucide-react";
+import { Pilcrow, Eye, Menu } from "lucide-react";
 import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import { useOnline } from "@/client/hooks/use-online";
@@ -33,10 +33,14 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-          <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
-            <FileText className="h-5 w-5 text-white" />
-          </div>
+        <Link to="/" className="group flex items-center gap-3 transition-opacity hover:opacity-80">
+          <span className="inline-grid h-9 w-9 place-items-center">
+            <Pilcrow
+              className="h-6 w-6 text-accent-400 transition-transform duration-200 group-hover:-rotate-6"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          </span>
           <span className="hidden sm:block">
             <strong className="block text-sm font-semibold text-zinc-100">bland</strong>
             <small className="block text-xs text-zinc-400">Docs on Cloudflare</small>

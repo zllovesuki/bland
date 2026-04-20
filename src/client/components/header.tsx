@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
+import { Pilcrow, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } from "lucide-react";
 import { Avatar } from "@/client/components/ui/avatar";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { useAuthStore, selectHasLocalSession } from "@/client/stores/auth-store";
@@ -67,11 +67,15 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
         <Link
           to={homeSlug ? "/$workspaceSlug" : "/"}
           params={homeSlug ? { workspaceSlug: homeSlug } : undefined}
-          className="flex items-center gap-3 transition-opacity hover:opacity-80"
+          className="group flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
-            <FileText className="h-5 w-5 text-white" />
-          </div>
+          <span className="inline-grid h-9 w-9 place-items-center">
+            <Pilcrow
+              className="h-6 w-6 text-accent-400 transition-transform duration-200 group-hover:-rotate-6"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+          </span>
           <span className="hidden sm:block">
             <strong className="block text-sm font-semibold text-zinc-100">bland</strong>
             <small className="block text-xs text-zinc-400">Docs on Cloudflare</small>

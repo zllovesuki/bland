@@ -1,8 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { FileText, Heart, ChevronRight, Circle, Search } from "lucide-react";
+import { FileText, ChevronRight, Circle, Search, Pilcrow } from "lucide-react";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
-const STACK = ["Workers", "D1", "Durable Objects", "R2", "Queues"] as const;
+const STACK = [
+  { name: "Workers", role: "Hono router + auth" },
+  { name: "D1", role: "users, pages, memberships" },
+  { name: "Durable Objects", role: "one per document" },
+  { name: "R2", role: "uploads" },
+  { name: "Queues", role: "search indexing" },
+] as const;
 
 const MOCK_SIDEBAR_PAGES = [
   { title: "Getting Started", depth: 0, active: false },
@@ -20,11 +26,22 @@ export function LandingPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-900/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-            <div className="inline-grid h-9 w-9 place-items-center rounded-lg bg-accent-500">
-              <FileText className="h-5 w-5 text-white" aria-hidden="true" />
-            </div>
-            <strong className="text-sm font-semibold text-zinc-100">bland</strong>
+          <Link
+            to="/"
+            className="group flex items-center gap-3 transition-opacity hover:opacity-80"
+            aria-label="bland home"
+          >
+            <span className="inline-grid h-9 w-9 place-items-center">
+              <Pilcrow
+                className="h-6 w-6 text-accent-400 transition-transform duration-200 group-hover:-rotate-6"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </span>
+            <span className="hidden sm:block">
+              <strong className="block text-sm font-semibold text-zinc-100">bland</strong>
+              <small className="block text-xs text-zinc-400">Docs on Cloudflare</small>
+            </span>
           </Link>
         </div>
       </nav>
@@ -47,8 +64,8 @@ export function LandingPage() {
               className="animate-slide-up ml-auto mt-8 max-w-xl text-lg leading-relaxed text-zinc-400 opacity-0"
               style={{ animationDelay: "160ms" }}
             >
-              A block editor with real-time collaboration, nested pages, and full-text search. Runs entirely on
-              Cloudflare Workers.
+              A block editor with real-time collaboration, nested pages, full-text search, and AI writing help that
+              stays out of the way. Runs entirely on Cloudflare Workers.
             </p>
 
             <div
@@ -118,7 +135,7 @@ export function LandingPage() {
                   <p className="mt-4 max-w-lg text-sm leading-relaxed text-zinc-400">
                     The platform runs on Cloudflare Workers with Durable Objects for real-time document collaboration.{" "}
                     <span className="relative inline-flex items-baseline">
-                      <span className="inline-block h-3.5 w-px animate-pulse bg-accent-400" />
+                      <span className="inline-block h-3.5 w-px bg-accent-400 animate-caret-blink" />
                       <span className="ml-0.5 rounded-sm bg-accent-500/20 px-1 py-px text-[10px] font-medium leading-none text-accent-300">
                         Rachel
                       </span>
@@ -173,47 +190,123 @@ export function LandingPage() {
         {/* Features — bento grid */}
         <section className="mx-auto max-w-7xl px-4 pb-28 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Collaboration — wide card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 lg:col-span-2">
-              <div className="relative z-10">
-                <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">
-                  Real-time collaboration
-                </h3>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">
-                  Live cursors and presence. Every document is a lightweight server built on Yjs and Durable Objects.
-                </p>
-              </div>
-              {/* Mini visual — two cursors editing */}
-              <div className="mt-5 rounded-lg border border-zinc-800/40 bg-zinc-950/50 px-4 py-3">
-                <p className="text-sm leading-relaxed text-zinc-500">
-                  The Worker handles WebSocket
-                  <span className="relative mx-0.5 inline-flex items-baseline">
-                    <span className="inline-block h-3.5 w-px animate-pulse bg-emerald-400" />
-                    <span className="ml-0.5 rounded-sm bg-emerald-500/20 px-1 py-px text-[10px] font-medium leading-none text-emerald-300">
-                      Alex
+            {/* Collaboration — dominant, full-width lead */}
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 sm:p-8 lg:col-span-3 lg:p-10">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
+                <div>
+                  <h3 className="font-display text-2xl font-semibold tracking-tight text-zinc-100 sm:text-3xl">
+                    Real-time collaboration
+                  </h3>
+                  <p className="mt-4 max-w-md text-[15px] leading-relaxed text-zinc-400">
+                    One Durable Object per document. Yjs-powered presence, live cursors, awareness &mdash; the document{" "}
+                    <em className="not-italic font-medium text-zinc-200">is</em> the server. No broker, no third-party
+                    sync service, no drift.
+                  </p>
+                  <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span className="font-medium text-zinc-300">Alex</span>
+                      <span className="text-zinc-600">· line 4</span>
                     </span>
-                  </span>{" "}
-                  connections and syncs Yjs state across all connected clients in the room.
-                </p>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span className="text-[11px] text-zinc-500">Alex</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
-                    <span className="text-[11px] text-zinc-500">Rachel</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    <span className="text-[11px] text-zinc-500">Sam</span>
-                  </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
+                      <span className="font-medium text-zinc-300">Rachel</span>
+                      <span className="text-zinc-600">· commented</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <span className="font-medium text-zinc-300">Sam</span>
+                      <span className="text-zinc-600">· idle</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-800/40 bg-zinc-950/60 p-5 sm:p-6">
+                  <p className="text-[15px] leading-relaxed text-zinc-400">
+                    The Worker routes each connection to a matching{" "}
+                    <span className="relative inline-flex items-baseline whitespace-nowrap">
+                      <span className="inline-block h-[1.1em] w-px translate-y-[0.12em] bg-emerald-400 animate-caret-blink" />
+                      <span className="ml-0.5 rounded-sm bg-emerald-500/20 px-1 py-px text-[10px] font-medium leading-none text-emerald-300">
+                        Alex
+                      </span>
+                    </span>{" "}
+                    <span className="font-semibold text-zinc-200">Durable Object</span> that holds the Yjs document in
+                    memory, fans updates to every connected client, and persists to SQLite on save.{" "}
+                    <span className="relative inline-flex items-baseline whitespace-nowrap">
+                      <span className="inline-block h-[1.1em] w-px translate-y-[0.12em] bg-accent-400 animate-caret-blink" />
+                      <span className="ml-0.5 rounded-sm bg-accent-500/20 px-1 py-px text-[10px] font-medium leading-none text-accent-300">
+                        Rachel
+                      </span>
+                    </span>
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* AI writing help — secondary */}
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 lg:col-span-2">
+              <div className="flex items-baseline justify-between">
+                <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">AI writing help</h3>
+                <span className="hidden text-[10px] font-medium uppercase tracking-widest text-zinc-600 sm:inline">
+                  Workers AI
+                </span>
+              </div>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500">
+                Select a paragraph, pick an intent, accept the edit. Streams into the editor &mdash; and keeps quiet
+                about it.
+              </p>
+
+              <div className="mt-5 flex flex-col items-start gap-3 rounded-lg border border-zinc-800/40 bg-zinc-950/50 px-4 py-3 sm:flex-row sm:items-start sm:gap-3">
+                <p className="text-sm leading-relaxed text-zinc-400 sm:max-w-[19rem]">
+                  Each document is{" "}
+                  <span className="rounded-sm bg-accent-500/25 px-0.5 text-accent-200">
+                    its own{" "}
+                    <span className="underline decoration-red-400 decoration-wavy decoration-1 underline-offset-[3px]">
+                      lightwieght
+                    </span>{" "}
+                    server handling WebSocket connections
+                  </span>
+                  .
+                </p>
+                <div className="shrink-0 rounded-md border border-zinc-800/60 bg-zinc-900/95 p-1 shadow-xl shadow-black/30">
+                  {[
+                    { label: "Proofread", desc: "Fix grammar & spelling", active: true },
+                    { label: "Formal", desc: "More professional tone" },
+                    { label: "Casual", desc: "More conversational" },
+                    { label: "Simplify", desc: "Easier to read" },
+                  ].map(({ label, desc, active }) => (
+                    <div
+                      key={label}
+                      className={`flex items-baseline gap-2 rounded-sm px-2 py-0.5 text-[11px] ${
+                        active ? "bg-accent-500/10 text-accent-300" : "text-zinc-400"
+                      }`}
+                    >
+                      <span className="font-medium">{label}</span>
+                      <span
+                        className={`truncate text-[9px] ${active ? "text-accent-400/70" : "text-zinc-600"}`}
+                        aria-hidden="true"
+                      >
+                        {desc}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <ul className="mt-4 grid gap-1.5 text-[11px] text-zinc-500 sm:grid-cols-2">
+                <li className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-zinc-400">/ai</span>
+                  <span>continues at the cursor</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-zinc-400">Summarize</span>
+                  <span>asks the page a follow-up</span>
+                </li>
+              </ul>
+            </div>
+
             {/* Search — tall card */}
-            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:row-span-2">
+            <div className="group relative overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-800/40 p-6 sm:col-span-2 lg:col-span-1 lg:row-span-2">
               <h3 className="font-display text-lg font-semibold tracking-tight text-zinc-100">Full-text search</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-500">
                 FTS5-powered instant search across every page in the workspace.
@@ -320,19 +413,17 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* Stack ribbon */}
-        <section className="border-t border-zinc-800/40 py-10">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-4 sm:px-6">
-            {STACK.map((item, i) => (
-              <span key={item} className="flex items-center gap-5">
-                <span className="font-mono text-xs uppercase tracking-[0.15em] text-zinc-500">{item}</span>
-                {i < STACK.length - 1 && (
-                  <span className="text-zinc-800" aria-hidden="true">
-                    /
-                  </span>
-                )}
-              </span>
-            ))}
+        {/* Stack ribbon — what each binding actually does */}
+        <section className="border-t border-zinc-800/40 py-12">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-5">
+              {STACK.map(({ name, role }) => (
+                <div key={name} className="flex flex-col gap-1">
+                  <dt className="font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">{name}</dt>
+                  <dd className="text-sm leading-snug text-zinc-400">{role}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
       </main>
@@ -340,11 +431,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-zinc-800/40 py-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
-          <p className="flex items-center gap-1 text-xs text-zinc-500">
-            Made with
-            <Heart className="inline h-3 w-3 text-accent-500" aria-hidden="true" />
-            on Cloudflare
-          </p>
+          <p className="text-xs text-zinc-500">Runs on Cloudflare.</p>
           <div className="flex items-center gap-4">
             <a
               href="https://git-on-cloudflare.com/rachel/bland"
