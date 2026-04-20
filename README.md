@@ -32,6 +32,7 @@ No open sign-up — access happens through workspace invites.
 - **File & image uploads** — R2 uploads with authenticated proxying
 - **Page covers + emoji icons** — per-page visual identity
 - **"Shared with me" inbox** — one place to find every external page shared with you
+- **AI writing assist** — selection rewrite, slash-menu generation, page summary, and ask-this-page chat, streamed from Cloudflare Workers AI
 
 ---
 
@@ -75,18 +76,19 @@ D1 is the single source of truth for relational metadata. Document content lives
 
 ## 🧰 Tech stack
 
-|     | Layer         | Technology                                                      |
-| --- | ------------- | --------------------------------------------------------------- |
-| 🖥️  | Frontend      | React 19, TanStack Router, Tailwind CSS 4, Vite 8, Zustand      |
-| ✍️  | Editor        | Tiptap 3 / ProseMirror with a custom extension set              |
-| 🔄  | Collaboration | Yjs, y-partyserver, y-indexeddb, y-protocols                    |
-| ⚙️  | API runtime   | Cloudflare Workers + Hono 4.7                                   |
-| 💾  | Storage       | D1 (Drizzle ORM), Durable Objects with SQLite, R2               |
-| 📨  | Async work    | Cloudflare Queues — derived search indexing                     |
-| 🔐  | Auth          | JWT (HS256) via `jose`, Argon2id passwords, Turnstile on signup |
-| 🔍  | Search        | SQLite FTS5 inside per-workspace Durable Objects                |
-| 🚦  | Rate limiting | Native Cloudflare rate-limit bindings (`RL_AUTH`, `RL_API`)     |
-| ✅  | Validation    | Zod, strict TypeScript end-to-end                               |
+|     | Layer         | Technology                                                           |
+| --- | ------------- | -------------------------------------------------------------------- |
+| 🖥️  | Frontend      | React 19, TanStack Router, Tailwind CSS 4, Vite 8, Zustand           |
+| ✍️  | Editor        | Tiptap 3 / ProseMirror with a custom extension set                   |
+| 🔄  | Collaboration | Yjs, y-partyserver, y-indexeddb, y-protocols                         |
+| ⚙️  | API runtime   | Cloudflare Workers + Hono 4.7                                        |
+| 💾  | Storage       | D1 (Drizzle ORM), Durable Objects with SQLite, R2                    |
+| 📨  | Async work    | Cloudflare Queues — derived search indexing                          |
+| 🔐  | Auth          | JWT (HS256) via `jose`, Argon2id passwords, Turnstile on signup      |
+| 🔍  | Search        | SQLite FTS5 inside per-workspace Durable Objects                     |
+| 🧠  | AI            | Cloudflare Workers AI (default Gemma 4 26B), streaming SSE           |
+| 🚦  | Rate limiting | Native Cloudflare rate-limit bindings (`RL_AUTH`, `RL_API`, `RL_AI`) |
+| ✅  | Validation    | Zod, strict TypeScript end-to-end                                    |
 
 ---
 

@@ -15,7 +15,7 @@ BLAND_AI_OPENAI_API_KEY=
 BLAND_AI_OPENAI_CHAT_MODEL=llama3
 BLAND_AI_OPENAI_SUMMARIZE_MODEL=
 # Workers AI model overrides. Leave blank to use defaults:
-#   chat:      @cf/meta/llama-4-scout-17b-16e-instruct
+#   chat:      @cf/google/gemma-4-26b-a4b-it
 #   summarize: @cf/google/gemma-4-26b-a4b-it
 BLAND_AI_WORKERS_CHAT_MODEL=
 BLAND_AI_WORKERS_SUMMARIZE_MODEL=

@@ -15,21 +15,23 @@ When this file conflicts with older docs, the source tree wins.
 
 Current production runtime from `wrangler.jsonc`:
 
-| Component       | Current value                 |
-| --------------- | ----------------------------- |
-| Worker name     | `bland`                       |
-| Domain          | `https://bland.tools`         |
-| D1              | `bland-prod`                  |
-| R2              | `bland-uploads`               |
-| Queue           | `bland-tasks`                 |
-| Durable Objects | `DocSync`, `WorkspaceIndexer` |
-| Rate limits     | `RL_AUTH`, `RL_API`           |
-| Assets binding  | `ASSETS`                      |
+| Component       | Current value                                               |
+| --------------- | ----------------------------------------------------------- |
+| Worker name     | `bland`                                                     |
+| Domain          | `https://bland.tools`                                       |
+| D1              | `bland-prod`                                                |
+| R2              | `bland-uploads`                                             |
+| Queue           | `bland-tasks`                                               |
+| Durable Objects | `DocSync`, `WorkspaceIndexer`                               |
+| Workers AI      | binding `AI`, default model `@cf/google/gemma-4-26b-a4b-it` |
+| Rate limits     | `RL_AUTH`, `RL_API`, `RL_AI`                                |
+| Assets binding  | `ASSETS`                                                    |
 
 Request routing in the live Worker:
 
 - `GET /api/v1/*` and `/uploads/*` go through the Hono app.
 - `/parties/*` goes through PartyServer / `DocSync`.
+- AI requests `POST /api/v1/workspaces/:wid/pages/:id/{rewrite,generate,summarize,ask}` go through the Hono app, gated by `RL_AI` and member-only entitlements, and stream SSE back to the client.
 - Document navigations are Worker-first SPA shell responses from `ASSETS`.
 - Direct asset requests are served from `ASSETS`.
 
@@ -59,6 +61,12 @@ Notes:
 - `TURNSTILE_SITE_KEY` is public config, but still required at runtime because the Worker injects it into the SPA shell.
 - `SENTRY_DSN` is used for client-side Sentry only. Worker-side Sentry is not implemented.
 - `ALLOWED_ORIGINS` controls both HTTP CORS and WebSocket origin checks. Keep it exact.
+
+Optional AI backend selection (defaults to Workers AI in production):
+
+- `BLAND_AI_MODE` — `workers-ai` (default), `openai-compat`, or `mock`. Production uses `workers-ai`; `mock` is for E2E only and must not be set in production.
+- `BLAND_AI_WORKERS_CHAT_MODEL`, `BLAND_AI_WORKERS_SUMMARIZE_MODEL` — override the default Workers AI model (`@cf/google/gemma-4-26b-a4b-it` for both). Leave unset to use defaults.
+- `BLAND_AI_OPENAI_ENDPOINT`, `BLAND_AI_OPENAI_API_KEY`, `BLAND_AI_OPENAI_CHAT_MODEL`, `BLAND_AI_OPENAI_SUMMARIZE_MODEL` — only needed when `BLAND_AI_MODE=openai-compat`. Treat the API key as a secret if used.
 
 ## First-Time Setup
 
@@ -94,7 +102,7 @@ Queue:
 npx wrangler queues create bland-tasks
 ```
 
-Durable Objects (`DocSync`, `WorkspaceIndexer`) and rate-limit bindings (`RL_AUTH`, `RL_API`) are created implicitly on the first `wrangler deploy` from the classes and config already in the repo.
+Durable Objects (`DocSync`, `WorkspaceIndexer`), rate-limit bindings (`RL_AUTH`, `RL_API`, `RL_AI`), and the Workers AI binding (`AI`) are created implicitly on the first `wrangler deploy` from the classes and config already in the repo. Workers AI is enabled per-account in the Cloudflare dashboard; no secret or extra binding setup is required to use the default model.
 
 ### 3. Turnstile widget
 
@@ -220,6 +228,10 @@ Run these checks immediately after production deploy:
 6. Create or open a share link and verify the expected view/edit behavior.
 7. Upload an allowed file and confirm the resulting `/uploads/:id` URL serves correctly for an authorized viewer.
 8. Edit page text, wait for queue-driven indexing, and verify the page appears in workspace search.
+9. On a page with content, select text and run an AI rewrite (e.g. Proofread) from the formatting toolbar; confirm the suggestion streams in and accept/reject works.
+10. Trigger a slash-menu AI generation (e.g. `/continue`) and confirm streaming insertion at the cursor.
+11. Open the page summarize sheet and confirm a summary streams in. Ask one follow-up question and confirm the answer streams.
+12. Confirm AI actions are not exposed on the share-link surface (`/s/:token`).
 
 Important:
 
@@ -266,6 +278,9 @@ High-signal Worker and DO events in the live source tree:
 - `auth_failed`
 - `access_denied`
 - `share_access_denied`
+- `ai_request`, `ai_response` — every AI call emits a paired request/response log with action, surface, page access, duration, and outcome
+- `ai_denied` — entitlement gate refused an AI call (e.g. share-surface user attempting rewrite)
+- `summarize_failed`, `ai_chat_failed`, `ai_chat_stream_failed`, `ai_client_misconfigured` — backend-side AI failures
 
 ### Client-side signals
 
@@ -369,6 +384,21 @@ npx wrangler r2 object get <bucket>/<key>
 npx wrangler r2 object delete <bucket>/<key>
 ```
 
+### AI request incident
+
+Current state:
+
+- AI is a Worker-side feature backed by the Workers AI binding by default. There is no D1 or DO state for AI; failures are request-scoped.
+- Per-user rate limit is `RL_AI` at 30/min.
+- AI is member-only. Share-link surfaces never see AI affordances and the routes refuse them with `ai_denied`.
+
+Triage steps:
+
+- Tail logs and look for `ai_response` `outcome=error` paired with the relevant `errorCode` (`ai_chat_failed`, `ai_chat_stream_failed`, `ai_summarize_failed`, `ai_misconfigured`, `ai_backend_failed`, `rate_limited`, `page_empty`).
+- If `ai_client_misconfigured` appears, confirm `BLAND_AI_MODE` is `workers-ai` in production and that the `AI` binding is present in `wrangler.jsonc`.
+- If many users hit `rate_limited`, review whether `RL_AI` (`namespace_id` `101003`, 30/min) is still appropriate or whether a single user is hot.
+- To temporarily disable all AI features in production without a redeploy, push `BLAND_AI_MODE=mock` is _not_ acceptable in production (the mock backend is for E2E only). The current escape hatch is to roll the deployment back to a build before AI features.
+
 ### Queue delivery incident
 
 Current state:
@@ -399,4 +429,4 @@ These are current operational limitations, not bugs in this document:
 - Workspace deletion clears D1 rows and `WorkspaceIndexer`, but does not synchronously delete R2 objects or DocSync DO storage.
 - Uploads are Worker-proxied through `PUT /uploads/:id/data`, not direct presigned browser-to-R2 uploads.
 - PWA installability/offline shell work is separate from v1 operator responsibilities.
-- AI operations are out of scope for v1.
+- AI first wave (rewrite, generate, summarize, ask-page) is shipped. Second-wave items remain deferred: semantic search / ask-workspace (no Vectorize binding configured), reusable prompt presets, persistent writing instructions, and edge inference. AI rewrite/generate output is text-parsed (paragraphs and bullet lists only); see `AGENTS.md` "Deferred Work" for details.

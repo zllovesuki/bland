@@ -43,6 +43,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Prefer explicit code over clever code. Small duplication is fine when it keeps ownership obvious.
 - Reuse existing helpers, stores, contracts, route patterns, and UI primitives before adding new ones.
 - Reuse security-sensitive worker helpers before inlining logic: `src/worker/lib/auth.ts` (`getJwtSecret`, `verifyAccessToken`, `setRefreshCookie`, `clearRefreshCookie`, `generateSecureToken`), `src/worker/lib/origins.ts` (`getAllowedOrigins`, `isAllowedOrigin`), `src/worker/lib/membership.ts` (`requireMembership`), and `src/worker/lib/permissions.ts` (`resolvePrincipal`, `resolvePageAccessLevels`, `canAccessPage`, `canAccessPages`, `toResolvedViewerContext`).
+- Reuse AI helpers before inlining: `src/worker/lib/ai/index.ts` (`createAiClient`, `AiClient`), `src/worker/lib/ai/prompts.ts` (`buildRewriteMessages`, `buildGenerateMessages`, `buildAskMessages`), and `src/shared/ai.ts` SSE encoders. New AI routes go through `RL_AI` and `getPageAiEntitlements` from `src/shared/entitlements/page-ai.ts`. Do not call the `AI` binding directly — go through `createAiClient` so `workers-ai`, `openai-compat`, and `mock` backends stay swappable.
 - Preserve the split between `src/client`, `src/worker`, and `src/shared`.
 - If request or response shapes change, update both the worker boundary and `src/shared/types.ts`.
 - If DocSync custom message shapes change, update `src/shared/doc-messages.ts`.
@@ -69,6 +70,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Auth, invites, refresh cookies, Turnstile, uploads, and share links are security-sensitive. Keep them fail-closed and do not weaken cookie flags, origin checks, or rate limits.
 - The local Turnstile bypass in `src/worker/middleware/turnstile.ts` is intentional and must not be extended beyond local environments.
 - Do not log secrets, bearer tokens, refresh cookies, or password material.
+- AI features (rewrite, generate, summarize, ask-page) are member-only. The shared surface entitlements in `src/shared/entitlements/page-ai.ts` deny every AI capability; do not loosen this without an intentional access-model design. AI suggestions stay transient on the client (ProseMirror decorations) — do not persist them as Yjs marks or server-side artifacts.
 
 ## Change Guidance
 
@@ -152,3 +154,6 @@ Known gaps that are intentionally deferred to later milestones. Do not fix these
 - `src/worker/db/*/schema.ts`
 - `src/worker/durable-objects/`
 - `src/worker/queues/search-indexer.ts`
+- `src/worker/lib/ai/`
+- `src/shared/ai.ts`
+- `src/client/lib/ai/`
