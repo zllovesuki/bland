@@ -1,6 +1,6 @@
 import { api } from "@/client/lib/api";
 import { MAX_PAGE_MENTION_BATCH } from "@/shared/constants";
-import type { ApiError, ResolvedPageMentionItem } from "@/shared/types";
+import type { ResolvedPageMentionItem } from "@/shared/types";
 import type { PageMentionCacheMode, PageMentionCachedPage } from "./types";
 
 export type MentionEntryStatus = "pending" | "resolved";
@@ -33,39 +33,6 @@ export interface PageMentionResolver {
 }
 
 const PENDING: MentionEntry = { status: "pending", source: null, accessible: false, title: null, icon: null };
-const RETRY_DELAYS_MS = [1000, 2000, 5000] as const;
-
-function isApiError(err: unknown): err is ApiError {
-  return (
-    !!err &&
-    typeof err === "object" &&
-    "error" in err &&
-    typeof err.error === "string" &&
-    "message" in err &&
-    typeof err.message === "string"
-  );
-}
-
-function shouldRetryMentionResolveError(err: unknown): boolean {
-  if (!isApiError(err)) {
-    return true;
-  }
-
-  if (err.error === "internal_error") {
-    return true;
-  }
-
-  if (err.error !== "request_failed") {
-    return false;
-  }
-
-  const match = /\bstatus (\d{3})\b/.exec(err.message);
-  if (!match) {
-    return true;
-  }
-
-  return Number(match[1]) >= 500;
-}
 
 export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolver {
   const entries = new Map<string, MentionEntry>();
@@ -74,8 +41,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
   const inflight = new Set<string>();
   let flushScheduled = false;
   let isFlushing = false;
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let retryDelayIndex = 0;
   let epoch = 0;
   let disposed = false;
 
@@ -114,18 +79,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
     };
   }
 
-  function clearRetryTimer() {
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-  }
-
-  function resetRetryBackoff() {
-    retryDelayIndex = 0;
-    clearRetryTimer();
-  }
-
   function takeNextBatch() {
     const batch: string[] = [];
     for (const id of pendingQueue) {
@@ -139,21 +92,9 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
     return batch;
   }
 
-  function scheduleRetry() {
-    if (disposed || retryTimer !== null) return;
-    const delay = RETRY_DELAYS_MS[Math.min(retryDelayIndex, RETRY_DELAYS_MS.length - 1)];
-    retryDelayIndex = Math.min(retryDelayIndex + 1, RETRY_DELAYS_MS.length - 1);
-    retryTimer = setTimeout(() => {
-      if (disposed) return;
-      retryTimer = null;
-      scheduleFlush();
-    }, delay);
-  }
-
   function scheduleFlush() {
     if (disposed) return;
     if (!canResolveNetwork()) return;
-    clearRetryTimer();
     if (isFlushing) {
       flushScheduled = true;
       return;
@@ -166,6 +107,10 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
     });
   }
 
+  // Batch-resolve failure policy: on any error we resolve the batch's entries
+  // as inaccessible (title/icon hidden, chip shows restricted state). No
+  // auto-retry — stale or transient failures recover on the next natural
+  // request() trigger (mention re-render, cache-mode flip, resolver remount).
   async function flush() {
     if (disposed || isFlushing) return;
     isFlushing = true;
@@ -182,8 +127,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
           if (disposed || batchEpoch !== epoch) {
             break;
           }
-
-          resetRetryBackoff();
 
           const byId = new Map<string, ResolvedPageMentionItem>();
           for (const item of response.mentions) byId.set(item.page_id, item);
@@ -202,18 +145,18 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
               });
             }
           }
-        } catch (err) {
+        } catch {
           if (disposed || batchEpoch !== epoch) {
             break;
           }
-
-          if (shouldRetryMentionResolveError(err)) {
-            for (const id of batch) {
-              pendingQueue.add(id);
-            }
-            scheduleRetry();
-          } else {
-            for (const id of batch) {
+          // Preserve a usable cache label on transport failure when the
+          // resolver is in cache mode; otherwise the chip collapses to
+          // restricted. Live-mode or no-cache falls through to restricted.
+          for (const id of batch) {
+            const cachedEntry = getCachedEntry(id);
+            if (cachedEntry) {
+              setEntry(id, cachedEntry);
+            } else {
               setEntry(id, { status: "resolved", source: "server", accessible: false, title: null, icon: null });
             }
           }
@@ -224,7 +167,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
       }
     } finally {
       isFlushing = false;
-      if (!disposed && (flushScheduled || pendingQueue.size > 0) && retryTimer === null) {
+      if (!disposed && (flushScheduled || pendingQueue.size > 0)) {
         flushScheduled = false;
         queueMicrotask(() => {
           void flush();
@@ -316,7 +259,6 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
       inflight.clear();
       isFlushing = false;
       flushScheduled = false;
-      resetRetryBackoff();
       listeners.clear();
     },
   };

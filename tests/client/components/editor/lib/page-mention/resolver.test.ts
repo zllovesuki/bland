@@ -308,7 +308,11 @@ describe("page mention resolver", () => {
     });
   });
 
-  it("preserves resolved slices and retries only failed slices", async () => {
+  it("resolves failed batches as restricted and re-fetches on explicit request()", async () => {
+    // Retry machinery has been removed: a batch that fails resolves its
+    // entries as `resolved / source: server / accessible: false`. The entry
+    // is re-queued only when a fresh `request()` fires (mention re-render,
+    // scope change, or user navigation), not via an internal timer.
     resolveMock
       .mockImplementationOnce(async (_workspaceId: string, pageIds: string[]) => createResponse(pageIds))
       .mockRejectedValueOnce(new Error("offline"))
@@ -323,11 +327,21 @@ describe("page mention resolver", () => {
 
     expect(resolveMock).toHaveBeenCalledTimes(2);
     expect(resolver.get("p-0")).toMatchObject({ status: "resolved", source: "server", accessible: true });
-    expect(resolver.get("p-100")).toMatchObject({ status: "pending", source: null, accessible: false, title: null });
+    expect(resolver.get("p-100")).toMatchObject({
+      status: "resolved",
+      source: "server",
+      accessible: false,
+      title: null,
+    });
 
-    await vi.advanceTimersByTimeAsync(1000);
+    // Waiting should NOT trigger any additional network calls.
+    await vi.advanceTimersByTimeAsync(10_000);
     await flushAsyncWork();
+    expect(resolveMock).toHaveBeenCalledTimes(2);
 
+    // A fresh request re-queues the entry; next flush succeeds.
+    resolver.request("p-100");
+    await flushAsyncWork();
     expect(resolveMock).toHaveBeenCalledTimes(3);
     expect(resolveMock.mock.calls[2]?.[1]).toEqual(["p-100"]);
     expect(resolver.get("p-100")).toMatchObject({ status: "resolved", source: "server", accessible: true });
