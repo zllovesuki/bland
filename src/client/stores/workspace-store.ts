@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-import { clearAllCachedDocs } from "@/client/lib/doc-cache-hints";
+import { docCache } from "@/client/lib/doc-cache-registry";
 import { safeJsonStorage } from "@/client/lib/storage";
 import {
   addSnapshotPage,
@@ -226,7 +226,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       validateCacheOwner(userId) {
         const state = get();
         if (state.cacheUserId && state.cacheUserId !== userId) {
-          clearAllCachedDocs();
+          docCache.clearAll();
           state.resetStore(userId);
         } else if (!state.cacheUserId && userId) {
           set({ cacheUserId: userId });

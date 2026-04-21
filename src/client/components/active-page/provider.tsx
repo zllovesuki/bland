@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
-import { getCachedDocKey } from "@/client/lib/constants";
-import { isDocCached, removeDocHint } from "@/client/lib/doc-cache-hints";
+import { docCache } from "@/client/lib/doc-cache-registry";
 import { createRequestGuard } from "@/client/lib/request-guard";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -348,8 +347,7 @@ export function ActivePageProvider({
 
         if (action === "evict") {
           onEvictRef.current?.(pageId);
-          removeDocHint(pageId);
-          import("y-indexeddb").then((m) => m.clearDocument(getCachedDocKey(pageId))).catch(() => {});
+          docCache.remove(pageId);
           setState({
             kind: "unavailable",
             reason: "gone",
@@ -361,7 +359,7 @@ export function ActivePageProvider({
         if (action === "cache-fallback") {
           const cached = cachedPageRef.current;
           if (cached) {
-            if (isDocCached(pageId)) {
+            if (docCache.has(pageId)) {
               setState((prev) =>
                 buildReadyState(
                   snapshotFromPage(cached),

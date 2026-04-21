@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useParams } from "@tanstack/react-router";
 import { getPageLoadTarget, type PageLoadTarget } from "@/client/lib/page-load-target";
 import { hasWorkspaceIdentity } from "@/client/lib/workspace-route-model";
-import { isDocCached } from "@/client/lib/doc-cache-hints";
+import { docCache } from "@/client/lib/doc-cache-registry";
 import { useOnline } from "@/client/hooks/use-online";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
@@ -44,7 +44,7 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
         online,
         sessionMode,
         cachedPage: currentPageMeta,
-        docCached: isDocCached(params.pageId),
+        docCached: docCache.has(params.pageId),
         workspaceId,
       })
     : null;

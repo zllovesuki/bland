@@ -4,7 +4,7 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
 import { api } from "@/client/lib/api";
 import { getCachedDocKey } from "@/client/lib/constants";
-import { markDocCached } from "@/client/lib/doc-cache-hints";
+import { docCache } from "@/client/lib/doc-cache-registry";
 import { reconcileDocSyncProvider } from "@/client/lib/doc-sync-provider";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useOnline } from "@/client/hooks/use-online";
@@ -172,7 +172,7 @@ export function useEditorSession({
     const handleProviderSync = (isSynced: boolean) => {
       if (!isSynced) return;
       maybeSeedTitle();
-      markDocCached(pageId);
+      docCache.mark(pageId);
     };
     wsProvider.on("sync", handleProviderSync);
 
@@ -184,7 +184,7 @@ export function useEditorSession({
         const nextTitle = titleText.toString();
         setTitle(nextTitle);
         onTitleChangeRef.current?.(nextTitle);
-        markDocCached(pageId);
+        docCache.mark(pageId);
       }
 
       setHasCachedBody(bodyReady);
@@ -235,7 +235,7 @@ export function useEditorSession({
         if (cancelled) return;
         if (result.kind === "found") {
           Y.applyUpdate(runtime.ydoc, new Uint8Array(result.snapshot));
-          markDocCached(pageId);
+          docCache.mark(pageId);
         }
         setBootstrapStatus("resolved");
       })

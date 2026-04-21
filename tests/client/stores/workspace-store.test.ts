@@ -9,9 +9,9 @@ beforeEach(async () => {
   installLocalStorageStub();
   vi.resetModules();
   const wsMod = await import("@/client/stores/workspace-store");
-  const cacheMod = await import("@/client/lib/doc-cache-hints");
+  const cacheMod = await import("@/client/lib/doc-cache-registry");
   useWorkspaceStore = wsMod.useWorkspaceStore;
-  vi.spyOn(cacheMod, "clearAllCachedDocs").mockImplementation(() => {});
+  vi.spyOn(cacheMod.docCache, "clearAll").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -219,11 +219,11 @@ describe("workspace-store", () => {
         members: [],
       });
 
-      const cacheMod = await import("@/client/lib/doc-cache-hints");
+      const cacheMod = await import("@/client/lib/doc-cache-registry");
 
       useWorkspaceStore.getState().validateCacheOwner("user-2");
 
-      expect(cacheMod.clearAllCachedDocs).toHaveBeenCalled();
+      expect(cacheMod.docCache.clearAll).toHaveBeenCalled();
       expect(useWorkspaceStore.getState().snapshotsByWorkspaceId).toEqual({});
       expect(useWorkspaceStore.getState().cacheUserId).toBe("user-2");
     });
