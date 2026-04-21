@@ -1,5 +1,5 @@
 import type { Editor, JSONContent, Range } from "@tiptap/core";
-import { DEFAULT_CALLOUT_KIND, normalizeCalloutKind, type CalloutKind } from "../extensions/callout";
+import { DEFAULT_CALLOUT_KIND, normalizeCalloutKind, type CalloutKind } from "../extensions/callout/kinds";
 
 export interface CalloutBlockAttrs {
   kind?: CalloutKind;

@@ -2,9 +2,9 @@ import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { AlertTriangle, Info, Lightbulb, type LucideIcon } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../controllers/menu/popover";
-import { useEditorAffordance } from "../editor-affordance-context";
-import { CALLOUT_KINDS, normalizeCalloutKind, type CalloutKind } from "./callout";
+import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
+import { useEditorAffordance } from "../../editor-affordance-context";
+import { CALLOUT_KINDS, normalizeCalloutKind, type CalloutKind } from "./kinds";
 
 interface CalloutKindMeta {
   label: string;

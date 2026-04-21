@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
 import { StarterKit } from "@tiptap/starter-kit";
 import { createCalloutNode, type CalloutBlockAttrs } from "@/client/components/editor/controllers/callout";
+import { CalloutExtension } from "@/client/components/editor/extensions/callout";
 import {
   CALLOUT_KINDS,
-  CalloutExtension,
   DEFAULT_CALLOUT_KIND,
   normalizeCalloutKind,
-} from "@/client/components/editor/extensions/callout";
+} from "@/client/components/editor/extensions/callout/kinds";
 
 const schema = getSchema([StarterKit.configure({ undoRedo: false }), CalloutExtension]);
 
