@@ -1,6 +1,6 @@
 import { SESSION_MODES, type SessionMode } from "@/client/lib/constants";
 import type { FailureKind } from "@/client/lib/classify-failure";
-import type { PageAncestor, WorkspaceRole } from "@/shared/types";
+import type { PageAncestor, PageKind, WorkspaceRole } from "@/shared/types";
 import type { PageAccessLevel } from "@/shared/entitlements";
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 
@@ -13,6 +13,7 @@ export type ActivePageBacking = "live" | "cache";
 export interface ActivePageSnapshot {
   id: string;
   workspaceId: string;
+  kind: PageKind;
   title: string;
   icon: string | null;
   coverUrl: string | null;

@@ -58,6 +58,7 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
         setViewer(data.viewer);
         setRootPage({
           id: data.page_id,
+          kind: data.kind,
           title: data.title,
           icon: data.icon,
           cover_url: data.cover_url,

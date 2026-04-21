@@ -14,6 +14,9 @@ export type GranteeType = z.infer<typeof GranteeType>;
 export const InviteRole = z.enum(["admin", "member", "guest"]);
 export type InviteRole = z.infer<typeof InviteRole>;
 
+export const PageKind = z.enum(["doc", "canvas"]);
+export type PageKind = z.infer<typeof PageKind>;
+
 export const User = z.object({
   id: z.string(),
   email: z.string(),
@@ -46,6 +49,7 @@ export const Page = z.object({
   id: z.string(),
   workspace_id: z.string(),
   parent_id: z.string().nullable(),
+  kind: PageKind,
   title: z.string(),
   icon: z.string().nullable(),
   cover_url: z.string().nullable(),
@@ -174,6 +178,7 @@ export const UpdateMemberRoleRequest = z.object({
 export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleRequest>;
 
 export const CreatePageRequest = z.object({
+  kind: PageKind.default("doc"),
   title: z.string().max(500).optional(),
   icon: z.string().max(50).optional(),
   parent_id: z.string().max(26).optional().nullable(),
@@ -237,6 +242,7 @@ export type ResolvedViewerContext = z.infer<typeof ResolvedViewerContext>;
 export const SharedPageInfo = z.object({
   page_id: z.string(),
   workspace_id: z.string(),
+  kind: PageKind,
   title: z.string(),
   icon: z.string().nullable(),
   cover_url: z.string().nullable(),

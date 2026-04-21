@@ -1,0 +1,1 @@
+ALTER TABLE `pages` ADD `kind` text DEFAULT 'doc' NOT NULL;

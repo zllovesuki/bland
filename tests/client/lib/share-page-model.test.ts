@@ -5,6 +5,7 @@ import type { ShareRootPage } from "@/client/components/share/use-share-view";
 
 const ROOT_PAGE: ShareRootPage = {
   id: "page-root",
+  kind: "doc",
   title: "Root",
   icon: "📄",
   cover_url: "/uploads/root-cover",
@@ -16,7 +17,7 @@ describe("deriveSharePagePresentation", () => {
     const state: ActivePageState = {
       kind: "ready",
       backing: "live",
-      snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: "🌿", coverUrl: null },
+      snapshot: { id: "page-child", workspaceId: "ws-1", kind: "doc", title: "Child", icon: "🌿", coverUrl: null },
       access: { mode: "edit" },
       ancestors: [],
       ancestorsStatus: "ready",
@@ -55,7 +56,7 @@ describe("deriveSharePagePresentation", () => {
     const state: ActivePageState = {
       kind: "ready",
       backing: "live",
-      snapshot: { id: "page-old", workspaceId: "ws-1", title: "Old", icon: null, coverUrl: null },
+      snapshot: { id: "page-old", workspaceId: "ws-1", kind: "doc", title: "Old", icon: null, coverUrl: null },
       access: { mode: "view" },
       ancestors: [],
       ancestorsStatus: "ready",
@@ -77,7 +78,7 @@ describe("deriveSharePagePresentation", () => {
     const state: ActivePageState = {
       kind: "ready",
       backing: "live",
-      snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: null, coverUrl: null },
+      snapshot: { id: "page-child", workspaceId: "ws-1", kind: "doc", title: "Child", icon: null, coverUrl: null },
       access: { mode: "view" },
       ancestors: [],
       ancestorsStatus: "loading",

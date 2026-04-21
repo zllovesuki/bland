@@ -30,6 +30,7 @@ export function createPage(overrides: Partial<Page> = {}): Page {
     id: "page-1",
     workspace_id: "ws-1",
     parent_id: null,
+    kind: "doc",
     title: "Test Page",
     icon: null,
     cover_url: null,

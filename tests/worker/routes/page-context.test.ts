@@ -43,6 +43,7 @@ describe("page-context", () => {
       id: "page-1",
       workspace_id: "ws-1",
       parent_id: null,
+      kind: "doc",
       title: "Alpha",
       icon: null,
       cover_url: null,

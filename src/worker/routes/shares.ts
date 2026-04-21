@@ -384,6 +384,7 @@ shareLinkRouter.get("/share/:token", optionalAuth, rateLimit("RL_API"), async (c
   return c.json({
     page_id: page.id,
     workspace_id: page.workspace_id,
+    kind: page.kind,
     title: page.title,
     icon: page.icon,
     cover_url: page.cover_url,

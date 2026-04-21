@@ -82,6 +82,9 @@ export const pages = sqliteTable(
     parent_id: text("parent_id").references((): any => pages.id, {
       onDelete: "set null",
     }),
+    kind: text("kind", { enum: ["doc", "canvas"] })
+      .notNull()
+      .default("doc"),
     title: text("title").notNull().default("Untitled"),
     icon: text("icon"),
     cover_url: text("cover_url"),

@@ -43,6 +43,7 @@ function createPage(overrides: Partial<typeof pages.$inferSelect> = {}): typeof 
   return {
     id: "page-1",
     workspace_id: "ws-1",
+    kind: "doc",
     title: "T",
     parent_id: null,
     position: 0,

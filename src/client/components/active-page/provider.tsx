@@ -76,11 +76,12 @@ function buildUnavailableState(failureKind: FailureKind, err: unknown): ActivePa
 }
 
 function snapshotFromPage(
-  page: Pick<Page, "id" | "workspace_id" | "title" | "icon" | "cover_url">,
+  page: Pick<Page, "id" | "workspace_id" | "kind" | "title" | "icon" | "cover_url">,
 ): ActivePageSnapshot {
   return {
     id: page.id,
     workspaceId: page.workspace_id,
+    kind: page.kind,
     title: page.title,
     icon: page.icon,
     coverUrl: page.cover_url,

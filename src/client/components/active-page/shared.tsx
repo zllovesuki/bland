@@ -22,6 +22,7 @@ export function SharedActivePageBoundary({ children }: { children: ReactNode }) 
           snapshot: {
             id: rootPage.id,
             workspaceId,
+            kind: rootPage.kind,
             title: rootPage.title,
             icon: rootPage.icon,
             coverUrl: rootPage.cover_url,

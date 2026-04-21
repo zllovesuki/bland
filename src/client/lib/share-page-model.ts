@@ -1,8 +1,9 @@
 import type { ActivePageSnapshot, ActivePageState } from "@/client/lib/active-page-model";
-import type { PageAncestor, SharePermission } from "@/shared/types";
+import type { PageAncestor, PageKind, SharePermission } from "@/shared/types";
 
 export interface ShareRootPage {
   id: string;
+  kind: PageKind;
   title: string;
   icon: string | null;
   cover_url: string | null;

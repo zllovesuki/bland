@@ -47,7 +47,7 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
   const data = await parseBody(c, CreatePageRequest);
   if (data instanceof Response) return data;
 
-  const { title, icon, parent_id, position } = data;
+  const { kind, title, icon, parent_id, position } = data;
 
   // If parent_id specified, validate parent exists and check depth
   if (parent_id) {
@@ -90,13 +90,14 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
     id: pageId,
     workspace_id: workspaceId,
     parent_id: parent_id ?? null,
+    kind,
     title: title ?? DEFAULT_PAGE_TITLE,
     icon: icon ?? null,
     position: pagePosition,
     created_by: user.id,
   });
 
-  log.info("page_created", { pageId, workspaceId, parentId: parent_id ?? null, userId: user.id });
+  log.info("page_created", { pageId, workspaceId, kind, parentId: parent_id ?? null, userId: user.id });
 
   // Index newly created page in FTS
   try {
@@ -113,6 +114,7 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
         id: pageId,
         workspace_id: workspaceId,
         parent_id: parent_id ?? null,
+        kind,
         title: title ?? DEFAULT_PAGE_TITLE,
         icon: icon ?? null,
         cover_url: null,

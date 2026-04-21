@@ -248,7 +248,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: STORAGE_KEYS.WORKSPACE,
-      version: 3,
+      version: 4,
       storage: safeJsonStorage,
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
@@ -258,6 +258,21 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         lastVisitedPageIdByWorkspaceId: state.lastVisitedPageIdByWorkspaceId,
         cacheUserId: state.cacheUserId,
       }),
+      // v3 snapshots have pages without `kind`; default them to "doc" so the
+      // new canvas code paths don't mistake them for canvas pages.
+      migrate: (persisted, from) => {
+        const state = persisted as Partial<WorkspaceState> | undefined;
+        if (!state || from >= 4) return state as WorkspaceState;
+        const snapshotsByWorkspaceId = state.snapshotsByWorkspaceId ?? {};
+        const migratedSnapshots: Record<string, WorkspaceSnapshot> = {};
+        for (const [wsId, snap] of Object.entries(snapshotsByWorkspaceId)) {
+          migratedSnapshots[wsId] = {
+            ...snap,
+            pages: snap.pages.map((p) => (p.kind ? p : { ...p, kind: "doc" as const })),
+          };
+        }
+        return { ...state, snapshotsByWorkspaceId: migratedSnapshots } as WorkspaceState;
+      },
     },
   ),
 );
