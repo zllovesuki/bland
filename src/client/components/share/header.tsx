@@ -14,6 +14,7 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
   const online = useOnline();
   const visible = useScrollVisibility("main-content");
   const pageAffordance = deriveSharePageAffordance({
+    pageKind: presentation.page?.kind ?? presentation.rootPage.kind,
     pageAccess: presentation.isViewOnly ? "view" : "edit",
     workspaceId: presentation.workspaceId,
     online,

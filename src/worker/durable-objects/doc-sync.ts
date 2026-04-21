@@ -11,7 +11,8 @@ import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { YJS_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
-import { extractPlaintext } from "@/worker/lib/yjs-text";
+import type { PageKind } from "@/shared/types";
+import { extractCanvasPlaintext, extractPlaintext } from "@/worker/lib/yjs-text";
 import docSyncMigrations from "../../../drizzle/docsync-do/migrations.js";
 
 const MAX_CONNECTIONS_PER_DOC = 20;
@@ -251,6 +252,7 @@ export class DocSync extends YServer<Env> {
    */
   async getIndexPayload(
     pageId: string,
+    pageKind: PageKind = "doc",
   ): Promise<{ kind: "found"; title: string; bodyText: string } | { kind: "missing" }> {
     const chunkRows = await this.doDb
       .select({ chunk_index: docSyncSchema.snapshotChunks.chunk_index, data: docSyncSchema.snapshotChunks.data })
@@ -266,7 +268,7 @@ export class DocSync extends YServer<Env> {
     const ydoc = new Y.Doc();
     try {
       Y.applyUpdate(ydoc, state);
-      const { title, bodyText } = extractPlaintext(ydoc);
+      const { title, bodyText } = pageKind === "canvas" ? extractCanvasPlaintext(ydoc) : extractPlaintext(ydoc);
       return { kind: "found", title, bodyText };
     } finally {
       ydoc.destroy();

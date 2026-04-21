@@ -15,9 +15,14 @@ export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env):
   const { pageId } = msg;
   const db = createDb(env.DB);
 
-  // Load page metadata from D1 (workspace_id for routing, archived_at for removal)
+  // Load page metadata from D1 (workspace_id for routing, archived_at for removal, kind for extraction)
   const page = await db
-    .select({ workspace_id: pages.workspace_id, archived_at: pages.archived_at, title: pages.title })
+    .select({
+      workspace_id: pages.workspace_id,
+      archived_at: pages.archived_at,
+      title: pages.title,
+      kind: pages.kind,
+    })
     .from(pages)
     .where(eq(pages.id, pageId))
     .get();
@@ -41,7 +46,7 @@ export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env):
 
   // Fetch indexable text from DocSync DO
   const doc = env.DocSync.getByName(pageId);
-  const payload = await doc.getIndexPayload(pageId);
+  const payload = await doc.getIndexPayload(pageId, page.kind);
 
   let title: string;
   let bodyText: string;

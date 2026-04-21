@@ -1,6 +1,9 @@
 export const DEFAULT_PAGE_TITLE = "Untitled";
 export const YJS_PAGE_TITLE = "page-title";
 export const YJS_DOCUMENT_STORE = "document-store";
+export const YJS_CANVAS_ELEMENTS = "canvas-elements";
+export const YJS_CANVAS_APP_STATE = "canvas-app-state";
+export const YJS_CANVAS_FILE_REFS = "canvas-file-refs";
 export const MAX_TREE_DEPTH = 10;
 export const MAX_PAGE_MENTION_BATCH = 100;
 export const ALLOWED_UPLOAD_TYPES = [

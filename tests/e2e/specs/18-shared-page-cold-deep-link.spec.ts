@@ -32,4 +32,35 @@ test.describe("shared page route - cold deep-link", () => {
 
     await sharedContext.close();
   });
+
+  test("shared-root canvas page mounts the canvas surface (not the editor) via the seed path", async ({
+    authenticatedPage: { page, accessToken },
+    browser,
+  }) => {
+    const canvasPage = await createTestPage(page, accessToken, "Shared Canvas Cold", undefined, "canvas");
+    const share = await createShareLink(page, accessToken, canvasPage.pageId, "view");
+
+    const sharedContext = await browser.newContext();
+    const sharedPageView = await sharedContext.newPage();
+    const pageErrors: string[] = [];
+    sharedPageView.on("pageerror", (err) => pageErrors.push(err.message));
+
+    // Critical: share-root seed path (SharedActivePageBoundary) must carry `kind: "canvas"`
+    // without relying on the live /workspaces/:wid/pages/:pid fetch.
+    const pageFetches: string[] = [];
+    sharedPageView.on("request", (req) => {
+      const url = new URL(req.url());
+      if (url.pathname === `/api/v1/workspaces/${canvasPage.workspaceId}/pages/${canvasPage.pageId}`) {
+        pageFetches.push(req.url());
+      }
+    });
+
+    await sharedPageView.goto(`/s/${share.token}`);
+
+    await sharedPageView.locator(".excalidraw").waitFor({ state: "attached", timeout: 30_000 });
+    await expect(sharedPageView.locator(".tiptap")).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+
+    await sharedContext.close();
+  });
 });

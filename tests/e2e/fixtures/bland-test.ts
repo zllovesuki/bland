@@ -108,12 +108,13 @@ export async function createTestPage(
   accessToken: string,
   title?: string,
   workspace?: TestWorkspace,
+  kind: "doc" | "canvas" = "doc",
 ): Promise<TestPage> {
   const targetWorkspace = workspace ?? (await getWorkspaceBySlug(page, accessToken, TEST_CREDENTIALS.workspaceSlug));
 
   // Create a page
   const pageRes = await page.request.post(`/api/v1/workspaces/${targetWorkspace.workspaceId}/pages`, {
-    data: { title: title ?? `E2E Test Page ${Date.now()}` },
+    data: { kind, title: title ?? `E2E Test Page ${Date.now()}` },
     headers: authHeaders(accessToken),
   });
   if (!pageRes.ok()) throw new Error(`Failed to create page: ${pageRes.status()}`);

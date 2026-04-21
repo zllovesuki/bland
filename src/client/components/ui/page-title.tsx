@@ -1,7 +1,7 @@
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { useEffect, useRef, useCallback } from "react";
 
-interface PageTitleProps {
+export interface PageTitleProps {
   title: string;
   onInput: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   disabled: boolean;

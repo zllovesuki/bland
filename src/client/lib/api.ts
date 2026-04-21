@@ -7,6 +7,7 @@ import type {
   User,
   Workspace,
   Page,
+  PageKind,
   GetPageResponse,
   WorkspaceMember,
   ApiError,
@@ -234,7 +235,10 @@ export const api = {
       const res = await apiFetch<GetPageResponse>(`/workspaces/${workspaceId}/pages/${pageId}${qs}`);
       return res;
     },
-    create: async (workspaceId: string, data: { title?: string; parent_id?: string; icon?: string }) => {
+    create: async (
+      workspaceId: string,
+      data: { kind?: PageKind; title?: string; parent_id?: string; icon?: string },
+    ) => {
       const res = await apiFetch<{ page: Page }>(`/workspaces/${workspaceId}/pages`, {
         method: "POST",
         body: JSON.stringify(data),

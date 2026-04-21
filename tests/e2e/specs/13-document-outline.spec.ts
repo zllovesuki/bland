@@ -3,7 +3,9 @@ import { test, expect, createTestPage, createShareLink } from "../fixtures/bland
 import { TEST_CREDENTIALS } from "../harness";
 
 const MOBILE_VIEWPORT = { width: 900, height: 900 };
-const RAIL_VIEWPORT = { width: 1100, height: 900 };
+// Wide viewport where expanded workspace layout can place the doc-owned
+// outline beside the main column instead of inline.
+const RAIL_VIEWPORT = { width: 1440, height: 900 };
 const OUTLINE_FILLER =
   "Document outline filler text keeps the section tall enough to exercise viewport-based heading visibility. ".repeat(
     10,
@@ -37,6 +39,14 @@ async function seedOutlineDocument(page: PlaywrightPage) {
   await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
 
   return editor;
+}
+
+async function setWorkspaceLayout(page: PlaywrightPage, expanded: boolean) {
+  const button = page.getByRole("button", { name: expanded ? "Expand layout" : "Center layout" });
+  if ((await button.count()) === 0) return;
+  await button.evaluate((node) => {
+    if (node instanceof HTMLElement) node.click();
+  });
 }
 
 async function expectInlineOutline(page: PlaywrightPage) {
@@ -99,7 +109,7 @@ async function expectActiveOutlineHeading(page: PlaywrightPage, text: string) {
 }
 
 test.describe("document outline", () => {
-  test("workspace outline stays inline below 1024px and becomes a single rail at 1100px", async ({
+  test("workspace outline stays inline in narrow layout and becomes a side rail in expanded layout on wide screens", async ({
     authenticatedPage: { page, accessToken },
   }) => {
     await page.setViewportSize(MOBILE_VIEWPORT);
@@ -111,7 +121,13 @@ test.describe("document outline", () => {
     await expectInlineOutline(page);
 
     await page.setViewportSize(RAIL_VIEWPORT);
+    await expectInlineOutline(page);
+
+    await setWorkspaceLayout(page, true);
     await expectRailOutline(page);
+
+    await setWorkspaceLayout(page, false);
+    await expectInlineOutline(page);
 
     await page.setViewportSize(MOBILE_VIEWPORT);
     await expectInlineOutline(page);
@@ -161,6 +177,7 @@ test.describe("document outline", () => {
     const testPage = await createTestPage(page, accessToken, "Outline Selection Priority Test");
     await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
     await seedOutlineDocument(page);
+    await setWorkspaceLayout(page, true);
     await expectRailOutline(page);
 
     await scrollHeadingIntoView(page, "Second section");

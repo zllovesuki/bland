@@ -13,8 +13,11 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { Button } from "@/client/components/ui/button";
 import { useMobileDrawer } from "@/client/hooks/use-mobile-drawer";
 import { readStorageString, writeStorageString } from "@/client/lib/storage";
+import { WorkspaceLayoutModeProvider } from "@/client/components/workspace/layout-mode-context";
 
 const Sidebar = lazy(() => import("@/client/components/sidebar/sidebar").then((mod) => ({ default: mod.Sidebar })));
+const NARROW_SHELL_CONTENT_CLASS = "mx-auto w-full max-w-7xl";
+const NARROW_SHELL_ROW_CLASS = `${NARROW_SHELL_CONTENT_CLASS} border-l border-zinc-800/60`;
 
 function SidebarFallback({ collapsed = false }: { collapsed?: boolean }) {
   return (
@@ -81,8 +84,16 @@ function WorkspaceLayoutInner() {
   const navigate = useNavigate();
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
   const [expanded, setExpanded] = useState(() => readStorageString(STORAGE_KEYS.LAYOUT) === "expanded");
-
-  const [sidebarCollapsed] = useState(() => readStorageString(STORAGE_KEYS.SIDEBAR) === "true");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const stored = readStorageString(STORAGE_KEYS.SIDEBAR);
+    if (stored !== null) return stored === "true";
+    return window.innerWidth < 768;
+  });
+  const [sidebarManualToggle, setSidebarManualToggle] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return readStorageString(STORAGE_KEYS.SIDEBAR) !== null;
+  });
 
   const toggleLayout = useCallback(() => {
     setExpanded((prev) => {
@@ -90,6 +101,20 @@ function WorkspaceLayoutInner() {
       writeStorageString(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    if (sidebarManualToggle) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handleChange = (event: MediaQueryListEvent) => setSidebarCollapsed(event.matches);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, [sidebarManualToggle]);
+
+  const setPersistedSidebarCollapsed = useCallback((next: boolean) => {
+    setSidebarManualToggle(true);
+    setSidebarCollapsed(next);
+    writeStorageString(STORAGE_KEYS.SIDEBAR, String(next));
   }, []);
 
   // Canonical slug redirect — preserves search and hash state.
@@ -134,9 +159,8 @@ function WorkspaceLayoutInner() {
 
   const showFullSidebar = isWorkspaceReady(route);
   const showSkeleton = isResolvingWorkspace(route);
-
   return (
-    <>
+    <WorkspaceLayoutModeProvider expanded={expanded}>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-zinc-800 focus:px-4 focus:py-2 focus:text-accent-400 focus:ring-2 focus:ring-accent-500/50"
@@ -149,12 +173,15 @@ function WorkspaceLayoutInner() {
         onToggleMobileSidebar={showFullSidebar ? toggleMobileDrawer : undefined}
       />
       <Banners />
-      <div
-        className={`flex flex-1 overflow-hidden ${expanded ? "" : "mx-auto w-full max-w-7xl border-l border-zinc-800/60"}`}
-      >
+      <div className={`flex flex-1 overflow-hidden ${expanded ? "" : NARROW_SHELL_ROW_CLASS}`}>
         {showFullSidebar ? (
           <Suspense fallback={<SidebarFallback collapsed={sidebarCollapsed} />}>
-            <Sidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
+            <Sidebar
+              collapsed={sidebarCollapsed}
+              onCollapsedChange={setPersistedSidebarCollapsed}
+              mobileOpen={mobileDrawerOpen}
+              onMobileClose={closeMobileDrawer}
+            />
           </Suspense>
         ) : showSkeleton ? (
           <SidebarFallback collapsed={sidebarCollapsed} />
@@ -164,7 +191,7 @@ function WorkspaceLayoutInner() {
         </main>
       </div>
       <Footer expanded={expanded} />
-    </>
+    </WorkspaceLayoutModeProvider>
   );
 }
 

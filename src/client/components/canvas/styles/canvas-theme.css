@@ -1,0 +1,117 @@
+/* Scope Excalidraw's customizable CSS variables to bland's canvas surface.
+ * Upstream API: https://docs.excalidraw.com/docs/@excalidraw/excalidraw/customizing-styles
+ * Stable selectors: .excalidraw and .excalidraw.theme--dark.
+ *
+ * The outer `.bland-canvas` wrapper keeps our overrides scoped so we never
+ * leak into any other Excalidraw instance a page might embed later. */
+
+/* Hide the entire top-right chrome.
+ * Excalidraw renders three things there:
+ *   1. DefaultSidebar.Trigger (the "Library" button — we don't use its
+ *      stock-shape library; pages are the unit of content in bland)
+ *   2. Collaborator UserList (bland already renders its own AvatarStack
+ *      in the page chrome — duplicating it here is noise)
+ *   3. whatever `renderTopRightUI` returns (we return null)
+ * `renderTopRightUI` does not replace the other two, it only appends, so
+ * CSS is the cleanest way to drop the whole cluster. */
+.bland-canvas .excalidraw .layer-ui__wrapper__top-right {
+  display: none;
+}
+
+/* UI chrome font — keep Excalidraw's own Excalifont/Cascadia on canvas
+ * content (part of the hand-drawn character), but make floating islands,
+ * menus, and dialogs read as bland surfaces. Excalidraw sets `Assistant` on
+ * several widget elements directly (burger button, help icon, zoom label,
+ * zen toggle), so a single rule on `.excalidraw` gets overridden by their
+ * own specificity. Descendant selector covers the whole subtree — the
+ * inline `<canvas>` element renders its own text, unaffected by this. */
+.bland-canvas .excalidraw,
+.bland-canvas .excalidraw * {
+  font-family: var(--font-sans);
+}
+
+/* Font-size / weight consistency across menus.
+ * Excalidraw's right-click context menu defaults to 16px / weight 450
+ * while its dropdown MainMenu defaults to 14px / weight 400 — visibly
+ * different sizes. Normalize both to 14px / 450 (matches bland's sidebar
+ * menu language and the astigmatism-comfort "heavier weights" guidance
+ * in .impeccable.md). */
+.bland-canvas .excalidraw .context-menu-item,
+.bland-canvas .excalidraw .dropdown-menu-item-base {
+  font-size: 14px;
+  font-weight: 450;
+}
+
+.bland-canvas .excalidraw,
+.bland-canvas .excalidraw.theme--dark {
+  /* Brand accent — warm amethyst ramp. Drives selection handles, active
+   * tool state, and focus rings. */
+  --color-primary: var(--color-accent-500);
+  --color-primary-darker: var(--color-accent-600);
+  --color-primary-darkest: var(--color-accent-700);
+  --color-primary-light: color-mix(in oklab, var(--color-accent-500) 22%, transparent);
+  --color-primary-light-darker: color-mix(in oklab, var(--color-accent-500) 32%, transparent);
+  --color-primary-hover: var(--color-accent-400);
+  --color-primary-contrast-offset: var(--color-accent-400);
+
+  /* Link color inside dialogs + hints. */
+  --link-color: var(--color-accent-400);
+  --link-color-hover: var(--color-accent-300);
+}
+
+.bland-canvas .excalidraw.theme--dark {
+  /* Inset surface — slightly darker than the page body (#221f21) so the
+   * canvas reads as a recessed panel. Uses bland's warmed zinc-950. */
+  --default-bg-color: var(--color-zinc-950);
+
+  /* Floating tool islands (top toolbar, properties panel) — one step up
+   * from the canvas so they lift off the surface. */
+  --island-bg-color: var(--color-zinc-800);
+  --island-bg-color-alt: var(--color-zinc-900);
+  --overlay-bg-color: color-mix(in oklab, var(--color-zinc-950) 80%, transparent);
+
+  /* Popups (color picker, context menu, dropdowns) — match bland's
+   * overlay-surface token. */
+  --popup-bg-color: var(--color-zinc-800);
+  --popup-secondary-bg-color: var(--color-zinc-700);
+  --popup-text-color: var(--color-zinc-100);
+
+  /* Sidebar (we hide Library, but dialogs + sheets still use this). */
+  --sidebar-bg-color: var(--color-zinc-900);
+  --sidebar-border-color: var(--color-zinc-800);
+
+  /* Borders — subtle, avoid hairline contrast against the lifted dark. */
+  --default-border-color: var(--color-zinc-700);
+  --dialog-border-color: var(--color-zinc-700);
+
+  /* Shadows — match the soft-lift feel of bland's own popovers. */
+  --shadow-island: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-island-stronger: 0 2px 4px rgba(0, 0, 0, 0.36), 0 12px 32px rgba(0, 0, 0, 0.4);
+  --modal-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), 0 24px 48px rgba(0, 0, 0, 0.5);
+  --sidebar-shadow: 0 0 0 1px var(--color-zinc-800);
+
+  /* Text — lifted off pure white per the astigmatism guidance in
+   * .impeccable.md. Keep the contrast comfortable, not maximal. */
+  --text-primary-color: var(--color-zinc-100);
+
+  /* Icons on chrome — same lifted tone as text. */
+  --icon-fill-color: var(--color-zinc-300);
+
+  /* Buttons — bland's quiet-hover pattern. */
+  --button-hover-bg: color-mix(in srgb, var(--color-zinc-700) 60%, transparent);
+  --button-active-bg: color-mix(in srgb, var(--color-accent-500) 20%, transparent);
+  --button-active-border: var(--color-accent-500);
+  --button-gray-1: var(--color-zinc-800);
+  --button-gray-2: var(--color-zinc-700);
+  --button-gray-3: var(--color-zinc-600);
+
+  /* Inputs inside dialogs. */
+  --input-bg-color: var(--color-zinc-900);
+  --input-border-color: var(--color-zinc-700);
+  --input-hover-bg-color: var(--color-zinc-800);
+  --input-label-color: var(--color-zinc-400);
+
+  /* Selection highlight on canvas handles. */
+  --color-selection: var(--color-accent-500);
+  --focus-highlight-color: color-mix(in oklab, var(--color-accent-500) 50%, transparent);
+}

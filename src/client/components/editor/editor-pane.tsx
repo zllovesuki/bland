@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Skeleton } from "@/client/components/ui/skeleton";
-import { PageTitle } from "@/client/components/ui/page-title";
 import YProvider from "y-partyserver/provider";
+import { Skeleton } from "@/client/components/ui/skeleton";
+import type { PageTitleProps } from "@/client/components/ui/page-title";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { toast } from "@/client/components/toast";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
@@ -13,7 +13,7 @@ import { useEditorSession } from "./use-editor-session";
 const INVALID_SCHEMA_MESSAGE = "This build can't parse this page. Reload to catch up.";
 const SNAPSHOT_ERROR_MESSAGE = "This page didn't load. Your connection might be flaky.";
 
-interface EditorPaneProps {
+interface EditorPageSurfaceProps {
   pageId: string;
   initialTitle: string;
   onTitleChange?: (title: string) => void;
@@ -24,9 +24,10 @@ interface EditorPaneProps {
   resolveIdentity: ResolveIdentity;
   outline?: EditorOutlinePlacement;
   docFooterLeading?: ReactNode;
+  children: (payload: { titleProps: PageTitleProps; body: ReactNode }) => ReactNode;
 }
 
-export function EditorPane({
+export function EditorPageSurface({
   pageId,
   initialTitle,
   onTitleChange,
@@ -37,7 +38,8 @@ export function EditorPane({
   resolveIdentity,
   outline,
   docFooterLeading,
-}: EditorPaneProps) {
+  children,
+}: EditorPageSurfaceProps) {
   const [schemaError, setSchemaError] = useState<Error | null>(null);
   const schemaErrorReportedRef = useRef(false);
 
@@ -67,6 +69,7 @@ export function EditorPane({
     },
     [pageId, affordance.documentEditable, shareToken, workspaceId],
   );
+
   const session = useEditorSession({
     pageId,
     initialTitle,
@@ -77,47 +80,45 @@ export function EditorPane({
     enabled: !schemaError,
   });
 
-  return (
-    <div>
-      <PageTitle
-        title={session.title}
-        onInput={session.onTitleInput}
-        disabled={session.kind !== "ready" || !!schemaError}
-        readOnly={!affordance.documentEditable || schemaError !== null}
-      />
+  const titleProps: PageTitleProps = {
+    title: session.title,
+    onInput: session.onTitleInput,
+    disabled: session.kind !== "ready" || !!schemaError,
+    readOnly: !affordance.documentEditable || schemaError !== null,
+  };
 
-      {schemaError ? (
-        <PageErrorState
-          message={INVALID_SCHEMA_MESSAGE}
-          className="min-h-[12rem]"
-          action={{ label: "Reload", onClick: () => window.location.reload() }}
-        />
-      ) : session.kind === "ready" ? (
-        <EditorBody
-          fragment={session.fragment}
-          provider={session.provider}
-          pageId={pageId}
-          shareToken={shareToken}
-          workspaceId={workspaceId}
-          affordance={affordance}
-          resolveIdentity={resolveIdentity}
-          onSchemaError={handleSchemaError}
-          outline={outline}
-          docFooterLeading={docFooterLeading}
-        />
-      ) : session.kind === "error" ? (
-        <PageErrorState
-          message={SNAPSHOT_ERROR_MESSAGE}
-          className="min-h-[12rem]"
-          action={{ label: "Retry", onClick: session.onRetry }}
-        />
-      ) : (
-        <div className="space-y-3 pl-7">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-3/6" />
-        </div>
-      )}
+  const body = schemaError ? (
+    <PageErrorState
+      message={INVALID_SCHEMA_MESSAGE}
+      className="min-h-[12rem]"
+      action={{ label: "Reload", onClick: () => window.location.reload() }}
+    />
+  ) : session.kind === "ready" ? (
+    <EditorBody
+      fragment={session.fragment}
+      provider={session.provider}
+      pageId={pageId}
+      shareToken={shareToken}
+      workspaceId={workspaceId}
+      affordance={affordance}
+      resolveIdentity={resolveIdentity}
+      onSchemaError={handleSchemaError}
+      outline={outline}
+      docFooterLeading={docFooterLeading}
+    />
+  ) : session.kind === "error" ? (
+    <PageErrorState
+      message={SNAPSHOT_ERROR_MESSAGE}
+      className="min-h-[12rem]"
+      action={{ label: "Retry", onClick: session.onRetry }}
+    />
+  ) : (
+    <div className="space-y-3 pl-7">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-4 w-3/6" />
     </div>
   );
+
+  return <>{children({ titleProps, body })}</>;
 }

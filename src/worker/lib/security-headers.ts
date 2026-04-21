@@ -6,6 +6,13 @@ const CLOUDFLARE_ANALYTICS_ORIGIN = "https://static.cloudflareinsights.com";
 const CLOUDFLARE_ANALYTICS_CONNECT_ORIGIN = "https://cloudflareinsights.com";
 const GOOGLE_FONTS_STYLES_ORIGIN = "https://fonts.googleapis.com";
 const GOOGLE_FONTS_ASSETS_ORIGIN = "https://fonts.gstatic.com";
+// Excalidraw's ExcalidrawFontFace unconditionally appends its esm.sh fallback
+// URL to every generated `@font-face` src list — even when the primary
+// (self-hosted via EXCALIDRAW_ASSET_PATH) resolves. The browser honors the
+// primary but still surfaces a CSP violation for the fallback unless we
+// allowlist it. Fonts-only; canvas surface only uses this for its built-in
+// font set.
+const EXCALIDRAW_FONTS_FALLBACK_ORIGIN = "https://esm.sh";
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
@@ -61,7 +68,7 @@ export function buildDocumentCsp(options: { nonce: string; requestUrl: string; s
     joinDirective("script-src", scriptSrc),
     joinDirective("connect-src", connectSrc),
     joinDirective("style-src", ["'self'", "'unsafe-inline'", GOOGLE_FONTS_STYLES_ORIGIN]),
-    joinDirective("font-src", ["'self'", GOOGLE_FONTS_ASSETS_ORIGIN]),
+    joinDirective("font-src", ["'self'", GOOGLE_FONTS_ASSETS_ORIGIN, EXCALIDRAW_FONTS_FALLBACK_ORIGIN]),
     joinDirective("img-src", ["'self'", "data:", "blob:", "https:"]),
     joinDirective("frame-src", [TURNSTILE_ORIGIN]),
     ...(!isLocal ? ["upgrade-insecure-requests"] : []),

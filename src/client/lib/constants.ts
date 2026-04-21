@@ -23,3 +23,7 @@ export type SessionMode = (typeof SESSION_MODES)[keyof typeof SESSION_MODES];
 export function getCachedDocKey(pageId: string): string {
   return `bland:doc:${pageId}`;
 }
+
+export function getCachedCanvasKey(pageId: string): string {
+  return `bland:canvas:${pageId}`;
+}

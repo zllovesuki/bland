@@ -95,4 +95,26 @@ test.describe("canonical page route - cold deep-link", () => {
 
     await coldContext.close();
   });
+
+  test("cold deep-link to a canvas page mounts the canvas surface, not the editor", async ({
+    authenticatedPage: { page, accessToken },
+    browser,
+  }) => {
+    const canvasPage = await createTestPage(page, accessToken, "Canvas Cold Deep Link", undefined, "canvas");
+
+    const coldContext = await browser.newContext();
+    const coldPage = await coldContext.newPage();
+    await loginPage(coldPage);
+
+    const pageErrors: string[] = [];
+    coldPage.on("pageerror", (err) => pageErrors.push(err.message));
+
+    await coldPage.goto(`/${canvasPage.workspaceSlug}/${canvasPage.pageId}`);
+
+    await coldPage.locator(".excalidraw").waitFor({ state: "attached", timeout: 30_000 });
+    await expect(coldPage.locator(".tiptap")).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+
+    await coldContext.close();
+  });
 });

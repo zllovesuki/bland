@@ -63,7 +63,13 @@ export function EditorOutline({ className, title = "On this page" }: EditorOutli
                   event.preventDefault();
                   jumpToHeading(editor, heading.pos);
                 }}
-                style={{ paddingInlineStart: `${Math.max(0, heading.level - 1) * 0.875}rem` }}
+                style={{
+                  // Keep the CSS padding (0.5rem) as the base so the chevron
+                  // always has breathing room from the highlight's left edge,
+                  // even for top-level headings (where the indent addition
+                  // would otherwise be 0).
+                  paddingInlineStart: `calc(0.5rem + ${Math.max(0, heading.level - 1) * 0.875}rem)`,
+                }}
               >
                 <ChevronRight className="tiptap-outline__chevron h-3 w-3 shrink-0" />
                 <span className="tiptap-outline__text">{heading.text}</span>

@@ -6,3 +6,4 @@ dist/
 playwright-report/
 test-results/
 src/client/lib/emoji/generated/
+public/fonts/

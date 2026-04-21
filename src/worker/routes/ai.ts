@@ -170,6 +170,10 @@ async function gateAiAction(
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
+  if (page.kind === "canvas") {
+    return c.json({ error: "page_empty", message: "AI is not available on canvas pages yet" }, 404);
+  }
+
   const levels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
   const pageAccess = (levels.get(pageId) ?? "none") as PageAccessLevel;
   if (pageAccess === "none") {

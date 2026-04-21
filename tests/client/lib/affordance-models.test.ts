@@ -108,12 +108,14 @@ describe("client affordance models", () => {
         deriveWorkspacePageAffordance({
           accessMode: "member",
           workspaceRole: "member",
+          pageKind: "doc",
           pageAccess: "edit",
           ownsPage: false,
           workspaceId: "ws-1",
           online: false,
         }),
       ).toMatchObject({
+        kind: "doc",
         breadcrumbMode: "normal",
         shareDialog: { kind: "disabled", reason: "You're offline" },
         editPageMetadata: { kind: "disabled", reason: "You're offline" },
@@ -131,6 +133,7 @@ describe("client affordance models", () => {
         deriveWorkspacePageAffordance({
           accessMode: "member",
           workspaceRole: "guest",
+          pageKind: "doc",
           pageAccess: "view",
           ownsPage: false,
           workspaceId: "ws-1",
@@ -138,17 +141,34 @@ describe("client affordance models", () => {
         }).breadcrumbMode,
       ).toBe("restricted");
     });
+
+    it("forces AI + mention affordances off on canvas pages and populates the canvas slot", () => {
+      const affordance = deriveWorkspacePageAffordance({
+        accessMode: "member",
+        workspaceRole: "member",
+        pageKind: "canvas",
+        pageAccess: "edit",
+        ownsPage: true,
+        workspaceId: "ws-1",
+        online: true,
+      });
+      expect(affordance.kind).toBe("canvas");
+      if (affordance.kind !== "canvas") throw new Error("expected canvas affordance");
+      expect(affordance.canvas).toEqual({ canEdit: true, canInsertImages: true });
+    });
   });
 
   describe("share page affordance", () => {
     it("shows the view-only badge for view shares and allows uploads for editable shares", () => {
       expect(
         deriveSharePageAffordance({
+          pageKind: "doc",
           pageAccess: "view",
           workspaceId: "ws-1",
           online: true,
         }),
       ).toMatchObject({
+        kind: "doc",
         showViewOnlyBadge: true,
         editor: {
           documentEditable: false,
@@ -159,11 +179,13 @@ describe("client affordance models", () => {
 
       expect(
         deriveSharePageAffordance({
+          pageKind: "doc",
           pageAccess: "edit",
           workspaceId: "ws-1",
           online: true,
         }),
       ).toMatchObject({
+        kind: "doc",
         showViewOnlyBadge: false,
         editor: {
           documentEditable: true,
@@ -171,6 +193,18 @@ describe("client affordance models", () => {
           canInsertImages: true,
         },
       });
+    });
+
+    it("gates AI + mentions on shared canvas pages while surfacing the canvas slot", () => {
+      const affordance = deriveSharePageAffordance({
+        pageKind: "canvas",
+        pageAccess: "view",
+        workspaceId: "ws-1",
+        online: true,
+      });
+      expect(affordance.kind).toBe("canvas");
+      if (affordance.kind !== "canvas") throw new Error("expected canvas affordance");
+      expect(affordance.canvas).toEqual({ canEdit: false, canInsertImages: false });
     });
   });
 
