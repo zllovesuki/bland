@@ -1,17 +1,11 @@
 import { createContext, use } from "react";
 import { useActivePageState } from "@/client/components/active-page/use-active-page";
-import { deriveSharePagePresentation } from "@/client/lib/share-page-model";
-import type { ResolvedViewerContext, SharePermission } from "@/shared/types";
+import { deriveSharePagePresentation, type ShareRootPage } from "@/client/lib/share-page-model";
+import type { ResolvedViewerContext } from "@/shared/types";
+
+export type { ShareRootPage };
 
 export type ShareViewStatus = "loading" | "ready" | "error";
-
-export interface ShareRootPage {
-  id: string;
-  title: string;
-  icon: string | null;
-  cover_url: string | null;
-  permission: SharePermission;
-}
 
 interface ShareViewBaseState {
   token: string;
@@ -36,7 +30,6 @@ export interface ShareViewReadyState extends ShareViewBaseState {
   rootPage: ShareRootPage;
   activePageId: string;
   navigate: (pageId: string) => void;
-  patchRootPage: (updates: Partial<ShareRootPage>) => void;
 }
 
 export type ShareViewState = ShareViewLoadingState | ShareViewErrorState | ShareViewReadyState;
@@ -72,7 +65,6 @@ export function useSharedPagePresentation() {
     workspaceId: share.workspaceId,
     token: share.token,
     navigate: share.navigate,
-    patchRootPage: share.patchRootPage,
     unavailableMessage: activePageState.kind === "unavailable" ? activePageState.message : null,
   };
 }

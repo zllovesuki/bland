@@ -17,7 +17,7 @@ describe("deriveSharePagePresentation", () => {
       kind: "ready",
       backing: "live",
       snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: "🌿", coverUrl: null },
-      access: { mode: "edit", confidence: "authoritative" },
+      access: { mode: "edit" },
       ancestors: [],
       ancestorsStatus: "ready",
     };
@@ -33,7 +33,10 @@ describe("deriveSharePagePresentation", () => {
     });
   });
 
-  it("falls back to the root seed while the root page is still loading", () => {
+  it("does not synthesize root metadata when the active page state is still loading", () => {
+    // Boundary remount + useState(initialSnapshot) makes this transient state
+    // unreachable for the root page in practice, but the derivation must not
+    // paper over loading with stale rootPage fallbacks — display stays empty.
     const state: ActivePageState = { kind: "loading" };
 
     expect(deriveSharePagePresentation(ROOT_PAGE, "page-root", state)).toMatchObject({
@@ -41,9 +44,9 @@ describe("deriveSharePagePresentation", () => {
       isRootActive: true,
       isPageLoading: true,
       isAncestorTrailLoading: false,
-      displayTitle: "Root",
-      displayIcon: "📄",
-      displayCoverUrl: "/uploads/root-cover",
+      displayTitle: "",
+      displayIcon: null,
+      displayCoverUrl: null,
       isViewOnly: true,
     });
   });
@@ -53,7 +56,7 @@ describe("deriveSharePagePresentation", () => {
       kind: "ready",
       backing: "live",
       snapshot: { id: "page-old", workspaceId: "ws-1", title: "Old", icon: null, coverUrl: null },
-      access: { mode: "view", confidence: "authoritative" },
+      access: { mode: "view" },
       ancestors: [],
       ancestorsStatus: "ready",
     };
@@ -75,7 +78,7 @@ describe("deriveSharePagePresentation", () => {
       kind: "ready",
       backing: "live",
       snapshot: { id: "page-child", workspaceId: "ws-1", title: "Child", icon: null, coverUrl: null },
-      access: { mode: "view", confidence: "authoritative" },
+      access: { mode: "view" },
       ancestors: [],
       ancestorsStatus: "loading",
     };

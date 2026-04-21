@@ -17,13 +17,7 @@ import type { Page } from "@/shared/types";
  */
 export function CanonicalActivePageBoundary({ children }: { children: ReactNode }) {
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId: string };
-  const {
-    workspaceId: effectiveWorkspaceId,
-    members,
-    accessMode,
-    pageLoadTarget,
-    currentPageMeta,
-  } = useCanonicalPageContext();
+  const { workspaceId: effectiveWorkspaceId, members, accessMode, currentPageMeta } = useCanonicalPageContext();
   const currentUser = useAuthStore((s) => s.user);
   const role = getMyRole(members, currentUser);
 
@@ -47,10 +41,8 @@ export function CanonicalActivePageBoundary({ children }: { children: ReactNode 
       pageId={params.pageId}
       accessMode={accessMode}
       role={role}
-      pageLoadTarget={pageLoadTarget}
       cachedPageMeta={currentPageMeta}
       shareToken={null}
-      seedPage={null}
       onLivePageLoaded={onLivePageLoaded}
       onEvict={onEvict}
     >

@@ -19,6 +19,10 @@ export function useWorkspaceView(): WorkspaceViewContext {
   return ctx;
 }
 
+export function useMaybeWorkspaceView(): WorkspaceViewContext | null {
+  return use(WorkspaceViewCtx);
+}
+
 export function useWorkspaceRouteState(): WorkspaceRouteState {
   return useWorkspaceView().route;
 }

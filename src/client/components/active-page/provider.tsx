@@ -3,6 +3,7 @@ import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
 import { docCache } from "@/client/lib/doc-cache-registry";
+import { getPageLoadTarget } from "@/client/lib/page-load-target";
 import { createRequestGuard } from "@/client/lib/request-guard";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -11,6 +12,7 @@ import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import {
   type ActivePageAccess,
+  type ActivePageInitialSnapshot,
   type ActivePagePatch,
   type ActivePageSnapshot,
   type ActivePageState,
@@ -18,7 +20,8 @@ import {
   getPageLoadFailureAction,
   needsRestrictedAncestors,
 } from "@/client/lib/active-page-model";
-import { ActivePageContexts, type PageLoadTarget } from "./use-active-page";
+import { useMaybeWorkspaceView } from "@/client/components/workspace/use-workspace-view";
+import { ActivePageContexts } from "./use-active-page";
 import type { GetPageResponse, Page, PageAncestor, WorkspaceRole } from "@/shared/types";
 
 interface ActivePageProviderProps {
@@ -27,22 +30,12 @@ interface ActivePageProviderProps {
   pageId: string;
   accessMode: WorkspaceAccessMode | null;
   role: WorkspaceRole | null;
-  pageLoadTarget: PageLoadTarget | null;
   cachedPageMeta: Page | null;
   shareToken: string | null;
-  seedPage: ActivePageSeed | null;
+  initialSnapshot?: ActivePageInitialSnapshot | null;
   onLivePageLoaded?: (page: Page) => void;
   onEvict?: (pageId: string) => void;
   children: ReactNode;
-}
-
-export interface ActivePageSeed {
-  pageId: string;
-  workspaceId: string;
-  title: string;
-  icon: string | null;
-  coverUrl: string | null;
-  accessMode: "view" | "edit";
 }
 
 function buildUnavailableState(failureKind: FailureKind, err: unknown): ActivePageState {
@@ -95,24 +88,11 @@ function snapshotFromPage(
 }
 
 function accessFromLivePage(page: GetPageResponse): ActivePageAccess {
-  return {
-    mode: page.can_edit ? "edit" : "view",
-    confidence: "authoritative",
-  };
+  return { mode: page.can_edit ? "edit" : "view" };
 }
 
 function accessFromCachedPage(): ActivePageAccess {
-  return {
-    mode: "edit",
-    confidence: "optimistic",
-  };
-}
-
-function accessFromSeed(seed: ActivePageSeed): ActivePageAccess {
-  return {
-    mode: seed.accessMode,
-    confidence: "authoritative",
-  };
+  return { mode: "edit" };
 }
 
 function resolveAncestorsState(
@@ -135,7 +115,7 @@ function resolveAncestorsState(
 
 function buildReadyState(
   snapshot: ActivePageSnapshot,
-  backing: "live" | "cache" | "seed",
+  backing: "live" | "cache",
   access: ActivePageAccess,
   prev: ActivePageState,
   shouldLoadRestrictedAncestors: boolean,
@@ -149,26 +129,14 @@ function buildReadyState(
   };
 }
 
-function seedToReadyState(
-  seed: ActivePageSeed,
+function initialSnapshotToReadyState(
+  initial: ActivePageInitialSnapshot,
   pageId: string,
   prev: ActivePageState,
   shouldLoadRestrictedAncestors: boolean,
 ): ActivePageState | null {
-  if (seed.pageId !== pageId) return null;
-  return buildReadyState(
-    {
-      id: seed.pageId,
-      workspaceId: seed.workspaceId,
-      title: seed.title,
-      icon: seed.icon,
-      coverUrl: seed.coverUrl,
-    },
-    "seed",
-    accessFromSeed(seed),
-    prev,
-    shouldLoadRestrictedAncestors,
-  );
+  if (initial.snapshot.id !== pageId) return null;
+  return buildReadyState(initial.snapshot, "live", initial.access, prev, shouldLoadRestrictedAncestors);
 }
 
 export function ActivePageProvider({
@@ -177,21 +145,36 @@ export function ActivePageProvider({
   pageId,
   accessMode,
   role,
-  pageLoadTarget,
   cachedPageMeta,
   shareToken,
-  seedPage,
+  initialSnapshot,
   onLivePageLoaded,
   onEvict,
   children,
 }: ActivePageProviderProps) {
   const online = useOnline();
+  const sessionMode = useAuthStore((s) => s.sessionMode);
+  const workspaceView = useMaybeWorkspaceView();
   const shouldLoadRestrictedAncestors = needsRestrictedAncestors(accessMode, role);
 
+  const pageLoadTarget = useMemo(
+    () =>
+      getPageLoadTarget({
+        surface,
+        workspaceId,
+        online,
+        sessionMode,
+        cachedPage: cachedPageMeta,
+        docCached: docCache.has(pageId),
+        route: workspaceView?.route ?? null,
+      }),
+    [surface, workspaceId, online, sessionMode, cachedPageMeta, pageId, workspaceView],
+  );
+
   const [state, setState] = useState<ActivePageState>(() => {
-    if (seedPage) {
+    if (initialSnapshot) {
       return (
-        seedToReadyState(seedPage, pageId, { kind: "loading" }, shouldLoadRestrictedAncestors) ?? {
+        initialSnapshotToReadyState(initialSnapshot, pageId, { kind: "loading" }, shouldLoadRestrictedAncestors) ?? {
           kind: "loading",
         }
       );
@@ -262,8 +245,10 @@ export function ActivePageProvider({
           ? api.pages.ancestors(workspaceId, pageId, shareToken ?? undefined)
           : null;
 
-      if (seedPage && seedPage.pageId === pageId) {
-        setState((prev) => seedToReadyState(seedPage, pageId, prev, shouldLoadRestrictedAncestors) ?? prev);
+      if (initialSnapshot && initialSnapshot.snapshot.id === pageId) {
+        setState(
+          (prev) => initialSnapshotToReadyState(initialSnapshot, pageId, prev, shouldLoadRestrictedAncestors) ?? prev,
+        );
         await syncRestrictedAncestors(pageId, ancestorsPromise);
         return;
       }
@@ -406,7 +391,7 @@ export function ActivePageProvider({
     return () => {
       request.cancel();
     };
-  }, [surface, pageLoadTarget, workspaceId, pageId, shareToken, seedPage, shouldLoadRestrictedAncestors]);
+  }, [surface, pageLoadTarget, workspaceId, pageId, shareToken, initialSnapshot, shouldLoadRestrictedAncestors]);
 
   const syncValue = useMemo(() => ({ syncProvider, setSyncProvider }), [syncProvider]);
   const actionsValue = useMemo(() => ({ patchPage }), [patchPage]);

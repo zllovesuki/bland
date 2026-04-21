@@ -5,7 +5,7 @@ import { api } from "@/client/lib/api";
 import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
-import type { ShareRootPage } from "@/client/components/share/use-share-view";
+import type { ShareRootPage } from "@/client/lib/share-page-model";
 import {
   getSidebarTreeChevronLeft,
   getSidebarTreeContentPaddingLeft,

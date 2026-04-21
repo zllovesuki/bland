@@ -45,11 +45,8 @@ export function SharePageView() {
   const handleTitleChange = useCallback(
     (titleOverride: string) => {
       patchPage({ title: titleOverride });
-      if (presentation.isRootActive) {
-        presentation.patchRootPage({ title: titleOverride });
-      }
     },
-    [patchPage, presentation.isRootActive, presentation.patchRootPage],
+    [patchPage],
   );
 
   useDocumentTitle(presentation.displayTitle || DEFAULT_PAGE_TITLE);

@@ -1,16 +1,18 @@
 import { SESSION_MODES, type SessionMode } from "@/client/lib/constants";
+import type { ActivePageSurface } from "@/client/lib/active-page-model";
 import { isWorkspaceReady, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
 import type { Page } from "@/shared/types";
 
 export type PageLoadTarget = "live" | "cached-page" | "offline-unavailable" | "cache-unavailable";
 
 interface PageLoadTargetInput {
-  route: WorkspaceRouteState;
+  surface: ActivePageSurface;
+  workspaceId: string | null;
   online: boolean;
   sessionMode: SessionMode;
   cachedPage: Page | null;
   docCached: boolean;
-  workspaceId: string | null;
+  route: WorkspaceRouteState | null;
 }
 
 /**
@@ -19,15 +21,20 @@ interface PageLoadTargetInput {
  * fire yet.
  */
 export function getPageLoadTarget(input: PageLoadTargetInput): PageLoadTarget | null {
+  if (input.surface === "shared") {
+    return input.workspaceId ? "live" : null;
+  }
   if (!input.online || input.sessionMode !== SESSION_MODES.AUTHENTICATED) {
     if (input.cachedPage && input.docCached) return "cached-page";
     return "offline-unavailable";
   }
-  if (input.route.phase === "degraded") {
+  const route = input.route;
+  if (!route) return null;
+  if (route.phase === "degraded") {
     if (input.cachedPage && input.docCached) return "cached-page";
     return "cache-unavailable";
   }
-  if (!input.workspaceId || !isWorkspaceReady(input.route)) {
+  if (!input.workspaceId || !isWorkspaceReady(route)) {
     return null;
   }
   return "live";

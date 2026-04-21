@@ -5,7 +5,8 @@ import { classifyFailure } from "@/client/lib/classify-failure";
 import { createRequestGuard } from "@/client/lib/request-guard";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { reportClientError } from "@/client/lib/report-client-error";
-import { ShareViewContext, type ShareRootPage, type ShareViewState, type ShareViewStatus } from "./use-share-view";
+import { ShareViewContext, type ShareViewState, type ShareViewStatus } from "./use-share-view";
+import type { ShareRootPage } from "@/client/lib/share-page-model";
 import type { ResolvedViewerContext } from "@/shared/types";
 
 interface ShareViewProviderProps {
@@ -86,10 +87,6 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
   const rootPageId = rootPage?.id ?? null;
   const activePageId = rootPageId ? (activePage ?? rootPageId) : null;
 
-  const patchRootPage = useCallback((updates: Partial<ShareRootPage>) => {
-    setRootPage((current) => (current ? { ...current, ...updates } : current));
-  }, []);
-
   const navigateToPage = useCallback(
     (pageId: string) => {
       if (!rootPageId) return;
@@ -112,7 +109,6 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
             rootPage,
             activePageId,
             navigate: navigateToPage,
-            patchRootPage,
           }
         : status === "error" && error
           ? {
@@ -125,7 +121,7 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
               error: null,
               token,
             },
-    [status, workspaceId, viewer, rootPage, rootPageId, activePageId, token, navigateToPage, patchRootPage, error],
+    [status, workspaceId, viewer, rootPage, rootPageId, activePageId, token, navigateToPage, error],
   );
 
   return <ShareViewContext.Provider value={view}>{children}</ShareViewContext.Provider>;

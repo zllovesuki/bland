@@ -8,8 +8,7 @@ import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
  * inside a resolved workspace; share-token pages do not. */
 export type ActivePageSurface = "canonical" | "shared";
 
-export type ActivePageBacking = "live" | "cache" | "seed";
-export type ActivePageAccessConfidence = "authoritative" | "optimistic";
+export type ActivePageBacking = "live" | "cache";
 
 export interface ActivePageSnapshot {
   id: string;
@@ -21,7 +20,11 @@ export interface ActivePageSnapshot {
 
 export interface ActivePageAccess {
   mode: Exclude<PageAccessLevel, "none">;
-  confidence: ActivePageAccessConfidence;
+}
+
+export interface ActivePageInitialSnapshot {
+  snapshot: ActivePageSnapshot;
+  access: ActivePageAccess;
 }
 
 export interface ActivePagePatch {

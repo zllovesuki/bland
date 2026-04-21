@@ -1,9 +1,6 @@
 import { createContext, use } from "react";
 import type YProvider from "y-partyserver/provider";
 import type { ActivePagePatch, ActivePageState } from "@/client/lib/active-page-model";
-import type { PageLoadTarget } from "@/client/lib/page-load-target";
-
-export type { PageLoadTarget };
 
 export interface ActivePageSyncValue {
   syncProvider: YProvider | null;

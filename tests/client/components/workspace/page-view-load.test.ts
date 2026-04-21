@@ -18,6 +18,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: false,
         sessionMode: SESSION_MODES.AUTHENTICATED,
@@ -38,6 +39,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: true,
         sessionMode: SESSION_MODES.LOCAL_ONLY,
@@ -58,6 +60,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: false,
         sessionMode: SESSION_MODES.AUTHENTICATED,
@@ -78,6 +81,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: true,
         sessionMode: SESSION_MODES.AUTHENTICATED,
@@ -98,6 +102,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: true,
         sessionMode: SESSION_MODES.AUTHENTICATED,
@@ -117,6 +122,7 @@ describe("getPageLoadTarget", () => {
 
     expect(
       getPageLoadTarget({
+        surface: "canonical",
         route,
         online: true,
         sessionMode: SESSION_MODES.AUTHENTICATED,

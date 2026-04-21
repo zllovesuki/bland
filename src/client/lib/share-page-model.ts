@@ -1,6 +1,13 @@
 import type { ActivePageSnapshot, ActivePageState } from "@/client/lib/active-page-model";
-import type { PageAncestor } from "@/shared/types";
-import type { ShareRootPage } from "@/client/components/share/use-share-view";
+import type { PageAncestor, SharePermission } from "@/shared/types";
+
+export interface ShareRootPage {
+  id: string;
+  title: string;
+  icon: string | null;
+  cover_url: string | null;
+  permission: SharePermission;
+}
 
 export interface SharePagePresentation {
   activePageId: string;
@@ -31,9 +38,9 @@ export function deriveSharePagePresentation(
     isAncestorTrailLoading: readyState?.ancestorsStatus === "loading",
     page: readyState?.snapshot ?? null,
     ancestors: readyState?.ancestors ?? [],
-    displayTitle: readyState?.snapshot.title ?? (isRootActive ? rootPage.title : ""),
-    displayIcon: readyState?.snapshot.icon ?? (isRootActive ? rootPage.icon : null),
-    displayCoverUrl: readyState?.snapshot.coverUrl ?? (isRootActive ? rootPage.cover_url : null),
+    displayTitle: readyState?.snapshot.title ?? "",
+    displayIcon: readyState?.snapshot.icon ?? null,
+    displayCoverUrl: readyState?.snapshot.coverUrl ?? null,
     isViewOnly: readyState ? readyState.access.mode === "view" : rootPage.permission === "view",
   };
 }
