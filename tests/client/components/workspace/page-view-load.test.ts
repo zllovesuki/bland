@@ -113,7 +113,6 @@ describe("getPageLoadTarget", () => {
       phase: "ready",
       workspaceId: workspace.id,
       accessMode: "member",
-      cacheStatus: "live",
     };
 
     expect(

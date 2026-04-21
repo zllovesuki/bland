@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-import { isWorkspaceReady } from "@/client/lib/workspace-route-model";
+import { isResolvingWorkspace, isWorkspaceReady } from "@/client/lib/workspace-route-model";
 import { shouldBlockMemberOnlyRouteContent, shouldRedirectMemberOnlyRoute } from "@/client/lib/workspace-layout-model";
 import { WorkspaceViewProvider } from "./view-provider";
 import { useWorkspaceView } from "./use-workspace-view";
@@ -115,20 +115,9 @@ function WorkspaceLayoutInner() {
   let mainContent: React.ReactNode = null;
 
   if (memberOnlyRouteBlocked) {
+    // Member-only route without confirmed member access. The redirect effect
+    // above will swap us onto "/"; during that one render, show nothing.
     mainContent = null;
-  } else if (route.phase === "degraded") {
-    if (!params.pageId) {
-      mainContent = (
-        <TerminalRouteError
-          message="Unable to verify access to this workspace."
-          onRetry={() => window.location.reload()}
-        />
-      );
-    } else {
-      // Page route on degraded workspace: render Outlet so the active-page
-      // can render from cache or surface its own unavailable state.
-      mainContent = <Outlet />;
-    }
   } else if (route.phase === "error") {
     mainContent = (
       <TerminalRouteError
@@ -137,11 +126,14 @@ function WorkspaceLayoutInner() {
       />
     );
   } else {
+    // Ready, loading, or degraded (with a pageId — memberOnlyRouteBlocked
+    // already trapped the non-page case). ActivePageProvider owns cache-vs-
+    // live fallback for the degraded branch via its internal page-load target.
     mainContent = <Outlet />;
   }
 
   const showFullSidebar = isWorkspaceReady(route);
-  const showSkeleton = route.phase === "loading" || route.phase === "degraded";
+  const showSkeleton = isResolvingWorkspace(route);
 
   return (
     <>

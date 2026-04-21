@@ -1,16 +1,14 @@
 import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
 
-/** Data freshness for the resolved workspace route. */
-export type WorkspaceRouteSource = "live" | "cache";
-
 /**
  * Resolution state for the `/$workspaceSlug` route. Consumers branch on
- * `phase` and read `workspaceId` / `accessMode` / `cacheStatus` only where
- * the shape below guarantees them.
+ * `phase` and read `workspaceId` / `accessMode` only where the shape below
+ * guarantees them.
  *
  * Route state carries identity KEYS only (`workspaceId`, slug). Mutable
  * workspace payload lives in `workspace-store` snapshots; consumers read it
- * via `snapshotsByWorkspaceId[workspaceId]`.
+ * via `snapshotsByWorkspaceId[workspaceId]`. Cache-vs-live is a provider-
+ * internal concern used to gate revalidation, not part of the public state.
  */
 export type WorkspaceRouteState =
   /**
@@ -18,16 +16,11 @@ export type WorkspaceRouteState =
    * render and is null on a cold start until the first response lands.
    */
   | { phase: "loading"; workspaceId: string | null }
-  /**
-   * Workspace resolved and usable. `cacheStatus: "live"` means the data came
-   * from a successful network round-trip; `"cache"` means we are serving
-   * persisted snapshot data while a live refetch may still be in flight.
-   */
+  /** Workspace resolved and usable. */
   | {
       phase: "ready";
       workspaceId: string;
       accessMode: WorkspaceAccessMode;
-      cacheStatus: "cache" | "live";
     }
   /**
    * Cached workspace identity exists but live access could not be confirmed
@@ -53,4 +46,15 @@ export function isWorkspaceReady(state: WorkspaceRouteState): state is ReadyStat
 
 export function hasWorkspaceIdentity(state: WorkspaceRouteState): state is WithWorkspaceId {
   return state.phase !== "error" && state.workspaceId !== null;
+}
+
+/**
+ * Shell chrome is still resolving identity — render a skeleton sidebar.
+ * True for `loading` (no workspace yet) and `degraded` (stale-shared probe
+ * produced partial identity). Consumers outside this module should use this
+ * helper instead of checking `phase === "degraded"` directly so that route
+ * shape changes stay local.
+ */
+export function isResolvingWorkspace(state: WorkspaceRouteState): boolean {
+  return state.phase === "loading" || state.phase === "degraded";
 }

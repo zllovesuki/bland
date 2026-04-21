@@ -25,24 +25,14 @@ function seedFromCache(workspaceSlug: string, pageId: string | null): WorkspaceR
   if (memberWs) {
     const snap = store.snapshotsByWorkspaceId[memberWs.id];
     if (snap) {
-      return {
-        phase: "ready",
-        workspaceId: memberWs.id,
-        accessMode: snap.accessMode,
-        cacheStatus: "cache",
-      };
+      return { phase: "ready", workspaceId: memberWs.id, accessMode: snap.accessMode };
     }
     return { phase: "loading", workspaceId: memberWs.id };
   }
 
   const snap = Object.values(store.snapshotsByWorkspaceId).find((s) => s.workspace.slug === workspaceSlug);
   if (snap) {
-    return {
-      phase: "ready",
-      workspaceId: snap.workspace.id,
-      accessMode: snap.accessMode,
-      cacheStatus: "cache",
-    };
+    return { phase: "ready", workspaceId: snap.workspace.id, accessMode: snap.accessMode };
   }
 
   if (pageId) {
@@ -50,12 +40,7 @@ function seedFromCache(workspaceSlug: string, pageId: string | null): WorkspaceR
     if (pageWorkspaceId) {
       const snap = store.snapshotsByWorkspaceId[pageWorkspaceId];
       if (snap) {
-        return {
-          phase: "ready",
-          workspaceId: pageWorkspaceId,
-          accessMode: snap.accessMode,
-          cacheStatus: "cache",
-        };
+        return { phase: "ready", workspaceId: pageWorkspaceId, accessMode: snap.accessMode };
       }
       return { phase: "loading", workspaceId: pageWorkspaceId };
     }
@@ -105,6 +90,12 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   const workspaceIdRef = useRef(routeWorkspaceId);
   workspaceIdRef.current = routeWorkspaceId;
 
+  // Tracks data freshness for the revalidation-skip optimization below.
+  // Private to this provider; not surfaced on WorkspaceRouteState. Seeded as
+  // "cache" because a cache-seeded ready state is the only way initial mount
+  // can produce ready — cold-start produces loading.
+  const cacheStatusRef = useRef<"cache" | "live">("cache");
+
   const sessionMode = useAuthStore((s) => s.sessionMode);
   const online = useOnline();
   const previousNetworkStateRef = useRef({ online, sessionMode });
@@ -145,7 +136,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
 
     // Only skip when this workspace has already been confirmed live.
     // Cache-seeded routes still need one online revalidation pass.
-    if (!regainedLiveSession && isWorkspaceReady(currentRoute) && currentRoute.cacheStatus === "live") {
+    if (!regainedLiveSession && isWorkspaceReady(currentRoute) && cacheStatusRef.current === "live") {
       if (!online) return;
       if (!pageId) return;
       const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId[currentRoute.workspaceId];
@@ -179,12 +170,8 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           }
           store.setLastVisitedWorkspaceId(ctx.workspace.id);
 
-          setRoute({
-            phase: "ready",
-            workspaceId: ctx.workspace.id,
-            accessMode,
-            cacheStatus: "live",
-          });
+          cacheStatusRef.current = "live";
+          setRoute({ phase: "ready", workspaceId: ctx.workspace.id, accessMode });
           setCanonicalSlug(ctx.workspace.slug !== workspaceSlug ? ctx.workspace.slug : undefined);
         } catch (err) {
           if (!request.isCurrent()) return;
@@ -228,22 +215,14 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           if (!request.isCurrent()) return;
           store.replaceWorkspaceSnapshot(ws.id, { workspace: ws, accessMode: "member", pages, members });
           store.setLastVisitedWorkspaceId(ws.id);
-          setRoute({
-            phase: "ready",
-            workspaceId: ws.id,
-            accessMode: "member",
-            cacheStatus: "live",
-          });
+          cacheStatusRef.current = "live";
+          setRoute({ phase: "ready", workspaceId: ws.id, accessMode: "member" });
         } catch {
           if (!request.isCurrent()) return;
           const snap = store.snapshotsByWorkspaceId[ws.id];
           if (snap) {
-            setRoute({
-              phase: "ready",
-              workspaceId: ws.id,
-              accessMode: snap.accessMode,
-              cacheStatus: "cache",
-            });
+            cacheStatusRef.current = "cache";
+            setRoute({ phase: "ready", workspaceId: ws.id, accessMode: snap.accessMode });
           } else {
             setRoute({ phase: "error", errorKind: "network", message: "Failed to load workspace" });
           }
@@ -280,12 +259,8 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           pages,
           members: [],
         });
-        setRoute({
-          phase: "ready",
-          workspaceId: cachedWsId,
-          accessMode: "shared",
-          cacheStatus: "live",
-        });
+        cacheStatusRef.current = "live";
+        setRoute({ phase: "ready", workspaceId: cachedWsId, accessMode: "shared" });
       } catch (err) {
         if (!request.isCurrent()) return;
         const failure = classifyFailure(err, { online: navigator.onLine });
@@ -300,12 +275,8 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
         } else {
           setRoute((prev) => {
             if (isWorkspaceReady(prev)) return prev;
-            return {
-              phase: "ready",
-              workspaceId: cachedWsId,
-              accessMode: "shared",
-              cacheStatus: "cache",
-            };
+            cacheStatusRef.current = "cache";
+            return { phase: "ready", workspaceId: cachedWsId, accessMode: "shared" };
           });
         }
       }

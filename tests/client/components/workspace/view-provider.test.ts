@@ -247,14 +247,12 @@ describe("resolve effect transitions", () => {
 });
 
 /**
- * Mirrors the live-skip guard in WorkspaceViewProvider.resolve(): we only
- * short-circuit re-resolution when the current route is already fully ready
- * against live data.
+ * The live-skip guard in WorkspaceViewProvider.resolve() now reads a private
+ * `cacheStatusRef` rather than a public `cacheStatus` field on the route.
+ * The observable contract covered by this suite is the store-upgrade path
+ * after a successful re-resolve (ensuring a cache-seeded mount still refreshes
+ * snapshot data on transition to live).
  */
-function isAlreadyLive(route: import("@/client/lib/workspace-route-model").WorkspaceRouteState): boolean {
-  return route.phase === "ready" && route.cacheStatus === "live";
-}
-
 function getRouteAfterWorkspaceListFailure(prev: WorkspaceRouteState): WorkspaceRouteState {
   if (prev.phase === "ready" || prev.phase === "degraded") return prev;
   return { phase: "error", errorKind: "network", message: "Failed to load workspace" };
@@ -273,55 +271,10 @@ function getRouteAfterSharedDowngradeProbe(
       reason: "stale-shared",
     };
   }
-  return {
-    phase: "ready",
-    workspaceId,
-    accessMode: "shared",
-    cacheStatus: "live",
-  };
+  return { phase: "ready", workspaceId, accessMode: "shared" };
 }
 
-describe("cache-to-live revalidation guard", () => {
-  it("cache-backed route does not satisfy the live-skip guard", () => {
-    const ws = createWorkspace({ id: "ws-1", slug: "my-ws" });
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
-    useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
-      workspace: ws,
-      accessMode: "member",
-      pages: [createPage({ workspace_id: "ws-1" })],
-      members: [createMember({ workspace_id: "ws-1" })],
-    });
-
-    const cacheRoute: import("@/client/lib/workspace-route-model").WorkspaceRouteState = {
-      phase: "ready",
-      workspaceId: "ws-1",
-      accessMode: "member",
-      cacheStatus: "cache",
-    };
-
-    expect(isAlreadyLive(cacheRoute)).toBe(false);
-  });
-
-  it("live-backed route satisfies the live-skip guard", () => {
-    const liveRoute: import("@/client/lib/workspace-route-model").WorkspaceRouteState = {
-      phase: "ready",
-      workspaceId: "ws-1",
-      accessMode: "member",
-      cacheStatus: "live",
-    };
-
-    expect(isAlreadyLive(liveRoute)).toBe(true);
-  });
-
-  it("loading-with-seeded-identity does not satisfy the live-skip guard", () => {
-    const seeded: import("@/client/lib/workspace-route-model").WorkspaceRouteState = {
-      phase: "loading",
-      workspaceId: "ws-1",
-    };
-
-    expect(isAlreadyLive(seeded)).toBe(false);
-  });
-
+describe("cache-to-live snapshot upgrade", () => {
   it("cache-backed workspace upgrades snapshot after simulated re-resolve", () => {
     // Simulate the full cache-to-live upgrade path:
     // 1. Seed with stale cache data
@@ -374,12 +327,7 @@ describe("workspace provider error states", () => {
   });
 
   it("preserves an already-ready route on workspaces.list failure", () => {
-    const ready: WorkspaceRouteState = {
-      phase: "ready",
-      workspaceId: "ws-1",
-      accessMode: "member",
-      cacheStatus: "cache",
-    };
+    const ready: WorkspaceRouteState = { phase: "ready", workspaceId: "ws-1", accessMode: "member" };
     expect(getRouteAfterWorkspaceListFailure(ready)).toEqual(ready);
   });
 

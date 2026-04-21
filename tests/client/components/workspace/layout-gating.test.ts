@@ -7,8 +7,8 @@ const WS_ID = "ws-1";
 const states: Record<string, WorkspaceRouteState> = {
   loadingEmpty: { phase: "loading", workspaceId: null },
   loadingSeeded: { phase: "loading", workspaceId: WS_ID },
-  readyMember: { phase: "ready", workspaceId: WS_ID, accessMode: "member", cacheStatus: "live" },
-  readyShared: { phase: "ready", workspaceId: WS_ID, accessMode: "shared", cacheStatus: "live" },
+  readyMember: { phase: "ready", workspaceId: WS_ID, accessMode: "member" },
+  readyShared: { phase: "ready", workspaceId: WS_ID, accessMode: "shared" },
   degradedStaleSharedNoIdentity: {
     phase: "degraded",
     workspaceId: null,

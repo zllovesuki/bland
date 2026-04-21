@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isWorkspaceReady, hasWorkspaceIdentity, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
+import {
+  isWorkspaceReady,
+  hasWorkspaceIdentity,
+  isResolvingWorkspace,
+  type WorkspaceRouteState,
+} from "@/client/lib/workspace-route-model";
 
 const WS_ID = "ws-1";
 
 const states: Record<string, WorkspaceRouteState> = {
   loadingEmpty: { phase: "loading", workspaceId: null },
   loadingSeeded: { phase: "loading", workspaceId: WS_ID },
-  readyMemberLive: { phase: "ready", workspaceId: WS_ID, accessMode: "member", cacheStatus: "live" },
-  readyMemberCache: { phase: "ready", workspaceId: WS_ID, accessMode: "member", cacheStatus: "cache" },
-  readySharedLive: { phase: "ready", workspaceId: WS_ID, accessMode: "shared", cacheStatus: "live" },
-  readySharedCache: { phase: "ready", workspaceId: WS_ID, accessMode: "shared", cacheStatus: "cache" },
+  readyMember: { phase: "ready", workspaceId: WS_ID, accessMode: "member" },
+  readyShared: { phase: "ready", workspaceId: WS_ID, accessMode: "shared" },
   degradedStaleSharedNoIdentity: {
     phase: "degraded",
     workspaceId: null,
@@ -22,7 +25,7 @@ const states: Record<string, WorkspaceRouteState> = {
 };
 
 describe("isWorkspaceReady", () => {
-  const ready = ["readyMemberLive", "readyMemberCache", "readySharedLive", "readySharedCache"];
+  const ready = ["readyMember", "readyShared"];
   const notReady = [
     "loadingEmpty",
     "loadingSeeded",
@@ -40,25 +43,17 @@ describe("isWorkspaceReady", () => {
     expect(isWorkspaceReady(states[key])).toBe(false);
   });
 
-  it("narrows to workspaceId + accessMode + cacheStatus", () => {
-    const state = states.readyMemberLive;
+  it("narrows to workspaceId + accessMode", () => {
+    const state = states.readyMember;
     if (isWorkspaceReady(state)) {
       expect(state.workspaceId).toBe(WS_ID);
       expect(state.accessMode).toBe("member");
-      expect(state.cacheStatus).toBe("live");
     }
   });
 });
 
 describe("hasWorkspaceIdentity", () => {
-  const withIdentity = [
-    "loadingSeeded",
-    "readyMemberLive",
-    "readyMemberCache",
-    "readySharedLive",
-    "readySharedCache",
-    "degradedStaleShared",
-  ];
+  const withIdentity = ["loadingSeeded", "readyMember", "readyShared", "degradedStaleShared"];
   const withoutIdentity = ["loadingEmpty", "degradedStaleSharedNoIdentity", "errorNotFound", "errorNetwork"];
 
   it.each(withIdentity)("returns true for %s", (key) => {
@@ -74,5 +69,18 @@ describe("hasWorkspaceIdentity", () => {
     if (hasWorkspaceIdentity(state)) {
       expect(state.workspaceId).toBe(WS_ID);
     }
+  });
+});
+
+describe("isResolvingWorkspace", () => {
+  const resolving = ["loadingEmpty", "loadingSeeded", "degradedStaleSharedNoIdentity", "degradedStaleShared"];
+  const notResolving = ["readyMember", "readyShared", "errorNotFound", "errorNetwork"];
+
+  it.each(resolving)("returns true for %s", (key) => {
+    expect(isResolvingWorkspace(states[key])).toBe(true);
+  });
+
+  it.each(notResolving)("returns false for %s", (key) => {
+    expect(isResolvingWorkspace(states[key])).toBe(false);
   });
 });
