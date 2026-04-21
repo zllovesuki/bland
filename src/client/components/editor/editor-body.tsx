@@ -16,7 +16,6 @@ import { EditorAffordanceContext } from "./editor-affordance-context";
 import { EditorRuntimeContext, type EditorRuntimeSnapshot } from "./editor-runtime-context";
 import { EditorMetrics } from "./editor-metrics";
 import { EditorOutline } from "./editor-outline";
-import type { EditorOutlinePlacement } from "./editor-pane";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { PageMentionContext, usePageMentions } from "@/client/components/page-mention/context";
 import "./styles/content.css";
@@ -26,6 +25,8 @@ import "./styles/callout.css";
 import "./styles/emoji.css";
 import "./styles/menu.css";
 import "./styles/page-mention.css";
+
+export type EditorOutlinePlacement = { kind: "inline" } | { kind: "rail"; target: HTMLDivElement | null };
 
 interface EditorBodyProps {
   fragment: Y.XmlFragment;

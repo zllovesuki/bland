@@ -5,7 +5,7 @@ import YProvider from "y-partyserver/provider";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { toast } from "@/client/components/toast";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
-import { EditorBody } from "./editor-body";
+import { EditorBody, type EditorOutlinePlacement } from "./editor-body";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { useEditorSession } from "./use-editor-session";
@@ -25,8 +25,6 @@ interface EditorPaneProps {
   outline?: EditorOutlinePlacement;
   docFooterLeading?: ReactNode;
 }
-
-export type EditorOutlinePlacement = { kind: "inline" } | { kind: "rail"; target: HTMLDivElement | null };
 
 export function EditorPane({
   pageId,
