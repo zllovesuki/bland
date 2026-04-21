@@ -35,6 +35,8 @@ If a larger abstraction is merely optional, present it as an option instead of m
 ## Working Rules
 
 - Keep edits scoped and minimal.
+- Unless the user explicitly asks for a modification, treat the repository, working tree, index, and staged/unstaged changes as read-only. Exploration, review, and diagnosis must not create, stage, unstage, revert, discard, or stash changes.
+- Do not run destructive git or index-mutating commands such as `git add`, `git reset`, `git restore`, `git checkout`, `git stash`, `git commit`, or similar unless the user explicitly asks for that operation.
 - Do not trade a small diff for a fragile design when the structural fix is already clear.
 - When reviewing a diff, start by checking whether the problem is truly local or a symptom of a broader ownership, state, or data-flow issue.
 - Keep bug reports, repros, and regressions grounded in actions a human can actually perform in a browser. If triggering a state requires an impossible synthetic transition, such as jumping directly from `/ws-a/p-a` to `/ws-b/p-b` in a way the browser UI cannot produce, it is not a product bug.
