@@ -1,25 +1,16 @@
 import { describe, expect, it } from "vitest";
-import {
-  deriveEditorPhase,
-  hasLocalBodyState,
-  type EditorPhaseInputs,
-} from "@/client/components/editor/use-editor-session";
+import { deriveDocSyncPhase, type DocSyncPhaseInputs } from "@/client/lib/doc-sync-session";
 
-const base: EditorPhaseInputs = {
+const base: DocSyncPhaseInputs = {
   hasLocalBodyState: false,
   wantsConnection: true,
   workspaceId: "ws-1",
   bootstrapStatus: "pending",
 };
 
-describe("editor cold bootstrap phase", () => {
-  it("treats a fragment with children as locally cached body state", () => {
-    expect(hasLocalBodyState({ length: 1 })).toBe(true);
-    expect(hasLocalBodyState({ length: 0 })).toBe(false);
-  });
-
+describe("doc-sync cold bootstrap phase", () => {
   it("exposes local state when offline or unauthed without connecting", () => {
-    expect(deriveEditorPhase({ ...base, wantsConnection: false })).toEqual({
+    expect(deriveDocSyncPhase({ ...base, wantsConnection: false })).toEqual({
       ready: true,
       shouldConnect: false,
       snapshotFetch: null,
@@ -28,7 +19,7 @@ describe("editor cold bootstrap phase", () => {
   });
 
   it("mounts and connects immediately when a local body is cached", () => {
-    expect(deriveEditorPhase({ ...base, hasLocalBodyState: true })).toEqual({
+    expect(deriveDocSyncPhase({ ...base, hasLocalBodyState: true })).toEqual({
       ready: true,
       shouldConnect: true,
       snapshotFetch: null,
@@ -37,7 +28,7 @@ describe("editor cold bootstrap phase", () => {
   });
 
   it("stays loading without a workspace id since the snapshot route is unreachable", () => {
-    expect(deriveEditorPhase({ ...base, workspaceId: undefined })).toEqual({
+    expect(deriveDocSyncPhase({ ...base, workspaceId: undefined })).toEqual({
       ready: false,
       shouldConnect: false,
       snapshotFetch: null,
@@ -46,7 +37,7 @@ describe("editor cold bootstrap phase", () => {
   });
 
   it("fetches a snapshot before mounting on a cold uncached live doc", () => {
-    expect(deriveEditorPhase(base)).toEqual({
+    expect(deriveDocSyncPhase(base)).toEqual({
       ready: false,
       shouldConnect: false,
       snapshotFetch: { workspaceId: "ws-1" },
@@ -55,7 +46,7 @@ describe("editor cold bootstrap phase", () => {
   });
 
   it("mounts and connects once the snapshot has resolved (applied or absent)", () => {
-    expect(deriveEditorPhase({ ...base, bootstrapStatus: "resolved" })).toEqual({
+    expect(deriveDocSyncPhase({ ...base, bootstrapStatus: "resolved" })).toEqual({
       ready: true,
       shouldConnect: true,
       snapshotFetch: null,
@@ -64,7 +55,7 @@ describe("editor cold bootstrap phase", () => {
   });
 
   it("surfaces an error state on snapshot failure and keeps the provider parked", () => {
-    expect(deriveEditorPhase({ ...base, bootstrapStatus: "error" })).toEqual({
+    expect(deriveDocSyncPhase({ ...base, bootstrapStatus: "error" })).toEqual({
       ready: false,
       shouldConnect: false,
       snapshotFetch: null,
