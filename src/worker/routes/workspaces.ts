@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
-import { ulid } from "ulidx";
+import { ulid } from "ulid";
 
 import { workspaces, memberships, users, pages, invites, pageShares, uploads } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";

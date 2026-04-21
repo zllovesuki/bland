@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { eq, and } from "drizzle-orm";
-import { ulid } from "ulidx";
+import { ulid } from "ulid";
 
 import { jwtVerify } from "jose";
 

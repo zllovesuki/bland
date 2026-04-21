@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import { ulid } from "ulidx";
+import { ulid } from "ulid";
 import { argon2id } from "@noble/hashes/argon2.js";
 import { randomBytes } from "@noble/hashes/utils.js";
 import type { Context } from "hono";
