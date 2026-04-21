@@ -23,9 +23,9 @@ export function LandingPage() {
 
   return (
     <div className="relative min-h-screen">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-900/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-zinc-800/60 bg-zinc-900/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center px-4 py-3 sm:px-6">
           <Link
             to="/"
             className="group flex items-center gap-3 transition-opacity hover:opacity-80"
@@ -44,7 +44,7 @@ export function LandingPage() {
             </span>
           </Link>
         </div>
-      </nav>
+      </header>
 
       <main id="main-content">
         {/* Hero */}
