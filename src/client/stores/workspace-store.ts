@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { docCache } from "@/client/lib/doc-cache-registry";
+import { queryClient } from "@/client/lib/query-client";
 import { safeJsonStorage } from "@/client/lib/storage";
 import {
   addSnapshotPage,
@@ -227,6 +228,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const state = get();
         if (state.cacheUserId && state.cacheUserId !== userId) {
           docCache.clearAll();
+          queryClient.clear();
           state.resetStore(userId);
         } else if (!state.cacheUserId && userId) {
           set({ cacheUserId: userId });

@@ -1,8 +1,10 @@
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, use, useCallback, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Share2, Link2, Copy, Check, Trash2, Users, Loader2, ChevronDown } from "lucide-react";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
+import { pageSharesQueryKey, pageSharesQueryOptions } from "@/client/lib/queries/page-shares";
 import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
@@ -11,7 +13,6 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { useOnline } from "@/client/hooks/use-online";
-import { createRequestGuard } from "@/client/lib/request-guard";
 import type { PageShare, WorkspaceMember } from "@/shared/types";
 import type { ShareDialogAffordance } from "@/client/lib/affordance/share-dialog";
 
@@ -112,10 +113,7 @@ interface ShareDialogSlices {
 
 function useShareDialogController({ pageId, disabled, title }: ShareDialogProps): ShareDialogSlices {
   const [open, setOpen] = useState(false);
-  const [shares, setShares] = useState<PageShare[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [peopleInput, setPeopleInput] = useState("");
   const [peoplePermission, setPeoplePermission] = useState<SharePermission>("view");
   const [linkPermission, setLinkPermission] = useState<SharePermission>("view");
@@ -126,45 +124,76 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
   const online = useOnline();
   const workspaceRole: WorkspaceRole = getMyRole(members, user) ?? "none";
   const currentUserId = user?.id;
-  const activeRef = useRef(true);
-  const loadEpochRef = useRef(0);
-  const pageIdRef = useRef(pageId);
-  const openRef = useRef(open);
-  pageIdRef.current = pageId;
-  openRef.current = open;
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    activeRef.current = true;
-    return () => {
-      activeRef.current = false;
-    };
-  }, []);
+  const sharesQuery = useQuery({
+    ...pageSharesQueryOptions(pageId),
+    enabled: open && !disabled,
+  });
 
-  useEffect(() => {
-    if (!open) return;
-    const request = createRequestGuard(loadEpochRef, activeRef);
-    setLoading(true);
-    setError(null);
+  const shares = useMemo(() => sharesQuery.data ?? [], [sharesQuery.data]);
+  const loading = sharesQuery.isLoading;
 
-    api.shares
-      .list(pageId)
-      .then((nextShares) => {
-        if (!request.isCurrent()) return;
-        setShares(nextShares);
-      })
-      .catch((err) => {
-        if (!request.isCurrent()) return;
-        setError(toApiError(err).message);
-      })
-      .finally(() => {
-        if (!request.isCurrent()) return;
-        setLoading(false);
-      });
+  const appendShare = useCallback(
+    (share: PageShare) => {
+      queryClient.setQueryData<PageShare[]>(pageSharesQueryKey(pageId), (prev = []) => [...prev, share]);
+    },
+    [pageId, queryClient],
+  );
 
-    return () => {
-      request.cancel();
-    };
-  }, [open, pageId]);
+  const removeShare = useCallback(
+    (shareId: string) => {
+      queryClient.setQueryData<PageShare[]>(pageSharesQueryKey(pageId), (prev = []) =>
+        prev.filter((share) => share.id !== shareId),
+      );
+    },
+    [pageId, queryClient],
+  );
+
+  const createUserShareMutation = useMutation({
+    mutationFn: (input: { grantee_id?: string; grantee_email?: string; permission: SharePermission }) =>
+      api.shares.create(pageId, { grantee_type: "user", ...input }),
+    onMutate: () => {
+      setLocalError(null);
+    },
+    onSuccess: (share) => {
+      appendShare(share);
+      setPeopleInput("");
+      setShowSuggestions(false);
+    },
+    onError: (err) => {
+      setLocalError(toApiError(err).message);
+    },
+  });
+
+  const createLinkShareMutation = useMutation({
+    mutationFn: (permission: SharePermission) => api.shares.create(pageId, { grantee_type: "link", permission }),
+    onMutate: () => {
+      setLocalError(null);
+    },
+    onSuccess: (share) => {
+      appendShare(share);
+    },
+    onError: (err) => {
+      setLocalError(toApiError(err).message);
+    },
+  });
+
+  const deleteShareMutation = useMutation({
+    mutationFn: (shareId: string) => api.shares.delete(pageId, shareId),
+    onMutate: () => {
+      setLocalError(null);
+    },
+    onSuccess: (_result, shareId) => {
+      removeShare(shareId);
+    },
+    onError: (err) => {
+      setLocalError(toApiError(err).message);
+    },
+  });
+
+  const creating = createUserShareMutation.isPending || createLinkShareMutation.isPending;
+  const error = localError ?? (sharesQuery.error ? toApiError(sharesQuery.error).message : null);
 
   const { linkShares, userShares, shareableMembers } = useMemo(() => {
     const nextLinkShares = shares.filter((share) => share.grantee_type === "link");
@@ -223,14 +252,12 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
 
   const toggleOpen = useCallback(() => {
     if (disabled) return;
-    if (!openRef.current) {
-      setShares([]);
-      setError(null);
-      setLoading(true);
+    if (!open) {
+      setLocalError(null);
       setShowSuggestions(false);
     }
     setOpen((current) => !current);
-  }, [disabled]);
+  }, [disabled, open]);
 
   const openSuggestions = useCallback(() => setShowSuggestions(true), []);
   const dismissSuggestions = useCallback(() => setShowSuggestions(false), []);
@@ -242,76 +269,41 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
 
   const submitPeopleShare = useCallback(async () => {
     if (!peopleInput.trim() || creating || !isActionEnabled(dialogAffordance.createUserShare)) return;
-    const capturedPageId = pageIdRef.current;
-    setCreating(true);
-    setError(null);
-    try {
-      const matchedMember = shareableMembers.find(
-        (member) =>
-          member.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() ||
-          member.user?.name === peopleInput.trim(),
-      );
-      const share = matchedMember
-        ? await api.shares.create(capturedPageId, {
-            grantee_type: "user",
-            grantee_id: matchedMember.user_id,
-            permission: peoplePermission,
-          })
-        : await api.shares.create(capturedPageId, {
-            grantee_type: "user",
-            grantee_email: peopleInput.trim(),
-            permission: peoplePermission,
-          });
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setShares((prev) => [...prev, share]);
-      setPeopleInput("");
-      setShowSuggestions(false);
-    } catch (err) {
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setError(toApiError(err).message);
-    } finally {
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setCreating(false);
-    }
-  }, [peopleInput, creating, dialogAffordance.createUserShare, shareableMembers, peoplePermission]);
+    const matchedMember = shareableMembers.find(
+      (member) =>
+        member.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() ||
+        member.user?.name === peopleInput.trim(),
+    );
+    createUserShareMutation.mutate(
+      matchedMember
+        ? { grantee_id: matchedMember.user_id, permission: peoplePermission }
+        : { grantee_email: peopleInput.trim(), permission: peoplePermission },
+    );
+  }, [
+    peopleInput,
+    creating,
+    dialogAffordance.createUserShare,
+    shareableMembers,
+    peoplePermission,
+    createUserShareMutation,
+  ]);
 
   const createLinkShare = useCallback(async () => {
     if (creating || !isActionEnabled(dialogAffordance.createLinkShare)) return;
-    const capturedPageId = pageIdRef.current;
-    setCreating(true);
-    setError(null);
-    try {
-      const share = await api.shares.create(capturedPageId, {
-        grantee_type: "link",
-        permission: linkPermission,
-      });
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setShares((prev) => [...prev, share]);
-    } catch (err) {
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setError(toApiError(err).message);
-    } finally {
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setCreating(false);
-    }
-  }, [creating, dialogAffordance.createLinkShare, linkPermission]);
+    createLinkShareMutation.mutate(linkPermission);
+  }, [creating, dialogAffordance.createLinkShare, linkPermission, createLinkShareMutation]);
 
-  const deleteShare = useCallback(async (shareId: string) => {
-    const ok = await confirm({
-      title: "Remove share",
-      message: "This person or link will lose access to the page.",
-    });
-    if (!ok) return;
-    const capturedPageId = pageIdRef.current;
-    try {
-      await api.shares.delete(capturedPageId, shareId);
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setShares((prev) => prev.filter((share) => share.id !== shareId));
-    } catch (err) {
-      if (!activeRef.current || pageIdRef.current !== capturedPageId) return;
-      setError(toApiError(err).message);
-    }
-  }, []);
+  const deleteShare = useCallback(
+    async (shareId: string) => {
+      const ok = await confirm({
+        title: "Remove share",
+        message: "This person or link will lose access to the page.",
+      });
+      if (!ok) return;
+      deleteShareMutation.mutate(shareId);
+    },
+    [deleteShareMutation],
+  );
 
   const copyLink = useCallback(
     (share: PageShare) => {

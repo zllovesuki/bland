@@ -18,7 +18,7 @@ import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/icon-picker";
 import { CoverPicker } from "@/client/components/cover-picker";
-import { ShareDialog } from "@/client/components/share-dialog";
+import { ShareDialog } from "@/client/components/workspace/share-dialog";
 import { SummarizeSheet } from "@/client/components/workspace/summarize-sheet";
 import { PanelRightOpen } from "lucide-react";
 import { useMediaQuery } from "@/client/hooks/use-media-query";

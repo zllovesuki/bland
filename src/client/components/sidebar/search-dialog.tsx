@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Search, FileText, Loader2 } from "lucide-react";
-import { api } from "@/client/lib/api";
+import { searchQueryOptions } from "@/client/lib/queries/search";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
 import type { SearchResult } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
@@ -10,65 +11,36 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const navigate = useNavigate();
   const workspace = useCurrentWorkspace();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const requestIdRef = useRef(0);
+
+  const searchQuery = useQuery(searchQueryOptions(workspace?.id ?? null, debouncedQuery));
+  const results: SearchResult[] = searchQuery.data ?? [];
+  const isSearching = searchQuery.isFetching;
+  const hasError = searchQuery.isError;
 
   useEffect(() => {
     if (open) {
       setQuery("");
-      setResults([]);
-      setHasError(false);
+      setDebouncedQuery("");
       setSelectedIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
-    } else {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+    } else if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
     }
   }, [open]);
 
-  const doSearch = useCallback(
-    (q: string) => {
-      if (!workspace || q.trim().length < 3) {
-        setResults([]);
-        setHasError(false);
-        setIsSearching(false);
-        return;
-      }
-      setIsSearching(true);
-      setHasError(false);
-      const id = ++requestIdRef.current;
-      api
-        .search(workspace.id, q.trim())
-        .then((r) => {
-          if (id !== requestIdRef.current) return; // stale response
-          setResults(r);
-          setSelectedIndex(0);
-        })
-        .catch(() => {
-          if (id === requestIdRef.current) {
-            setResults([]);
-            setHasError(true);
-          }
-        })
-        .finally(() => {
-          if (id === requestIdRef.current) setIsSearching(false);
-        });
-    },
-    [workspace],
-  );
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery.data]);
 
-  const handleInput = useCallback(
-    (value: string) => {
-      setQuery(value);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => doSearch(value), 200);
-    },
-    [doSearch],
-  );
+  const handleInput = useCallback((value: string) => {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQuery(value), 200);
+  }, []);
 
   const selectResult = useCallback(
     (result: SearchResult) => {

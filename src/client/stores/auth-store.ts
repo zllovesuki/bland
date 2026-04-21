@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { User as UserSchema, type User } from "@/shared/types";
 import { SESSION_MODES, STORAGE_KEYS, type SessionMode } from "@/client/lib/constants";
 import { docCache } from "@/client/lib/doc-cache-registry";
+import { queryClient } from "@/client/lib/query-client";
 import { readVersionedStorageJson, writeVersionedStorageJson, removeStorageItem } from "@/client/lib/storage";
 import { useWorkspaceStore } from "./workspace-store";
 
@@ -60,6 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearAuth() {
     removeStorageItem(STORAGE_KEYS.USER);
     docCache.clearAll();
+    queryClient.clear();
     set({
       accessToken: null,
       user: null,

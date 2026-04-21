@@ -1,9 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { refreshSession } from "./lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "./lib/client-config";
 import { getSessionBootstrapStrategy } from "./lib/session-bootstrap";
+import { queryClient } from "./lib/query-client";
 import { routeTree } from "./route-tree";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
 import { isBenignBrowserError } from "./lib/benign-browser-errors";
@@ -109,7 +111,9 @@ async function bootstrap() {
     },
   }).render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
     </StrictMode>,
   );
 
