@@ -297,4 +297,64 @@ describe("workspace-store", () => {
       expect(useWorkspaceStore.getState().lastVisitedWorkspaceId).toBe("ws-2");
     });
   });
+
+  describe("cached page access", () => {
+    it("upsertPageAccess stores the per-page access mode", () => {
+      useWorkspaceStore.getState().upsertPageAccess("page-1", "view");
+      expect(useWorkspaceStore.getState().pageAccessByPageId["page-1"]).toBe("view");
+      useWorkspaceStore.getState().upsertPageAccess("page-1", "edit");
+      expect(useWorkspaceStore.getState().pageAccessByPageId["page-1"]).toBe("edit");
+    });
+
+    it("resetStore clears persisted page access", () => {
+      useWorkspaceStore.getState().upsertPageAccess("page-1", "edit");
+      useWorkspaceStore.getState().resetStore();
+      expect(useWorkspaceStore.getState().pageAccessByPageId).toEqual({});
+    });
+
+    it("migrates v4 persisted state by seeding an empty pageAccessByPageId map", async () => {
+      const hadWindow = "window" in globalThis;
+      const originalWindow = (globalThis as Record<string, unknown>).window;
+
+      localStorage.setItem(
+        STORAGE_KEYS.WORKSPACE,
+        JSON.stringify({
+          state: {
+            memberWorkspaces: [],
+            sharedInbox: [],
+            snapshotsByWorkspaceId: {},
+            lastVisitedWorkspaceId: null,
+            lastVisitedPageIdByWorkspaceId: {},
+            cacheUserId: "user-1",
+          },
+          version: 4,
+        }),
+      );
+
+      Object.defineProperty(globalThis, "window", {
+        value: { localStorage },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        vi.resetModules();
+        const mod = await import("@/client/stores/workspace-store");
+        await vi.dynamicImportSettled();
+        const state = mod.useWorkspaceStore.getState();
+
+        expect(state.pageAccessByPageId).toEqual({});
+      } finally {
+        if (hadWindow) {
+          Object.defineProperty(globalThis, "window", {
+            value: originalWindow,
+            writable: true,
+            configurable: true,
+          });
+        } else {
+          delete (globalThis as Record<string, unknown>).window;
+        }
+      }
+    });
+  });
 });

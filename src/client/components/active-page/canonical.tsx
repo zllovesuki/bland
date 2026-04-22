@@ -8,6 +8,7 @@ import { useCanonicalPageContext } from "@/client/components/workspace/use-canon
 import { ActivePageProvider } from "@/client/components/active-page/provider";
 import { useActivePageActions, useActivePageSync } from "@/client/components/active-page/use-active-page";
 import { parseDocMessage } from "@/shared/doc-messages";
+import type { ActivePageAccess } from "@/client/lib/active-page-model";
 import type { Page } from "@/shared/types";
 
 /**
@@ -23,10 +24,13 @@ export function CanonicalActivePageBoundary({ children }: { children: ReactNode 
 
   const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);
+  const upsertPageAccess = useWorkspaceStore((s) => s.upsertPageAccess);
+  const cachedAccess = useWorkspaceStore((s) => s.pageAccessByPageId[params.pageId] ?? null);
 
-  const onLivePageLoaded = (page: Page) => {
+  const onLivePageLoaded = (page: Page, access: ActivePageAccess) => {
     if (!effectiveWorkspaceId) return;
     upsertPage(effectiveWorkspaceId, page);
+    upsertPageAccess(page.id, access.mode);
   };
 
   const onEvict = (id: string) => {
@@ -42,6 +46,7 @@ export function CanonicalActivePageBoundary({ children }: { children: ReactNode 
       accessMode={accessMode}
       role={role}
       cachedPageMeta={currentPageMeta}
+      cachedAccess={cachedAccess}
       shareToken={null}
       onLivePageLoaded={onLivePageLoaded}
       onEvict={onEvict}

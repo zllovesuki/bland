@@ -2,7 +2,7 @@ import { SESSION_MODES, type SessionMode } from "@/client/lib/constants";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import type { PageAncestor, PageKind, WorkspaceRole } from "@/shared/types";
 import type { PageAccessLevel } from "@/shared/entitlements";
-import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { CachedPageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-store";
 
 /** Which surface the active-page model is running under. Canonical pages live
  * inside a resolved workspace; share-token pages do not. */
@@ -85,6 +85,17 @@ export function getPageLoadFailureAction(
 
 export function needsRestrictedAncestors(accessMode: WorkspaceAccessMode | null, role: WorkspaceRole | null): boolean {
   return accessMode === "shared" || role === "guest";
+}
+
+/**
+ * Derive an {@link ActivePageAccess} from the persisted cached access mode.
+ *
+ * Cache existence alone is not proof of edit permission: a view-only cached
+ * page must stay view-only when the worker is unreachable. Fail closed to
+ * "view" when the persisted mode is missing.
+ */
+export function accessFromCachedPage(cachedAccess: CachedPageAccessMode | null): ActivePageAccess {
+  return { mode: cachedAccess ?? "view" };
 }
 
 export function isActivePageReady(state: ActivePageState): state is Extract<ActivePageState, { kind: "ready" }> {

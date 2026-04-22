@@ -8,7 +8,7 @@ import { createRequestGuard } from "@/client/lib/request-guard";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useOnline } from "@/client/hooks/use-online";
-import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { CachedPageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import {
   type ActivePageAccess,
@@ -17,6 +17,7 @@ import {
   type ActivePageSnapshot,
   type ActivePageState,
   type ActivePageSurface,
+  accessFromCachedPage,
   getPageLoadFailureAction,
   needsRestrictedAncestors,
 } from "@/client/lib/active-page-model";
@@ -31,9 +32,10 @@ interface ActivePageProviderProps {
   accessMode: WorkspaceAccessMode | null;
   role: WorkspaceRole | null;
   cachedPageMeta: Page | null;
+  cachedAccess: CachedPageAccessMode | null;
   shareToken: string | null;
   initialSnapshot?: ActivePageInitialSnapshot | null;
-  onLivePageLoaded?: (page: Page) => void;
+  onLivePageLoaded?: (page: Page, access: ActivePageAccess) => void;
   onEvict?: (pageId: string) => void;
   children: ReactNode;
 }
@@ -92,10 +94,6 @@ function accessFromLivePage(page: GetPageResponse): ActivePageAccess {
   return { mode: page.can_edit ? "edit" : "view" };
 }
 
-function accessFromCachedPage(): ActivePageAccess {
-  return { mode: "edit" };
-}
-
 function resolveAncestorsState(
   prev: ActivePageState,
   pageId: string,
@@ -147,6 +145,7 @@ export function ActivePageProvider({
   accessMode,
   role,
   cachedPageMeta,
+  cachedAccess,
   shareToken,
   initialSnapshot,
   onLivePageLoaded,
@@ -186,10 +185,12 @@ export function ActivePageProvider({
   const epochRef = useRef(0);
   const activeRef = useRef(true);
   const cachedPageRef = useRef(cachedPageMeta);
+  const cachedAccessRef = useRef(cachedAccess);
   const onlineRef = useRef(online);
   const onLivePageLoadedRef = useRef(onLivePageLoaded);
   const onEvictRef = useRef(onEvict);
   cachedPageRef.current = cachedPageMeta;
+  cachedAccessRef.current = cachedAccess;
   onlineRef.current = online;
   onLivePageLoadedRef.current = onLivePageLoaded;
   onEvictRef.current = onEvict;
@@ -263,7 +264,7 @@ export function ActivePageProvider({
             buildReadyState(
               snapshotFromPage(cached),
               "cache",
-              accessFromCachedPage(),
+              accessFromCachedPage(cachedAccessRef.current),
               prev,
               shouldLoadRestrictedAncestors,
             ),
@@ -311,16 +312,11 @@ export function ActivePageProvider({
         const data = await api.pages.get(workspaceId, pageId, shareToken ?? undefined);
         if (!request.isCurrent()) return;
 
-        onLivePageLoadedRef.current?.(data.page);
+        const liveAccess = accessFromLivePage(data);
+        onLivePageLoadedRef.current?.(data.page, liveAccess);
 
         setState((prev) =>
-          buildReadyState(
-            snapshotFromPage(data.page),
-            "live",
-            accessFromLivePage(data),
-            prev,
-            shouldLoadRestrictedAncestors,
-          ),
+          buildReadyState(snapshotFromPage(data.page), "live", liveAccess, prev, shouldLoadRestrictedAncestors),
         );
         await syncRestrictedAncestors(pageId, ancestorsPromise);
       } catch (err) {
@@ -350,7 +346,7 @@ export function ActivePageProvider({
                 buildReadyState(
                   snapshotFromPage(cached),
                   "cache",
-                  accessFromCachedPage(),
+                  accessFromCachedPage(cachedAccessRef.current),
                   prev,
                   shouldLoadRestrictedAncestors,
                 ),

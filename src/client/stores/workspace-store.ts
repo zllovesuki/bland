@@ -15,6 +15,12 @@ import {
 
 export type WorkspaceAccessMode = "member" | "shared";
 
+/** Page access level recorded alongside the cached page snapshot. Offline and
+ *  degraded renderers read from this map so a previously view-only page does
+ *  not get promoted to edit once the network drops. Keyed by page id (ULID,
+ *  globally unique — no workspace tiering needed). */
+export type CachedPageAccessMode = "view" | "edit";
+
 export interface WorkspaceSnapshot {
   workspace: Workspace;
   accessMode: WorkspaceAccessMode;
@@ -27,6 +33,7 @@ interface WorkspaceState {
   sharedInbox: SharedWithMeItem[];
   sharedInboxWorkspaceSummaries: SharedInboxWorkspaceSummary[];
   snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
+  pageAccessByPageId: Record<string, CachedPageAccessMode>;
   lastVisitedWorkspaceId: string | null;
   lastVisitedPageIdByWorkspaceId: Record<string, string>;
   cacheUserId: string | null;
@@ -47,6 +54,8 @@ interface WorkspaceState {
   archivePageInSnapshot(workspaceId: string, pageId: string): void;
   replaceSnapshotMembers(workspaceId: string, members: WorkspaceMember[]): void;
 
+  upsertPageAccess(pageId: string, mode: CachedPageAccessMode): void;
+
   setLastVisitedWorkspaceId(id: string | null): void;
   setLastVisitedPage(workspaceId: string, pageId: string): void;
 
@@ -66,6 +75,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       sharedInbox: [],
       sharedInboxWorkspaceSummaries: [],
       snapshotsByWorkspaceId: {},
+      pageAccessByPageId: {},
       lastVisitedWorkspaceId: null,
       lastVisitedPageIdByWorkspaceId: {},
       cacheUserId: null,
@@ -210,6 +220,15 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         });
       },
 
+      upsertPageAccess(pageId, mode) {
+        set((state) => {
+          if (state.pageAccessByPageId[pageId] === mode) return state;
+          return {
+            pageAccessByPageId: { ...state.pageAccessByPageId, [pageId]: mode },
+          };
+        });
+      },
+
       setLastVisitedWorkspaceId(id) {
         set({ lastVisitedWorkspaceId: id });
       },
@@ -243,6 +262,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           sharedInbox: [],
           sharedInboxWorkspaceSummaries: [],
           snapshotsByWorkspaceId: {},
+          pageAccessByPageId: {},
           lastVisitedWorkspaceId: null,
           lastVisitedPageIdByWorkspaceId: {},
         };
@@ -251,31 +271,44 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: STORAGE_KEYS.WORKSPACE,
-      version: 4,
+      version: 5,
       storage: safeJsonStorage,
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
         sharedInbox: state.sharedInbox,
         sharedInboxWorkspaceSummaries: state.sharedInboxWorkspaceSummaries,
         snapshotsByWorkspaceId: state.snapshotsByWorkspaceId,
+        pageAccessByPageId: state.pageAccessByPageId,
         lastVisitedWorkspaceId: state.lastVisitedWorkspaceId,
         lastVisitedPageIdByWorkspaceId: state.lastVisitedPageIdByWorkspaceId,
         cacheUserId: state.cacheUserId,
       }),
-      // v3 snapshots have pages without `kind`; default them to "doc" so the
-      // new canvas code paths don't mistake them for canvas pages.
+      // v3 -> v4: default snapshot pages without `kind` to "doc".
+      // v4 -> v5: seed the new `pageAccessByPageId` map so offline renderers
+      //           fail closed to "view" when the access mode is unknown.
       migrate: (persisted, from) => {
         const state = persisted as Partial<WorkspaceState> | undefined;
-        if (!state || from >= 4) return state as WorkspaceState;
-        const snapshotsByWorkspaceId = state.snapshotsByWorkspaceId ?? {};
-        const migratedSnapshots: Record<string, WorkspaceSnapshot> = {};
-        for (const [wsId, snap] of Object.entries(snapshotsByWorkspaceId)) {
-          migratedSnapshots[wsId] = {
-            ...snap,
-            pages: snap.pages.map((p) => (p.kind ? p : { ...p, kind: "doc" as const })),
+        if (!state) return state as unknown as WorkspaceState;
+        let next = state;
+        if (from < 4) {
+          const snapshotsByWorkspaceId = next.snapshotsByWorkspaceId ?? {};
+          const migratedSnapshots: Record<string, WorkspaceSnapshot> = {};
+          for (const [wsId, snap] of Object.entries(snapshotsByWorkspaceId)) {
+            migratedSnapshots[wsId] = {
+              ...snap,
+              pages: snap.pages.map((p) => (p.kind ? p : { ...p, kind: "doc" as const })),
+            };
+          }
+          next = { ...next, snapshotsByWorkspaceId: migratedSnapshots };
+        }
+        if (from < 5) {
+          next = {
+            ...next,
+            pageAccessByPageId: next.pageAccessByPageId ?? {},
+            sharedInboxWorkspaceSummaries: next.sharedInboxWorkspaceSummaries ?? [],
           };
         }
-        return { ...state, snapshotsByWorkspaceId: migratedSnapshots } as WorkspaceState;
+        return next as WorkspaceState;
       },
     },
   ),

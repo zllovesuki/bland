@@ -40,6 +40,7 @@ export function SharedActivePageBoundary({ children }: { children: ReactNode }) 
       accessMode="shared"
       role={null}
       cachedPageMeta={null}
+      cachedAccess={null}
       shareToken={token}
       initialSnapshot={initialSnapshot}
     >
