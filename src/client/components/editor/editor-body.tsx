@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
-import { useAuthStore } from "@/client/stores/auth-store";
+import { useCollabIdentity } from "@/client/lib/collab-identity";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { createEditorExtensions } from "./extensions/create-editor-extensions";
 import { DragHandle } from "./controllers/drag-handle";
@@ -35,7 +35,6 @@ interface EditorBodyProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: EditorAffordance;
-  resolveIdentity: ResolveIdentity;
   onSchemaError?: (error: Error) => void;
   outline?: EditorOutlinePlacement;
   docFooterLeading?: ReactNode;
@@ -48,16 +47,15 @@ export const EditorBody = memo(function EditorBody({
   shareToken,
   workspaceId,
   affordance,
-  resolveIdentity,
   onSchemaError,
   outline = { kind: "inline" },
   docFooterLeading,
 }: EditorBodyProps) {
-  const user = useAuthStore((s) => s.user);
+  const { userId, resolveIdentity } = useCollabIdentity();
   const resolveIdentityRef = useRef(resolveIdentity);
   resolveIdentityRef.current = resolveIdentity;
   const getResolveIdentity = useCallback<ResolveIdentity>(
-    (userId, clientId) => resolveIdentityRef.current(userId, clientId),
+    (lookupUserId, clientId) => resolveIdentityRef.current(lookupUserId, clientId),
     [],
   );
   const pageMentions = usePageMentions();
@@ -78,9 +76,9 @@ export const EditorBody = memo(function EditorBody({
   const getAffordance = useCallback(() => affordanceRef.current, []);
   const collaborationUser = useMemo(
     () => ({
-      userId: user?.id ?? null,
+      userId,
     }),
-    [user?.id],
+    [userId],
   );
 
   const editor = useEditor(

@@ -1,11 +1,10 @@
 import type { Awareness } from "y-protocols/awareness";
 import { awarenessColor, useAwareness, type AwarenessState } from "@/client/hooks/use-sync";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
+import { useCollabIdentity } from "@/client/lib/collab-identity";
 
 interface AvatarStackProps {
   awareness: Awareness | null;
   localClientId: number | null;
-  resolveIdentity: ResolveIdentity;
 }
 
 interface RemoteUser {
@@ -15,7 +14,8 @@ interface RemoteUser {
   avatar_url: string | null;
 }
 
-export function AvatarStack({ awareness, localClientId, resolveIdentity }: AvatarStackProps) {
+export function AvatarStack({ awareness, localClientId }: AvatarStackProps) {
+  const { resolveIdentity } = useCollabIdentity();
   const states = useAwareness(awareness);
 
   const remoteUsers: RemoteUser[] = [];

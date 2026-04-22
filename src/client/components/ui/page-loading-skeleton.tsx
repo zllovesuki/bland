@@ -12,7 +12,7 @@ import {
   PAGE_STAGE_CLASS,
   PAGE_STAGE_TRACKS_CLASS,
   PAGE_STAGE_WITH_TRACKS_CLASS,
-} from "@/client/components/ui/page-shell";
+} from "@/client/components/ui/page-layout";
 
 const OUTLINE_RAIL_ROWS = [
   { indent: 0, width: "w-4/5" },

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type YProvider from "y-partyserver/provider";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { PanelRightOpen } from "lucide-react";
@@ -7,25 +7,15 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
 import { deriveWorkspacePageAffordance, type WorkspacePageAffordance } from "@/client/lib/affordance/workspace-page";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
-import { friendlyName } from "@/client/lib/friendly-name";
 import type { ActivePageSnapshot } from "@/client/lib/active-page-model";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
-import { EditorPageSurface } from "@/client/components/editor/editor-pane";
-import { CanvasPageSurface } from "@/client/components/canvas/canvas-pane";
+import { DocumentPage } from "@/client/components/editor/document-page";
+import { CanvasPage } from "@/client/components/canvas/canvas-page";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
 import { PageByline } from "@/client/components/ui/page-byline";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
-import { PageTitleSection } from "@/client/components/ui/page-title-section";
-import {
-  CANVAS_PAGE_BODY_CENTERED_CLASS,
-  CANVAS_PAGE_BODY_STAGE_CLASS,
-  type CanvasStageLayout,
-  CanvasPageShell,
-  DocumentPageShell,
-  PAGE_CONTENT_COLUMN_CLASS,
-} from "@/client/components/ui/page-shell";
+import { type CanvasStageLayout, PAGE_CONTENT_COLUMN_CLASS } from "@/client/components/ui/page-layout";
 import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/icon-picker";
@@ -100,18 +90,6 @@ function PageViewContent() {
     patchPage,
   });
 
-  const membersById = useMemo(() => new Map(members.map((member) => [member.user_id, member.user])), [members]);
-  const resolveIdentity = useCallback<ResolveIdentity>(
-    (userId, clientId) => {
-      const real = userId ? membersById.get(userId) : undefined;
-      if (real) {
-        return { name: real.name, avatar_url: real.avatar_url };
-      }
-      return { name: friendlyName(userId ?? String(clientId)), avatar_url: null };
-    },
-    [membersById],
-  );
-
   if (activePageState.kind === "loading") {
     return (
       <PageLoadingSkeleton
@@ -178,94 +156,48 @@ function PageViewContent() {
       )}
     </>
   );
+  const workspaceChrome = (
+    <WorkspacePageChrome
+      page={page}
+      currentPageMeta={currentPageMeta}
+      workspace={workspace}
+      pages={pages}
+      ancestors={ancestors}
+      pageAffordance={pageAffordance}
+      workspaceSlug={params.workspaceSlug}
+      syncProvider={syncProvider}
+      status={status}
+      onIconChange={handleIconChange}
+      onCoverChange={handleCoverChange}
+      headerActions={headerActions}
+    />
+  );
+
   return (
     <>
       {pageAffordance.kind === "doc" ? (
-        <DocumentPageShell
-          sideRail={expanded}
-          chrome={
-            <WorkspacePageChrome
-              page={page}
-              currentPageMeta={currentPageMeta}
-              workspace={workspace}
-              pages={pages}
-              ancestors={ancestors}
-              pageAffordance={pageAffordance}
-              workspaceSlug={params.workspaceSlug}
-              syncProvider={syncProvider}
-              resolveIdentity={resolveIdentity}
-              status={status}
-              onIconChange={handleIconChange}
-              onCoverChange={handleCoverChange}
-              headerActions={headerActions}
-            />
-          }
-        >
-          {({ outlineTarget }) => (
-            <EditorPageSurface
-              pageId={page.id}
-              initialTitle={page.title}
-              onTitleChange={handleTitleChange}
-              onProvider={setSyncProvider}
-              workspaceId={effectiveWorkspaceId}
-              outline={outlineTarget ? { kind: "rail", target: outlineTarget } : { kind: "inline" }}
-              affordance={pageAffordance.editor}
-              resolveIdentity={resolveIdentity}
-              docFooterLeading={docFooterLeading}
-            >
-              {({ titleProps, body }) => (
-                <>
-                  <PageTitleSection {...titleProps} />
-                  <div className={PAGE_CONTENT_COLUMN_CLASS}>{body}</div>
-                </>
-              )}
-            </EditorPageSurface>
-          )}
-        </DocumentPageShell>
+        <DocumentPage
+          pageId={page.id}
+          initialTitle={page.title}
+          onTitleChange={handleTitleChange}
+          onProvider={setSyncProvider}
+          workspaceId={effectiveWorkspaceId}
+          affordance={pageAffordance.editor}
+          outlineMode={expanded ? "rail" : "inline"}
+          chrome={workspaceChrome}
+          docFooterLeading={docFooterLeading}
+        />
       ) : (
-        <CanvasPageSurface
+        <CanvasPage
           pageId={page.id}
           initialTitle={page.title}
           onTitleChange={handleTitleChange}
           onProvider={setSyncProvider}
           workspaceId={effectiveWorkspaceId}
           affordance={pageAffordance.canvas}
-          resolveIdentity={resolveIdentity}
-          userId={currentUser?.id ?? null}
-        >
-          {({ titleProps, body }) => (
-            <CanvasPageShell
-              layout={canvasLayout}
-              chrome={
-                <>
-                  <WorkspacePageChrome
-                    page={page}
-                    currentPageMeta={currentPageMeta}
-                    workspace={workspace}
-                    pages={pages}
-                    ancestors={ancestors}
-                    pageAffordance={pageAffordance}
-                    workspaceSlug={params.workspaceSlug}
-                    syncProvider={syncProvider}
-                    resolveIdentity={resolveIdentity}
-                    status={status}
-                    onIconChange={handleIconChange}
-                    onCoverChange={handleCoverChange}
-                    headerActions={headerActions}
-                  />
-                  <PageTitleSection {...titleProps} />
-                </>
-              }
-              body={
-                <div
-                  className={canvasLayout === "stage" ? CANVAS_PAGE_BODY_STAGE_CLASS : CANVAS_PAGE_BODY_CENTERED_CLASS}
-                >
-                  {body}
-                </div>
-              }
-            />
-          )}
-        </CanvasPageSurface>
+          layout={canvasLayout}
+          chrome={workspaceChrome}
+        />
       )}
 
       {pageAffordance.kind === "doc" &&
@@ -292,7 +224,6 @@ interface WorkspacePageChromeProps {
   pageAffordance: WorkspacePageAffordance;
   workspaceSlug: string;
   syncProvider: YProvider | null;
-  resolveIdentity: ResolveIdentity;
   status: SyncStatus;
   onIconChange: (icon: string | null) => void;
   onCoverChange: (cover: string | null) => void;
@@ -308,7 +239,6 @@ function WorkspacePageChrome({
   pageAffordance,
   workspaceSlug,
   syncProvider,
-  resolveIdentity,
   status,
   onIconChange,
   onCoverChange,
@@ -367,7 +297,6 @@ function WorkspacePageChrome({
             <AvatarStack
               awareness={syncProvider?.awareness ?? null}
               localClientId={syncProvider?.awareness.clientID ?? null}
-              resolveIdentity={resolveIdentity}
             />
             <SyncStatusDot status={status} />
           </div>

@@ -10,7 +10,7 @@ import type {
   SocketId,
 } from "@excalidraw/excalidraw/types";
 import { Maximize2, Minimize2 } from "lucide-react";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
+import { useCollabIdentity } from "@/client/lib/collab-identity";
 import { ExcalidrawBinding, type ExcalidrawBindingDeps } from "./excalidraw-binding";
 import type { CanvasSessionReadyState } from "./use-canvas-session";
 import "./styles/canvas-theme.css";
@@ -46,8 +46,6 @@ export interface CanvasSurfaceProps {
   pageId: string;
   workspaceId: string | undefined;
   shareToken: string | undefined;
-  resolveIdentity: ResolveIdentity;
-  userId: string | null;
 }
 
 export function CanvasSurface({
@@ -57,9 +55,8 @@ export function CanvasSurface({
   pageId,
   workspaceId,
   shareToken,
-  resolveIdentity,
-  userId,
 }: CanvasSurfaceProps) {
+  const { userId, resolveIdentity } = useCollabIdentity();
   const { ydoc, yElements, yAppState, yFileRefs, provider } = session;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [readyApi, setReadyApi] = useState<ExcalidrawImperativeAPI | null>(null);

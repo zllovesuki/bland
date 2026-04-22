@@ -1,19 +1,28 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import YProvider from "y-partyserver/provider";
+import type YProvider from "y-partyserver/provider";
+import { PageErrorState } from "@/client/components/ui/page-error-state";
+import { PageTitleSection } from "@/client/components/ui/page-title-section";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import type { PageTitleProps } from "@/client/components/ui/page-title";
+import {
+  DOC_PAGE_MAIN_CLASS,
+  DOC_PAGE_RAIL_CLASS,
+  DOC_PAGE_RAIL_INNER_CLASS,
+  type DocumentOutlineMode,
+  PAGE_CONTENT_COLUMN_CLASS,
+  PAGE_SHELL_CLASS,
+  PAGE_STAGE_CLASS,
+  PAGE_STAGE_WITH_TRACKS_CLASS,
+} from "@/client/components/ui/page-layout";
+import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { toast } from "@/client/components/toast";
-import { PageErrorState } from "@/client/components/ui/page-error-state";
-import { EditorBody, type EditorOutlinePlacement } from "./editor-body";
-import type { EditorAffordance } from "@/client/lib/affordance/editor";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
+import { EditorBody } from "./editor-body";
 import { useEditorSession } from "./use-editor-session";
 
 const INVALID_SCHEMA_MESSAGE = "This build can't parse this page. Reload to catch up.";
 const SNAPSHOT_ERROR_MESSAGE = "This page didn't load. Your connection might be flaky.";
 
-interface EditorPageSurfaceProps {
+interface DocumentPageProps {
   pageId: string;
   initialTitle: string;
   onTitleChange?: (title: string) => void;
@@ -21,13 +30,12 @@ interface EditorPageSurfaceProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: EditorAffordance;
-  resolveIdentity: ResolveIdentity;
-  outline?: EditorOutlinePlacement;
+  outlineMode: DocumentOutlineMode;
+  chrome: ReactNode;
   docFooterLeading?: ReactNode;
-  children: (payload: { titleProps: PageTitleProps; body: ReactNode }) => ReactNode;
 }
 
-export function EditorPageSurface({
+export function DocumentPage({
   pageId,
   initialTitle,
   onTitleChange,
@@ -35,11 +43,15 @@ export function EditorPageSurface({
   shareToken,
   workspaceId,
   affordance,
-  resolveIdentity,
-  outline,
+  outlineMode,
+  chrome,
   docFooterLeading,
-  children,
-}: EditorPageSurfaceProps) {
+}: DocumentPageProps) {
+  const [outlineTarget, setOutlineTargetState] = useState<HTMLDivElement | null>(null);
+  const setOutlineTarget = useCallback((node: HTMLDivElement | null) => {
+    setOutlineTargetState(node);
+  }, []);
+
   const [schemaError, setSchemaError] = useState<Error | null>(null);
   const schemaErrorReportedRef = useRef(false);
 
@@ -80,7 +92,7 @@ export function EditorPageSurface({
     enabled: !schemaError,
   });
 
-  const titleProps: PageTitleProps = {
+  const titleProps = {
     title: session.title,
     onInput: session.onTitleInput,
     disabled: session.kind !== "ready" || !!schemaError,
@@ -101,9 +113,8 @@ export function EditorPageSurface({
       shareToken={shareToken}
       workspaceId={workspaceId}
       affordance={affordance}
-      resolveIdentity={resolveIdentity}
       onSchemaError={handleSchemaError}
-      outline={outline}
+      outline={outlineMode === "rail" ? { kind: "rail", target: outlineTarget } : { kind: "inline" }}
       docFooterLeading={docFooterLeading}
     />
   ) : session.kind === "error" ? (
@@ -113,12 +124,29 @@ export function EditorPageSurface({
       action={{ label: "Retry", onClick: session.onRetry }}
     />
   ) : (
-    <div className="space-y-3 pl-7">
+    <div className="mt-4 space-y-3 pl-7">
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-5/6" />
       <Skeleton className="h-4 w-3/6" />
     </div>
   );
 
-  return <>{children({ titleProps, body })}</>;
+  const showRail = outlineMode === "rail";
+
+  return (
+    <div className={PAGE_SHELL_CLASS}>
+      <div className={showRail ? PAGE_STAGE_WITH_TRACKS_CLASS : PAGE_STAGE_CLASS}>
+        <div className={showRail ? DOC_PAGE_MAIN_CLASS : "min-w-0"}>
+          {chrome}
+          <PageTitleSection {...titleProps} />
+          <div className={PAGE_CONTENT_COLUMN_CLASS}>{body}</div>
+        </div>
+        {showRail ? (
+          <aside className={DOC_PAGE_RAIL_CLASS} aria-label="Document outline">
+            <div ref={setOutlineTarget} className={DOC_PAGE_RAIL_INNER_CLASS} />
+          </aside>
+        ) : null}
+      </div>
+    </div>
+  );
 }

@@ -1,17 +1,24 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import type YProvider from "y-partyserver/provider";
-import type { PageTitleProps } from "@/client/components/ui/page-title";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
+import { PageTitleSection } from "@/client/components/ui/page-title-section";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import {
+  CANVAS_PAGE_BODY_CENTERED_CLASS,
+  CANVAS_PAGE_BODY_STAGE_CLASS,
+  type CanvasStageLayout,
+  PAGE_SHELL_CLASS,
+  PAGE_STAGE_CLASS,
+  PAGE_STAGE_TRACKS_CLASS,
+} from "@/client/components/ui/page-layout";
 import type { CanvasAffordance } from "@/client/lib/affordance/canvas";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { useCanvasSession } from "./use-canvas-session";
 
 const CANVAS_LOAD_ERROR_MESSAGE = "This canvas didn't load. Your connection might be flaky.";
 
 const CanvasSurface = lazy(() => import("./canvas-surface").then((mod) => ({ default: mod.CanvasSurface })));
 
-interface CanvasPageSurfaceProps {
+interface CanvasPageProps {
   pageId: string;
   initialTitle: string;
   onTitleChange?: (title: string) => void;
@@ -19,12 +26,11 @@ interface CanvasPageSurfaceProps {
   shareToken?: string;
   workspaceId?: string;
   affordance: CanvasAffordance;
-  resolveIdentity: ResolveIdentity;
-  userId: string | null;
-  children: (payload: { titleProps: PageTitleProps; body: ReactNode }) => ReactNode;
+  layout?: CanvasStageLayout;
+  chrome: ReactNode;
 }
 
-export function CanvasPageSurface({
+export function CanvasPage({
   pageId,
   initialTitle,
   onTitleChange,
@@ -32,10 +38,9 @@ export function CanvasPageSurface({
   shareToken,
   workspaceId,
   affordance,
-  resolveIdentity,
-  userId,
-  children,
-}: CanvasPageSurfaceProps) {
+  layout = "centered",
+  chrome,
+}: CanvasPageProps) {
   const session = useCanvasSession({
     pageId,
     initialTitle,
@@ -45,7 +50,7 @@ export function CanvasPageSurface({
     workspaceId,
   });
 
-  const titleProps: PageTitleProps = {
+  const titleProps = {
     title: session.title,
     onInput: session.onTitleInput,
     disabled: session.kind !== "ready",
@@ -70,8 +75,6 @@ export function CanvasPageSurface({
           pageId={pageId}
           workspaceId={workspaceId}
           shareToken={shareToken}
-          resolveIdentity={resolveIdentity}
-          userId={userId}
         />
       </Suspense>
     ) : (
@@ -82,7 +85,21 @@ export function CanvasPageSurface({
       </div>
     );
 
-  return <>{children({ titleProps, body })}</>;
+  return (
+    <div className={PAGE_SHELL_CLASS}>
+      <div className={PAGE_STAGE_CLASS}>
+        <div className={layout === "stage" ? PAGE_STAGE_TRACKS_CLASS : undefined}>
+          <div className="min-w-0">
+            {chrome}
+            <PageTitleSection {...titleProps} />
+          </div>
+        </div>
+        <div className={layout === "stage" ? CANVAS_PAGE_BODY_STAGE_CLASS : CANVAS_PAGE_BODY_CENTERED_CLASS}>
+          {body}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function CanvasModuleLoading() {

@@ -1,22 +1,14 @@
 import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
-import { EditorPageSurface } from "@/client/components/editor/editor-pane";
-import { CanvasPageSurface } from "@/client/components/canvas/canvas-pane";
-import { friendlyName } from "@/client/lib/friendly-name";
-import type { ResolveIdentity } from "@/client/lib/presence-identity";
+import { DocumentPage } from "@/client/components/editor/document-page";
+import { CanvasPage } from "@/client/components/canvas/canvas-page";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
-import {
-  CANVAS_PAGE_BODY_STAGE_CLASS,
-  CanvasPageShell,
-  DocumentPageShell,
-  PAGE_CONTENT_COLUMN_CLASS,
-} from "@/client/components/ui/page-shell";
-import { PageTitleSection } from "@/client/components/ui/page-title-section";
+import { PAGE_CONTENT_COLUMN_CLASS } from "@/client/components/ui/page-layout";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useOnline } from "@/client/hooks/use-online";
@@ -55,14 +47,6 @@ export function SharePageView() {
 
   useDocumentTitle(presentation.displayTitle || DEFAULT_PAGE_TITLE);
 
-  const resolveIdentity = useCallback<ResolveIdentity>(
-    (userId, clientId) => ({
-      name: friendlyName(userId ?? String(clientId)),
-      avatar_url: null,
-    }),
-    [],
-  );
-
   if (activePageState.kind === "unavailable") {
     return (
       <PageErrorState
@@ -94,61 +78,36 @@ export function SharePageView() {
     online,
   });
 
+  const sharedChrome = <SharedPageChrome presentation={presentation} showBreadcrumbSlot={showBreadcrumbSlot} />;
+
+  if (pageAffordance.kind === "doc") {
+    return (
+      <DocumentPage
+        pageId={page.id}
+        initialTitle={page.title}
+        onTitleChange={handleTitleChange}
+        onProvider={setSyncProvider}
+        shareToken={presentation.token}
+        workspaceId={presentation.workspaceId}
+        affordance={pageAffordance.editor}
+        outlineMode="rail"
+        chrome={sharedChrome}
+      />
+    );
+  }
+
   return (
-    <>
-      {pageAffordance.kind === "doc" ? (
-        <DocumentPageShell
-          sideRail={true}
-          chrome={<SharedPageChrome presentation={presentation} showBreadcrumbSlot={showBreadcrumbSlot} />}
-        >
-          {({ outlineTarget }) => (
-            <EditorPageSurface
-              pageId={page.id}
-              initialTitle={page.title}
-              onTitleChange={handleTitleChange}
-              onProvider={setSyncProvider}
-              shareToken={presentation.token}
-              workspaceId={presentation.workspaceId}
-              outline={{ kind: "rail", target: outlineTarget }}
-              affordance={pageAffordance.editor}
-              resolveIdentity={resolveIdentity}
-            >
-              {({ titleProps, body }) => (
-                <>
-                  <PageTitleSection {...titleProps} />
-                  <div className={PAGE_CONTENT_COLUMN_CLASS}>{body}</div>
-                </>
-              )}
-            </EditorPageSurface>
-          )}
-        </DocumentPageShell>
-      ) : (
-        <CanvasPageSurface
-          pageId={page.id}
-          initialTitle={page.title}
-          onTitleChange={handleTitleChange}
-          onProvider={setSyncProvider}
-          shareToken={presentation.token}
-          workspaceId={presentation.workspaceId}
-          affordance={pageAffordance.canvas}
-          resolveIdentity={resolveIdentity}
-          userId={null}
-        >
-          {({ titleProps, body }) => (
-            <CanvasPageShell
-              layout="stage"
-              chrome={
-                <>
-                  <SharedPageChrome presentation={presentation} showBreadcrumbSlot={showBreadcrumbSlot} />
-                  <PageTitleSection {...titleProps} />
-                </>
-              }
-              body={<div className={CANVAS_PAGE_BODY_STAGE_CLASS}>{body}</div>}
-            />
-          )}
-        </CanvasPageSurface>
-      )}
-    </>
+    <CanvasPage
+      pageId={page.id}
+      initialTitle={page.title}
+      onTitleChange={handleTitleChange}
+      onProvider={setSyncProvider}
+      shareToken={presentation.token}
+      workspaceId={presentation.workspaceId}
+      affordance={pageAffordance.canvas}
+      layout="stage"
+      chrome={sharedChrome}
+    />
   );
 }
 
