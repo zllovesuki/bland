@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Workspace, Page, WorkspaceMember, SharedWithMeItem } from "@/shared/types";
+import type { Workspace, Page, WorkspaceMember, SharedWithMeItem, SharedInboxWorkspaceSummary } from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { docCache } from "@/client/lib/doc-cache-registry";
 import { queryClient } from "@/client/lib/query-client";
@@ -25,6 +25,7 @@ export interface WorkspaceSnapshot {
 interface WorkspaceState {
   memberWorkspaces: Workspace[];
   sharedInbox: SharedWithMeItem[];
+  sharedInboxWorkspaceSummaries: SharedInboxWorkspaceSummary[];
   snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
   lastVisitedWorkspaceId: string | null;
   lastVisitedPageIdByWorkspaceId: Record<string, string>;
@@ -33,7 +34,7 @@ interface WorkspaceState {
   setMemberWorkspaces(ws: Workspace[]): void;
   upsertMemberWorkspace(ws: Workspace): void;
   removeMemberWorkspace(workspaceId: string): void;
-  setSharedInbox(items: SharedWithMeItem[]): void;
+  setSharedInbox(items: SharedWithMeItem[], summaries: SharedInboxWorkspaceSummary[]): void;
 
   replaceWorkspaceSnapshot(workspaceId: string, snapshot: WorkspaceSnapshot): void;
   patchWorkspace(workspaceId: string, updates: Partial<Workspace>): void;
@@ -63,6 +64,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     (set, get) => ({
       memberWorkspaces: [],
       sharedInbox: [],
+      sharedInboxWorkspaceSummaries: [],
       snapshotsByWorkspaceId: {},
       lastVisitedWorkspaceId: null,
       lastVisitedPageIdByWorkspaceId: {},
@@ -89,8 +91,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         }));
       },
 
-      setSharedInbox(items) {
-        set({ sharedInbox: items });
+      setSharedInbox(items, summaries) {
+        set({ sharedInbox: items, sharedInboxWorkspaceSummaries: summaries });
       },
 
       replaceWorkspaceSnapshot(workspaceId, snapshot) {
@@ -239,6 +241,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const nextState = {
           memberWorkspaces: [],
           sharedInbox: [],
+          sharedInboxWorkspaceSummaries: [],
           snapshotsByWorkspaceId: {},
           lastVisitedWorkspaceId: null,
           lastVisitedPageIdByWorkspaceId: {},
@@ -253,6 +256,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
         sharedInbox: state.sharedInbox,
+        sharedInboxWorkspaceSummaries: state.sharedInboxWorkspaceSummaries,
         snapshotsByWorkspaceId: state.snapshotsByWorkspaceId,
         lastVisitedWorkspaceId: state.lastVisitedWorkspaceId,
         lastVisitedPageIdByWorkspaceId: state.lastVisitedPageIdByWorkspaceId,

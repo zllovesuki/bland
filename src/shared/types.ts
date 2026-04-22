@@ -284,6 +284,29 @@ export const SharedWithMeItem = z.object({
 });
 export type SharedWithMeItem = z.infer<typeof SharedWithMeItem>;
 
+/**
+ * Grouped summary for pages shared with the current user *inside* a workspace
+ * they are already a member of. Those pages are reachable in the workspace's
+ * normal page tree, so we do not duplicate them as standalone items — we
+ * surface a lightweight pointer so the user can jump to the workspace.
+ */
+export const SharedInboxWorkspaceSummary = z.object({
+  workspace: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    icon: z.string().nullable(),
+  }),
+  count: z.number().int().nonnegative(),
+});
+export type SharedInboxWorkspaceSummary = z.infer<typeof SharedInboxWorkspaceSummary>;
+
+export const SharedPagesResponse = z.object({
+  items: z.array(SharedWithMeItem),
+  workspace_summaries: z.array(SharedInboxWorkspaceSummary),
+});
+export type SharedPagesResponse = z.infer<typeof SharedPagesResponse>;
+
 export const GetPageResponse = z.object({
   page: Page,
   can_edit: z.boolean(),

@@ -209,7 +209,7 @@ describe("client affordance models", () => {
   });
 
   describe("share dialog affordance", () => {
-    it("lets members create user shares but not link shares", () => {
+    it("lets members create user shares but not link shares, and blocks shareByEmail", () => {
       expect(
         deriveShareDialogAffordance({
           workspaceRole: "member",
@@ -222,10 +222,11 @@ describe("client affordance models", () => {
         showLinkSection: false,
         createUserShare: { kind: "enabled" },
         createLinkShare: { kind: "hidden" },
+        shareByEmail: false,
       });
     });
 
-    it("shows offline-disabled share actions while keeping populated sections visible", () => {
+    it("shows offline-disabled share actions while keeping populated sections visible, and admins may share by email", () => {
       expect(
         deriveShareDialogAffordance({
           workspaceRole: "admin",
@@ -238,7 +239,27 @@ describe("client affordance models", () => {
         showLinkSection: true,
         createUserShare: { kind: "disabled", reason: "You're offline" },
         createLinkShare: { kind: "disabled", reason: "You're offline" },
+        shareByEmail: true,
       });
+    });
+
+    it("marks owners as able to share by email and members as not", () => {
+      expect(
+        deriveShareDialogAffordance({
+          workspaceRole: "owner",
+          online: true,
+          hasUserShares: false,
+          hasLinkShares: false,
+        }).shareByEmail,
+      ).toBe(true);
+      expect(
+        deriveShareDialogAffordance({
+          workspaceRole: "member",
+          online: true,
+          hasUserShares: false,
+          hasLinkShares: false,
+        }).shareByEmail,
+      ).toBe(false);
     });
 
     it("lets members revoke only qualifying user shares and keeps copy-link local for already-loaded link rows", () => {

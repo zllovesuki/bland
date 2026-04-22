@@ -5,7 +5,7 @@ import { sharedInboxQueryKey, sharedInboxQueryOptions } from "@/client/lib/queri
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { api } from "@/client/lib/api";
-import type { SharedWithMeItem } from "@/shared/types";
+import type { SharedPagesResponse, SharedWithMeItem, SharedInboxWorkspaceSummary } from "@/shared/types";
 
 /**
  * Imperative one-shot fetch used by pre-navigation decision flows (e.g.
@@ -15,21 +15,26 @@ import type { SharedWithMeItem } from "@/shared/types";
  * Zustand so the persisted cache stays aligned. `staleTime: 0` forces a
  * fresh fetch each call — decision flows should not rely on stale data.
  */
-export async function fetchSharedInbox(): Promise<SharedWithMeItem[]> {
-  const items = await queryClient.fetchQuery({
+export async function fetchSharedInbox(): Promise<SharedPagesResponse> {
+  const response = await queryClient.fetchQuery({
     queryKey: sharedInboxQueryKey,
     queryFn: () => api.shares.sharedWithMe(),
     staleTime: 0,
     retry: false,
   });
-  useWorkspaceStore.getState().setSharedInbox(items);
-  return items;
+  useWorkspaceStore.getState().setSharedInbox(response.items, response.workspace_summaries);
+  return response;
 }
 
 export type SharedInboxStatus = "idle" | "loading" | "error";
 
 export interface SharedInboxView {
+  /** Cross-workspace items only — pages shared with the user in workspaces
+   *  where they are not a member. */
   items: SharedWithMeItem[];
+  /** Same-workspace summary: the user belongs to these workspaces and can
+   *  find the shared pages inside the normal workspace tree. */
+  workspaceSummaries: SharedInboxWorkspaceSummary[];
   status: SharedInboxStatus;
   refresh: () => Promise<void>;
 }
@@ -37,6 +42,7 @@ export interface SharedInboxView {
 export function useSharedInbox(): SharedInboxView {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const cachedItems = useWorkspaceStore((s) => s.sharedInbox);
+  const cachedSummaries = useWorkspaceStore((s) => s.sharedInboxWorkspaceSummaries);
   const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
 
   const query = useQuery({
@@ -44,17 +50,14 @@ export function useSharedInbox(): SharedInboxView {
     enabled: isAuthenticated,
   });
 
-  // Mirror query results into Zustand so the persisted inbox cache stays in
-  // sync with whatever the network returned. Consumers that read Zustand
-  // directly (e.g. the auto-redirect path) see the same data without needing
-  // to subscribe to the Query cache.
   useEffect(() => {
     if (query.data) {
-      setSharedInbox(query.data);
+      setSharedInbox(query.data.items, query.data.workspace_summaries);
     }
   }, [query.data, setSharedInbox]);
 
-  const items = query.data ?? cachedItems;
+  const items = query.data?.items ?? cachedItems;
+  const workspaceSummaries = query.data?.workspace_summaries ?? cachedSummaries;
 
   let status: SharedInboxStatus;
   if (!isAuthenticated) {
@@ -71,5 +74,5 @@ export function useSharedInbox(): SharedInboxView {
     await query.refetch();
   };
 
-  return { items, status, refresh };
+  return { items, workspaceSummaries, status, refresh };
 }

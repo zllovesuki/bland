@@ -5,6 +5,7 @@ import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import { pageSharesQueryKey, pageSharesQueryOptions } from "@/client/lib/queries/page-shares";
+import { sharedInboxQueryKey } from "@/client/lib/queries/shared-inbox";
 import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getMyRole } from "@/client/lib/workspace-role";
@@ -64,6 +65,9 @@ interface SharePeopleValue {
   userShares: PageShare[];
   members: WorkspaceMember[];
   filteredSuggestions: WorkspaceMember[];
+  /** True when the input text exactly matches a shareable workspace member.
+   *  Members (no canShareByEmail) cannot submit without this. */
+  hasMatchedMember: boolean;
   memberName: (member: WorkspaceMember) => string;
   granteeName: (share: PageShare) => string;
   setPeopleInput: (value: string) => void;
@@ -150,6 +154,12 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
     [pageId, queryClient],
   );
 
+  const invalidateSharedInbox = useCallback(() => {
+    // Share mutations affect the grantee's Shared With Me list. Kick the query
+    // so the inbox reflects revocations/grants without a full reload.
+    queryClient.invalidateQueries({ queryKey: sharedInboxQueryKey });
+  }, [queryClient]);
+
   const createUserShareMutation = useMutation({
     mutationFn: (input: { grantee_id?: string; grantee_email?: string; permission: SharePermission }) =>
       api.shares.create(pageId, { grantee_type: "user", ...input }),
@@ -160,6 +170,7 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
       appendShare(share);
       setPeopleInput("");
       setShowSuggestions(false);
+      invalidateSharedInbox();
     },
     onError: (err) => {
       setLocalError(toApiError(err).message);
@@ -186,6 +197,7 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
     },
     onSuccess: (_result, shareId) => {
       removeShare(shareId);
+      invalidateSharedInbox();
     },
     onError: (err) => {
       setLocalError(toApiError(err).message);
@@ -230,6 +242,17 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
     );
   }, [peopleInput, shareableMembers]);
 
+  const matchedMember = useMemo(() => {
+    const trimmed = peopleInput.trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    return (
+      shareableMembers.find((member) => member.user?.email?.toLowerCase() === lower || member.user?.name === trimmed) ??
+      null
+    );
+  }, [peopleInput, shareableMembers]);
+  const hasMatchedMember = matchedMember !== null;
+
   const memberName = useCallback((member: WorkspaceMember): string => {
     return member.user?.name ?? member.user?.email ?? member.user_id;
   }, []);
@@ -269,21 +292,21 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
 
   const submitPeopleShare = useCallback(async () => {
     if (!peopleInput.trim() || creating || !isActionEnabled(dialogAffordance.createUserShare)) return;
-    const matchedMember = shareableMembers.find(
-      (member) =>
-        member.user?.email?.toLowerCase() === peopleInput.trim().toLowerCase() ||
-        member.user?.name === peopleInput.trim(),
-    );
-    createUserShareMutation.mutate(
-      matchedMember
-        ? { grantee_id: matchedMember.user_id, permission: peoplePermission }
-        : { grantee_email: peopleInput.trim(), permission: peoplePermission },
-    );
+    if (matchedMember) {
+      createUserShareMutation.mutate({ grantee_id: matchedMember.user_id, permission: peoplePermission });
+      return;
+    }
+    // Only owners/admins may invite by free-form email. The input affordance
+    // already gates this for members (submit stays disabled without a matched
+    // member); this guard is defense-in-depth for keyboard paths.
+    if (!dialogAffordance.shareByEmail) return;
+    createUserShareMutation.mutate({ grantee_email: peopleInput.trim(), permission: peoplePermission });
   }, [
     peopleInput,
     creating,
+    dialogAffordance.shareByEmail,
     dialogAffordance.createUserShare,
-    shareableMembers,
+    matchedMember,
     peoplePermission,
     createUserShareMutation,
   ]);
@@ -354,6 +377,7 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
       userShares,
       members,
       filteredSuggestions,
+      hasMatchedMember,
       memberName,
       granteeName,
       setPeopleInput,
@@ -370,6 +394,7 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
       userShares,
       members,
       filteredSuggestions,
+      hasMatchedMember,
       memberName,
       granteeName,
       openSuggestions,
@@ -468,6 +493,7 @@ function SharePeopleSection() {
     userShares,
     members,
     filteredSuggestions,
+    hasMatchedMember,
     memberName,
     granteeName,
     setPeopleInput,
@@ -476,6 +502,23 @@ function SharePeopleSection() {
     selectMember,
     submitPeopleShare,
   } = useSharePeople();
+
+  // Member role cannot invite by free-form email; the worker rejects it.
+  // Surface that as an affordance: placeholder says "search", and submit
+  // stays disabled until the input resolves to an actual workspace member.
+  const placeholder = dialogAffordance.shareByEmail ? "Name or email..." : "Teammate...";
+  const ariaLabel = dialogAffordance.shareByEmail
+    ? "Search people to share with"
+    : "Search workspace members to share with";
+  const submitGuardedByMemberMatch = !dialogAffordance.shareByEmail && !hasMatchedMember;
+  const submitDisabled =
+    creating || !peopleInput.trim() || !isActionEnabled(dialogAffordance.createUserShare) || submitGuardedByMemberMatch;
+  const submitTitle =
+    dialogAffordance.createUserShare.kind === "disabled"
+      ? dialogAffordance.createUserShare.reason
+      : submitGuardedByMemberMatch
+        ? "Members only"
+        : undefined;
 
   return (
     <div className="mb-3">
@@ -486,8 +529,8 @@ function SharePeopleSection() {
       <div className="relative mb-2 flex items-center gap-1.5">
         <input
           type="text"
-          placeholder="Name or email..."
-          aria-label="Search people to share with"
+          placeholder={placeholder}
+          aria-label={ariaLabel}
           value={peopleInput}
           onChange={(e) => {
             setPeopleInput(e.target.value);
@@ -504,10 +547,8 @@ function SharePeopleSection() {
         <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
         <button
           onClick={() => void submitPeopleShare()}
-          disabled={creating || !peopleInput.trim() || !isActionEnabled(dialogAffordance.createUserShare)}
-          title={
-            dialogAffordance.createUserShare.kind === "disabled" ? dialogAffordance.createUserShare.reason : undefined
-          }
+          disabled={submitDisabled}
+          title={submitTitle}
           className="shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
         >
           {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}

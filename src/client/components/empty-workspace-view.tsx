@@ -63,7 +63,8 @@ export function EmptyWorkspaceView() {
       if (decision.kind === "empty") {
         let sharedItems = store.sharedInbox;
         try {
-          sharedItems = await fetchSharedInbox();
+          const response = await fetchSharedInbox();
+          sharedItems = response.items;
         } catch {
           // Fall back to cached inbox
         }

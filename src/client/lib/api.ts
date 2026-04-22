@@ -15,7 +15,7 @@ import type {
   SearchResult,
   PageShare,
   SharedPageInfo,
-  SharedWithMeItem,
+  SharedPagesResponse,
   GetPageAncestorsResponse,
   PageSnapshotResponse,
   PageRouteBootstrapResponse,
@@ -359,8 +359,7 @@ export const api = {
       return res;
     },
     sharedWithMe: async () => {
-      const res = await apiFetch<{ items: SharedWithMeItem[] }>("/me/shared-pages");
-      return res.items;
+      return apiFetch<SharedPagesResponse>("/me/shared-pages");
     },
   },
 

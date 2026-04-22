@@ -29,12 +29,13 @@ export function SharedWithMeView() {
   useDocumentTitle("Shared with me");
   const navigate = useNavigate();
   const location = useLocation();
-  const { items: sharedInbox, status } = useSharedInbox();
+  const { items: sharedInbox, workspaceSummaries, status } = useSharedInbox();
   const [entryReturnTo] = useState(() => getSharedInboxReturnTo(location.state));
   const { backLabel, canLeaveSharedInbox, leaveSharedInbox } = useSharedInboxNavigation({ returnTo: entryReturnTo });
 
-  const showLoading = status === "loading" && sharedInbox.length === 0;
-  const showError = sharedInbox.length === 0 && status === "error";
+  const hasAny = sharedInbox.length > 0 || workspaceSummaries.length > 0;
+  const showLoading = status === "loading" && !hasAny;
+  const showError = !hasAny && status === "error";
 
   const handlePageClick = useCallback(
     (item: SharedWithMeItem) => {
@@ -95,7 +96,7 @@ export function SharedWithMeView() {
     );
   }
 
-  if (sharedInbox.length === 0) {
+  if (!hasAny) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="animate-slide-up text-center">
@@ -120,6 +121,10 @@ export function SharedWithMeView() {
   }
 
   const groups = groupByWorkspace(sharedInbox);
+
+  const handleWorkspaceClick = (slug: string) => {
+    navigate({ to: "/$workspaceSlug", params: { workspaceSlug: slug } });
+  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
@@ -187,6 +192,37 @@ export function SharedWithMeView() {
             </div>
           ))}
         </div>
+
+        {workspaceSummaries.length > 0 && (
+          <div className="mt-8 border-t border-zinc-800/60 pt-5">
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              From workspaces you belong to
+            </h2>
+            <div className="divide-y divide-zinc-800/60 rounded-lg border border-zinc-800/60 bg-zinc-900/50">
+              {workspaceSummaries.map(({ workspace, count }) => (
+                <button
+                  key={workspace.id}
+                  onClick={() => handleWorkspaceClick(workspace.slug)}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-zinc-800/50"
+                >
+                  {workspace.icon ? (
+                    <EmojiIcon emoji={workspace.icon} size={16} />
+                  ) : (
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-zinc-700 text-[10px] font-medium text-zinc-400">
+                      {workspace.name.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-zinc-200">{workspace.name}</div>
+                    <div className="mt-0.5 text-xs text-zinc-500">
+                      {count} {count === 1 ? "page" : "pages"} shared with you
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

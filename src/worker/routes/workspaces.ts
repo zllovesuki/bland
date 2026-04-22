@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq, and, exists } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { AppContext } from "@/worker/app-context";
@@ -293,9 +293,25 @@ workspacesRouter.delete("/workspaces/:id/members/:uid", requireAuth, rateLimit("
     }
   }
 
-  await db
-    .delete(memberships)
-    .where(and(eq(memberships.user_id, targetUserId), eq(memberships.workspace_id, workspaceId)));
+  // Atomic: drop the removed user's workspace-scoped user-grantee page_shares in the
+  // same D1 batch/transaction as the membership row. Use a correlated EXISTS so D1
+  // can narrow by grantee first, then confirm the page belongs to this workspace.
+  // `created_by` link shares remain intact — they were authored for other grantees.
+  await db.batch([
+    db.delete(pageShares).where(
+      and(
+        eq(pageShares.grantee_type, "user"),
+        eq(pageShares.grantee_id, targetUserId),
+        exists(
+          db
+            .select({ id: pages.id })
+            .from(pages)
+            .where(and(eq(pages.id, pageShares.page_id), eq(pages.workspace_id, workspaceId))),
+        ),
+      ),
+    ),
+    db.delete(memberships).where(and(eq(memberships.user_id, targetUserId), eq(memberships.workspace_id, workspaceId))),
+  ]);
   log.info("member_removed", { workspaceId, targetUserId, isSelf, byUserId: user.id });
 
   return c.json({ ok: true });

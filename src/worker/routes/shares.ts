@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { AppContext } from "@/worker/app-context";
@@ -27,38 +27,71 @@ const log = createLogger("shares");
 // Share CRUD — mounted under /api/v1
 export const sharesRouter = new Hono<AppContext>();
 
-// GET /me/shared-pages - List pages shared with the current user
+// GET /me/shared-pages - Pages shared with the current user.
+// Returns two partitions so the Shared With Me view can stay a pure
+// cross-workspace discovery surface:
+//   * `items`           - pages in workspaces the caller is NOT a member of
+//   * `workspace_summaries` - grouped counts of same-workspace shares, so the
+//                             caller still sees "there are pages shared with
+//                             you in workspaces you already belong to" and can
+//                             jump there. The pages themselves are visible in
+//                             those workspaces' normal page tree.
 sharesRouter.get("/me/shared-pages", requireAuth, rateLimit("RL_API"), async (c) => {
   const user = c.get("user")!;
   const db = c.get("db");
 
   const sharedByUser = db.select({ id: users.id, name: users.name }).from(users).as("shared_by_user");
 
-  const rows = await db
-    .select({
-      page_id: pages.id,
-      title: pages.title,
-      icon: pages.icon,
-      cover_url: pages.cover_url,
-      workspace_id: workspaces.id,
-      workspace_name: workspaces.name,
-      workspace_slug: workspaces.slug,
-      workspace_icon: workspaces.icon,
-      workspace_role: memberships.role,
-      permission: pageShares.permission,
-      shared_by: pageShares.created_by,
-      shared_by_name: sharedByUser.name,
-      shared_at: pageShares.created_at,
-    })
-    .from(pageShares)
-    .innerJoin(pages, eq(pageShares.page_id, pages.id))
-    .innerJoin(workspaces, eq(pages.workspace_id, workspaces.id))
-    .leftJoin(sharedByUser, eq(pageShares.created_by, sharedByUser.id))
-    .leftJoin(memberships, and(eq(memberships.workspace_id, pages.workspace_id), eq(memberships.user_id, user.id)))
-    .where(and(eq(pageShares.grantee_type, "user"), eq(pageShares.grantee_id, user.id), isNull(pages.archived_at)))
-    .orderBy(desc(pageShares.created_at));
+  const [crossWorkspaceRows, summaryRows] = await Promise.all([
+    db
+      .select({
+        page_id: pages.id,
+        title: pages.title,
+        icon: pages.icon,
+        cover_url: pages.cover_url,
+        workspace_id: workspaces.id,
+        workspace_name: workspaces.name,
+        workspace_slug: workspaces.slug,
+        workspace_icon: workspaces.icon,
+        permission: pageShares.permission,
+        shared_by: pageShares.created_by,
+        shared_by_name: sharedByUser.name,
+        shared_at: pageShares.created_at,
+      })
+      .from(pageShares)
+      .innerJoin(pages, eq(pageShares.page_id, pages.id))
+      .innerJoin(workspaces, eq(pages.workspace_id, workspaces.id))
+      .leftJoin(sharedByUser, eq(pageShares.created_by, sharedByUser.id))
+      .leftJoin(memberships, and(eq(memberships.workspace_id, pages.workspace_id), eq(memberships.user_id, user.id)))
+      .where(
+        and(
+          eq(pageShares.grantee_type, "user"),
+          eq(pageShares.grantee_id, user.id),
+          isNull(pages.archived_at),
+          isNull(memberships.user_id),
+        ),
+      )
+      .orderBy(desc(pageShares.created_at)),
 
-  const items = rows.map((r) => ({
+    db
+      .select({
+        workspace_id: workspaces.id,
+        workspace_name: workspaces.name,
+        workspace_slug: workspaces.slug,
+        workspace_icon: workspaces.icon,
+        // Defensive: route-layer writes prevent duplicate user shares, but the
+        // schema does not enforce one row per user/page pair yet.
+        count: sql<number>`COUNT(DISTINCT ${pageShares.page_id})`,
+      })
+      .from(pageShares)
+      .innerJoin(pages, eq(pageShares.page_id, pages.id))
+      .innerJoin(workspaces, eq(pages.workspace_id, workspaces.id))
+      .innerJoin(memberships, and(eq(memberships.workspace_id, pages.workspace_id), eq(memberships.user_id, user.id)))
+      .where(and(eq(pageShares.grantee_type, "user"), eq(pageShares.grantee_id, user.id), isNull(pages.archived_at)))
+      .groupBy(workspaces.id, workspaces.name, workspaces.slug, workspaces.icon),
+  ]);
+
+  const items = crossWorkspaceRows.map((r) => ({
     page_id: r.page_id,
     title: r.title,
     icon: r.icon,
@@ -68,7 +101,8 @@ sharesRouter.get("/me/shared-pages", requireAuth, rateLimit("RL_API"), async (c)
       name: r.workspace_name,
       slug: r.workspace_slug,
       icon: r.workspace_icon,
-      role: r.workspace_role ?? null,
+      // Caller has no membership in this workspace by construction.
+      role: null,
     },
     permission: r.permission,
     shared_by: r.shared_by,
@@ -76,7 +110,17 @@ sharesRouter.get("/me/shared-pages", requireAuth, rateLimit("RL_API"), async (c)
     shared_at: r.shared_at,
   }));
 
-  return c.json({ items });
+  const workspace_summaries = summaryRows.map((r) => ({
+    workspace: {
+      id: r.workspace_id,
+      name: r.workspace_name,
+      slug: r.workspace_slug,
+      icon: r.workspace_icon,
+    },
+    count: Number(r.count),
+  }));
+
+  return c.json({ items, workspace_summaries });
 });
 
 // POST /pages/:id/share - Create share

@@ -1,4 +1,9 @@
-import { canCreateLinkShare, canRevokeShare, type ResolvedWorkspaceRole } from "@/shared/entitlements";
+import {
+  canCreateLinkShare,
+  canCreateUserShareByEmail,
+  canRevokeShare,
+  type ResolvedWorkspaceRole,
+} from "@/shared/entitlements";
 import {
   ENABLED_ACTION,
   HIDDEN_ACTION,
@@ -14,6 +19,10 @@ export interface ShareDialogAffordance {
   showLinkSection: boolean;
   createUserShare: UiActionState;
   createLinkShare: UiActionState;
+  /** Owners/admins may invite people who are not yet workspace members by email.
+   *  Members can only share with existing members; the UI should not expose a
+   *  free-form email submit for them since the worker rejects it. */
+  shareByEmail: boolean;
 }
 
 export interface ShareDialogRowAffordance {
@@ -45,6 +54,7 @@ export function deriveShareDialogAffordance(input: {
     showLinkSection: hasLinkShares || isActionVisible(createLinkShare),
     createUserShare,
     createLinkShare,
+    shareByEmail: canCreateUserShareByEmail(workspaceRole),
   };
 }
 
