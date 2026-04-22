@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { ulid } from "ulid";
 
+import type { AppContext } from "@/worker/app-context";
 import { invites, memberships, users, workspaces } from "@/worker/db/d1/schema";
 import { requireAuth, extractBearerToken } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -20,7 +21,6 @@ import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { CF_IP_HEADER, INVITE_EXPIRY_MS } from "@/worker/lib/constants";
 import { CreateInviteRequest, AcceptInviteRequest } from "@/shared/types";
-import type { AppContext } from "@/worker/router";
 
 const log = createLogger("invites");
 

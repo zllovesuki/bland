@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { eq, and, isNull, asc } from "drizzle-orm";
 
+import type { AppContext } from "@/worker/app-context";
 import { pages } from "@/worker/db/d1/schema";
 import { optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { canAccessPages, resolvePrincipal } from "@/worker/lib/permissions";
 import { getPage } from "@/worker/lib/page-access";
 import { getPageAncestorChain } from "@/worker/lib/page-tree";
-import type { AppContext } from "@/worker/router";
 
 const pageTreeRouter = new Hono<AppContext>();
 

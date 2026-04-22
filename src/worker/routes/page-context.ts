@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 
+import type { AppContext } from "@/worker/app-context";
 import { workspaces } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { resolvePageAccessLevels, resolvePrincipal, toResolvedViewerContext } from "@/worker/lib/permissions";
 import { getPage } from "@/worker/lib/page-access";
-import type { AppContext } from "@/worker/router";
 
 const pageContextRouter = new Hono<AppContext>();
 

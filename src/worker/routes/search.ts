@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { inArray } from "drizzle-orm";
 
+import type { AppContext } from "@/worker/app-context";
 import { pages } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -8,7 +9,6 @@ import { checkMembership } from "@/worker/lib/membership";
 import { canAccessPages } from "@/worker/lib/permissions";
 import { sanitizeSnippet } from "@/worker/lib/html";
 import { createLogger } from "@/worker/lib/logger";
-import type { AppContext } from "@/worker/router";
 
 const log = createLogger("search");
 

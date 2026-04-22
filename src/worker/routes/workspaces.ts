@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulid";
 
+import type { AppContext } from "@/worker/app-context";
 import { workspaces, memberships, users, pages, invites, pageShares, uploads } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -10,7 +11,6 @@ import { isAdminOrOwner } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { CreateWorkspaceRequest, UpdateWorkspaceRequest, UpdateMemberRoleRequest } from "@/shared/types";
-import type { AppContext } from "@/worker/router";
 
 const workspacesRouter = new Hono<AppContext>();
 const log = createLogger("workspaces");

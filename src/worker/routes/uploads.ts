@@ -5,6 +5,7 @@ import { ulid } from "ulid";
 
 import { jwtVerify } from "jose";
 
+import type { AppContext } from "@/worker/app-context";
 import { uploads, pageShares } from "@/worker/db/d1/schema";
 import { optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -17,7 +18,6 @@ import { createLogger } from "@/worker/lib/logger";
 import { JWT_ALGORITHM } from "@/worker/lib/constants";
 import { PresignRequest } from "@/shared/types";
 import { getPageEditEntitlements } from "@/shared/entitlements";
-import type { AppContext } from "@/worker/router";
 
 const log = createLogger("uploads");
 

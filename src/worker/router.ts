@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { ZodError } from "zod";
 
-import { users } from "@/worker/db/d1/schema";
-import { createDb, type Db } from "@/worker/db/d1/client";
+import { createDb } from "@/worker/db/d1/client";
+import type { AppContext } from "@/worker/app-context";
 import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
 import { workspacesRouter } from "@/worker/routes/workspaces";
@@ -21,14 +21,6 @@ import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import { createLogger, errorContext } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
 import { applyBaselineSecurityHeaders } from "@/worker/lib/security-headers";
-
-type AppVariables = {
-  db: Db;
-  user: typeof users.$inferSelect | null;
-  jwtPayload: { sub: string; jti: string } | null;
-};
-
-export type AppContext = { Bindings: Env; Variables: AppVariables };
 
 const log = createLogger("router");
 const app = new Hono<AppContext>();

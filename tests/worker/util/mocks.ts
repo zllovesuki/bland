@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import type { Hono } from "hono";
+import type { AppContext } from "@/worker/app-context";
 import type { Db } from "@/worker/db/d1/client";
-import type { AppContext } from "@/worker/router";
 import { TEST_TIMESTAMP } from "@tests/worker/util/fixtures";
 
 const AUTH_USER: NonNullable<AppContext["Variables"]["user"]> = {

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { ulid } from "ulid";
 
+import type { AppContext } from "@/worker/app-context";
 import { pageShares, pages, users, workspaces, memberships } from "@/worker/db/d1/schema";
 import { optionalAuth, requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -20,7 +21,6 @@ import {
   canRevealShareGranteeEmails,
   canRevokeShare,
 } from "@/shared/entitlements";
-import type { AppContext } from "@/worker/router";
 
 const log = createLogger("shares");
 

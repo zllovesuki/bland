@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, and, isNull, asc } from "drizzle-orm";
 import { ulid } from "ulid";
 
+import type { AppContext } from "@/worker/app-context";
 import { pages } from "@/worker/db/d1/schema";
 import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -26,7 +27,6 @@ import {
 import { getPage } from "@/worker/lib/page-access";
 import { getPageAncestorChain, getPageAncestorDepthFromChain, validatePageMove } from "@/worker/lib/page-tree";
 import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
-import type { AppContext } from "@/worker/router";
 
 const log = createLogger("pages");
 

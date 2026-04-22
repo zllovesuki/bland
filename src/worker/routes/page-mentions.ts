@@ -1,13 +1,13 @@
 import { Hono } from "hono";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 
+import type { AppContext } from "@/worker/app-context";
 import { pages, workspaces } from "@/worker/db/d1/schema";
 import { optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { ResolvePageMentionsRequest, type ResolvedPageMentionItem } from "@/shared/types";
-import type { AppContext } from "@/worker/router";
 
 const pageMentionsRouter = new Hono<AppContext>();
 

@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 
 import { requireAuth, optionalAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
+import type { AppContext } from "@/worker/app-context";
 import { getPage } from "@/worker/lib/page-access";
 import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
@@ -25,7 +26,6 @@ import {
 } from "@/shared/entitlements";
 import { AiAskRequest, AiGenerateRequest, AiRewriteRequest } from "@/shared/types";
 import { encodeAiSseChunk, encodeAiSseDone, encodeAiSseError, type AiErrorCode, type AiUsage } from "@/shared/ai";
-import type { AppContext } from "@/worker/router";
 
 const log = aiLogger();
 

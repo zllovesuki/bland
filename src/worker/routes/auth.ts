@@ -3,6 +3,7 @@ import { getCookie } from "hono/cookie";
 import { eq } from "drizzle-orm";
 import { jwtVerify } from "jose";
 
+import type { AppContext } from "@/worker/app-context";
 import { users } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
@@ -21,7 +22,6 @@ import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { CF_IP_HEADER, JWT_ALGORITHM } from "@/worker/lib/constants";
 import { LoginRequest, UpdateProfileRequest } from "@/shared/types";
-import type { AppContext } from "@/worker/router";
 
 const auth = new Hono<AppContext>();
 const log = createLogger("auth");
