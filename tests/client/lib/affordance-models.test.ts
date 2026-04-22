@@ -64,14 +64,19 @@ describe("client affordance models", () => {
   });
 
   describe("sidebar affordance", () => {
-    it("hides guest create/move affordances but surfaces archive as ownership-restricted", () => {
+    it("hides every sidebar writer affordance for guests — including archive (they cannot create pages)", () => {
       expect(deriveSidebarBaseAffordance({ workspaceRole: "guest", online: true })).toEqual({
         createPage: { kind: "hidden" },
       });
       expect(deriveSidebarRowAffordance({ workspaceRole: "guest", ownsPage: false, online: true })).toEqual({
         createSubpage: { kind: "hidden" },
         movePage: { kind: "hidden" },
-        archivePage: { kind: "disabled", reason: "Only the page creator can archive this" },
+        archivePage: { kind: "hidden" },
+      });
+      expect(deriveSidebarRowAffordance({ workspaceRole: "guest", ownsPage: true, online: true })).toEqual({
+        createSubpage: { kind: "hidden" },
+        movePage: { kind: "hidden" },
+        archivePage: { kind: "hidden" },
       });
     });
 

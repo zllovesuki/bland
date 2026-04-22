@@ -33,7 +33,10 @@ const PAGE_STRUCTURE_ROLE_TABLE: Record<
   guest: {
     createPage: false,
     movePage: false,
-    archiveOwnPage: true,
+    // Guests cannot create their own pages, so they also cannot archive one.
+    // The worker delete route and the client sidebar/archive affordances all
+    // derive from this table, so flipping this here propagates everywhere.
+    archiveOwnPage: false,
     archiveAnyPage: false,
   },
   none: {

@@ -41,13 +41,15 @@ describe("shared entitlements", () => {
       });
     });
 
-    it("lets guests archive only their own pages", () => {
-      expect(getPageStructureEntitlements("guest", true).archivePage).toBe(true);
-      expect(getPageStructureEntitlements("guest", false)).toMatchObject({
+    it("denies guests every archive pathway (they cannot create pages either)", () => {
+      expect(getPageStructureEntitlements("guest", true)).toMatchObject({
         createPage: false,
         movePage: false,
         archivePage: false,
+        archiveOwnPage: false,
+        archiveAnyPage: false,
       });
+      expect(getPageStructureEntitlements("guest", false).archivePage).toBe(false);
     });
 
     it("exposes archive ownership scope so affordances can distinguish hidden from ownership-restricted", () => {
@@ -58,6 +60,10 @@ describe("shared entitlements", () => {
       expect(getPageStructureEntitlements("member", false)).toMatchObject({
         archiveAnyPage: false,
         archiveOwnPage: true,
+      });
+      expect(getPageStructureEntitlements("guest", false)).toMatchObject({
+        archiveAnyPage: false,
+        archiveOwnPage: false,
       });
       expect(getPageStructureEntitlements("none", false)).toMatchObject({
         archiveAnyPage: false,
