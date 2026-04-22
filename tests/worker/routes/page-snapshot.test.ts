@@ -86,7 +86,11 @@ describe("page snapshot route", () => {
   });
 
   it("streams the persisted snapshot for full workspace members", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
+    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
     const expectedBytes = Uint8Array.from([1, 2, 3, 4]);
     const { pagesRouter } = await import("@/worker/routes/pages");
@@ -106,7 +110,11 @@ describe("page snapshot route", () => {
   });
 
   it("returns 204 when no persisted snapshot exists yet", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
+    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
     const { pagesRouter } = await import("@/worker/routes/pages");
     const env = createEnvMock({ kind: "missing" });
@@ -120,7 +128,10 @@ describe("page snapshot route", () => {
 
   it("allows shared callers with page access to read the snapshot", async () => {
     authState.user = null;
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "share-token" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "share-token" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 
     const expectedBytes = Uint8Array.from([9, 8, 7]);

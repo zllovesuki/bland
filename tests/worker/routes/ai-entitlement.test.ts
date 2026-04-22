@@ -34,10 +34,10 @@ const getPageMock = vi.mocked(getPage);
 
 type AccessLevel = "none" | "view" | "edit";
 
-function seedPrincipal(fullMember: boolean) {
+function seedPrincipal(memberBypass: boolean) {
   resolvePrincipalMock.mockResolvedValue({
     principal: { kind: "user", id: "user-1" } as never,
-    fullMember,
+    memberBypass,
   });
 }
 

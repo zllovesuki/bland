@@ -26,16 +26,9 @@ pageContextRouter.get("/pages/:id/context", requireAuth, rateLimit("RL_API"), as
     return c.json({ error: "not_found", message: "Workspace not found" }, 404);
   }
 
-  const resolved = await resolvePrincipal(db, user, workspace.id);
+  const resolved = await resolvePrincipal(db, user, workspace.id, { surface: "canonical" });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
-  }
-
-  if (resolved.fullMember) {
-    return c.json({
-      workspace,
-      viewer: toResolvedViewerContext(resolved, workspace.slug, "canonical"),
-    });
   }
 
   const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspace.id);

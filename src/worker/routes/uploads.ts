@@ -37,19 +37,10 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("
 
   let uploadedBy: string | null = null;
 
-  // Try JWT auth first
-  if (user) {
-    const membership = await checkMembership(db, user.id, workspaceId);
-    if (membership && canEdit(membership.role)) {
-      uploadedBy = user.id;
-    } else if (data.page_id) {
-      const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, data.page_id, workspaceId, "edit");
-      if (hasEdit && getPageEditEntitlements("canonical", "edit").uploadImage) uploadedBy = user.id;
-    }
-  }
-
-  // Fall through to share token if JWT auth didn't authorize (spec §10.8)
-  if (!uploadedBy && shareToken) {
+  // Shared-surface precedence: when `?share=<token>` is present, the shared principal
+  // authorizes the upload and bearer-member auth does not apply. Matches the WS
+  // "share wins" invariant and keeps `/s/:token` link-scoped end to end.
+  if (shareToken) {
     if (!data.page_id) {
       return c.json({ error: "bad_request", message: "page_id is required for shared-link uploads" }, 400);
     }
@@ -66,6 +57,14 @@ uploadsRouter.post("/workspaces/:wid/uploads/presign", optionalAuth, rateLimit("
       return c.json({ error: "forbidden", message: "Invalid share token" }, 403);
     }
     uploadedBy = share.created_by;
+  } else if (user) {
+    const membership = await checkMembership(db, user.id, workspaceId);
+    if (membership && canEdit(membership.role)) {
+      uploadedBy = user.id;
+    } else if (data.page_id) {
+      const hasEdit = await canAccessPage(db, { type: "user", userId: user.id }, data.page_id, workspaceId, "edit");
+      if (hasEdit && getPageEditEntitlements("canonical", "edit").uploadImage) uploadedBy = user.id;
+    }
   }
 
   if (!uploadedBy) {
@@ -123,8 +122,15 @@ uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c
 
   let putAuthorized = false;
 
-  // Try JWT auth first
-  if (user && upload.uploaded_by === user.id) {
+  // Shared-surface precedence (same rule as presign): `?share=<token>` wins. The
+  // share path intentionally does not check `upload.uploaded_by === user.id` —
+  // shared-link editors write the R2 body via the share principal, and the
+  // `uploads` row's `uploaded_by` records the share author, not the writer.
+  if (shareToken && upload.page_id) {
+    putAuthorized =
+      (await canAccessPage(db, { type: "link", token: shareToken }, upload.page_id, upload.workspace_id, "edit")) &&
+      getPageEditEntitlements("shared", "edit").uploadImage;
+  } else if (user && upload.uploaded_by === user.id) {
     const membership = await checkMembership(db, user.id, upload.workspace_id);
     if (membership && canEdit(membership.role)) {
       putAuthorized = true;
@@ -133,13 +139,6 @@ uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c
         (await canAccessPage(db, { type: "user", userId: user.id }, upload.page_id, upload.workspace_id, "edit")) &&
         getPageEditEntitlements("canonical", "edit").uploadImage;
     }
-  }
-
-  // Fall through to share token if JWT auth didn't authorize (spec §10.8)
-  if (!putAuthorized && shareToken && upload.page_id) {
-    putAuthorized =
-      (await canAccessPage(db, { type: "link", token: shareToken }, upload.page_id, upload.workspace_id, "edit")) &&
-      getPageEditEntitlements("shared", "edit").uploadImage;
   }
 
   if (!putAuthorized) {
@@ -185,23 +184,36 @@ uploadServingRouter.get("/:id", async (c) => {
     }
   }
 
-  // Try auth via refresh cookie first (same-origin browser requests)
-  const refreshToken = getCookie(c, REFRESH_COOKIE);
+  const shareToken = c.req.query("share");
   let authorized = false;
 
-  if (refreshToken) {
-    try {
-      const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), { algorithms: [JWT_ALGORITHM] });
-      if (payload.sub && payload.type === "refresh") {
-        // Workspace-level uploads (e.g. avatars) are visible to any authenticated user
-        if (!upload.page_id) {
-          authorized = true;
-        }
-        const membership = !authorized ? await checkMembership(db, payload.sub, upload.workspace_id) : null;
-        if (membership) {
-          if (membership.role === "guest") {
-            // Guests need page-level share access for uploads
-            if (upload.page_id) {
+  // Shared-surface precedence: a page-scoped asset fetched with `?share=<token>`
+  // authorizes against the share principal and does NOT fall back to cookie auth.
+  // A workspace member carrying both a refresh cookie and a share token resolves
+  // through the share, matching the WS / HTTP shared-follow-on invariant.
+  if (shareToken && upload.page_id) {
+    authorized = await canAccessPage(
+      db,
+      { type: "link", token: shareToken },
+      upload.page_id,
+      upload.workspace_id,
+      "view",
+    );
+  } else {
+    // Cookie-based canonical auth. Used for workspace-level assets (avatars) and
+    // for page-scoped assets when no share token is present.
+    const refreshToken = getCookie(c, REFRESH_COOKIE);
+    if (refreshToken) {
+      try {
+        const { payload } = await jwtVerify(refreshToken, getJwtSecret(c.env), { algorithms: [JWT_ALGORITHM] });
+        if (payload.sub && payload.type === "refresh") {
+          if (!upload.page_id) {
+            authorized = true;
+          } else {
+            const membership = await checkMembership(db, payload.sub, upload.workspace_id);
+            if (membership && membership.role !== "guest") {
+              authorized = true;
+            } else {
               authorized = await canAccessPage(
                 db,
                 { type: "user", userId: payload.sub },
@@ -210,36 +222,11 @@ uploadServingRouter.get("/:id", async (c) => {
                 "view",
               );
             }
-          } else {
-            authorized = true;
           }
-        } else if (upload.page_id) {
-          // Non-member: check page-level share access
-          authorized = await canAccessPage(
-            db,
-            { type: "user", userId: payload.sub },
-            upload.page_id,
-            upload.workspace_id,
-            "view",
-          );
         }
+      } catch {
+        // Cookie auth failed — leave `authorized = false`
       }
-    } catch {
-      // Cookie auth failed — fall through to share token
-    }
-  }
-
-  // Fallback: share token auth for shared-link users (spec §10.7)
-  if (!authorized) {
-    const shareToken = c.req.query("share");
-    if (shareToken && upload.page_id) {
-      authorized = await canAccessPage(
-        db,
-        { type: "link", token: shareToken },
-        upload.page_id,
-        upload.workspace_id,
-        "view",
-      );
     }
   }
 
@@ -252,11 +239,18 @@ uploadServingRouter.get("/:id", async (c) => {
     return c.json({ error: "not_found", message: "File not found" }, 404);
   }
 
+  // Page-scoped assets use a short private TTL so share revocation takes effect
+  // within minutes instead of a year. Workspace-level assets (avatars) keep the
+  // long immutable cache policy because they are not revocation-sensitive.
+  const cacheControl = upload.page_id
+    ? "private, max-age=300, must-revalidate"
+    : "private, max-age=31536000, immutable";
+
   return new Response(object.body, {
     headers: {
       "Content-Type": upload.content_type,
       "Content-Length": String(object.size),
-      "Cache-Control": "private, max-age=31536000, immutable",
+      "Cache-Control": cacheControl,
     },
   });
 });

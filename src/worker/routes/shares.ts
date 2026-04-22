@@ -376,7 +376,10 @@ shareLinkRouter.get("/share/:token", optionalAuth, rateLimit("RL_API"), async (c
     return c.json({ error: "not_found", message: "Workspace not found" }, 404);
   }
 
-  const resolved = await resolvePrincipal(db, user, page.workspace_id, token);
+  const resolved = await resolvePrincipal(db, user, page.workspace_id, {
+    surface: "shared",
+    shareToken: token,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }

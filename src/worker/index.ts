@@ -2,9 +2,9 @@ import { routePartykitRequest } from "partyserver";
 import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
 import { createDb } from "@/worker/db/d1/client";
-import { pages } from "@/worker/db/d1/schema";
+import { pages, users } from "@/worker/db/d1/schema";
 import { handleHttpRequest } from "@/worker/lib/http-entry";
-import { resolvePageAccessLevels } from "@/worker/lib/permissions";
+import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
@@ -53,55 +53,57 @@ async function handlePartyRequest(request: Request, env: Env) {
         return new Response("Page not found", { status: 404 });
       }
 
-      let readOnly = false;
-
+      // Resolve viewer identity. JWT is optional; share-token is authoritative for
+      // shared-surface connections so `/s/:token` stays link-scoped even when the
+      // browser also carries a bearer (mirrors HTTP shared-follow-on routes).
+      let authedUser: { id: string } | null = null;
       if (token) {
-        // JWT auth path
-        let userId: string;
         try {
           const { sub } = await verifyAccessToken(token, env);
-          userId = sub;
+          const row = await db.select({ id: users.id }).from(users).where(eq(users.id, sub)).get();
+          if (!row) {
+            log.warn("auth_failed", { pageId, reason: "user_not_found" });
+            return new Response("Invalid token", { status: 401 });
+          }
+          authedUser = { id: row.id };
         } catch {
           log.warn("auth_failed", { pageId });
           return new Response("Invalid token", { status: 401 });
         }
-
-        // Resolve once and derive both view/edit answers. This relies on the v1
-        // assumption in permissions.ts that access levels are monotonic.
-        const accessLevels = await resolvePageAccessLevels(db, { type: "user", userId }, [pageId], page.workspace_id);
-        const accessLevel = accessLevels.get(pageId) ?? "none";
-        if (accessLevel === "none") {
-          log.warn("access_denied", { userId, pageId });
-          return new Response("You do not have access to this page", { status: 403 });
-        }
-        readOnly = accessLevel !== "edit";
-
-        log.info("connection_authorized", { userId, pageId, readOnly });
-      } else {
-        // Share token auth path
-        const accessLevels = await resolvePageAccessLevels(
-          db,
-          { type: "link", token: shareToken! },
-          [pageId],
-          page.workspace_id,
-        );
-        const accessLevel = accessLevels.get(pageId) ?? "none";
-        if (accessLevel === "none") {
-          log.warn("share_access_denied", { pageId });
-          return new Response("Invalid or expired share link", { status: 403 });
-        }
-        readOnly = accessLevel !== "edit";
-
-        log.info("share_connection_authorized", { pageId, readOnly });
       }
 
-      // Always return a sanitized Request to prevent client-injected params
+      const surface = shareToken ? "shared" : "canonical";
+      const resolved = await resolvePrincipal(db, authedUser, page.workspace_id, {
+        surface,
+        shareToken: shareToken ?? undefined,
+      });
+      if (!resolved) {
+        log.warn("auth_missing", { pageId, reason: "principal_unresolved" });
+        return new Response("Authentication required", { status: 401 });
+      }
+
+      const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], page.workspace_id);
+      const accessLevel = accessLevels.get(pageId) ?? "none";
+      if (accessLevel === "none") {
+        log.warn("access_denied", { pageId, surface, principalType: resolved.principal.type });
+        return new Response(
+          surface === "shared" ? "Invalid or expired share link" : "You do not have access to this page",
+          { status: 403 },
+        );
+      }
+      const readOnly = accessLevel !== "edit";
+
+      log.info("connection_authorized", { pageId, surface, principalType: resolved.principal.type, readOnly });
+
+      // Always return a sanitized Request to prevent client-injected params. The
+      // `member_edit` tag is reserved for canonical (non-shared) editors so the
+      // DO can hand out edit headroom only to those connections.
       url.searchParams.delete("readOnly");
       url.searchParams.delete("authType");
       if (readOnly) {
         url.searchParams.set("readOnly", "1");
       }
-      if (token && !readOnly) {
+      if (surface === "canonical" && !readOnly && resolved.memberBypass) {
         url.searchParams.set("authType", "member_edit");
       }
       return new Request(url.toString(), req);

@@ -24,7 +24,10 @@ pageMentionsRouter.post("/workspaces/:wid/page-mentions/resolve", optionalAuth, 
   const data = await parseBody(c, ResolvePageMentionsRequest);
   if (data instanceof Response) return data;
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, {
+    surface: shareToken ? "shared" : "canonical",
+    shareToken,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }

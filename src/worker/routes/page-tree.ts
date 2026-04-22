@@ -20,7 +20,10 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/children", optionalAuth, rateLimi
   const db = c.get("db");
   const shareToken = c.req.query("share");
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, {
+    surface: shareToken ? "shared" : "canonical",
+    shareToken,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
@@ -34,11 +37,8 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/children", optionalAuth, rateLimi
     .where(and(eq(pages.workspace_id, workspaceId), eq(pages.parent_id, pageId), isNull(pages.archived_at)))
     .orderBy(asc(pages.position));
 
-  // Full workspace member — return all children directly (no per-page permission check needed)
-  if (resolved.fullMember) {
-    return c.json({ pages: children });
-  }
-
+  // `canAccessPages` fast-paths canonical members internally, so the same branch
+  // handles members, guests, and shared-link viewers.
   const accessByPage = await canAccessPages(
     db,
     resolved.principal,
@@ -62,20 +62,19 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/ancestors", optionalAuth, rateLim
   const db = c.get("db");
   const shareToken = c.req.query("share");
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, {
+    surface: shareToken ? "shared" : "canonical",
+    shareToken,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
-  // Gate on target page access before returning ancestor chain
-  if (resolved.fullMember) {
-    const page = await getPage(db, pageId, workspaceId);
-    if (!page) return c.json({ error: "not_found", message: "Page not found" }, 404);
-  } else {
-    const access = await canAccessPages(db, resolved.principal, [pageId], workspaceId, "view");
-    if (!access.get(pageId)) {
-      return c.json({ error: "not_found", message: "Page not found" }, 404);
-    }
+  // Gate on target page access before returning ancestor chain. `canAccessPages`
+  // applies the member fast-path internally for canonical viewers.
+  const access = await canAccessPages(db, resolved.principal, [pageId], workspaceId, "view");
+  if (!access.get(pageId)) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
   const chain = await getPageAncestorChain(db, pageId, workspaceId);

@@ -56,7 +56,10 @@ describe("page-mentions: resolve", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("resolves accessible pages for a full member", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(
       new Map([
         ["p-1", "edit"],
@@ -84,7 +87,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("resolves shared-link mentions when the principal is a link token", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "tok" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -101,7 +107,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("keeps member precedence when a full member request also carries ?share=", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "edit"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -118,7 +127,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("resolves canonical shared access without a share token", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -135,7 +147,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("collapses inaccessible ids to restricted without leaking title or icon", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "tok" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(
       new Map([
         ["p-1", "view"],
@@ -161,7 +176,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("collapses shared non-member misses to restricted mention entries", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "tok" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-blocked", "none"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -178,7 +196,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("collapses archived-or-missing accessible pages to restricted mention entries", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-archived", "edit"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -192,7 +213,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("returns 404 when the workspace does not exist", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
     const { db } = createDbMock({ workspaceSlug: undefined, pageRows: [] });
@@ -226,7 +250,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("dedupes duplicate ids before resolving access", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "edit"]]));
 
     const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
@@ -244,7 +271,10 @@ describe("page-mentions: resolve", () => {
   });
 
   it("collapses malformed ids to restricted instead of rejecting the whole batch", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(
       new Map([
         ["p-1", "edit"],

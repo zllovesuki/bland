@@ -25,30 +25,46 @@ const ACCESS_RANK: Record<AccessLevel, number> = {
  * Either an authenticated user or a link share token.
  */
 export type Principal = { type: "user"; userId: string } | { type: "link"; token: string };
-export type ResolvedPrincipal = { principal: Principal; fullMember: boolean };
+export type ResolvedPrincipal = { principal: Principal; memberBypass: boolean };
 export type ViewerSurface = "canonical" | "shared";
+
+export interface ResolvePrincipalOptions {
+  surface: ViewerSurface;
+  shareToken?: string;
+}
 
 /**
  * Resolve the access principal from an optionalAuth context.
- * Full workspace members (non-guest) are flagged so callers can fast-path.
+ *
+ * Route surface is authoritative: when `surface === "shared"` and a share token is
+ * present, the principal resolves as a link even for a workspace member. That keeps
+ * `/s/:token` link-scoped end to end. `memberBypass` is an internal hint
+ * used by `resolvePageAccessLevels` and `toResolvedViewerContext`; route handlers
+ * should not branch on it and should always resolve access via the shared path.
  */
 export async function resolvePrincipal(
   db: Db,
   user: { id: string } | null,
   workspaceId: string,
-  shareToken?: string,
+  opts: ResolvePrincipalOptions,
 ): Promise<ResolvedPrincipal | null> {
+  const { surface, shareToken } = opts;
+
+  if (surface === "shared" && shareToken) {
+    return { principal: { type: "link", token: shareToken }, memberBypass: false };
+  }
+
   if (user) {
     const membership = await checkMembership(db, user.id, workspaceId);
     if (membership && membership.role !== "guest") {
-      return { principal: { type: "user", userId: user.id }, fullMember: true };
+      return { principal: { type: "user", userId: user.id }, memberBypass: true };
     }
     // Guest/non-member: prefer link share token if available (spec §10.8)
     const principal: Principal = shareToken ? { type: "link", token: shareToken } : { type: "user", userId: user.id };
-    return { principal, fullMember: false };
+    return { principal, memberBypass: false };
   }
   if (shareToken) {
-    return { principal: { type: "link", token: shareToken }, fullMember: false };
+    return { principal: { type: "link", token: shareToken }, memberBypass: false };
   }
   return null;
 }
@@ -63,14 +79,11 @@ export function toResolvedViewerContext(
   route_kind: "canonical" | "shared";
   workspace_slug: string | null;
 } {
-  const accessMode = resolved.fullMember ? "member" : "shared";
-  const routeKind = surface === "shared" && !resolved.fullMember ? "shared" : "canonical";
-
   return {
-    access_mode: accessMode,
+    access_mode: resolved.memberBypass ? "member" : "shared",
     principal_type: resolved.principal.type,
-    route_kind: routeKind,
-    workspace_slug: routeKind === "canonical" ? workspaceSlug : null,
+    route_kind: surface,
+    workspace_slug: surface === "canonical" ? workspaceSlug : null,
   };
 }
 

@@ -4,55 +4,39 @@ import { PageMentionProvider } from "./provider";
 import { useOnline } from "@/client/hooks/use-online";
 import { useReadyShareView } from "@/client/components/share/use-share-view";
 
+/**
+ * Shared surface page-mention provider. `/s/:token` is always link-scoped —
+ * resolution uses the share token, and mention navigation stays inside the
+ * shared shell. If product ever wants "member opening a share link becomes
+ * canonical viewer," that is a redirect out of the shared shell, not a
+ * route-kind branch here.
+ */
 export function SharedPageMentionSurface({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const share = useReadyShareView();
   const online = useOnline();
 
-  const effectiveShareToken = share.viewer.principal_type === "link" ? share.token : undefined;
   const scopeKey = useMemo(
-    () =>
-      [
-        "shared",
-        share.workspaceId,
-        share.viewer.access_mode,
-        share.viewer.principal_type,
-        share.viewer.route_kind,
-        effectiveShareToken ?? "no-link-token",
-      ].join(":"),
-    [
-      effectiveShareToken,
-      share.viewer.access_mode,
-      share.viewer.principal_type,
-      share.viewer.route_kind,
-      share.workspaceId,
-    ],
+    () => ["shared", share.workspaceId, share.token].join(":"),
+    [share.workspaceId, share.token],
   );
 
   const handleNavigate = useCallback(
     (pageId: string) => {
-      if (share.viewer.route_kind === "canonical" && share.viewer.workspace_slug) {
-        navigate({
-          to: "/$workspaceSlug/$pageId",
-          params: { workspaceSlug: share.viewer.workspace_slug, pageId },
-        });
-        return;
-      }
-
       navigate({
         to: "/s/$token",
         params: { token: share.token },
         search: { page: pageId === share.rootPageId ? undefined : pageId },
       });
     },
-    [navigate, share.rootPageId, share.token, share.viewer.route_kind, share.viewer.workspace_slug],
+    [navigate, share.rootPageId, share.token],
   );
 
   return (
     <PageMentionProvider
       workspaceId={share.workspaceId}
       scopeKey={scopeKey}
-      shareToken={effectiveShareToken}
+      shareToken={share.token}
       cacheMode="live"
       networkEnabled={online}
       navigate={handleNavigate}

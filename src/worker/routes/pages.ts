@@ -174,21 +174,16 @@ pagesRouter.get("/workspaces/:wid/pages/:id", optionalAuth, rateLimit("RL_API"),
   const db = c.get("db");
   const shareToken = c.req.query("share");
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, {
+    surface: shareToken ? "shared" : "canonical",
+    shareToken,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
-  // Full workspace members: look up page directly
-  if (resolved.fullMember) {
-    const page = await getPage(db, pageId, workspaceId);
-    if (!page) {
-      return c.json({ error: "not_found", message: "Page not found" }, 404);
-    }
-    return c.json({ page, can_edit: true });
-  }
-
-  // Non-members / share-link callers: resolve access first to avoid leaking page existence
+  // Resolve access first to avoid leaking page existence. `resolvePageAccessLevels`
+  // fast-paths canonical members internally, so we do not branch on that here.
   const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
   const accessLevel = accessLevels.get(pageId) ?? "none";
 
@@ -213,16 +208,17 @@ pagesRouter.get("/workspaces/:wid/pages/:id/snapshot", optionalAuth, rateLimit("
   const db = c.get("db");
   const shareToken = c.req.query("share");
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, {
+    surface: shareToken ? "shared" : "canonical",
+    shareToken,
+  });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
-  if (!resolved.fullMember) {
-    const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
-    if ((accessLevels.get(pageId) ?? "none") === "none") {
-      return c.json({ error: "not_found", message: "Page not found" }, 404);
-    }
+  const accessLevels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
+  if ((accessLevels.get(pageId) ?? "none") === "none") {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
   const page = await getPage(db, pageId, workspaceId);

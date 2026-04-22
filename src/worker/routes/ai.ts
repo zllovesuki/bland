@@ -159,8 +159,12 @@ async function gateAiAction(
   const user = c.get("user");
   const db = c.get("db");
   const shareToken = c.req.query("share");
+  // Surface is the route shape, not a principal heuristic: any `?share=` request
+  // is shared-scoped regardless of whether the caller also holds workspace
+  // membership. `getPageAiEntitlements("shared", ...)` denies all AI actions.
+  const surface: EntitlementSurface = shareToken ? "shared" : "canonical";
 
-  const resolved = await resolvePrincipal(db, user, workspaceId, shareToken);
+  const resolved = await resolvePrincipal(db, user, workspaceId, { surface, shareToken });
   if (!resolved) {
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
@@ -180,7 +184,6 @@ async function gateAiAction(
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
-  const surface: EntitlementSurface = resolved.fullMember ? "canonical" : "shared";
   if (!select(getPageAiEntitlements(surface, pageAccess))) {
     logAiDenied({
       action,

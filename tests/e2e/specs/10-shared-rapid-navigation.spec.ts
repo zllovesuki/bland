@@ -136,9 +136,13 @@ test.describe("rapid page navigation - shared view", () => {
     await anonContext.close();
   });
 
-  test("authenticated member rapid navigation keeps shared root read-only and subpages editable", async ({
+  test("authenticated member on view-only share stays read-only end to end across root and subpages", async ({
     authenticatedPage: { page, accessToken },
   }) => {
+    // Regression: workspace members opening their own view-only share link
+    // used to flip subpages into an editable state because `GET /pages/:id`
+    // resolved them via the canonical member fast path. Share semantics must
+    // win on `/s/:token`, even for members.
     const { share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken);
     const [childAlpha, childBeta, childGamma] = children;
 
@@ -172,13 +176,20 @@ test.describe("rapid page navigation - shared view", () => {
     await childGammaLink.click();
     await expectSharedUrl(page, share.token, childGamma.id);
 
-    const childEditor = page.locator(".tiptap[contenteditable='true']");
-    await childEditor.waitFor({ timeout: 30_000 });
+    // Child page is view-only too: the editor never flips to contenteditable=true.
+    const readOnlyChildEditor = page.locator("main .tiptap[contenteditable='false']");
+    await readOnlyChildEditor.waitFor({ timeout: 30_000 });
     await expect(sharedTitle).toHaveValue(childGamma.title, { timeout: 10_000 });
+    await expect(page.locator("main .tiptap[contenteditable='true']")).toHaveCount(0);
 
-    await childEditor.click();
+    const childContentBefore = (await readOnlyChildEditor.textContent()) ?? "";
+    await readOnlyChildEditor.click();
     await page.keyboard.type("Editable child content");
-    await expect(childEditor).toContainText("Editable child content");
+    await expect(readOnlyChildEditor).toHaveAttribute("contenteditable", "false");
+    expect(await readOnlyChildEditor.textContent()).toBe(childContentBefore);
+
+    // URL must stay shared-scoped; no jump into /$workspaceSlug/$pageId.
+    expect(new URL(page.url()).pathname).toBe(`/s/${share.token}`);
 
     const rootLink = page.locator("button").filter({ hasText: ROOT_TITLE }).first();
     await rootLink.click();
@@ -250,11 +261,15 @@ test.describe("rapid page navigation - shared view", () => {
     await childLink.click();
     await expectSharedUrl(page, share.token, delayedChild.id);
 
-    const childEditor = page.locator(".tiptap[contenteditable='true']");
-    await childEditor.waitFor({ timeout: 30_000 });
-    await childEditor.click();
-    await page.keyboard.type("Delayed child remains editable");
-    await expect(childEditor).toContainText("Delayed child remains editable");
+    // Delayed child on a view-only share must stay read-only for the member.
+    const readOnlyDelayedChild = page.locator("main .tiptap[contenteditable='false']");
+    await readOnlyDelayedChild.waitFor({ timeout: 30_000 });
+    await expect(page.locator("main .tiptap[contenteditable='true']")).toHaveCount(0);
+    const childContentBefore = (await readOnlyDelayedChild.textContent()) ?? "";
+    await readOnlyDelayedChild.click();
+    await page.keyboard.type("Delayed child is still read only");
+    await expect(readOnlyDelayedChild).toHaveAttribute("contenteditable", "false");
+    expect(await readOnlyDelayedChild.textContent()).toBe(childContentBefore);
 
     expect(pageErrors).toEqual([]);
   });

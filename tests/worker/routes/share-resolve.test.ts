@@ -83,7 +83,10 @@ describe("share resolve", () => {
   });
 
   it("returns shared viewer metadata for anonymous or link-based viewers", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "link", token: "tok" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "tok" },
+      memberBypass: false,
+    });
 
     const { shareLinkRouter } = await import("@/worker/routes/shares");
     const { db } = createDbMock({
@@ -107,7 +110,7 @@ describe("share resolve", () => {
     });
   });
 
-  it("returns canonical member viewer metadata for full members on a shared route", async () => {
+  it("keeps shared viewer metadata link-scoped even when the caller is also a workspace member", async () => {
     authState.user = {
       id: "user-1",
       email: "user@example.com",
@@ -117,7 +120,12 @@ describe("share resolve", () => {
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z",
     };
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    // Surface-aware resolver always returns a link principal on the shared surface,
+    // regardless of the caller's workspace membership. This is the invariant bug1/bug2 fix.
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "link", token: "tok" },
+      memberBypass: false,
+    });
 
     const { shareLinkRouter } = await import("@/worker/routes/shares");
     const { db } = createDbMock({
@@ -133,10 +141,10 @@ describe("share resolve", () => {
       permission: "view",
       token: "tok",
       viewer: {
-        access_mode: "member",
-        principal_type: "user",
-        route_kind: "canonical",
-        workspace_slug: "demo",
+        access_mode: "shared",
+        principal_type: "link",
+        route_kind: "shared",
+        workspace_slug: null,
       },
     });
   });

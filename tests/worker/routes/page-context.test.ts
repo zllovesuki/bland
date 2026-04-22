@@ -56,7 +56,11 @@ describe("page-context", () => {
   });
 
   it("returns canonical member viewer metadata for full workspace members", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: true });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: true,
+    });
+    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
     const { pageContextRouter } = await import("@/worker/routes/page-context");
     const { db } = createDbMock("demo");
@@ -80,7 +84,10 @@ describe("page-context", () => {
   });
 
   it("returns canonical shared viewer metadata for canonical share-derived access", async () => {
-    resolvePrincipalMock.mockResolvedValue({ principal: { type: "user", userId: "user-1" }, fullMember: false });
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      memberBypass: false,
+    });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 
     const { pageContextRouter } = await import("@/worker/routes/page-context");
