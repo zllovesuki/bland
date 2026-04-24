@@ -55,6 +55,14 @@ function RestrictedLabel() {
   );
 }
 
+function EllipsisDot() {
+  return (
+    <span className="select-none text-zinc-500" aria-hidden="true">
+      …
+    </span>
+  );
+}
+
 function WorkspaceBreadcrumbs({
   currentTitle,
   currentIcon,
@@ -74,30 +82,64 @@ function WorkspaceBreadcrumbs({
     return chain.reverse();
   }, [pages, currentParentId]);
 
+  const workspaceLabel = workspaceName ?? workspaceSlug;
+  const immediateAncestor = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+  const hasHiddenPrefix = ancestors.length > 0;
+
   return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <Link
-        to="/$workspaceSlug"
-        params={{ workspaceSlug }}
-        className="truncate text-zinc-400 transition-colors hover:text-zinc-300"
-      >
-        {workspaceName ?? workspaceSlug}
-      </Link>
-      {ancestors.map((a) => (
-        <Fragment key={a.id}>
-          <Sep />
+    <nav className="flex min-w-0 items-center text-xs" aria-label="Breadcrumb">
+      <div className="hidden min-w-0 items-center gap-1 md:flex">
+        <Link
+          to="/$workspaceSlug"
+          params={{ workspaceSlug }}
+          className="truncate text-zinc-400 transition-colors hover:text-zinc-300"
+        >
+          {workspaceLabel}
+        </Link>
+        {ancestors.map((a) => (
+          <Fragment key={a.id}>
+            <Sep />
+            <Link
+              to="/$workspaceSlug/$pageId"
+              params={{ workspaceSlug, pageId: a.id }}
+              className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
+            >
+              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
+              {a.title || DEFAULT_PAGE_TITLE}
+            </Link>
+          </Fragment>
+        ))}
+        <Sep />
+        <CurrentLabel title={currentTitle} icon={currentIcon} />
+      </div>
+      <div className="flex min-w-0 items-center gap-1 md:hidden">
+        {hasHiddenPrefix && (
+          <>
+            <EllipsisDot />
+            <Sep />
+          </>
+        )}
+        {immediateAncestor ? (
           <Link
             to="/$workspaceSlug/$pageId"
-            params={{ workspaceSlug, pageId: a.id }}
-            className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
+            params={{ workspaceSlug, pageId: immediateAncestor.id }}
+            className="inline-flex min-w-0 items-center gap-1 text-zinc-400 transition-colors hover:text-zinc-300"
           >
-            {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-            {a.title || DEFAULT_PAGE_TITLE}
+            {immediateAncestor.icon && <EmojiIcon emoji={immediateAncestor.icon} size={12} />}
+            <span className="truncate">{immediateAncestor.title || DEFAULT_PAGE_TITLE}</span>
           </Link>
-        </Fragment>
-      ))}
-      <Sep />
-      <CurrentLabel title={currentTitle} icon={currentIcon} />
+        ) : (
+          <Link
+            to="/$workspaceSlug"
+            params={{ workspaceSlug }}
+            className="min-w-0 truncate text-zinc-400 transition-colors hover:text-zinc-300"
+          >
+            {workspaceLabel}
+          </Link>
+        )}
+        <Sep />
+        <EllipsisDot />
+      </div>
     </nav>
   );
 }
@@ -109,28 +151,60 @@ function SharedInWorkspaceBreadcrumbs({
   workspaceName,
   ancestors,
 }: WorkspaceFramedProps & { ancestors: PageAncestor[] }) {
+  const workspaceLabel = workspaceName ?? workspaceSlug;
+  const immediateAncestor = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+  const hasHiddenPrefix = ancestors.length > 0;
+
   return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      <span className="truncate text-zinc-400">{workspaceName ?? workspaceSlug}</span>
-      {ancestors.map((a) => (
-        <Fragment key={a.id}>
-          <Sep />
-          {a.accessible ? (
+    <nav className="flex min-w-0 items-center text-xs" aria-label="Breadcrumb">
+      <div className="hidden min-w-0 items-center gap-1 md:flex">
+        <span className="truncate text-zinc-400">{workspaceLabel}</span>
+        {ancestors.map((a) => (
+          <Fragment key={a.id}>
+            <Sep />
+            {a.accessible ? (
+              <Link
+                to="/$workspaceSlug/$pageId"
+                params={{ workspaceSlug, pageId: a.id }}
+                className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
+              >
+                {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
+                {a.title || DEFAULT_PAGE_TITLE}
+              </Link>
+            ) : (
+              <RestrictedLabel />
+            )}
+          </Fragment>
+        ))}
+        <Sep />
+        <CurrentLabel title={currentTitle} icon={currentIcon} />
+      </div>
+      <div className="flex min-w-0 items-center gap-1 md:hidden">
+        {hasHiddenPrefix && (
+          <>
+            <EllipsisDot />
+            <Sep />
+          </>
+        )}
+        {immediateAncestor ? (
+          immediateAncestor.accessible ? (
             <Link
               to="/$workspaceSlug/$pageId"
-              params={{ workspaceSlug, pageId: a.id }}
-              className="inline-flex items-center gap-1 truncate text-zinc-400 transition-colors hover:text-zinc-300"
+              params={{ workspaceSlug, pageId: immediateAncestor.id }}
+              className="inline-flex min-w-0 items-center gap-1 text-zinc-400 transition-colors hover:text-zinc-300"
             >
-              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-              {a.title || DEFAULT_PAGE_TITLE}
+              {immediateAncestor.icon && <EmojiIcon emoji={immediateAncestor.icon} size={12} />}
+              <span className="truncate">{immediateAncestor.title || DEFAULT_PAGE_TITLE}</span>
             </Link>
           ) : (
             <RestrictedLabel />
-          )}
-        </Fragment>
-      ))}
-      <Sep />
-      <CurrentLabel title={currentTitle} icon={currentIcon} />
+          )
+        ) : (
+          <span className="min-w-0 truncate text-zinc-400">{workspaceLabel}</span>
+        )}
+        <Sep />
+        <EllipsisDot />
+      </div>
     </nav>
   );
 }
@@ -146,25 +220,51 @@ function SharedBreadcrumbs({
 }) {
   if (ancestors.length === 0) return null;
 
+  const immediateAncestor = ancestors[ancestors.length - 1];
+  const hasHiddenPrefix = ancestors.length > 1;
+
   return (
-    <nav className="flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-      {ancestors.map((a) => (
-        <Fragment key={a.id}>
-          {a.accessible ? (
-            <button
-              onClick={() => onNavigate(a.id)}
-              className="inline-flex items-center gap-1 truncate text-zinc-500 transition-colors hover:text-zinc-300"
-            >
-              {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
-              {a.title || DEFAULT_PAGE_TITLE}
-            </button>
-          ) : (
-            <RestrictedLabel />
-          )}
-          <Sep />
-        </Fragment>
-      ))}
-      <CurrentLabel title={currentTitle} icon={currentIcon} />
+    <nav className="flex min-w-0 items-center text-xs" aria-label="Breadcrumb">
+      <div className="hidden min-w-0 items-center gap-1 md:flex">
+        {ancestors.map((a) => (
+          <Fragment key={a.id}>
+            {a.accessible ? (
+              <button
+                onClick={() => onNavigate(a.id)}
+                className="inline-flex items-center gap-1 truncate text-zinc-500 transition-colors hover:text-zinc-300"
+              >
+                {a.icon && <EmojiIcon emoji={a.icon} size={12} />}
+                {a.title || DEFAULT_PAGE_TITLE}
+              </button>
+            ) : (
+              <RestrictedLabel />
+            )}
+            <Sep />
+          </Fragment>
+        ))}
+        <CurrentLabel title={currentTitle} icon={currentIcon} />
+      </div>
+      <div className="flex min-w-0 items-center gap-1 md:hidden">
+        {hasHiddenPrefix && (
+          <>
+            <EllipsisDot />
+            <Sep />
+          </>
+        )}
+        {immediateAncestor.accessible ? (
+          <button
+            onClick={() => onNavigate(immediateAncestor.id)}
+            className="inline-flex min-w-0 items-center gap-1 text-zinc-500 transition-colors hover:text-zinc-300"
+          >
+            {immediateAncestor.icon && <EmojiIcon emoji={immediateAncestor.icon} size={12} />}
+            <span className="truncate">{immediateAncestor.title || DEFAULT_PAGE_TITLE}</span>
+          </button>
+        ) : (
+          <RestrictedLabel />
+        )}
+        <Sep />
+        <EllipsisDot />
+      </div>
     </nav>
   );
 }

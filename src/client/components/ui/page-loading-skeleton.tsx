@@ -31,10 +31,17 @@ function PageChromeSkeleton() {
       <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
         <Skeleton className="h-48 w-full rounded-b-lg" />
       </div>
-      <div className="mb-6 flex min-h-6 items-center gap-2">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-3 w-3" />
-        <Skeleton className="h-3 w-24" />
+      <div className="mb-6 min-h-6">
+        <div className="hidden items-center gap-2 md:flex">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-3" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <div className="flex items-center gap-2 md:hidden">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-3" />
+          <Skeleton className="h-3 w-3" />
+        </div>
       </div>
       <div className="mb-4 pl-7">
         <Skeleton className="h-9 w-11 rounded-md" />

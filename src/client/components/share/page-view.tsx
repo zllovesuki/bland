@@ -22,12 +22,19 @@ import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 
 function SharedBreadcrumbSkeleton() {
   return (
-    <div className="flex items-center gap-2 text-xs" aria-hidden="true">
-      <Skeleton className="h-3.5 w-20 rounded-sm" />
-      <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
-      <Skeleton className="h-3.5 w-24 rounded-sm" />
-      <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
-      <Skeleton className="h-3.5 w-28 rounded-sm" />
+    <div className="text-xs" aria-hidden="true">
+      <div className="hidden items-center gap-2 md:flex">
+        <Skeleton className="h-3.5 w-20 rounded-sm" />
+        <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
+        <Skeleton className="h-3.5 w-24 rounded-sm" />
+        <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
+        <Skeleton className="h-3.5 w-28 rounded-sm" />
+      </div>
+      <div className="flex items-center gap-2 md:hidden">
+        <Skeleton className="h-3.5 w-24 rounded-sm" />
+        <ChevronRight className="h-3 w-3 shrink-0 text-zinc-700" />
+        <Skeleton className="h-3.5 w-3 rounded-sm" />
+      </div>
     </div>
   );
 }
@@ -127,7 +134,7 @@ function SharedPageChrome({ presentation, showBreadcrumbSlot }: SharedPageChrome
         )}
 
         {showBreadcrumbSlot && (
-          <div className="mb-6 min-h-6">
+          <div className="mb-6 flex min-h-6 min-w-0 items-center">
             {presentation.isAncestorTrailLoading ? (
               <SharedBreadcrumbSkeleton />
             ) : (

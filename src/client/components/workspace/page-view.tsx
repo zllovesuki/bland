@@ -270,28 +270,30 @@ function WorkspacePageChrome({
           </div>
         )}
 
-        <div className="mb-6 flex min-h-6 items-center justify-between">
-          {pageAffordance.breadcrumbMode === "restricted" ? (
-            <PageBreadcrumbs
-              mode="shared-in-workspace"
-              currentTitle={page.title}
-              currentIcon={page.icon}
-              workspaceSlug={workspaceSlug}
-              workspaceName={workspace?.name}
-              ancestors={ancestors}
-            />
-          ) : (
-            <PageBreadcrumbs
-              mode="workspace"
-              currentTitle={page.title}
-              currentIcon={page.icon}
-              currentParentId={currentPageMeta?.parent_id ?? null}
-              workspaceSlug={workspaceSlug}
-              workspaceName={workspace?.name}
-              pages={pages}
-            />
-          )}
-          <div className="flex items-center gap-3">
+        <div className="mb-6 flex min-h-6 items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {pageAffordance.breadcrumbMode === "restricted" ? (
+              <PageBreadcrumbs
+                mode="shared-in-workspace"
+                currentTitle={page.title}
+                currentIcon={page.icon}
+                workspaceSlug={workspaceSlug}
+                workspaceName={workspace?.name}
+                ancestors={ancestors}
+              />
+            ) : (
+              <PageBreadcrumbs
+                mode="workspace"
+                currentTitle={page.title}
+                currentIcon={page.icon}
+                currentParentId={currentPageMeta?.parent_id ?? null}
+                workspaceSlug={workspaceSlug}
+                workspaceName={workspace?.name}
+                pages={pages}
+              />
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
             {headerActions}
             <AvatarStack
               awareness={syncProvider?.awareness ?? null}
