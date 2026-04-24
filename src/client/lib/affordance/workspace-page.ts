@@ -84,7 +84,7 @@ export function deriveWorkspacePageAffordance(input: {
       pageAccess,
       workspaceId,
       online,
-      isFullMember: accessMode === "member",
+      workspaceRole,
     }),
   };
 }

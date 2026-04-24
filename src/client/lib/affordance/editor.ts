@@ -3,6 +3,7 @@ import {
   getPageEditEntitlements,
   type EntitlementSurface,
   type PageAccessLevel,
+  type ResolvedWorkspaceRole,
 } from "@/shared/entitlements";
 
 export interface EditorAffordance {
@@ -20,12 +21,13 @@ export function deriveEditorAffordance(input: {
   pageAccess: PageAccessLevel;
   workspaceId: string | undefined;
   online: boolean;
-  isFullMember?: boolean;
+  workspaceRole: ResolvedWorkspaceRole;
 }): EditorAffordance {
-  const { surface, pageAccess, workspaceId, online, isFullMember = surface === "canonical" } = input;
+  const { surface, pageAccess, workspaceId, online, workspaceRole } = input;
   const pageEdit = getPageEditEntitlements(surface, pageAccess);
-  const aiSurface: EntitlementSurface = isFullMember ? "canonical" : "shared";
-  const ai = getPageAiEntitlements(aiSurface, pageAccess);
+  // AI entitlements are role-aware: `getPageAiEntitlements` denies guests and
+  // non-members on canonical surface, and denies everyone on shared surface.
+  const ai = getPageAiEntitlements(surface, pageAccess, workspaceRole);
 
   return {
     documentEditable: pageEdit.editDocument,

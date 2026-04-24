@@ -43,6 +43,10 @@ export function deriveSharePageAffordance(input: {
     pageAccess,
     workspaceId,
     online,
+    // Shared surface entitlements deny every AI action regardless of role, so
+    // role is informational here. Emit "none" to make the link-scoped contract
+    // explicit at the callsite.
+    workspaceRole: "none",
   });
   return {
     kind: "doc",

@@ -122,7 +122,19 @@ describe("shared entitlements", () => {
 
   describe("page AI entitlements", () => {
     it("allows full members to rewrite, generate, summarize, and ask on edit pages", () => {
-      expect(getPageAiEntitlements("canonical", "edit")).toEqual({
+      expect(getPageAiEntitlements("canonical", "edit", "member")).toEqual({
+        useAiRewrite: true,
+        useAiGenerate: true,
+        summarizePage: true,
+        askPage: true,
+      });
+      expect(getPageAiEntitlements("canonical", "edit", "admin")).toEqual({
+        useAiRewrite: true,
+        useAiGenerate: true,
+        summarizePage: true,
+        askPage: true,
+      });
+      expect(getPageAiEntitlements("canonical", "edit", "owner")).toEqual({
         useAiRewrite: true,
         useAiGenerate: true,
         summarizePage: true,
@@ -130,8 +142,8 @@ describe("shared entitlements", () => {
       });
     });
 
-    it("restricts canonical view-only access to read-only AI actions", () => {
-      expect(getPageAiEntitlements("canonical", "view")).toEqual({
+    it("restricts canonical view-only access to read-only AI actions for writer roles", () => {
+      expect(getPageAiEntitlements("canonical", "view", "member")).toEqual({
         useAiRewrite: false,
         useAiGenerate: false,
         summarizePage: true,
@@ -140,7 +152,7 @@ describe("shared entitlements", () => {
     });
 
     it("denies any AI action for canonical/none", () => {
-      expect(getPageAiEntitlements("canonical", "none")).toEqual({
+      expect(getPageAiEntitlements("canonical", "none", "member")).toEqual({
         useAiRewrite: false,
         useAiGenerate: false,
         summarizePage: false,
@@ -148,14 +160,38 @@ describe("shared entitlements", () => {
       });
     });
 
-    it("denies all AI actions on the shared surface regardless of access level", () => {
+    it("denies all AI actions for guests on the canonical surface regardless of page access", () => {
       for (const access of ["none", "view", "edit"] as const) {
-        expect(getPageAiEntitlements("shared", access)).toEqual({
+        expect(getPageAiEntitlements("canonical", access, "guest")).toEqual({
           useAiRewrite: false,
           useAiGenerate: false,
           summarizePage: false,
           askPage: false,
         });
+      }
+    });
+
+    it("denies all AI actions for non-members on the canonical surface", () => {
+      for (const access of ["none", "view", "edit"] as const) {
+        expect(getPageAiEntitlements("canonical", access, "none")).toEqual({
+          useAiRewrite: false,
+          useAiGenerate: false,
+          summarizePage: false,
+          askPage: false,
+        });
+      }
+    });
+
+    it("denies all AI actions on the shared surface regardless of role and access level", () => {
+      for (const role of ["owner", "admin", "member", "guest", "none"] as const) {
+        for (const access of ["none", "view", "edit"] as const) {
+          expect(getPageAiEntitlements("shared", access, role)).toEqual({
+            useAiRewrite: false,
+            useAiGenerate: false,
+            summarizePage: false,
+            askPage: false,
+          });
+        }
       }
     });
   });

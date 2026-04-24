@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { PanelRightOpen } from "lucide-react";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { getMyRole } from "@/client/lib/workspace-role";
 import { deriveWorkspacePageAffordance, type WorkspacePageAffordance } from "@/client/lib/affordance/workspace-page";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import type { ActivePageSnapshot } from "@/client/lib/active-page-model";
@@ -62,10 +61,10 @@ function PageViewContent() {
     pages,
     members,
     accessMode,
+    workspaceRole,
   } = useCanonicalPageContext();
   const currentUser = useAuthStore((s) => s.user);
   const online = useOnline();
-  const role = getMyRole(members, currentUser);
   const isSharedMode = accessMode === "shared";
   const [summarizeOpen, setSummarizeOpen] = useState(false);
   const { status } = useSyncStatus(syncProvider, online);
@@ -124,7 +123,7 @@ function PageViewContent() {
 
   const pageAffordance = deriveWorkspacePageAffordance({
     accessMode,
-    workspaceRole: role ?? "none",
+    workspaceRole: workspaceRole ?? "none",
     pageKind: page.kind,
     pageAccess: activePageState.access.mode,
     ownsPage: currentUser?.id === currentPageMeta?.created_by,

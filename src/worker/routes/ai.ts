@@ -184,7 +184,12 @@ async function gateAiAction(
     return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
-  if (!select(getPageAiEntitlements(surface, pageAccess))) {
+  // Role axis enforces member-only on canonical surface even if the caller has
+  // a share-based grant. `resolved.workspaceRole` is null on shared surface and
+  // for non-members, both of which `getPageAiEntitlements` already treats as
+  // all-deny.
+  const workspaceRole = resolved.workspaceRole ?? "none";
+  if (!select(getPageAiEntitlements(surface, pageAccess, workspaceRole))) {
     logAiDenied({
       action,
       userId: user?.id,

@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { resolvePrincipal, resolvePageAccessLevels } from "@/worker/lib/permissions";
 import { getPage } from "@/worker/lib/page-access";
 import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
+import type { WorkspaceRole } from "@/shared/types";
 
 vi.mock("@/worker/lib/permissions", () => ({
   resolvePrincipal: vi.fn(),
@@ -34,10 +35,10 @@ const getPageMock = vi.mocked(getPage);
 
 type AccessLevel = "none" | "view" | "edit";
 
-function seedPrincipal(memberBypass: boolean) {
+function seedPrincipal(workspaceRole: WorkspaceRole | null) {
   resolvePrincipalMock.mockResolvedValue({
     principal: { kind: "user", id: "user-1" } as never,
-    memberBypass,
+    workspaceRole,
   });
 }
 
@@ -93,8 +94,8 @@ describe("ai entitlement gating", () => {
     expect(await res.json()).toMatchObject({ error: "unauthorized" });
   });
 
-  it("returns 403 ai_not_entitled for a shared-surface viewer attempting rewrite", async () => {
-    seedPrincipal(false);
+  it("returns 403 ai_not_entitled for a non-member canonical viewer attempting rewrite", async () => {
+    seedPrincipal(null);
     seedPage();
     seedAccess("view");
     const { env } = createAiEnv();
@@ -108,8 +109,48 @@ describe("ai entitlement gating", () => {
     expect(await res.json()).toMatchObject({ error: "ai_not_entitled" });
   });
 
+  it("denies every AI action for a guest on canonical surface even with edit share access", async () => {
+    const cases: Array<{ path: string; init: RequestInit }> = [
+      {
+        path: "/api/v1/workspaces/ws-1/pages/pg-1/rewrite",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(rewritePayload()),
+        },
+      },
+      {
+        path: "/api/v1/workspaces/ws-1/pages/pg-1/generate",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ intent: "continue", beforeBlock: "", afterBlock: "", pageTitle: "" }),
+        },
+      },
+      { path: "/api/v1/workspaces/ws-1/pages/pg-1/summarize", init: { method: "POST" } },
+      {
+        path: "/api/v1/workspaces/ws-1/pages/pg-1/ask",
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ question: "What is this?" }),
+        },
+      },
+    ];
+    for (const { path, init } of cases) {
+      seedPrincipal("guest");
+      seedPage();
+      seedAccess("edit");
+      const { env } = createAiEnv();
+      const app = await buildApp(env);
+      const res = await app.request(path, init);
+      expect(res.status, `guest should be denied on ${path}`).toBe(403);
+      expect(await res.json()).toMatchObject({ error: "ai_not_entitled" });
+    }
+  });
+
   it("returns 403 ai_not_entitled for a canonical viewer (view-only) attempting rewrite", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("view");
     const { env } = createAiEnv();
@@ -124,7 +165,7 @@ describe("ai entitlement gating", () => {
   });
 
   it("allows a canonical viewer to summarize", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("view");
     const { env } = createAiEnv();
@@ -137,7 +178,7 @@ describe("ai entitlement gating", () => {
   });
 
   it("allows a canonical editor to rewrite", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("edit");
     const { env } = createAiEnv();
@@ -152,7 +193,7 @@ describe("ai entitlement gating", () => {
   });
 
   it("returns 404 not_found when the page does not exist", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     getPageMock.mockResolvedValue(undefined as never);
     const { env } = createAiEnv();
     const app = await buildApp(env);
@@ -166,7 +207,7 @@ describe("ai entitlement gating", () => {
   });
 
   it("returns 404 not_found when access level is none (no existence leak)", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("none");
     const { env } = createAiEnv();
@@ -185,7 +226,7 @@ describe("ai empty-page gating", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 404 page_empty on /ask when the page body is empty", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("edit");
     const { env } = createAiEnv("");
@@ -200,7 +241,7 @@ describe("ai empty-page gating", () => {
   });
 
   it("returns 404 page_empty on /summarize when the page body is empty", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("view");
     const { env } = createAiEnv("");
@@ -213,7 +254,7 @@ describe("ai empty-page gating", () => {
   });
 
   it("returns 404 page_empty on /ask when getIndexPayload says missing", async () => {
-    seedPrincipal(true);
+    seedPrincipal("member");
     seedPage();
     seedAccess("edit");
     const getIndexPayload = vi.fn().mockResolvedValue({ kind: "missing" });

@@ -14,6 +14,7 @@ describe("client affordance models", () => {
           pageAccess: "edit",
           workspaceId: "ws-1",
           online: false,
+          workspaceRole: "member",
         }),
       ).toEqual({
         documentEditable: true,
@@ -26,20 +27,37 @@ describe("client affordance models", () => {
       });
     });
 
-    it("enables all AI affordances for full members on canonical edit pages", () => {
+    it("enables all AI affordances for writer roles on canonical edit pages", () => {
       expect(
         deriveEditorAffordance({
           surface: "canonical",
           pageAccess: "edit",
           workspaceId: "ws-1",
           online: true,
-          isFullMember: true,
+          workspaceRole: "member",
         }),
       ).toMatchObject({
         canUseAiRewrite: true,
         canUseAiGenerate: true,
         canSummarizePage: true,
         canAskPage: true,
+      });
+    });
+
+    it("denies every AI action for guests on canonical edit pages even online", () => {
+      expect(
+        deriveEditorAffordance({
+          surface: "canonical",
+          pageAccess: "edit",
+          workspaceId: "ws-1",
+          online: true,
+          workspaceRole: "guest",
+        }),
+      ).toMatchObject({
+        canUseAiRewrite: false,
+        canUseAiGenerate: false,
+        canSummarizePage: false,
+        canAskPage: false,
       });
     });
 
@@ -50,6 +68,7 @@ describe("client affordance models", () => {
           pageAccess: "edit",
           workspaceId: "ws-1",
           online: true,
+          workspaceRole: "none",
         }),
       ).toEqual({
         documentEditable: true,
