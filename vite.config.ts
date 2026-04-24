@@ -4,7 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { serwist } from "@serwist/vite";
 import path from "path";
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 
 // Captured once per build. Used as the revision for the precached Worker
 // rendered shell so every deploy refreshes the offline fallback copy.
@@ -21,6 +22,30 @@ const SHELL_PRECACHE_URL = "/__pwa-shell";
 
 const persistStatePath = process.env.BLAND_PERSIST_STATE_PATH;
 const ignoredWatchPaths = ["docs/**", "scripts/**", "playwright-report/**", "test-results/**", "tests/**"];
+const aiMode = readLocalAiMode();
+
+function readLocalAiMode(): string {
+  return normalizeAiMode(process.env.BLAND_AI_MODE ?? readDevVarsValue("BLAND_AI_MODE"));
+}
+
+function normalizeAiMode(raw: string | undefined): string {
+  return raw?.trim().toLowerCase() || "workers-ai";
+}
+
+function readDevVarsValue(name: string): string | undefined {
+  for (const fileName of getDevVarsFileNames()) {
+    const filePath = path.resolve(__dirname, fileName);
+    if (!existsSync(filePath)) continue;
+
+    const value = parseEnv(readFileSync(filePath, "utf8"))[name];
+    if (value !== undefined) return value;
+  }
+}
+
+function getDevVarsFileNames(): string[] {
+  const cloudflareEnv = process.env.CLOUDFLARE_ENV?.trim();
+  return cloudflareEnv ? [`.dev.vars.${cloudflareEnv}`, ".dev.vars"] : [".dev.vars"];
+}
 
 // Excalidraw defaults to fetching its font .woff2 files from esm.sh. Self-host
 // by copying `dist/prod/fonts/*` from node_modules into `public/fonts/`; at
@@ -48,7 +73,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     excalidrawFontsPlugin(),
-    cloudflare(persistStatePath ? { persistState: { path: persistStatePath } } : undefined),
+    cloudflare({
+      ...(persistStatePath ? { persistState: { path: persistStatePath } } : {}),
+      remoteBindings: aiMode === "workers-ai",
+    }),
     serwist({
       swSrc: "src/client/service-worker.ts",
       // Serwist runs in Vite's client build, whose outDir is `dist/client`.
