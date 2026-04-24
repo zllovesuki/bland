@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import { User as UserSchema, type User } from "@/shared/types";
 import { SESSION_MODES, STORAGE_KEYS, type SessionMode } from "@/client/lib/constants";
-import { docCache } from "@/client/lib/doc-cache-registry";
-import { queryClient } from "@/client/lib/query-client";
 import { readVersionedStorageJson, writeVersionedStorageJson, removeStorageItem } from "@/client/lib/storage";
-import { useWorkspaceStore } from "./workspace-store";
 
 const STORED_USER_VERSION = 1;
 
@@ -49,7 +46,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setAuth(token, user) {
     writeVersionedStorageJson(STORAGE_KEYS.USER, STORED_USER_VERSION, user);
-    useWorkspaceStore.getState().validateCacheOwner(user.id);
     set({
       accessToken: token,
       user,
@@ -60,17 +56,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearAuth() {
     removeStorageItem(STORAGE_KEYS.USER);
-    docCache.clearAll();
-    queryClient.clear();
-    // Symmetric with setAuth's validateCacheOwner wiring: a full logout must
-    // also clear the persisted workspace cache so the previous user's workspace
-    // list, page snapshots, cached access, shared inbox, and cacheUserId do not
-    // linger. Passing `null` forces `cacheUserId` onto the new state (the
-    // undefined-arg path would leave the persisted identity in place because
-    // Zustand's `set` merges partial state).
-    // markExpired/markLocalOnly intentionally do NOT call this (they keep the
-    // cache for offline/local-only surfaces).
-    useWorkspaceStore.getState().resetStore(null);
     set({
       accessToken: null,
       user: null,

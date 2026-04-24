@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { ensureWorkspaceLocalOwner, resetWorkspaceLocalOwner } from "@/client/stores/bootstrap";
 import { api } from "@/client/lib/api";
 import type { LoginRequest } from "@/shared/types";
 
@@ -13,6 +13,10 @@ export function useAuth() {
   const login = useCallback(
     async (data: LoginRequest) => {
       const res = await api.auth.login(data);
+      // Validate local owner and hydrate the workspace replica BEFORE
+      // switching the session to authenticated, so route loaders never see
+      // stale cache from a different user.
+      await ensureWorkspaceLocalOwner(res.user.id, true);
       setAuth(res.accessToken, res.user);
     },
     [setAuth],
@@ -25,8 +29,7 @@ export function useAuth() {
       // Ignore errors - clear local state regardless
     }
     clearAuth();
-    // Clear workspace cache on explicit logout
-    useWorkspaceStore.getState().resetStore();
+    await resetWorkspaceLocalOwner();
   }, [clearAuth]);
 
   return { isAuthenticated, user, login, logout };

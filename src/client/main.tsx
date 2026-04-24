@@ -9,13 +9,26 @@ import { queryClient } from "./lib/query-client";
 import { routeTree } from "./route-tree";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
 import { isBenignBrowserError } from "./lib/benign-browser-errors";
+import { removeStorageItem } from "./lib/storage";
+import { STORAGE_KEYS } from "./lib/constants";
 import { useAuthStore } from "./stores/auth-store";
-import { useWorkspaceStore } from "./stores/workspace-store";
+import {
+  installWorkspaceLocalOwnerAutoHydrator,
+  rehydrateWorkspaceLocalOwner,
+  waitForWorkspaceLocalHydration,
+} from "./stores/bootstrap";
 import "./styles/app.css";
 
 const router = createRouter({
   routeTree,
   defaultPreload: "render",
+});
+
+// Route-aware re-hydrate: users who bootstrapped on a non-local path
+// (e.g., `/login` or `/s/$token`) and then navigate into a workspace or
+// shared-with-me route need the projections hydrated without a full reload.
+router.subscribe("onResolved", () => {
+  rehydrateWorkspaceLocalOwner();
 });
 
 declare module "@tanstack/react-router" {
@@ -76,9 +89,17 @@ async function bootstrap() {
     await refreshSession();
   }
 
-  // Validate cache ownership before route loaders trust persisted data
-  const currentUser = useAuthStore.getState().user;
-  useWorkspaceStore.getState().validateCacheOwner(currentUser?.id ?? null);
+  // Evict the orphan v6 zustand persist blob from previous releases.
+  removeStorageItem(STORAGE_KEYS.WORKSPACE);
+
+  // Hydrate the local workspace replica before route loaders trust cached
+  // data. Anonymous / share / login / invite paths schedule a no-op hydrate.
+  // The auto-hydrator below handles later auth transitions; the router
+  // subscription above re-schedules on route changes. Both paths flow
+  // through `scheduleHydration`, which dedupes by (userId, needsLocal).
+  rehydrateWorkspaceLocalOwner();
+  await waitForWorkspaceLocalHydration();
+  installWorkspaceLocalOwnerAutoHydrator();
 
   createRoot(document.getElementById("root")!, {
     onUncaughtError(error, errorInfo) {

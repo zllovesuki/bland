@@ -2,7 +2,9 @@ import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Loader2, ChevronDown, Pencil, Check, X } from "lucide-react";
 import { useCurrentWorkspace, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useMemberWorkspaces } from "@/client/stores/workspace-directory";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { api } from "@/client/lib/api";
@@ -14,8 +16,7 @@ export function WorkspaceSwitcher() {
   const navigate = useNavigate();
   const currentWorkspace = useCurrentWorkspace();
   const isOwner = useWorkspaceRole() === "owner";
-  const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
-  const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
+  const workspaces = useMemberWorkspaces();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -40,15 +41,15 @@ export function WorkspaceSwitcher() {
     if (!currentWorkspace || !renameName.trim()) return;
     try {
       const updated = await api.workspaces.update(currentWorkspace.id, { name: renameName.trim() });
-      patchWorkspace(currentWorkspace.id, updated);
-      // Workspace PATCH returns plain Workspace (no role). Merge into the
-      // stored WorkspaceMembershipSummary without dropping role.
-      useWorkspaceStore.getState().patchMemberWorkspace(currentWorkspace.id, updated);
+      // Workspace PATCH returns plain Workspace (no role). Both stores take
+      // the plain patch and preserve their role-aware fields.
+      await replicaCommands.patchWorkspaceHead(currentWorkspace.id, updated);
+      await directoryCommands.patch(currentWorkspace.id, updated);
     } catch {
       toast.error("Failed to rename workspace");
     }
     setRenaming(false);
-  }, [currentWorkspace, renameName, patchWorkspace]);
+  }, [currentWorkspace, renameName]);
 
   return (
     <div className="relative" ref={dropdownRef}>

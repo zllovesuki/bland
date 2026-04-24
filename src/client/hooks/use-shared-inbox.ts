@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/client/lib/query-client";
 import { sharedInboxQueryKey, sharedInboxQueryOptions } from "@/client/lib/queries/shared-inbox";
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useSharedInboxItems, useSharedInboxWorkspaceSummaries } from "@/client/stores/shared-inbox";
+import { sharedInboxCommands } from "@/client/stores/db/shared-inbox";
 import { api } from "@/client/lib/api";
 import type { SharedPagesResponse, SharedWithMeItem, SharedInboxWorkspaceSummary } from "@/shared/types";
 
@@ -11,9 +12,9 @@ import type { SharedPagesResponse, SharedWithMeItem, SharedInboxWorkspaceSummary
  * Imperative one-shot fetch used by pre-navigation decision flows (e.g.
  * `EmptyWorkspaceView` deciding whether to auto-redirect to the shared inbox).
  * Goes through the shared QueryClient so in-flight calls dedupe with any
- * reactive `useSharedInbox()` subscriber, and mirrors the resolved data into
- * Zustand so the persisted cache stays aligned. `staleTime: 0` forces a
- * fresh fetch each call — decision flows should not rely on stale data.
+ * reactive `useSharedInbox()` subscriber, and writes through to Dexie so the
+ * runtime projection stays aligned. `staleTime: 0` forces a fresh fetch each
+ * call — decision flows should not rely on stale data.
  */
 export async function fetchSharedInbox(): Promise<SharedPagesResponse> {
   const response = await queryClient.fetchQuery({
@@ -22,7 +23,10 @@ export async function fetchSharedInbox(): Promise<SharedPagesResponse> {
     staleTime: 0,
     retry: false,
   });
-  useWorkspaceStore.getState().setSharedInbox(response.items, response.workspace_summaries);
+  await sharedInboxCommands.replaceAll({
+    items: response.items,
+    workspaceSummaries: response.workspace_summaries,
+  });
   return response;
 }
 
@@ -41,9 +45,8 @@ export interface SharedInboxView {
 
 export function useSharedInbox(): SharedInboxView {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
-  const cachedItems = useWorkspaceStore((s) => s.sharedInbox);
-  const cachedSummaries = useWorkspaceStore((s) => s.sharedInboxWorkspaceSummaries);
-  const setSharedInbox = useWorkspaceStore((s) => s.setSharedInbox);
+  const items = useSharedInboxItems();
+  const workspaceSummaries = useSharedInboxWorkspaceSummaries();
 
   const query = useQuery({
     ...sharedInboxQueryOptions,
@@ -52,12 +55,12 @@ export function useSharedInbox(): SharedInboxView {
 
   useEffect(() => {
     if (query.data) {
-      setSharedInbox(query.data.items, query.data.workspace_summaries);
+      void sharedInboxCommands.replaceAll({
+        items: query.data.items,
+        workspaceSummaries: query.data.workspace_summaries,
+      });
     }
-  }, [query.data, setSharedInbox]);
-
-  const items = query.data?.items ?? cachedItems;
-  const workspaceSummaries = query.data?.workspace_summaries ?? cachedSummaries;
+  }, [query.data]);
 
   let status: SharedInboxStatus;
   if (!isAuthenticated) {

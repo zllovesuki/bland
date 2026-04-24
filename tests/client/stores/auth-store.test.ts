@@ -121,54 +121,6 @@ describe("auth-store", () => {
       expect(localStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
       expect(localStorage.getItem(STORAGE_KEYS.CACHED_DOCS)).toBeNull();
     });
-
-    it("resets the persisted workspace-store so the next user does not see the prior user's cache", async () => {
-      const user = createUser();
-      useAuthStore.getState().setAuth("tok-123", user);
-
-      const wsMod = await import("@/client/stores/workspace-store");
-      wsMod.useWorkspaceStore.getState().upsertPageAccess("page-1", "edit");
-      wsMod.useWorkspaceStore.getState().setSharedInbox(
-        [
-          {
-            page_id: "p1",
-            title: "Shared",
-            icon: null,
-            cover_url: null,
-            workspace: { id: "w-1", name: "W", slug: "w", icon: null, role: null },
-            permission: "view",
-            shared_by: "u2",
-            shared_by_name: "Alice",
-            shared_at: "2026-04-01T00:00:00.000Z",
-          },
-        ],
-        [],
-      );
-
-      useAuthStore.getState().clearAuth();
-
-      const ws = wsMod.useWorkspaceStore.getState();
-      expect(ws.pageAccessByPageId).toEqual({});
-      expect(ws.sharedInbox).toEqual([]);
-      expect(ws.sharedInboxWorkspaceSummaries).toEqual([]);
-      expect(ws.memberWorkspaces).toEqual([]);
-      expect(ws.snapshotsByWorkspaceId).toEqual({});
-      // cacheUserId must also be cleared; Zustand merges partial state on `set`,
-      // so the full-reset path has to pass `null` explicitly (regression guard).
-      expect(ws.cacheUserId).toBeNull();
-    });
-
-    it("markExpired does NOT reset the workspace-store cache", async () => {
-      const user = createUser();
-      useAuthStore.getState().setAuth("tok-123", user);
-
-      const wsMod = await import("@/client/stores/workspace-store");
-      wsMod.useWorkspaceStore.getState().upsertPageAccess("page-1", "edit");
-
-      useAuthStore.getState().markExpired();
-
-      expect(wsMod.useWorkspaceStore.getState().pageAccessByPageId).toEqual({ "page-1": "edit" });
-    });
   });
 
   describe("setSessionMode", () => {

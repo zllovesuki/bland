@@ -1,17 +1,14 @@
 import { useMemo } from "react";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { selectWorkspaceSnapshot, useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceMembers } from "@/client/stores/workspace-replica";
 import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { friendlyName } from "@/client/lib/friendly-name";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
-import type { WorkspaceMember } from "@/shared/types";
 
 export interface CollabIdentity {
   userId: string | null;
   resolveIdentity: ResolveIdentity;
 }
-
-const EMPTY_MEMBERS: readonly WorkspaceMember[] = [];
 
 /**
  * Derives collaboration identity for the active page. Returns the signed-in
@@ -28,10 +25,7 @@ export function useCollabIdentity(): CollabIdentity {
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const state = useActivePageState();
   const workspaceId = state.kind === "ready" ? state.snapshot.workspaceId : null;
-  const members = useWorkspaceStore((store) => {
-    const snapshot = selectWorkspaceSnapshot(store, workspaceId);
-    return snapshot?.members ?? (EMPTY_MEMBERS as WorkspaceMember[]);
-  });
+  const members = useWorkspaceMembers(workspaceId);
 
   const resolveIdentity = useMemo<ResolveIdentity>(() => {
     const byId = new Map(members.map((m) => [m.user_id, m.user]));

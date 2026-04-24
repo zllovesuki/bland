@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { getSharedInboxReturnTo, withSharedInboxReturnTo } from "@/client/lib/shared-inbox-navigation";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useMemberWorkspaceCount } from "@/client/stores/workspace-directory";
 
 interface SharedInboxNavigationOptions {
   returnTo?: string | null;
@@ -10,7 +10,7 @@ interface SharedInboxNavigationOptions {
 export function useSharedInboxNavigation(options?: SharedInboxNavigationOptions) {
   const navigate = useNavigate();
   const location = useLocation();
-  const memberWorkspaceCount = useWorkspaceStore((s) => s.memberWorkspaces.length);
+  const memberWorkspaceCount = useMemberWorkspaceCount();
   const isSharedInbox = location.pathname === "/shared-with-me";
   const returnTo = options?.returnTo ?? getSharedInboxReturnTo(location.state);
   const canLeaveSharedInbox = Boolean(returnTo || memberWorkspaceCount > 0);

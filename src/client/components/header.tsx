@@ -4,7 +4,8 @@ import { Pilcrow, LogOut, User as UserIcon, Maximize2, Minimize2, Menu, Inbox } 
 import { Avatar } from "@/client/components/ui/avatar";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { useAuthStore, selectHasLocalSession } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useWorkspaceDirectoryStore, selectFirstMemberSlug } from "@/client/stores/workspace-directory";
+import { useWorkspaceNavigationStore, selectLastVisitedWorkspaceId } from "@/client/stores/workspace-navigation";
 import { useAuth } from "@/client/hooks/use-auth";
 import { useSharedInboxNavigation } from "@/client/hooks/use-shared-inbox-navigation";
 import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
@@ -20,15 +21,6 @@ interface HeaderProps {
   onToggleMobileSidebar?: () => void;
 }
 
-function selectFirstMemberSlug(state: ReturnType<typeof useWorkspaceStore.getState>): string | null {
-  const lastId = state.lastVisitedWorkspaceId;
-  if (lastId) {
-    const match = state.memberWorkspaces.find((w) => w.id === lastId);
-    if (match) return match.slug;
-  }
-  return state.memberWorkspaces[0]?.slug ?? null;
-}
-
 export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: HeaderProps) {
   const hasLocalSession = useAuthStore(selectHasLocalSession);
   const user = useAuthStore((s) => s.user);
@@ -38,7 +30,8 @@ export function Header({ expanded, onToggleLayout, onToggleMobileSidebar }: Head
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const memberSlug = useWorkspaceStore(selectFirstMemberSlug);
+  const lastVisitedId = useWorkspaceNavigationStore(selectLastVisitedWorkspaceId);
+  const memberSlug = useWorkspaceDirectoryStore((s) => selectFirstMemberSlug(s, lastVisitedId));
   const homeSlug = hasLocalSession ? memberSlug : null;
   const { canLeaveSharedInbox, isSharedInbox, toggleSharedInbox } = useSharedInboxNavigation();
 

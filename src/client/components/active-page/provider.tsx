@@ -8,7 +8,7 @@ import { createRequestGuard } from "@/client/lib/request-guard";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useOnline } from "@/client/hooks/use-online";
-import type { CachedPageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { PageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-replica";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import {
   type ActivePageAccess,
@@ -32,7 +32,7 @@ interface ActivePageProviderProps {
   accessMode: WorkspaceAccessMode | null;
   role: WorkspaceRole | null;
   cachedPageMeta: Page | null;
-  cachedAccess: CachedPageAccessMode | null;
+  cachedAccess: PageAccessMode | null;
   shareToken: string | null;
   initialSnapshot?: ActivePageInitialSnapshot | null;
   onLivePageLoaded?: (page: Page, access: ActivePageAccess) => void;

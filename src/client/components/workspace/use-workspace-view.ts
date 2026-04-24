@@ -1,6 +1,11 @@
 import { createContext, use } from "react";
 import { hasWorkspaceIdentity, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import {
+  useWorkspaceHead,
+  useWorkspacePages as useReplicaPages,
+  useWorkspaceMembers as useReplicaMembers,
+  useWorkspaceRole as useReplicaRole,
+} from "@/client/stores/workspace-replica";
 import type { Page, Workspace, WorkspaceMember, WorkspaceRole } from "@/shared/types";
 
 export interface WorkspaceViewContext {
@@ -9,9 +14,6 @@ export interface WorkspaceViewContext {
 }
 
 export const WorkspaceViewCtx = createContext<WorkspaceViewContext | null>(null);
-
-const EMPTY_PAGES: Page[] = [];
-const EMPTY_MEMBERS: WorkspaceMember[] = [];
 
 export function useWorkspaceView(): WorkspaceViewContext {
   const ctx = use(WorkspaceViewCtx);
@@ -30,32 +32,26 @@ export function useWorkspaceRouteState(): WorkspaceRouteState {
 export function useWorkspacePages(): Page[] {
   const { route } = useWorkspaceView();
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  return useWorkspaceStore((s) =>
-    workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.pages ?? EMPTY_PAGES) : EMPTY_PAGES,
-  );
+  return useReplicaPages(workspaceId);
 }
 
 export function useWorkspaceMembers(): WorkspaceMember[] {
   const { route } = useWorkspaceView();
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  return useWorkspaceStore((s) =>
-    workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.members ?? EMPTY_MEMBERS) : EMPTY_MEMBERS,
-  );
+  return useReplicaMembers(workspaceId);
 }
 
-/** Caller's role in the current workspace (read from the snapshot — null when
+/** Caller's role in the current workspace (read from the replica — null when
  *  no membership exists or the current view is shared-surface). */
 export function useWorkspaceRole(): WorkspaceRole | null {
   const { route } = useWorkspaceView();
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  return useWorkspaceStore((s) =>
-    workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.workspaceRole ?? null) : null,
-  );
+  return useReplicaRole(workspaceId);
 }
 
-/** Live workspace identity, read from the authoritative snapshot store. */
+/** Live workspace identity, read from the authoritative replica store. */
 export function useCurrentWorkspace(): Workspace | null {
   const { route } = useWorkspaceView();
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  return useWorkspaceStore((s) => (workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.workspace ?? null) : null));
+  return useWorkspaceHead(workspaceId);
 }

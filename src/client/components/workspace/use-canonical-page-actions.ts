@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import type YProvider from "y-partyserver/provider";
 import { api } from "@/client/lib/api";
 import { reportClientError } from "@/client/lib/report-client-error";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import type { Workspace } from "@/shared/types";
 import type { ActivePagePatch, ActivePageSnapshot } from "@/client/lib/active-page-model";
 
@@ -14,7 +14,6 @@ interface UseCanonicalPageActionsInput {
 }
 
 export function useCanonicalPageActions({ workspace, page, syncProvider, patchPage }: UseCanonicalPageActionsInput) {
-  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
   const iconVersionRef = useRef(0);
   const coverVersionRef = useRef(0);
 
@@ -22,13 +21,13 @@ export function useCanonicalPageActions({ workspace, page, syncProvider, patchPa
     (updates: ActivePagePatch) => {
       if (!workspace || !page) return;
       patchPage(updates);
-      updatePage(workspace.id, page.id, {
+      void replicaCommands.patchPage(workspace.id, page.id, {
         ...(updates.title !== undefined ? { title: updates.title } : {}),
         ...(updates.icon !== undefined ? { icon: updates.icon } : {}),
         ...(updates.coverUrl !== undefined ? { cover_url: updates.coverUrl } : {}),
       });
     },
-    [workspace, page, patchPage, updatePage],
+    [workspace, page, patchPage],
   );
 
   const handleTitleChange = useCallback(

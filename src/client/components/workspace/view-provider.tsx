@@ -4,43 +4,48 @@ import { classifyFailure } from "@/client/lib/classify-failure";
 import { createRequestGuard } from "@/client/lib/request-guard";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { type WorkspaceRouteState, isWorkspaceReady, hasWorkspaceIdentity } from "@/client/lib/workspace-route-model";
-import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import { useAuthStore } from "@/client/stores/auth-store";
+import { waitForWorkspaceLocalHydration } from "@/client/stores/bootstrap";
+import {
+  useWorkspaceReplicaStore,
+  selectReplicaBySlug,
+  selectWorkspaceByPageId,
+  selectWorkspaceReplica,
+  type WorkspaceAccessMode,
+} from "@/client/stores/workspace-replica";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
+import { useWorkspaceDirectoryStore, selectWorkspaceBySlug } from "@/client/stores/workspace-directory";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
+import { useWorkspaceNavigationStore, selectLastVisitedWorkspaceId } from "@/client/stores/workspace-navigation";
+import { navigationCommands } from "@/client/stores/db/workspace-navigation";
 import { useOnline } from "@/client/hooks/use-online";
 import { WorkspaceViewCtx, type WorkspaceViewContext } from "./use-workspace-view";
 import type { Page, WorkspaceMember, WorkspaceMembershipSummary } from "@/shared/types";
 
-function findCachedWorkspaceIdForPage(pageId: string): string | null {
-  const store = useWorkspaceStore.getState();
-  for (const snap of Object.values(store.snapshotsByWorkspaceId)) {
-    if (snap.pages.some((page) => page.id === pageId)) return snap.workspace.id;
-  }
-  return null;
-}
-
 function seedFromCache(workspaceSlug: string, pageId: string | null): WorkspaceRouteState {
-  const store = useWorkspaceStore.getState();
+  const directory = useWorkspaceDirectoryStore.getState();
+  const replica = useWorkspaceReplicaStore.getState();
 
-  const memberWs = store.memberWorkspaces.find((w) => w.slug === workspaceSlug);
+  const memberWs = selectWorkspaceBySlug(directory, workspaceSlug);
   if (memberWs) {
-    const snap = store.snapshotsByWorkspaceId[memberWs.id];
-    if (snap) {
-      return { phase: "ready", workspaceId: memberWs.id, accessMode: snap.accessMode };
+    const replicaRow = selectWorkspaceReplica(replica, memberWs.id);
+    if (replicaRow) {
+      return { phase: "ready", workspaceId: memberWs.id, accessMode: replicaRow.accessMode };
     }
     return { phase: "loading", workspaceId: memberWs.id };
   }
 
-  const snap = Object.values(store.snapshotsByWorkspaceId).find((s) => s.workspace.slug === workspaceSlug);
-  if (snap) {
-    return { phase: "ready", workspaceId: snap.workspace.id, accessMode: snap.accessMode };
+  const bySlug = selectReplicaBySlug(replica, workspaceSlug);
+  if (bySlug) {
+    return { phase: "ready", workspaceId: bySlug.id, accessMode: bySlug.accessMode };
   }
 
   if (pageId) {
-    const pageWorkspaceId = findCachedWorkspaceIdForPage(pageId);
+    const pageWorkspaceId = selectWorkspaceByPageId(replica, pageId);
     if (pageWorkspaceId) {
-      const snap = store.snapshotsByWorkspaceId[pageWorkspaceId];
-      if (snap) {
-        return { phase: "ready", workspaceId: pageWorkspaceId, accessMode: snap.accessMode };
+      const replicaRow = selectWorkspaceReplica(replica, pageWorkspaceId);
+      if (replicaRow) {
+        return { phase: "ready", workspaceId: pageWorkspaceId, accessMode: replicaRow.accessMode };
       }
       return { phase: "loading", workspaceId: pageWorkspaceId };
     }
@@ -86,10 +91,6 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   const epochRef = useRef(0);
   const activeRef = useRef(true);
 
-  const routeWorkspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  const workspaceIdRef = useRef(routeWorkspaceId);
-  workspaceIdRef.current = routeWorkspaceId;
-
   // Tracks data freshness for the revalidation-skip optimization below.
   // Private to this provider; not surfaced on WorkspaceRouteState. Seeded as
   // "cache" because a cache-seeded ready state is the only way initial mount
@@ -110,15 +111,15 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
 
   useEffect(() => {
     if (!readyMemberWorkspaceId) return;
-    const store = useWorkspaceStore.getState();
-    if (store.lastVisitedWorkspaceId !== readyMemberWorkspaceId) {
-      store.setLastVisitedWorkspaceId(readyMemberWorkspaceId);
+    const current = selectLastVisitedWorkspaceId(useWorkspaceNavigationStore.getState());
+    if (current !== readyMemberWorkspaceId) {
+      void navigationCommands.setLastVisitedWorkspaceId(readyMemberWorkspaceId);
     }
   }, [readyMemberWorkspaceId]);
 
   useEffect(() => {
     if (!readyMemberWorkspaceId || !pageId) return;
-    useWorkspaceStore.getState().setLastVisitedPage(readyMemberWorkspaceId, pageId);
+    void navigationCommands.setLastVisitedPage(readyMemberWorkspaceId, pageId);
   }, [readyMemberWorkspaceId, pageId]);
 
   useEffect(() => {
@@ -142,16 +143,27 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
     if (!regainedLiveSession && isWorkspaceReady(currentRoute) && cacheStatusRef.current === "live") {
       if (!online) return;
       if (!pageId) return;
-      const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId[currentRoute.workspaceId];
-      if (snap?.pages.some((p) => p.id === pageId)) return;
+      const replica = useWorkspaceReplicaStore.getState();
+      const cachedPages = replica.pagesByWorkspaceId.get(currentRoute.workspaceId) ?? [];
+      if (cachedPages.some((p) => p.id === pageId)) return;
     }
 
     const request = createRequestGuard(epochRef, activeRef);
 
     async function resolve() {
+      // Settle any router-driven rehydrate before trusting the seed. In-app
+      // transitions from a non-local path (`/login`, `/s/$token`) can land
+      // here with empty projections; waiting lets us re-derive identity from
+      // the cache before fallback branches declare a terminal error.
+      await waitForWorkspaceLocalHydration();
+      if (!request.isCurrent()) return;
+      if (!isWorkspaceReady(routeRef.current)) {
+        setRoute(seedFromCache(workspaceSlug, pageId));
+      }
+
       // Page-route resolver: pages.context-first when online + authenticated.
       // Bootstraps workspace identity from a single authoritative call,
-      // sidestepping slug→workspace resolution entirely.
+      // sidestepping slug->workspace resolution entirely.
       if (pageId && online && sessionMode === SESSION_MODES.AUTHENTICATED) {
         try {
           const ctx = await api.pages.context(pageId);
@@ -162,8 +174,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           const { pages, members } = await fetchWorkspaceData(ctx.workspace.id, accessMode);
           if (!request.isCurrent()) return;
 
-          const store = useWorkspaceStore.getState();
-          store.replaceWorkspaceSnapshot(ctx.workspace.id, {
+          await replicaCommands.replaceWorkspace({
             workspace: ctx.workspace,
             accessMode,
             workspaceRole,
@@ -171,10 +182,10 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
             members,
           });
           // `accessMode === "member"` implies membership row exists, which means
-          // `workspace_role` is non-null. `upsertMemberWorkspace` requires role,
+          // `workspace_role` is non-null. `directoryCommands.upsert` requires role,
           // so we derive the membership summary here.
           if (accessMode === "member" && workspaceRole !== null) {
-            store.upsertMemberWorkspace({ ...ctx.workspace, role: workspaceRole });
+            await directoryCommands.upsert({ ...ctx.workspace, role: workspaceRole });
           }
           // Last-visited writes are handled by the readyMemberWorkspaceId effect
           // above so shared-surface visits do not pollute the cache.
@@ -190,7 +201,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           } else {
             setRoute((prev) => {
               if (isWorkspaceReady(prev) || prev.phase === "degraded") return prev;
-              const cachedWsId = workspaceIdRef.current;
+              const cachedWsId = hasWorkspaceIdentity(prev) ? prev.workspaceId : null;
               return cachedWsId
                 ? { phase: "degraded", workspaceId: cachedWsId, workspaceSlug, reason: "stale-shared" }
                 : { phase: "error", errorKind: "network", message: "Failed to load workspace" };
@@ -214,8 +225,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
       }
 
       if (!request.isCurrent()) return;
-      const store = useWorkspaceStore.getState();
-      store.setMemberWorkspaces(workspaces);
+      await directoryCommands.replaceAll(workspaces);
 
       const ws = workspaces.find((w) => w.slug === workspaceSlug);
       if (ws) {
@@ -225,7 +235,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           // Guests stay on `accessMode: "member"` (they have a membership row),
           // but carry `workspaceRole: "guest"` so role-aware affordances keep
           // create/invite/AI hidden. This is the slug-first guest-lie fix.
-          store.replaceWorkspaceSnapshot(ws.id, {
+          await replicaCommands.replaceWorkspace({
             workspace: ws,
             accessMode: "member",
             workspaceRole: ws.role,
@@ -236,10 +246,11 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           setRoute({ phase: "ready", workspaceId: ws.id, accessMode: "member" });
         } catch {
           if (!request.isCurrent()) return;
-          const snap = store.snapshotsByWorkspaceId[ws.id];
-          if (snap) {
+          const replica = useWorkspaceReplicaStore.getState();
+          const replicaRow = selectWorkspaceReplica(replica, ws.id);
+          if (replicaRow) {
             cacheStatusRef.current = "cache";
-            setRoute({ phase: "ready", workspaceId: ws.id, accessMode: snap.accessMode });
+            setRoute({ phase: "ready", workspaceId: ws.id, accessMode: replicaRow.accessMode });
           } else {
             setRoute({ phase: "error", errorKind: "network", message: "Failed to load workspace" });
           }
@@ -247,17 +258,14 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
         return;
       }
 
-      // Slug not in member list: shared-downgrade probe.
-      const cachedWsId = workspaceIdRef.current;
-      if (!cachedWsId) {
+      // Slug not in member list: shared-downgrade probe. Look up the cached
+      // replica directly — no ref needed since hydration already settled.
+      const cachedReplica = selectReplicaBySlug(useWorkspaceReplicaStore.getState(), workspaceSlug);
+      if (!cachedReplica) {
         setRoute({ phase: "error", errorKind: "not-found", message: "Workspace not found" });
         return;
       }
-      const cachedSnapshot = store.snapshotsByWorkspaceId[cachedWsId];
-      if (!cachedSnapshot) {
-        setRoute({ phase: "error", errorKind: "not-found", message: "Workspace not found" });
-        return;
-      }
+      const cachedWsId = cachedReplica.id;
       try {
         const pages = await api.pages.list(cachedWsId);
         if (!request.isCurrent()) return;
@@ -270,8 +278,8 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           });
           return;
         }
-        store.replaceWorkspaceSnapshot(cachedWsId, {
-          workspace: cachedSnapshot.workspace,
+        await replicaCommands.replaceWorkspace({
+          workspace: cachedReplica.workspace,
           accessMode: "shared",
           workspaceRole: null,
           pages,

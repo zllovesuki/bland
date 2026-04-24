@@ -14,7 +14,7 @@ import {
   type UiActionState,
 } from "@/client/lib/affordance/action-state";
 import { resolveArchiveAffordance } from "@/client/lib/affordance/archive";
-import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { WorkspaceAccessMode } from "@/client/stores/workspace-replica";
 import type { PageKind } from "@/shared/types";
 
 interface WorkspacePageAffordanceBase {

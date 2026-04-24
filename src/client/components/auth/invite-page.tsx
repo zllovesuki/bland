@@ -8,7 +8,8 @@ import { api, toApiError } from "@/client/lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
 import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { ensureWorkspaceLocalOwner } from "@/client/stores/bootstrap";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
 import { TurnstileWidget } from "./turnstile-widget";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import type { InvitePreview } from "@/shared/types";
@@ -90,10 +91,14 @@ export function InvitePage() {
 
       const result = await api.invites.accept(token, body);
       useAuthStore.getState().setAuth(result.accessToken, result.user);
+      // Ensure the local replica belongs to this user before we write the
+      // workspace directory; the owner-change branch clears prior-user data
+      // atomically.
+      await ensureWorkspaceLocalOwner(result.user.id, true);
 
       // Fetch workspaces and navigate to the joined workspace
       const workspaceData = await api.workspaces.list();
-      useWorkspaceStore.getState().setMemberWorkspaces(workspaceData);
+      await directoryCommands.replaceAll(workspaceData);
       const joined = workspaceData.find((w) => w.id === result.workspace_id);
       if (joined) {
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: joined.slug } });

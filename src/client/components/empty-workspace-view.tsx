@@ -9,7 +9,11 @@ import { api } from "@/client/lib/api";
 import { resolveRootWorkspaceDecision } from "@/client/lib/root-workspace-gateway";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { waitForWorkspaceLocalHydration } from "@/client/stores/bootstrap";
+import { useWorkspaceDirectoryStore, selectMemberWorkspaces } from "@/client/stores/workspace-directory";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
+import { useWorkspaceNavigationStore, selectLastVisitedWorkspaceId } from "@/client/stores/workspace-navigation";
+import { useSharedInboxStore, selectSharedInboxItems } from "@/client/stores/shared-inbox";
 import { fetchSharedInbox } from "@/client/hooks/use-shared-inbox";
 
 type RootViewState = "loading" | "empty" | "unavailable";
@@ -30,7 +34,16 @@ export function EmptyWorkspaceView() {
     async function loadWorkspaceGateway() {
       setView("loading");
 
-      const store = useWorkspaceStore.getState();
+      // Settle any router-driven rehydrate before reading the projection
+      // stores. Prevents a non-local -> local in-app transition from
+      // mistaking an unhydrated projection for an empty cache.
+      await waitForWorkspaceLocalHydration();
+      if (cancelled) return;
+
+      const lastVisitedWorkspaceId = selectLastVisitedWorkspaceId(useWorkspaceNavigationStore.getState());
+      const cachedWorkspaces = selectMemberWorkspaces(useWorkspaceDirectoryStore.getState());
+      const cachedSharedItems = selectSharedInboxItems(useSharedInboxStore.getState());
+
       let liveWorkspaces: Awaited<ReturnType<typeof api.workspaces.list>> | null = null;
 
       try {
@@ -42,13 +55,13 @@ export function EmptyWorkspaceView() {
       if (cancelled) return;
 
       const decision = resolveRootWorkspaceDecision({
-        lastVisitedWorkspaceId: store.lastVisitedWorkspaceId,
-        cachedWorkspaces: store.memberWorkspaces,
+        lastVisitedWorkspaceId,
+        cachedWorkspaces,
         liveWorkspaces,
       });
 
       if (liveWorkspaces !== null) {
-        store.setMemberWorkspaces(liveWorkspaces);
+        await directoryCommands.replaceAll(liveWorkspaces);
       }
 
       if (decision.kind === "redirect") {
@@ -61,7 +74,7 @@ export function EmptyWorkspaceView() {
       }
 
       if (decision.kind === "empty") {
-        let sharedItems = store.sharedInbox;
+        let sharedItems = cachedSharedItems;
         try {
           const response = await fetchSharedInbox();
           sharedItems = response.items;
@@ -81,7 +94,7 @@ export function EmptyWorkspaceView() {
       }
 
       // Offline with no cached member workspaces: check cached shared inbox
-      if (store.sharedInbox.length > 0) {
+      if (cachedSharedItems.length > 0) {
         navigate({ to: "/shared-with-me", replace: true });
         return;
       }

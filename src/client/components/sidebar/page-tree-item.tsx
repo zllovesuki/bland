@@ -18,7 +18,7 @@ import type { Page } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api, toApiError } from "@/client/lib/api";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { useCreatePage } from "@/client/hooks/use-create-page";
@@ -86,9 +86,6 @@ export function PageTreeItem({
   };
   const navigate = useNavigate();
   const currentWorkspace = useCurrentWorkspace();
-  const archivePage = useWorkspaceStore((s) => s.archivePageInSnapshot);
-  const patchPage = useWorkspaceStore((s) => s.updatePageInSnapshot);
-  const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const currentUser = useAuthStore((s) => s.user);
   const rowAffordance = deriveSidebarRowAffordance({
     workspaceRole,
@@ -131,7 +128,7 @@ export function PageTreeItem({
       setMenuOpen(false);
       const previousParentId = page.parent_id;
       const previousPosition = page.position;
-      patchPage(currentWorkspace.id, page.id, {
+      await replicaCommands.patchPage(currentWorkspace.id, page.id, {
         parent_id: resolution.proposal.parentId,
         position: resolution.proposal.position,
       });
@@ -140,9 +137,9 @@ export function PageTreeItem({
           parent_id: resolution.proposal.parentId,
           position: resolution.proposal.position,
         });
-        upsertPage(currentWorkspace.id, updated);
+        await replicaCommands.upsertPage(currentWorkspace.id, updated);
       } catch (err) {
-        patchPage(currentWorkspace.id, page.id, {
+        await replicaCommands.patchPage(currentWorkspace.id, page.id, {
           parent_id: previousParentId,
           position: previousPosition,
         });
@@ -152,7 +149,7 @@ export function PageTreeItem({
         setMoving(false);
       }
     },
-    [currentWorkspace, moving, page.id, page.parent_id, page.position, patchPage, upsertPage],
+    [currentWorkspace, moving, page.id, page.parent_id, page.position],
   );
 
   const handleArchive = useCallback(
@@ -169,7 +166,7 @@ export function PageTreeItem({
       setArchiving(true);
       try {
         await api.pages.delete(currentWorkspace.id, page.id);
-        archivePage(currentWorkspace.id, page.id);
+        await replicaCommands.archivePage(currentWorkspace.id, page.id);
         if (params.pageId === page.id) {
           navigate({ to: "/$workspaceSlug", params: { workspaceSlug: params.workspaceSlug || currentWorkspace.slug } });
         }
@@ -184,7 +181,6 @@ export function PageTreeItem({
       page.id,
       page.title,
       childPages.length,
-      archivePage,
       params.pageId,
       params.workspaceSlug,
       navigate,

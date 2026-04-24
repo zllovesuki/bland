@@ -5,7 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { useCurrentWorkspace, useWorkspacePages, useWorkspaceRole } from "./use-workspace-view";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { useLastVisitedPageId } from "@/client/stores/workspace-navigation";
 import { useOnline } from "@/client/hooks/use-online";
 import { deriveSidebarBaseAffordance } from "@/client/lib/affordance/sidebar";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
@@ -32,9 +32,7 @@ export function WorkspaceIndex() {
   });
   const canCreate = isActionVisible(createPageAffordance);
 
-  const lastVisitedPageId = useWorkspaceStore((s) =>
-    currentWorkspace ? (s.lastVisitedPageIdByWorkspaceId[currentWorkspace.id] ?? null) : null,
-  );
+  const lastVisitedPageId = useLastVisitedPageId(currentWorkspace?.id ?? null);
 
   useEffect(() => {
     if (!currentWorkspace || !lastVisitedPageId) return;

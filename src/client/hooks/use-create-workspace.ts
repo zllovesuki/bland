@@ -1,13 +1,12 @@
 import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/client/lib/api";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
 import { toast } from "@/client/components/toast";
 
 export function useCreateWorkspace() {
   const [isCreating, setIsCreating] = useState(false);
   const busyRef = useRef(false);
-  const upsertMemberWorkspace = useWorkspaceStore((s) => s.upsertMemberWorkspace);
   const navigate = useNavigate();
 
   const createWorkspace = useCallback(
@@ -19,7 +18,7 @@ export function useCreateWorkspace() {
         const ws = await api.workspaces.create({ name: name.trim(), slug: slug.trim() });
         // POST /workspaces makes the caller the owner, so inject that into the
         // membership summary we cache locally.
-        upsertMemberWorkspace({ ...ws, role: "owner" });
+        await directoryCommands.upsert({ ...ws, role: "owner" });
         onCreated?.();
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
       } catch {
@@ -29,7 +28,7 @@ export function useCreateWorkspace() {
         setIsCreating(false);
       }
     },
-    [upsertMemberWorkspace, navigate],
+    [navigate],
   );
 
   return { createWorkspace, isCreating };

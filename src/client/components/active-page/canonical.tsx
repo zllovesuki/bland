@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
 import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { usePageAccessMode } from "@/client/stores/workspace-replica";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { ActivePageProvider } from "@/client/components/active-page/provider";
 import { useActivePageActions, useActivePageSync } from "@/client/components/active-page/use-active-page";
@@ -11,31 +12,28 @@ import type { Page } from "@/shared/types";
 
 /**
  * Canonical boundary: mounts the shared ActivePageProvider with canonical
- * inputs, wires snapshot mutators as cache side-effects, and listens for
+ * inputs, wires replica mutators as cache side-effects, and listens for
  * real-time metadata updates on the active doc's WebSocket.
  */
 export function CanonicalActivePageBoundary({ children }: { children: ReactNode }) {
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId: string };
   const { workspaceId: effectiveWorkspaceId, accessMode, workspaceRole, currentPageMeta } = useCanonicalPageContext();
-  // Role flows from the workspace snapshot so restricted-ancestor loading does
+  // Role flows from the workspace replica so restricted-ancestor loading does
   // not depend on the `/members` fetch (which is empty on shared-surface
-  // snapshots and scoped to self on guest surfaces).
+  // replicas and scoped to self on guest surfaces).
   const role = workspaceRole;
 
-  const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
-  const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);
-  const upsertPageAccess = useWorkspaceStore((s) => s.upsertPageAccess);
-  const cachedAccess = useWorkspaceStore((s) => s.pageAccessByPageId[params.pageId] ?? null);
+  const cachedAccess = usePageAccessMode(params.pageId);
 
   const onLivePageLoaded = (page: Page, access: ActivePageAccess) => {
     if (!effectiveWorkspaceId) return;
-    upsertPage(effectiveWorkspaceId, page);
-    upsertPageAccess(page.id, access.mode);
+    void replicaCommands.upsertPage(effectiveWorkspaceId, page);
+    void replicaCommands.upsertPageAccess(page.id, access.mode);
   };
 
   const onEvict = (id: string) => {
     if (!effectiveWorkspaceId) return;
-    removePage(effectiveWorkspaceId, id);
+    void replicaCommands.removePage(effectiveWorkspaceId, id);
   };
 
   return (
@@ -61,13 +59,10 @@ function CanonicalMetadataListener() {
   const { syncProvider } = useActivePageSync();
   const { patchPage } = useActivePageActions();
   const { workspace } = useCanonicalPageContext();
-  const updatePage = useWorkspaceStore((s) => s.updatePageInSnapshot);
   const workspaceId = workspace?.id ?? null;
 
   const patchPageRef = useRef(patchPage);
-  const updatePageRef = useRef(updatePage);
   patchPageRef.current = patchPage;
-  updatePageRef.current = updatePage;
 
   useEffect(() => {
     if (!syncProvider || !workspaceId) return;
@@ -75,7 +70,10 @@ function CanonicalMetadataListener() {
       const msg = parseDocMessage(message);
       if (msg?.type === "page-metadata-updated") {
         patchPageRef.current({ icon: msg.icon, coverUrl: msg.cover_url });
-        updatePageRef.current(workspaceId, msg.pageId, { icon: msg.icon, cover_url: msg.cover_url });
+        void replicaCommands.patchPage(workspaceId, msg.pageId, {
+          icon: msg.icon,
+          cover_url: msg.cover_url,
+        });
       }
     };
     syncProvider.on("custom-message", handler);

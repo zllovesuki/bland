@@ -1,7 +1,15 @@
 import { useMemo } from "react";
 import { useParams } from "@tanstack/react-router";
 import { hasWorkspaceIdentity } from "@/client/lib/workspace-route-model";
-import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import {
+  usePageById,
+  useWorkspaceAccessMode,
+  useWorkspaceHead,
+  useWorkspaceMembers,
+  useWorkspacePages,
+  useWorkspaceRole,
+  type WorkspaceAccessMode,
+} from "@/client/stores/workspace-replica";
 import { useWorkspaceView } from "./use-workspace-view";
 import type { Page, Workspace, WorkspaceMember, WorkspaceRole } from "@/shared/types";
 
@@ -16,7 +24,7 @@ export interface CanonicalPageContextValue {
 }
 
 /**
- * Derive canonical page inputs from the current workspace route and snapshot
+ * Derive canonical page inputs from the current workspace route and replica
  * store. Layout and page-level consumers can call this directly without a
  * layout-owned context provider.
  */
@@ -25,23 +33,25 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
   const params = useParams({ strict: false }) as { pageId?: string };
 
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
-  const snapshot = useWorkspaceStore((s) => (workspaceId ? (s.snapshotsByWorkspaceId[workspaceId] ?? null) : null));
+  const workspace = useWorkspaceHead(workspaceId);
+  const replicaAccessMode = useWorkspaceAccessMode(workspaceId);
+  const workspaceRole = useWorkspaceRole(workspaceId);
+  const pages = useWorkspacePages(workspaceId);
+  const members = useWorkspaceMembers(workspaceId);
+  const currentPageMeta = usePageById(params.pageId ?? null);
 
-  const workspace = snapshot?.workspace ?? null;
-  const accessMode = route.phase === "ready" ? route.accessMode : (snapshot?.accessMode ?? null);
-  const workspaceRole = snapshot?.workspaceRole ?? null;
-  const currentPageMeta = params.pageId ? (snapshot?.pages.find((page) => page.id === params.pageId) ?? null) : null;
+  const accessMode = route.phase === "ready" ? route.accessMode : replicaAccessMode;
 
   return useMemo(
     () => ({
       workspaceId,
       currentPageMeta,
       workspace,
-      pages: snapshot?.pages ?? [],
-      members: snapshot?.members ?? [],
+      pages,
+      members,
       accessMode,
       workspaceRole,
     }),
-    [accessMode, workspaceRole, currentPageMeta, snapshot, workspaceId, workspace],
+    [accessMode, workspaceRole, currentPageMeta, pages, members, workspaceId, workspace],
   );
 }

@@ -5,9 +5,7 @@ import type { PageMentionCandidate } from "./types";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { useOnline } from "@/client/hooks/use-online";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
-
-const EMPTY_PAGES: never[] = [];
+import { useActiveWorkspacePages } from "@/client/stores/workspace-replica";
 
 export function CanonicalPageMentionSurface({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -15,9 +13,7 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
   const { workspaceId, workspace, accessMode } = useCanonicalPageContext();
   const activePageState = useActivePageState();
   const online = useOnline();
-  const pages = useWorkspaceStore((s) =>
-    workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.pages ?? EMPTY_PAGES) : EMPTY_PAGES,
-  );
+  const pages = useActiveWorkspacePages(workspaceId);
 
   const cacheMode = activePageState.kind === "ready" && activePageState.backing === "cache" ? "cache" : "live";
   const workspaceSlug = workspace?.slug ?? params.workspaceSlug;
@@ -25,7 +21,6 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
   const pagesById = useMemo(() => {
     const map = new Map<string, { title: string; icon: string | null }>();
     for (const page of pages) {
-      if (page.archived_at) continue;
       map.set(page.id, { title: page.title, icon: page.icon });
     }
     return map;
@@ -45,7 +40,6 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
       const items: PageMentionCandidate[] = [];
       for (const page of pages) {
         if (page.id === excludePageId) continue;
-        if (page.archived_at) continue;
         items.push({
           pageId: page.id,
           title: page.title || "Untitled",

@@ -4,7 +4,7 @@ import type { Page, PageKind } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 import { api } from "@/client/lib/api";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useOnline } from "@/client/hooks/use-online";
 import { toast } from "@/client/components/toast";
 
@@ -12,7 +12,6 @@ export function useCreatePage() {
   const [isCreating, setIsCreating] = useState(false);
   const busyRef = useRef(false);
   const workspace = useCurrentWorkspace();
-  const addPage = useWorkspaceStore((s) => s.addPageToSnapshot);
   const navigate = useNavigate();
   const online = useOnline();
 
@@ -31,7 +30,7 @@ export function useCreatePage() {
           title: DEFAULT_PAGE_TITLE,
           parent_id: opts?.parentId,
         });
-        addPage(workspace.id, page);
+        await replicaCommands.addPage(workspace.id, page);
         opts?.onCreated?.(page);
         navigate({
           to: "/$workspaceSlug/$pageId",
@@ -44,7 +43,7 @@ export function useCreatePage() {
         setIsCreating(false);
       }
     },
-    [workspace, addPage, navigate, online],
+    [workspace, navigate, online],
   );
 
   return { createPage, isCreating };

@@ -1,19 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
+import { createFreshDb, deleteDb } from "@tests/client/util/idb";
+import type { BlandDatabase } from "@/client/stores/db/bland-db";
 import type { SharedPagesResponse, SharedWithMeItem } from "@/shared/types";
 
 const sharedWithMeMock = vi.fn();
 
-vi.mock("@/client/lib/api", () => ({
-  api: {
-    shares: {
-      sharedWithMe: sharedWithMeMock,
-    },
-  },
-}));
-
+let db: BlandDatabase;
 let fetchSharedInbox: typeof import("@/client/hooks/use-shared-inbox").fetchSharedInbox;
-let useWorkspaceStore: typeof import("@/client/stores/workspace-store").useWorkspaceStore;
 
 const ITEM: SharedWithMeItem = {
   page_id: "p1",
@@ -32,17 +25,26 @@ function response(items: SharedWithMeItem[]): SharedPagesResponse {
 }
 
 beforeEach(async () => {
-  installLocalStorageStub();
   vi.resetModules();
   sharedWithMeMock.mockReset();
-  const hookMod = await import("@/client/hooks/use-shared-inbox");
-  const wsMod = await import("@/client/stores/workspace-store");
-  fetchSharedInbox = hookMod.fetchSharedInbox;
-  useWorkspaceStore = wsMod.useWorkspaceStore;
+  db = createFreshDb();
+  vi.doMock("@/client/stores/db/bland-db", async () => {
+    const actual = await vi.importActual<typeof import("@/client/stores/db/bland-db")>("@/client/stores/db/bland-db");
+    return { ...actual, db };
+  });
+  vi.doMock("@/client/lib/api", () => ({
+    api: {
+      shares: {
+        sharedWithMe: sharedWithMeMock,
+      },
+    },
+  }));
+
+  fetchSharedInbox = (await import("@/client/hooks/use-shared-inbox")).fetchSharedInbox;
 });
 
-afterEach(() => {
-  restoreLocalStorage();
+afterEach(async () => {
+  await deleteDb(db);
   vi.restoreAllMocks();
 });
 
@@ -67,8 +69,9 @@ describe("fetchSharedInbox", () => {
 
     expect(firstResponse.items).toEqual([ITEM]);
     expect(secondResponse.items).toEqual([ITEM]);
-    expect(useWorkspaceStore.getState().sharedInbox).toEqual([ITEM]);
-    expect(useWorkspaceStore.getState().sharedInboxWorkspaceSummaries).toEqual([]);
+    const rows = await db.sharedInboxItems.toArray();
+    expect(rows.map((r) => r.item)).toEqual([ITEM]);
+    expect(await db.sharedInboxWorkspaceSummaries.count()).toBe(0);
   });
 
   it("starts a fresh fetch after a previous call resolves", async () => {
@@ -92,7 +95,7 @@ describe("fetchSharedInbox", () => {
     expect(sharedWithMeMock).toHaveBeenCalledTimes(2);
   });
 
-  it("stores both cross-workspace items and same-workspace summaries into Zustand", async () => {
+  it("writes both cross-workspace items and same-workspace summaries through sharedInboxCommands", async () => {
     sharedWithMeMock.mockResolvedValueOnce({
       items: [ITEM],
       workspace_summaries: [{ workspace: { id: "ws-2", name: "Home", slug: "home", icon: null }, count: 3 }],
@@ -100,7 +103,8 @@ describe("fetchSharedInbox", () => {
 
     const result = await fetchSharedInbox();
     expect(result.workspace_summaries).toHaveLength(1);
-    expect(useWorkspaceStore.getState().sharedInboxWorkspaceSummaries).toEqual([
+    const summaryRows = await db.sharedInboxWorkspaceSummaries.toArray();
+    expect(summaryRows.map((r) => r.summary)).toEqual([
       { workspace: { id: "ws-2", name: "Home", slug: "home", icon: null }, count: 3 },
     ]);
   });

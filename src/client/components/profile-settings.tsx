@@ -3,7 +3,9 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Save, Loader2, Camera, X, User as UserIcon } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { useWorkspaceStore, selectWorkspaceSnapshot } from "@/client/stores/workspace-store";
+import { useMemberWorkspaces } from "@/client/stores/workspace-directory";
+import { useWorkspaceReplica } from "@/client/stores/workspace-replica";
+import { useLastVisitedWorkspaceId } from "@/client/stores/workspace-navigation";
 import { api, toApiError } from "@/client/lib/api";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
@@ -42,12 +44,12 @@ export function ProfileSettings() {
   const user = useAuthStore((s) => s.user);
   const sessionMode = useAuthStore((s) => s.sessionMode);
   const refreshState = useAuthStore((s) => s.refreshState);
-  const lastWsId = useWorkspaceStore((s) => s.lastVisitedWorkspaceId);
-  const lastWsSnapshot = useWorkspaceStore((s) => selectWorkspaceSnapshot(s, lastWsId));
-  const memberWorkspaces = useWorkspaceStore((s) => s.memberWorkspaces);
+  const lastWsId = useLastVisitedWorkspaceId();
+  const lastWsReplica = useWorkspaceReplica(lastWsId);
+  const memberWorkspaces = useMemberWorkspaces();
   // `currentWorkspace` drives the Back link (keep pointing at the last-visited
   // workspace — shared or member). Avatar upload target is derived separately.
-  const currentWorkspace = lastWsSnapshot?.workspace ?? null;
+  const currentWorkspace = lastWsReplica?.workspace ?? null;
 
   // Avatar presign borrows workspace-level upload authorization, which only
   // succeeds for writer roles. Prefer the last-visited workspace when it is

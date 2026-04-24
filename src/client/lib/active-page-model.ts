@@ -2,7 +2,7 @@ import { SESSION_MODES, type SessionMode } from "@/client/lib/constants";
 import type { FailureKind } from "@/client/lib/classify-failure";
 import type { PageAncestor, PageKind, WorkspaceRole } from "@/shared/types";
 import type { PageAccessLevel } from "@/shared/entitlements";
-import type { CachedPageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { PageAccessMode, WorkspaceAccessMode } from "@/client/stores/workspace-replica";
 
 /** Which surface the active-page model is running under. Canonical pages live
  * inside a resolved workspace; share-token pages do not. */
@@ -94,7 +94,7 @@ export function needsRestrictedAncestors(accessMode: WorkspaceAccessMode | null,
  * page must stay view-only when the worker is unreachable. Fail closed to
  * "view" when the persisted mode is missing.
  */
-export function accessFromCachedPage(cachedAccess: CachedPageAccessMode | null): ActivePageAccess {
+export function accessFromCachedPage(cachedAccess: PageAccessMode | null): ActivePageAccess {
   return { mode: cachedAccess ?? "view" };
 }
 

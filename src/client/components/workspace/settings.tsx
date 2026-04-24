@@ -20,7 +20,9 @@ import {
 import { Avatar } from "@/client/components/ui/avatar";
 import { Button } from "@/client/components/ui/button";
 import { useCurrentWorkspace, useWorkspaceMembers, useWorkspaceRole } from "./use-workspace-view";
-import { useWorkspaceStore } from "@/client/stores/workspace-store";
+import { directoryCommands } from "@/client/stores/db/workspace-directory";
+import { replicaCommands } from "@/client/stores/db/workspace-replica";
+import { workspaceLifecycleCommands } from "@/client/stores/db/workspace-lifecycle";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
@@ -36,7 +38,7 @@ import {
   isWorkspaceAdminOrOwnerRole,
   type ResolvedWorkspaceRole,
 } from "@/shared/entitlements";
-import type { InviteRole, Workspace, WorkspaceMember, User } from "@/shared/types";
+import type { InviteRole, Workspace, WorkspaceMember, User, WorkspaceRole } from "@/shared/types";
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   owner: { label: "Owner", className: "bg-amber-500/10 text-amber-400 border border-amber-500/20" },
@@ -101,7 +103,6 @@ export function WorkspaceSettings() {
 }
 
 function ProfileSection({ workspace }: { workspace: Workspace }) {
-  const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
   const [name, setName] = useState(workspace.name);
   const [icon, setIcon] = useState(workspace.icon ?? "");
   const [saving, setSaving] = useState(false);
@@ -125,10 +126,10 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
         name: name.trim(),
         icon: icon.trim() || null,
       });
-      patchWorkspace(workspace.id, updated);
-      // `updated` is a plain Workspace (no role). `patchMemberWorkspace` merges
-      // into the existing WorkspaceMembershipSummary without dropping role.
-      useWorkspaceStore.getState().patchMemberWorkspace(workspace.id, updated);
+      // `updated` is a plain Workspace (no role). Both stores take the plain
+      // patch and preserve their role-aware fields.
+      await replicaCommands.patchWorkspaceHead(workspace.id, updated);
+      await directoryCommands.patch(workspace.id, updated);
       setName(updated.name);
       setIcon(updated.icon ?? "");
     } catch (err) {
@@ -136,7 +137,7 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
     } finally {
       setSaving(false);
     }
-  }, [workspace.id, name, icon, saving, patchWorkspace]);
+  }, [workspace.id, name, icon, saving]);
 
   return (
     <section className="mb-8">
@@ -210,7 +211,6 @@ interface MembersSectionProps {
 }
 
 function MembersSection({ workspace, members, currentUser, myRole }: MembersSectionProps) {
-  const replaceMembers = useWorkspaceStore((s) => s.replaceSnapshotMembers);
   const [roleDropdownId, setRoleDropdownId] = useState<string | null>(null);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
@@ -229,9 +229,9 @@ function MembersSection({ workspace, members, currentUser, myRole }: MembersSect
       setMemberError(null);
       try {
         await api.workspaces.updateMemberRole(workspace.id, userId, newRole);
-        replaceMembers(
+        await replicaCommands.replaceMembers(
           workspace.id,
-          members.map((m) => (m.user_id === userId ? { ...m, role: newRole as WorkspaceMember["role"] } : m)),
+          members.map((m) => (m.user_id === userId ? { ...m, role: newRole as WorkspaceRole } : m)),
         );
       } catch (err) {
         setMemberError(toApiError(err).message);
@@ -239,7 +239,7 @@ function MembersSection({ workspace, members, currentUser, myRole }: MembersSect
         setUpdatingRole(null);
       }
     },
-    [workspace.id, members, replaceMembers],
+    [workspace.id, members],
   );
 
   const handleRemoveMember = useCallback(
@@ -255,7 +255,7 @@ function MembersSection({ workspace, members, currentUser, myRole }: MembersSect
       setMemberError(null);
       try {
         await api.workspaces.removeMember(workspace.id, userId);
-        replaceMembers(
+        await replicaCommands.replaceMembers(
           workspace.id,
           members.filter((m) => m.user_id !== userId),
         );
@@ -265,7 +265,7 @@ function MembersSection({ workspace, members, currentUser, myRole }: MembersSect
         setRemovingMember(null);
       }
     },
-    [workspace.id, members, replaceMembers],
+    [workspace.id, members],
   );
 
   return (
@@ -492,12 +492,10 @@ function LeaveWorkspaceSection({ workspace }: { workspace: Workspace }) {
     setLeaving(true);
     try {
       await api.workspaces.removeMember(workspace.id, currentUser.id);
-      const store = useWorkspaceStore.getState();
-      // Remove both the snapshot and the member-list entry so root routing
-      // doesn't immediately redirect the user back into a workspace they just
-      // left.
-      store.removeMemberWorkspace(workspace.id);
-      store.removeWorkspaceSnapshot(workspace.id);
+      // Cascade across directory, replica, navigation, pageAccess. Prevents
+      // root routing from redirecting the user back into a workspace they
+      // just left.
+      await workspaceLifecycleCommands.removeWorkspace(workspace.id);
       navigate({ to: "/" });
     } catch (err) {
       toast.error(toApiError(err).message);
@@ -545,9 +543,7 @@ function DangerSection({ workspace }: { workspace: Workspace }) {
     setDeleting(true);
     try {
       await api.workspaces.delete(workspace.id);
-      const store = useWorkspaceStore.getState();
-      store.removeMemberWorkspace(workspace.id);
-      store.removeWorkspaceSnapshot(workspace.id);
+      await workspaceLifecycleCommands.removeWorkspace(workspace.id);
       navigate({ to: "/" });
     } catch {
       toast.error("Failed to delete workspace");

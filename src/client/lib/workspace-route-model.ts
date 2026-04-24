@@ -1,4 +1,4 @@
-import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
+import type { WorkspaceAccessMode } from "@/client/stores/workspace-replica";
 
 /**
  * Resolution state for the `/$workspaceSlug` route. Consumers branch on
@@ -6,9 +6,10 @@ import type { WorkspaceAccessMode } from "@/client/stores/workspace-store";
  * guarantees them.
  *
  * Route state carries identity KEYS only (`workspaceId`, slug). Mutable
- * workspace payload lives in `workspace-store` snapshots; consumers read it
- * via `snapshotsByWorkspaceId[workspaceId]`. Cache-vs-live is a provider-
- * internal concern used to gate revalidation, not part of the public state.
+ * workspace payload lives in the replica projection; consumers read it via
+ * `useWorkspaceReplica(workspaceId)` (and siblings). Cache-vs-live is a
+ * provider-internal concern used to gate revalidation, not part of the
+ * public state.
  */
 export type WorkspaceRouteState =
   /**
