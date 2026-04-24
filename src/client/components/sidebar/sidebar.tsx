@@ -209,6 +209,7 @@ function ExpandedSidebarContent({
         createPage={createPage}
         isCreating={isCreating}
         openSearch={openSearch}
+        menuZIndex={menuZIndex}
       />
 
       <nav className="flex-1 overflow-y-auto px-1">
@@ -254,13 +255,19 @@ interface SidebarActionBarProps {
   createPage: CreatePageFn;
   isCreating: boolean;
   openSearch: () => void;
+  menuZIndex?: number;
 }
 
-function SidebarActionBar({ createPageAction, createPage, isCreating, openSearch }: SidebarActionBarProps) {
+function SidebarActionBar({ createPageAction, createPage, isCreating, openSearch, menuZIndex }: SidebarActionBarProps) {
   return (
     <div className="h-[46px] px-2 py-2">
       <div className="flex h-full items-center gap-1">
-        <CreatePageControls createPageAction={createPageAction} createPage={createPage} isCreating={isCreating} />
+        <CreatePageControls
+          createPageAction={createPageAction}
+          createPage={createPage}
+          isCreating={isCreating}
+          menuZIndex={menuZIndex}
+        />
         <button
           onClick={openSearch}
           className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
@@ -280,9 +287,10 @@ interface CreatePageControlsProps {
   createPageAction: CreatePageAction;
   createPage: CreatePageFn;
   isCreating: boolean;
+  menuZIndex?: number;
 }
 
-function CreatePageControls({ createPageAction, createPage, isCreating }: CreatePageControlsProps) {
+function CreatePageControls({ createPageAction, createPage, isCreating, menuZIndex }: CreatePageControlsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -313,7 +321,13 @@ function CreatePageControls({ createPageAction, createPage, isCreating }: Create
         <ChevronDown className="h-3 w-3" />
       </button>
       {menuOpen && (
-        <DropdownPortal triggerRef={triggerRef} align="left" width={180} onClose={() => setMenuOpen(false)}>
+        <DropdownPortal
+          triggerRef={triggerRef}
+          align="left"
+          width={180}
+          zIndex={menuZIndex}
+          onClose={() => setMenuOpen(false)}
+        >
           <div className="py-1 text-sm">
             <button
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-zinc-200 hover:bg-zinc-700/70"
