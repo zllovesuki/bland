@@ -25,27 +25,46 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 ## Source Of Truth
 
-- `bland` is live in production. The live source tree and runtime bindings are authoritative.
-- Start with the live code, `wrangler.jsonc`, shared contracts, and active schemas.
-- `docs/frontend-spec.md` is the active frontend reference design to keep consistent across `devbin.tools` products.
-- `.impeccable.md` is the design context for visual and UX decisions.
-- `docs/bland-production-spec.md` is historical context only. Do not treat it as source of truth or update target for normal feature work.
-- The live editor is the custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Older BlockNote references in docs are stale unless explicitly called out as historical or planned.
+- `bland` is live in production. The live source tree, runtime bindings, `wrangler.jsonc`, shared contracts, and active schemas are authoritative.
+- Start with the live code. Historical docs are secondary unless the task explicitly asks for them.
+- `docs/frontend-spec.md` is the active frontend reference for shared `devbin.tools` patterns. Open it only when the task touches client UI, UX consistency, or shared product chrome.
+- `.impeccable.md` is the design context for visual tone, typography, and user-facing copy. Open it only for UI, UX, or copy work.
+- `docs/bland-production-spec.md` is historical context only. Do not treat it as source of truth or a normal update target.
+- The live editor is the custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Older BlockNote references are stale unless explicitly called out as historical or planned.
+
+## Investigation Before Mutation
+
+- Read before you edit. For non-local changes, read the target file plus at least one caller, consumer, sibling module, or test before changing code.
+- Do not speculate when the live code, logs, types, or runtime can answer the question quickly.
+- Do not propose or apply a fix until you have identified the actual failing path, or clearly marked the remaining uncertainty as an assumption.
+- Match the user's real runtime and execution surface before trusting a result. Do not validate in a different shell, environment, or working directory and present it as equivalent.
+- Re-open the relevant files when uncertain. Do not rely on stale earlier context, long-session memory, or "it probably works like X" reasoning.
+- If a missing fact would materially change the implementation and cannot be derived locally, ask one focused question instead of patching around uncertainty.
+
+## Context Hygiene
+
+- Keep always-loaded instructions here short and high value. Put task-specific detail in the relevant file or doc and open it only when needed.
+- Prefer narrow path-based reads over broad repo sweeps.
+- Summarize what matters, then read the source again when resuming complex work instead of carrying long narrative state forward.
+- Do not treat prior turns, saved memory, or inferred intent as higher-confidence than the current repo state.
+- If the task is simple, keep the working set small. More context is not automatically better context.
 
 ## Working Rules
 
 - Keep edits scoped and minimal.
 - Unless the user explicitly asks for a modification, treat the repository, working tree, index, and staged/unstaged changes as read-only. Exploration, review, and diagnosis must not create, stage, unstage, revert, discard, or stash changes.
 - Do not run destructive git or index-mutating commands such as `git add`, `git reset`, `git restore`, `git checkout`, `git stash`, `git commit`, or similar unless the user explicitly asks for that operation.
+- Checking beats hypothesizing. Looking productive is not the goal; read, verify, then act.
+- Do not declare root cause, safety, or completion from inference alone. Read back the changed surface and run the relevant check, or state plainly why a check was not run.
 - Do not trade a small diff for a fragile design when the structural fix is already clear.
-- When reviewing a diff, start by checking whether the problem is truly local or a symptom of a broader ownership, state, or data-flow issue.
-- Keep bug reports, repros, and regressions grounded in actions a human can actually perform in a browser. If triggering a state requires an impossible synthetic transition, such as jumping directly from `/ws-a/p-a` to `/ws-b/p-b` in a way the browser UI cannot produce, it is not a product bug.
-- Prefer the smallest correct patch, but do not force a localized fix when the durable solution is holistic. Call out when the real fix needs to cross the current diff boundary.
+- When reviewing a diff, first check whether the problem is truly local or a symptom of broader ownership, state, or data-flow issues.
+- Keep bug reports, repros, and regressions grounded in actions a human can actually perform in a browser. If the only trigger path is an impossible synthetic transition, it is not a product bug.
+- Prefer the smallest correct patch, but do not force a localized fix when the durable solution is holistic. Call out when the real fix crosses the current diff boundary.
 - Avoid review feedback that only shuffles the bug or defers the same issue to a follow-up diff. Review churn from an underscoped fix is worse than a slightly larger correct patch.
 - Prefer explicit code over clever code. Small duplication is fine when it keeps ownership obvious.
 - Reuse existing helpers, stores, contracts, route patterns, and UI primitives before adding new ones.
-- Reuse security-sensitive worker helpers before inlining logic: `src/worker/lib/auth.ts` (`getJwtSecret`, `verifyAccessToken`, `setRefreshCookie`, `clearRefreshCookie`, `generateSecureToken`), `src/worker/lib/origins.ts` (`getAllowedOrigins`, `isAllowedOrigin`), `src/worker/lib/membership.ts` (`requireMembership`), and `src/worker/lib/permissions.ts` (`resolvePrincipal`, `resolvePageAccessLevels`, `canAccessPage`, `canAccessPages`, `toResolvedViewerContext`).
-- Reuse AI helpers before inlining: `src/worker/lib/ai/index.ts` (`createAiClient`, `AiClient`), `src/worker/lib/ai/prompts.ts` (`buildRewriteMessages`, `buildGenerateMessages`, `buildAskMessages`), and `src/shared/ai.ts` SSE encoders. New AI routes go through `RL_AI` and `getPageAiEntitlements` from `src/shared/entitlements/page-ai.ts`. Do not call the `AI` binding directly — go through `createAiClient` so `workers-ai`, `openai-compat`, and `mock` backends stay swappable.
+- Reuse security-sensitive worker helpers in `src/worker/lib/{auth,origins,membership,permissions}.ts` rather than re-encoding auth, origin, membership, or access logic inline.
+- Reuse AI helpers in `src/worker/lib/ai/*`, `src/shared/ai.ts`, and `src/shared/entitlements/page-ai.ts`. New AI routes go through `createAiClient`, `RL_AI`, and `getPageAiEntitlements`; do not call the `AI` binding directly.
 - Preserve the split between `src/client`, `src/worker`, and `src/shared`.
 - If request or response shapes change, update both the worker boundary and `src/shared/types.ts`.
 - If DocSync custom message shapes change, update `src/shared/doc-messages.ts`.
@@ -56,23 +75,16 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 - Core architecture is stable: React SPA + Cloudflare Worker API + D1 + Durable Objects for doc sync and search indexing + R2 for uploads + Queues for derived search indexing.
 - D1 is authoritative for users, workspaces, memberships, page tree metadata including `pages.title`, invites, shares, and upload metadata.
-- DocSync Durable Object local SQLite is authoritative for persisted Yjs document content.
-- WorkspaceIndexer Durable Object local SQLite is authoritative for the derived FTS index.
+- DocSync Durable Object local SQLite is authoritative for persisted Yjs document content. Live collaborative document state belongs in the per-document Durable Object; presence and cursor state are ephemeral and must not be persisted.
+- WorkspaceIndexer Durable Object local SQLite is authoritative for the derived FTS index. Search is a rebuildable projection.
 - R2 stores blobs only. Access control must remain D1-backed.
-- Live collaborative document state belongs in the per-document Durable Object. Presence and cursor state are ephemeral and should not be persisted.
-- Search is a derived projection. Treat queue-driven indexing as rebuildable.
 - The Worker orchestrates cross-runtime calls. Keep boundaries to a single hop from the Worker and do not add DO -> DO calls.
-- Durable Object RPCs should return tagged unions for expected outcomes and reserve `throw` for truly unrecoverable errors.
-- Use `blockConcurrencyWhile` only in Durable Object constructors for setup and migration, never in RPC methods.
-- Do not rely on `this.ctx.id.name` inside Durable Objects.
-- Cold uncached editor hydration should bootstrap body content from the Worker-owned page snapshot route before mounting the editor on a live DocSync session. Do not mount a writable editor against an empty local `Y.Doc` and wait for live sync to fill it.
-- Preserve D1 bookmark propagation in `src/worker/router.ts` and `src/client/lib/api.ts`.
-- Mutating requests should continue to prefer primary D1 reads.
+- Durable Object RPCs should return tagged unions for expected outcomes and reserve `throw` for truly unrecoverable failures. Use `blockConcurrencyWhile` only in constructors for setup or migration, never in RPC methods. Do not rely on `this.ctx.id.name`.
+- Cold uncached editor hydration must bootstrap body content from the Worker-owned page snapshot route before mounting a writable editor against live DocSync.
+- Preserve D1 bookmark propagation in `src/worker/router.ts` and `src/client/lib/api.ts`. Mutating requests should continue to prefer primary D1 reads.
 - Refresh tokens live in the `bland_refresh` cookie. Access tokens stay in client state.
-- Auth, invites, refresh cookies, Turnstile, uploads, and share links are security-sensitive. Keep them fail-closed and do not weaken cookie flags, origin checks, or rate limits.
-- The local Turnstile bypass in `src/worker/middleware/turnstile.ts` is intentional and must not be extended beyond local environments.
-- Do not log secrets, bearer tokens, refresh cookies, or password material.
-- AI features (rewrite, generate, summarize, ask-page) are member-only. The shared surface entitlements in `src/shared/entitlements/page-ai.ts` deny every AI capability; do not loosen this without an intentional access-model design. AI suggestions stay transient on the client (ProseMirror decorations) — do not persist them as Yjs marks or server-side artifacts.
+- Auth, invites, refresh cookies, Turnstile, uploads, and share links are security-sensitive. Keep them fail-closed and do not weaken cookie flags, origin checks, or rate limits. The local Turnstile bypass in `src/worker/middleware/turnstile.ts` is intentional and must not be extended beyond local environments. Do not log secrets, bearer tokens, refresh cookies, or password material.
+- AI features (`rewrite`, `generate`, `summarize`, `ask-page`) are member-only. The shared surface entitlements in `src/shared/entitlements/page-ai.ts` deny every AI capability by default; do not loosen this without an intentional access-model design. AI suggestions stay transient on the client and must not be persisted as Yjs marks or server-side artifacts.
 
 ## Change Guidance
 
@@ -80,24 +92,23 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 - Express app chrome through explicit layout routes rooted at `src/client/route-tree.tsx` and `src/client/components/root-shell.tsx`, not route metadata switches.
 - Keep asynchronous route and page loading in providers or components, not route `beforeLoad`. Use `beforeLoad` only for synchronous auth and redirect guards.
-- Keep workspace route resolution in `src/client/components/workspace/view-provider.tsx`, canonical page-context derivation in `src/client/components/workspace/use-canonical-page-context.ts`, the shared active-page state machine in `src/client/components/active-page/provider.tsx` with canonical glue in `src/client/components/active-page/canonical.tsx`, canonical mention wiring in `src/client/components/page-mention/canonical-surface.tsx`, and share-link state in `src/client/components/share/view-provider.tsx`. Keep `workspace/page-view.tsx` and `share/page-view.tsx` focused on rendering and page-local actions.
-- Keep stable allow/deny permission semantics in `src/shared/entitlements/`. Keep client UX action visibility and disabled state in `src/client/lib/affordance/`. Do not collapse these back into one monolithic client permission bag.
+- Keep workspace route resolution in `src/client/components/workspace/view-provider.tsx`, canonical page-context derivation in `src/client/components/workspace/use-canonical-page-context.ts`, and the shared active-page state machine in `src/client/components/active-page/provider.tsx` plus `src/client/components/active-page/canonical.tsx`.
+- Keep canonical mention wiring in `src/client/components/page-mention/canonical-surface.tsx` and share-link state in `src/client/components/share/view-provider.tsx`. Keep `workspace/page-view.tsx` and `share/page-view.tsx` focused on rendering and page-local actions.
+- Keep stable allow/deny permission semantics in `src/shared/entitlements/` and client action visibility/disabled state in `src/client/lib/affordance/`. Do not collapse them into one monolithic client permission bag.
 - Keep `src/client/stores/workspace-store.ts` as a persisted cache and snapshot store, not a home for transient request lifecycle or active-route state.
-- Prefer discriminated unions like `WorkspaceRouteState` and `ActivePageState`, plus pure helpers under `src/client/lib/`, for non-trivial routing and loading logic.
+- Prefer discriminated unions, derived state, reducers, event handlers, and pure helpers under `src/client/lib/` over adding another `useEffect`.
 - Use `createRequestGuard` for async effects that can overlap during navigation or provider remounts, and `classifyFailure` plus structured worker error codes for failure handling. Do not branch on error-message text.
-- Prefer derived state, event handlers, reducers, or pure helpers over adding another `useEffect`. Do not use effects as a default escape hatch for ordinary React data flow.
-- Treat `useEffect` dependency arrays as correctness-critical. Do not introduce circular update paths where an effect depends on state that the effect itself mutates unless the guard is explicit, necessary, and obviously safe on a second read.
+- Treat `useEffect` dependency arrays as correctness-critical.
 - Keep network calls centralized in `src/client/lib/api.ts`.
-- Extend the shared editor under `src/client/components/editor/` instead of creating parallel editor shells or abstractions.
-- Treat editor features as cross-cutting work, not isolated node or command changes. If a change adds new document structure or editing UI, verify the surrounding extension registry, controller surfaces, slash or insert entry points, affordance or runtime plumbing, and selection semantics such as `context-aware-select-all` still compose correctly.
-- Keep `src/client/components/editor/editor-runtime-context.ts` operational only, and keep UI editing affordances in `src/client/components/editor/editor-affordance-context.ts`. Do not infer mention/upload affordances from raw runtime fields when the affordance layer already owns them.
-- Keep the authenticated workspace surface and the share surface aligned through shared primitives such as `src/client/components/ui/mobile-drawer.tsx`, `page-cover.tsx`, `page-error-state.tsx`, and `page-loading-skeleton.tsx`, rather than parallel rewrites.
+- Extend the shared editor under `src/client/components/editor/` instead of creating parallel editor shells. Treat editor work as cross-cutting and verify extension registry, slash or insert entry points, controller/runtime plumbing, affordances, and selection semantics still compose correctly.
+- Keep `src/client/components/editor/editor-runtime-context.ts` operational only, and keep `src/client/components/editor/editor-affordance-context.ts` authoritative for UI editing affordances.
+- Keep the authenticated workspace surface and the share surface aligned through shared primitives rather than parallel rewrites.
 - When changing collaboration or route-loading behavior, verify both member and share flows and update focused regression coverage, including `tests/e2e/specs/08-rapid-page-navigation.spec.ts`, `tests/e2e/specs/10-shared-rapid-navigation.spec.ts`, and `tests/e2e/specs/12-canonical-page-cold-deep-link.spec.ts` when applicable.
 
 ### Worker
 
 - Register HTTP behavior in the owning module under `src/worker/routes/` and keep top-level wiring in `src/worker/router.ts`.
-- Keep page-access resolution and viewer-surface context in `src/worker/lib/permissions.ts`. Reuse `resolvePrincipal`, `resolvePageAccessLevels`, and `toResolvedViewerContext` from routes and WebSocket auth instead of re-encoding page-share walks or member-vs-share branching inline.
+- Keep page-access resolution and viewer-surface context in `src/worker/lib/permissions.ts`. Reuse `resolvePrincipal`, `resolvePageAccessLevels`, and `toResolvedViewerContext` from routes and WebSocket auth instead of re-encoding share walks or member-vs-share branching inline.
 - Validate requests at the boundary with `zod` or shared schemas.
 - Put reusable worker logic in helpers or middleware instead of bloating route handlers.
 - Keep 4xx failures explicit and actionable. Reserve 500s for genuinely unexpected errors.
@@ -122,41 +133,22 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 ## Deferred Work
 
-Known gaps that are intentionally deferred to later milestones. Do not fix these unless the task explicitly calls for it.
+Known gaps that are intentionally deferred. Do not fix these unless the task explicitly calls for them.
 
-- **ON DELETE CASCADE for page_shares**: The schema lacks cascade constraints on `page_shares.page_id`. App code handles deletion order correctly, but the DB-level safety net is missing.
-- **Presigned R2 URLs**: Upload data flows through the Worker (`PUT /uploads/:id/data`) rather than direct-to-R2 via presigned URLs. The R2 binding has no presigned URL API; true presigning requires S3-compatible credentials. Acceptable at ≤50 users with 10MB max. Revisit if upload volume justifies the S3 credential setup.
-- **Orphaned upload garbage collection**: There is no delete uploads API. R2 objects are never removed — replacing or deleting an image from a document leaves the old blob in R2. Needs a periodic GC job that scans DocSync DOs for referenced upload URLs and deletes R2 objects not referenced by any document.
-- **DocSync DO storage cleanup on workspace delete**: Workspace deletion calls `WorkspaceIndexer.clear()` but does not explicitly clean DocSync DO storage for each page. DO auto-eviction handles this eventually.
-- **Shared seeded E2E workspace coupling**: The default Playwright harness seeds a single reusable `bland` workspace for the whole run. Specs that assume a short or empty page tree, especially sidebar drag scenarios, should prefer creating isolated workspaces rather than relying on that shared seed state.
-- **AI output structure is text-parsed, not schema-bound**: First-wave AI rewrite/generate prompt the model for plain text with `\n\n` paragraph breaks and `-`/`*` bullet lines, then convert on the client via `parseAiBlocksFromText` in `src/client/lib/ai/blocks.ts`. Only paragraphs and bullet lists are recognized — headings, nested lists, inline marks (bold/italic/links), code blocks, and tables all flatten to paragraph text. The alternatives are a real markdown parser (`marked`/`markdown-it`) feeding Tiptap content JSON, or model-side structured output via function calling. Streaming UX and model portability across Workers AI models are the current reasons against structured output, not correctness. Revisit when ask-workspace answers, citations, or richer rewrite outputs need fidelity beyond paragraphs and bullets.
-- **Refresh token rotation**: `POST /auth/refresh` in `src/worker/routes/auth.ts` issues a new access token but does not rotate the refresh JWT; the existing `bland_refresh` cookie is re-used until its `exp` claim fires. A stolen refresh cookie therefore replays until expiry. The last-resort mitigation today is rotating `env.JWT_SECRET`, which invalidates every outstanding refresh token at once. At ~50 users this is an accepted tradeoff. Hardening options when we grow: add a `token_version` column on `users` (bump on logout/password change/suspicious activity and verify on every refresh), or move refresh tokens to D1 with an explicit revocation list (one DB read per refresh in exchange for immediate revocation).
+- `page_shares.page_id` still lacks `ON DELETE CASCADE`; app code handles deletion order today.
+- Uploads still flow through the Worker instead of presigned R2 URLs. Acceptable at current scale.
+- Replacing or deleting document images leaves orphaned R2 blobs. Cleanup is deferred to a future explicit GC feature.
+- Workspace deletion does not proactively clear every DocSync Durable Object; rely on eventual eviction unless the task is specifically about cleanup.
+- The default Playwright harness reuses one seeded `bland` workspace; specs that depend on a short or empty tree should create isolated workspaces.
+- AI rewrite and generate output is still plain-text parsed into paragraphs and bullet lists only; richer structure is deferred.
+- Refresh token rotation is deferred; the `bland_refresh` JWT is reused until expiry.
 
 ## Entrypoints
 
-- `package.json`
-- `wrangler.jsonc`
-- `src/shared/entitlements/`
-- `src/shared/types.ts`
-- `src/shared/doc-messages.ts`
-- `src/client/route-tree.tsx`
-- `src/client/components/root-shell.tsx`
-- `src/client/components/workspace/`
-- `src/client/components/active-page/`
-- `src/client/components/page-mention/`
-- `src/client/components/share/`
-- `src/client/components/editor/`
-- `src/client/lib/affordance/`
-- `src/client/stores/workspace-store.ts`
-- `src/client/lib/api.ts`
-- `src/client/lib/*-model.ts`
-- `src/worker/index.ts`
-- `src/worker/router.ts`
-- `src/worker/routes/`
-- `src/worker/lib/permissions.ts`
-- `src/worker/db/*/schema.ts`
-- `src/worker/durable-objects/`
-- `src/worker/queues/search-indexer.ts`
-- `src/worker/lib/ai/`
-- `src/shared/ai.ts`
-- `src/client/lib/ai/`
+- Project runtime: `package.json`, `wrangler.jsonc`
+- Shared contracts: `src/shared/entitlements/`, `src/shared/types.ts`, `src/shared/doc-messages.ts`, `src/shared/ai.ts`
+- Client shell and routing: `src/client/route-tree.tsx`, `src/client/components/root-shell.tsx`
+- Client workspace surfaces: `src/client/components/workspace/`, `src/client/components/active-page/`, `src/client/components/page-mention/`, `src/client/components/share/`
+- Editor and client state: `src/client/components/editor/`, `src/client/lib/affordance/`, `src/client/stores/workspace-store.ts`, `src/client/lib/api.ts`, `src/client/lib/*-model.ts`, `src/client/lib/ai/`
+- Worker entrypoints and permissions: `src/worker/index.ts`, `src/worker/router.ts`, `src/worker/routes/`, `src/worker/lib/permissions.ts`, `src/worker/lib/ai/`
+- Data and runtime backends: `src/worker/db/*/schema.ts`, `src/worker/durable-objects/`, `src/worker/queues/search-indexer.ts`
