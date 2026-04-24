@@ -17,6 +17,8 @@ import {
   rehydrateWorkspaceLocalOwner,
   waitForWorkspaceLocalHydration,
 } from "./stores/bootstrap";
+import { registerServiceWorker } from "./lib/pwa";
+import { installManifestGate } from "./lib/install-gate";
 import "./styles/app.css";
 
 const router = createRouter({
@@ -141,6 +143,9 @@ async function bootstrap() {
   if (bootstrapStrategy === "background") {
     void refreshSession();
   }
+
+  installManifestGate();
+  registerServiceWorker();
 }
 
 registerGlobalErrorListeners();

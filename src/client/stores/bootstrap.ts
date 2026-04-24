@@ -1,6 +1,7 @@
 import { liveQuery, type Subscription } from "dexie";
 import { docCache } from "@/client/lib/doc-cache-registry";
 import { queryClient } from "@/client/lib/query-client";
+import { clearPwaRuntimeCaches } from "@/client/lib/pwa";
 import { SESSION_MODES, type SessionMode } from "@/client/lib/constants";
 import { useAuthStore } from "./auth-store";
 import { db, type MemberWorkspaceRow, type WorkspacePageRow, type WorkspaceReplicaRow } from "./db/bland-db";
@@ -131,6 +132,7 @@ export async function ensureWorkspaceLocalOwner(userId: string | null, needsLoca
     await workspaceLifecycleCommands.clearAllLocal();
     docCache.clearAll();
     queryClient.clear();
+    await clearPwaRuntimeCaches();
     resetAllProjections();
   }
 
@@ -167,6 +169,7 @@ export async function resetWorkspaceLocalOwner(): Promise<void> {
   await db.workspaceMeta.put({ key: "owner", value: null });
   docCache.clearAll();
   queryClient.clear();
+  await clearPwaRuntimeCaches();
   resetAllProjections();
   desiredState = null;
 }

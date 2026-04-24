@@ -26,8 +26,10 @@ describe("document security headers", () => {
     });
 
     expect(csp).not.toContain("ingest.sentry.io");
-    expect(csp).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
-    expect(csp).toContain("font-src 'self' https://fonts.gstatic.com https://esm.sh");
+    expect(csp).not.toContain("fonts.googleapis.com");
+    expect(csp).not.toContain("fonts.gstatic.com");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("font-src 'self' https://esm.sh");
   });
 
   it("relaxes connect-src for localhost without forcing insecure upgrades", () => {
