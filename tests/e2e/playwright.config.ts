@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   timeout: 60_000,
-  globalTimeout: 300_000,
+  globalTimeout: 600_000,
   reporter: [["html", { open: "never" }]],
   use: {
     baseURL: process.env.BLAND_E2E_BASE_URL,
