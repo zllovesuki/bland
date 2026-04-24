@@ -6,6 +6,7 @@ import type {
   LoginRequest,
   User,
   Workspace,
+  WorkspaceMembershipSummary,
   Page,
   PageKind,
   GetPageResponse,
@@ -189,8 +190,8 @@ export const api = {
   },
 
   workspaces: {
-    list: async () => {
-      const res = await apiFetch<{ workspaces: (Workspace & { role: string })[] }>("/workspaces");
+    list: async (): Promise<WorkspaceMembershipSummary[]> => {
+      const res = await apiFetch<{ workspaces: WorkspaceMembershipSummary[] }>("/workspaces");
       return res.workspaces;
     },
     create: async (data: { name: string; slug: string; icon?: string }) => {

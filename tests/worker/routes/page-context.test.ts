@@ -55,10 +55,10 @@ describe("page-context", () => {
     });
   });
 
-  it("returns canonical member viewer metadata for full workspace members", async () => {
+  it("returns canonical member viewer metadata with writer workspace_role for full members", async () => {
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "user", userId: "user-1" },
-      memberBypass: true,
+      workspaceRole: "member",
     });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
@@ -79,14 +79,37 @@ describe("page-context", () => {
         principal_type: "user",
         route_kind: "canonical",
         workspace_slug: "demo",
+        workspace_role: "member",
       },
     });
   });
 
-  it("returns canonical shared viewer metadata for canonical share-derived access", async () => {
+  it("emits access_mode member with guest role for a canonical guest", async () => {
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "user", userId: "user-1" },
-      memberBypass: false,
+      workspaceRole: "guest",
+    });
+    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
+
+    const { pageContextRouter } = await import("@/worker/routes/page-context");
+    const { db } = createDbMock("demo");
+    const app = await createTestApp(pageContextRouter, "/api/v1", { db });
+
+    const res = await app.request(new Request("http://test/api/v1/pages/page-1/context"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      viewer: {
+        access_mode: "member",
+        workspace_role: "guest",
+      },
+    });
+  });
+
+  it("emits access_mode shared with null workspace_role for canonical share-only access", async () => {
+    resolvePrincipalMock.mockResolvedValue({
+      principal: { type: "user", userId: "user-1" },
+      workspaceRole: null,
     });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 
@@ -107,6 +130,7 @@ describe("page-context", () => {
         principal_type: "user",
         route_kind: "canonical",
         workspace_slug: "demo",
+        workspace_role: null,
       },
     });
     expect(resolvePageAccessLevelsMock).toHaveBeenCalledWith(

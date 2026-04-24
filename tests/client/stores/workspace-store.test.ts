@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
-import { createPage, createWorkspace, createMember } from "@tests/client/util/fixtures";
+import { createPage, createWorkspace, createMembershipSummary, createMember } from "@tests/client/util/fixtures";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 
 let useWorkspaceStore: typeof import("@/client/stores/workspace-store").useWorkspaceStore;
@@ -22,14 +22,15 @@ afterEach(() => {
 describe("workspace-store", () => {
   describe("durable cache persistence", () => {
     it("rehydrates the persisted cache slice, ignoring legacy pageMetaById field", async () => {
-      const workspace = createWorkspace({ id: "ws-1" });
+      const workspace = createMembershipSummary({ id: "ws-1" });
       const page = createPage({ id: "p1", workspace_id: "ws-1" });
       const member = createMember({ workspace_id: "ws-1" });
       const hadWindow = "window" in globalThis;
       const originalWindow = (globalThis as Record<string, unknown>).window;
 
-      // Legacy persisted blob still carries pageMetaById. The current store
-      // shape does not declare it; hydration must ignore it without crashing.
+      // Persisted blob at the current schema version. Hydration preserves
+      // memberWorkspaces + snapshots + last-visited while ignoring the
+      // undeclared pageMetaById field.
       localStorage.setItem(
         STORAGE_KEYS.WORKSPACE,
         JSON.stringify({
@@ -40,6 +41,7 @@ describe("workspace-store", () => {
               "ws-1": {
                 workspace,
                 accessMode: "member",
+                workspaceRole: "member",
                 pages: [page],
                 members: [member],
               },
@@ -48,7 +50,7 @@ describe("workspace-store", () => {
             lastVisitedWorkspaceId: "ws-1",
             cacheUserId: "user-1",
           },
-          version: 3,
+          version: 6,
         }),
       );
 
@@ -81,6 +83,70 @@ describe("workspace-store", () => {
         }
       }
     });
+
+    it("v5 -> v6 migration clears workspace-scoped caches so slug-first guest lies cannot persist", async () => {
+      const hadWindow = "window" in globalThis;
+      const originalWindow = (globalThis as Record<string, unknown>).window;
+
+      // A v5 blob can carry the slug-first path's lying accessMode "member"
+      // for a guest workspace. The migration clears snapshots and
+      // memberWorkspaces so the next bootstrap populates workspace_role
+      // authoritatively.
+      localStorage.setItem(
+        STORAGE_KEYS.WORKSPACE,
+        JSON.stringify({
+          state: {
+            memberWorkspaces: [createWorkspace({ id: "ws-1" })],
+            sharedInbox: [],
+            sharedInboxWorkspaceSummaries: [],
+            snapshotsByWorkspaceId: {
+              "ws-1": {
+                workspace: createWorkspace({ id: "ws-1" }),
+                accessMode: "member",
+                pages: [],
+                members: [],
+              },
+            },
+            pageAccessByPageId: {},
+            lastVisitedWorkspaceId: "ws-1",
+            lastVisitedPageIdByWorkspaceId: { "ws-1": "p-legacy" },
+            cacheUserId: "user-1",
+          },
+          version: 5,
+        }),
+      );
+
+      Object.defineProperty(globalThis, "window", {
+        value: { localStorage },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        vi.resetModules();
+        const mod = await import("@/client/stores/workspace-store");
+        await vi.dynamicImportSettled();
+        const state = mod.useWorkspaceStore.getState();
+
+        expect(state.memberWorkspaces).toEqual([]);
+        expect(state.snapshotsByWorkspaceId).toEqual({});
+        expect(state.lastVisitedWorkspaceId).toBeNull();
+        expect(state.lastVisitedPageIdByWorkspaceId).toEqual({});
+        // cacheUserId survives the migration so the doc-cache ownership check
+        // does not double-clear when the user returns.
+        expect(state.cacheUserId).toBe("user-1");
+      } finally {
+        if (hadWindow) {
+          Object.defineProperty(globalThis, "window", {
+            value: originalWindow,
+            writable: true,
+            configurable: true,
+          });
+        } else {
+          delete (globalThis as Record<string, unknown>).window;
+        }
+      }
+    });
   });
 
   describe("snapshot mutations", () => {
@@ -89,6 +155,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages,
         members: [],
       });
@@ -99,6 +166,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [],
         members: [],
       });
@@ -113,6 +181,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [existing],
         members: [],
       });
@@ -130,6 +199,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [page],
         members: [],
       });
@@ -142,6 +212,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [page],
         members: [],
       });
@@ -156,6 +227,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [parent, child, sibling],
         members: [],
       });
@@ -174,12 +246,14 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [page],
         members: [],
       });
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-2", {
         workspace: createWorkspace({ id: "ws-2" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [otherPage],
         members: [],
       });
@@ -202,6 +276,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: ws,
         accessMode: "member",
+        workspaceRole: "member",
         pages: [createPage()],
         members: [],
       });
@@ -215,6 +290,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [createPage()],
         members: [],
       });
@@ -231,7 +307,7 @@ describe("workspace-store", () => {
 
   describe("resetStore", () => {
     it("clears all cache state", () => {
-      useWorkspaceStore.getState().setMemberWorkspaces([createWorkspace()]);
+      useWorkspaceStore.getState().setMemberWorkspaces([createMembershipSummary()]);
 
       useWorkspaceStore.getState().resetStore();
 
@@ -249,23 +325,34 @@ describe("workspace-store", () => {
 
   describe("member workspace mutations", () => {
     it("upsertMemberWorkspace adds new workspace", () => {
-      const ws = createWorkspace({ id: "ws-1" });
+      const ws = createMembershipSummary({ id: "ws-1" });
       useWorkspaceStore.getState().upsertMemberWorkspace(ws);
       expect(useWorkspaceStore.getState().memberWorkspaces).toEqual([ws]);
     });
 
     it("upsertMemberWorkspace updates existing workspace", () => {
-      const ws = createWorkspace({ id: "ws-1", name: "Old" });
+      const ws = createMembershipSummary({ id: "ws-1", name: "Old" });
       useWorkspaceStore.getState().setMemberWorkspaces([ws]);
-      const updated = createWorkspace({ id: "ws-1", name: "New" });
+      const updated = createMembershipSummary({ id: "ws-1", name: "New" });
       useWorkspaceStore.getState().upsertMemberWorkspace(updated);
       expect(useWorkspaceStore.getState().memberWorkspaces).toEqual([updated]);
+    });
+
+    it("patchMemberWorkspace merges plain Workspace updates without overwriting role", () => {
+      useWorkspaceStore.getState().setMemberWorkspaces([createMembershipSummary({ id: "ws-1", role: "guest" })]);
+      const plainPatch = createWorkspace({ id: "ws-1", name: "Renamed" });
+      useWorkspaceStore.getState().patchMemberWorkspace("ws-1", plainPatch);
+      expect(useWorkspaceStore.getState().memberWorkspaces[0]).toMatchObject({
+        id: "ws-1",
+        name: "Renamed",
+        role: "guest",
+      });
     });
 
     it("removeMemberWorkspace filters by id", () => {
       useWorkspaceStore
         .getState()
-        .setMemberWorkspaces([createWorkspace({ id: "ws-1" }), createWorkspace({ id: "ws-2" })]);
+        .setMemberWorkspaces([createMembershipSummary({ id: "ws-1" }), createMembershipSummary({ id: "ws-2" })]);
       useWorkspaceStore.getState().removeMemberWorkspace("ws-1");
       expect(useWorkspaceStore.getState().memberWorkspaces).toHaveLength(1);
       expect(useWorkspaceStore.getState().memberWorkspaces[0].id).toBe("ws-2");
@@ -278,6 +365,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [],
         members: [],
       });
@@ -290,6 +378,7 @@ describe("workspace-store", () => {
       useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
         workspace: createWorkspace({ id: "ws-1" }),
         accessMode: "member",
+        workspaceRole: "member",
         pages: [],
         members: [],
       });

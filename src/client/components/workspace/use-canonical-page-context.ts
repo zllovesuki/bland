@@ -3,7 +3,7 @@ import { useParams } from "@tanstack/react-router";
 import { hasWorkspaceIdentity } from "@/client/lib/workspace-route-model";
 import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/workspace-store";
 import { useWorkspaceView } from "./use-workspace-view";
-import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
+import type { Page, Workspace, WorkspaceMember, WorkspaceRole } from "@/shared/types";
 
 export interface CanonicalPageContextValue {
   workspaceId: string | null;
@@ -12,6 +12,7 @@ export interface CanonicalPageContextValue {
   pages: Page[];
   members: WorkspaceMember[];
   accessMode: WorkspaceAccessMode | null;
+  workspaceRole: WorkspaceRole | null;
 }
 
 /**
@@ -28,6 +29,7 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
 
   const workspace = snapshot?.workspace ?? null;
   const accessMode = route.phase === "ready" ? route.accessMode : (snapshot?.accessMode ?? null);
+  const workspaceRole = snapshot?.workspaceRole ?? null;
   const currentPageMeta = params.pageId ? (snapshot?.pages.find((page) => page.id === params.pageId) ?? null) : null;
 
   return useMemo(
@@ -38,7 +40,8 @@ export function useCanonicalPageContext(): CanonicalPageContextValue {
       pages: snapshot?.pages ?? [],
       members: snapshot?.members ?? [],
       accessMode,
+      workspaceRole,
     }),
-    [accessMode, currentPageMeta, snapshot, workspaceId, workspace],
+    [accessMode, workspaceRole, currentPageMeta, snapshot, workspaceId, workspace],
   );
 }

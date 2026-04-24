@@ -17,7 +17,9 @@ export function useCreateWorkspace() {
       setIsCreating(true);
       try {
         const ws = await api.workspaces.create({ name: name.trim(), slug: slug.trim() });
-        upsertMemberWorkspace(ws);
+        // POST /workspaces makes the caller the owner, so inject that into the
+        // membership summary we cache locally.
+        upsertMemberWorkspace({ ...ws, role: "owner" });
         onCreated?.();
         navigate({ to: "/$workspaceSlug", params: { workspaceSlug: ws.slug } });
       } catch {

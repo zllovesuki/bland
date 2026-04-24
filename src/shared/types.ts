@@ -36,6 +36,14 @@ export const Workspace = z.object({
 });
 export type Workspace = z.infer<typeof Workspace>;
 
+// Workspace + caller's role. Returned by `GET /workspaces` so both the worker
+// and the client can answer "which of my workspaces are writer-eligible?"
+// without a second round-trip through /members.
+export const WorkspaceMembershipSummary = Workspace.extend({
+  role: WorkspaceRole,
+});
+export type WorkspaceMembershipSummary = z.infer<typeof WorkspaceMembershipSummary>;
+
 export const WorkspaceMember = z.object({
   user_id: z.string(),
   workspace_id: z.string(),
@@ -232,10 +240,17 @@ export const CreateShareRequest = z.object({
 export type CreateShareRequest = z.infer<typeof CreateShareRequest>;
 
 export const ResolvedViewerContext = z.object({
+  // Membership axis: `member` iff the caller has a memberships row on the
+  // canonical workspace surface (including guest). Non-member canonical access
+  // and every `/s/:token` or `?share=` request emits `shared`.
   access_mode: z.enum(["member", "shared"]),
   principal_type: z.enum(["user", "link"]),
   route_kind: z.enum(["canonical", "shared"]),
   workspace_slug: z.string().nullable(),
+  // Role axis: the caller's workspace role when they have a membership row,
+  // else null. Always null on the shared surface so `/s/:token` stays
+  // link-scoped end to end regardless of a caller's membership status.
+  workspace_role: WorkspaceRole.nullable(),
 });
 export type ResolvedViewerContext = z.infer<typeof ResolvedViewerContext>;
 

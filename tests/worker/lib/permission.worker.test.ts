@@ -34,12 +34,12 @@ describe("worker permissions", () => {
 
       expect(resolved).toEqual({
         principal: { type: "link", token: "share-token" },
-        memberBypass: false,
+        workspaceRole: null,
       });
       expect(checkMembershipMock).not.toHaveBeenCalled();
     });
 
-    it("returns user principal with member fast-path on canonical surface for members", async () => {
+    it("returns user principal with writer role on canonical surface for members", async () => {
       const db = createDbMock();
       checkMembershipMock.mockResolvedValue(createMembership("member", { workspace_id: "workspace-1" }));
 
@@ -47,11 +47,11 @@ describe("worker permissions", () => {
 
       expect(resolved).toEqual({
         principal: { type: "user", userId: "user-1" },
-        memberBypass: true,
+        workspaceRole: "member",
       });
     });
 
-    it("prefers share token for guests on canonical surface when provided", async () => {
+    it("prefers share token for guests on canonical surface but still surfaces guest role", async () => {
       const db = createDbMock();
       checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
 
@@ -62,11 +62,11 @@ describe("worker permissions", () => {
 
       expect(resolved).toEqual({
         principal: { type: "link", token: "share-token" },
-        memberBypass: false,
+        workspaceRole: "guest",
       });
     });
 
-    it("returns user principal for guest on canonical surface without share token", async () => {
+    it("returns user principal with guest role on canonical surface without share token", async () => {
       const db = createDbMock();
       checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
 
@@ -74,7 +74,19 @@ describe("worker permissions", () => {
 
       expect(resolved).toEqual({
         principal: { type: "user", userId: "user-1" },
-        memberBypass: false,
+        workspaceRole: "guest",
+      });
+    });
+
+    it("returns null workspace role for an authenticated non-member on canonical surface", async () => {
+      const db = createDbMock();
+      checkMembershipMock.mockResolvedValue(null);
+
+      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", { surface: "canonical" });
+
+      expect(resolved).toEqual({
+        principal: { type: "user", userId: "user-1" },
+        workspaceRole: null,
       });
     });
 
@@ -88,7 +100,7 @@ describe("worker permissions", () => {
 
       expect(resolved).toEqual({
         principal: { type: "link", token: "share-token" },
-        memberBypass: false,
+        workspaceRole: null,
       });
     });
 
@@ -102,9 +114,9 @@ describe("worker permissions", () => {
   });
 
   describe("toResolvedViewerContext", () => {
-    it("marks shared surface as link-scoped regardless of member fast-path state", () => {
+    it("marks shared surface as link-scoped with null workspace role even for member principals", () => {
       const viewer = toResolvedViewerContext(
-        { principal: { type: "link", token: "tok" }, memberBypass: false },
+        { principal: { type: "link", token: "tok" }, workspaceRole: "member" },
         "slug",
         "shared",
       );
@@ -113,12 +125,13 @@ describe("worker permissions", () => {
         principal_type: "link",
         route_kind: "shared",
         workspace_slug: null,
+        workspace_role: null,
       });
     });
 
-    it("serializes canonical viewer context with workspace slug", () => {
+    it("serializes canonical viewer context with workspace slug and writer role", () => {
       const viewer = toResolvedViewerContext(
-        { principal: { type: "user", userId: "u1" }, memberBypass: true },
+        { principal: { type: "user", userId: "u1" }, workspaceRole: "member" },
         "slug",
         "canonical",
       );
@@ -127,6 +140,37 @@ describe("worker permissions", () => {
         principal_type: "user",
         route_kind: "canonical",
         workspace_slug: "slug",
+        workspace_role: "member",
+      });
+    });
+
+    it("serializes canonical guest as access_mode member with guest workspace role", () => {
+      const viewer = toResolvedViewerContext(
+        { principal: { type: "user", userId: "u1" }, workspaceRole: "guest" },
+        "slug",
+        "canonical",
+      );
+      expect(viewer).toEqual({
+        access_mode: "member",
+        principal_type: "user",
+        route_kind: "canonical",
+        workspace_slug: "slug",
+        workspace_role: "guest",
+      });
+    });
+
+    it("serializes canonical non-member as access_mode shared with null workspace role", () => {
+      const viewer = toResolvedViewerContext(
+        { principal: { type: "user", userId: "u1" }, workspaceRole: null },
+        "slug",
+        "canonical",
+      );
+      expect(viewer).toEqual({
+        access_mode: "shared",
+        principal_type: "user",
+        route_kind: "canonical",
+        workspace_slug: "slug",
+        workspace_role: null,
       });
     });
   });

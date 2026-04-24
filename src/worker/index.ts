@@ -4,7 +4,7 @@ import { app } from "@/worker/router";
 import { createDb } from "@/worker/db/d1/client";
 import { pages, users } from "@/worker/db/d1/schema";
 import { handleHttpRequest } from "@/worker/lib/http-entry";
-import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
+import { isWriterRole, resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
@@ -96,14 +96,15 @@ async function handlePartyRequest(request: Request, env: Env) {
       log.info("connection_authorized", { pageId, surface, principalType: resolved.principal.type, readOnly });
 
       // Always return a sanitized Request to prevent client-injected params. The
-      // `member_edit` tag is reserved for canonical (non-shared) editors so the
-      // DO can hand out edit headroom only to those connections.
+      // `member_edit` tag is reserved for canonical writers (owner/admin/member) so
+      // the DO can hand out edit headroom only to those connections. Guests reach
+      // pages via share grants, not the writer fast path, so they do not qualify.
       url.searchParams.delete("readOnly");
       url.searchParams.delete("authType");
       if (readOnly) {
         url.searchParams.set("readOnly", "1");
       }
-      if (surface === "canonical" && !readOnly && resolved.memberBypass) {
+      if (surface === "canonical" && !readOnly && isWriterRole(resolved.workspaceRole)) {
         url.searchParams.set("authType", "member_edit");
       }
       return new Request(url.toString(), req);

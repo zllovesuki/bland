@@ -85,7 +85,7 @@ describe("share resolve", () => {
   it("returns shared viewer metadata for anonymous or link-based viewers", async () => {
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "link", token: "tok" },
-      memberBypass: false,
+      workspaceRole: null,
     });
 
     const { shareLinkRouter } = await import("@/worker/routes/shares");
@@ -106,6 +106,7 @@ describe("share resolve", () => {
         principal_type: "link",
         route_kind: "shared",
         workspace_slug: null,
+        workspace_role: null,
       },
     });
   });
@@ -124,7 +125,7 @@ describe("share resolve", () => {
     // regardless of the caller's workspace membership. This is the invariant bug1/bug2 fix.
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "link", token: "tok" },
-      memberBypass: false,
+      workspaceRole: null,
     });
 
     const { shareLinkRouter } = await import("@/worker/routes/shares");
@@ -145,6 +146,7 @@ describe("share resolve", () => {
         principal_type: "link",
         route_kind: "shared",
         workspace_slug: null,
+        workspace_role: null,
       },
     });
   });

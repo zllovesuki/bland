@@ -1,4 +1,4 @@
-import type { User, Workspace, Page, WorkspaceMember } from "@/shared/types";
+import type { User, Workspace, WorkspaceMembershipSummary, Page, WorkspaceMember } from "@/shared/types";
 
 export const TEST_TIMESTAMP = "2026-04-06T00:00:00.000Z";
 
@@ -22,6 +22,15 @@ export function createWorkspace(overrides: Partial<Workspace> = {}): Workspace {
     owner_id: "user-1",
     created_at: TEST_TIMESTAMP,
     ...overrides,
+  };
+}
+
+export function createMembershipSummary(
+  overrides: Partial<WorkspaceMembershipSummary> = {},
+): WorkspaceMembershipSummary {
+  return {
+    ...createWorkspace(overrides),
+    role: overrides.role ?? "member",
   };
 }
 

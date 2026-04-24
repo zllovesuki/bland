@@ -88,7 +88,7 @@ describe("page snapshot route", () => {
   it("streams the persisted snapshot for full workspace members", async () => {
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "user", userId: "user-1" },
-      memberBypass: true,
+      workspaceRole: "member",
     });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
@@ -112,7 +112,7 @@ describe("page snapshot route", () => {
   it("returns 204 when no persisted snapshot exists yet", async () => {
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "user", userId: "user-1" },
-      memberBypass: true,
+      workspaceRole: "member",
     });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
 
@@ -130,7 +130,7 @@ describe("page snapshot route", () => {
     authState.user = null;
     resolvePrincipalMock.mockResolvedValue({
       principal: { type: "link", token: "share-token" },
-      memberBypass: false,
+      workspaceRole: null,
     });
     resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 

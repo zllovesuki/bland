@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Workspace, Page, WorkspaceMember, SharedWithMeItem, SharedInboxWorkspaceSummary } from "@/shared/types";
+import type {
+  Workspace,
+  WorkspaceMembershipSummary,
+  WorkspaceRole,
+  Page,
+  WorkspaceMember,
+  SharedWithMeItem,
+  SharedInboxWorkspaceSummary,
+} from "@/shared/types";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { docCache } from "@/client/lib/doc-cache-registry";
 import { queryClient } from "@/client/lib/query-client";
@@ -24,12 +32,18 @@ export type CachedPageAccessMode = "view" | "edit";
 export interface WorkspaceSnapshot {
   workspace: Workspace;
   accessMode: WorkspaceAccessMode;
+  // Caller's role in this workspace as of the last bootstrap. `null` for
+  // shared-surface snapshots (where no membership exists) and for canonical
+  // snapshots where the caller does not have a membership row. Role-aware
+  // affordance/entitlement derivation reads from here instead of scanning
+  // `members`, which can be empty on shared-surface and guest-scoped views.
+  workspaceRole: WorkspaceRole | null;
   pages: Page[];
   members: WorkspaceMember[];
 }
 
 interface WorkspaceState {
-  memberWorkspaces: Workspace[];
+  memberWorkspaces: WorkspaceMembershipSummary[];
   sharedInbox: SharedWithMeItem[];
   sharedInboxWorkspaceSummaries: SharedInboxWorkspaceSummary[];
   snapshotsByWorkspaceId: Record<string, WorkspaceSnapshot>;
@@ -38,8 +52,9 @@ interface WorkspaceState {
   lastVisitedPageIdByWorkspaceId: Record<string, string>;
   cacheUserId: string | null;
 
-  setMemberWorkspaces(ws: Workspace[]): void;
-  upsertMemberWorkspace(ws: Workspace): void;
+  setMemberWorkspaces(ws: WorkspaceMembershipSummary[]): void;
+  upsertMemberWorkspace(ws: WorkspaceMembershipSummary): void;
+  patchMemberWorkspace(workspaceId: string, updates: Partial<Workspace>): void;
   removeMemberWorkspace(workspaceId: string): void;
   setSharedInbox(items: SharedWithMeItem[], summaries: SharedInboxWorkspaceSummary[]): void;
 
@@ -93,6 +108,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               : [...state.memberWorkspaces, ws],
           };
         });
+      },
+
+      patchMemberWorkspace(workspaceId, updates) {
+        // Used when a Workspace PATCH response lacks the caller's role
+        // (e.g. settings edits). Preserves the stored role instead of
+        // overwriting with a plain `Workspace`.
+        set((state) => ({
+          memberWorkspaces: state.memberWorkspaces.map((w) =>
+            w.id === workspaceId ? { ...w, ...updates, id: w.id, role: w.role } : w,
+          ),
+        }));
       },
 
       removeMemberWorkspace(workspaceId) {
@@ -271,7 +297,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: STORAGE_KEYS.WORKSPACE,
-      version: 5,
+      version: 6,
       storage: safeJsonStorage,
       partialize: (state) => ({
         memberWorkspaces: state.memberWorkspaces,
@@ -284,8 +310,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         cacheUserId: state.cacheUserId,
       }),
       // v3 -> v4: default snapshot pages without `kind` to "doc".
-      // v4 -> v5: seed the new `pageAccessByPageId` map so offline renderers
+      // v4 -> v5: seed the `pageAccessByPageId` map so offline renderers
       //           fail closed to "view" when the access mode is unknown.
+      // v5 -> v6: persisted snapshots below v6 lack `workspaceRole` and may
+      //           carry stale `accessMode: "member"` values for guest
+      //           workspaces. v5 state cannot be upgraded deterministically,
+      //           so this step drops `snapshotsByWorkspaceId`,
+      //           `memberWorkspaces`, `lastVisitedWorkspaceId`, and
+      //           `lastVisitedPageIdByWorkspaceId`; the next navigation
+      //           re-bootstraps them from the server with a
+      //           `workspace_role`-aware `ResolvedViewerContext`. When the
+      //           first root hit lands offline, `resolveRootWorkspaceDecision`
+      //           yields the existing "Couldn't load your workspaces" UI.
       migrate: (persisted, from) => {
         const state = persisted as Partial<WorkspaceState> | undefined;
         if (!state) return state as unknown as WorkspaceState;
@@ -306,6 +342,15 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             ...next,
             pageAccessByPageId: next.pageAccessByPageId ?? {},
             sharedInboxWorkspaceSummaries: next.sharedInboxWorkspaceSummaries ?? [],
+          };
+        }
+        if (from < 6) {
+          next = {
+            ...next,
+            snapshotsByWorkspaceId: {},
+            memberWorkspaces: [],
+            lastVisitedWorkspaceId: null,
+            lastVisitedPageIdByWorkspaceId: {},
           };
         }
         return next as WorkspaceState;

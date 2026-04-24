@@ -8,7 +8,7 @@ import { useWorkspaceStore, type WorkspaceAccessMode } from "@/client/stores/wor
 import { useAuthStore } from "@/client/stores/auth-store";
 import { useOnline } from "@/client/hooks/use-online";
 import { WorkspaceViewCtx, type WorkspaceViewContext } from "./use-workspace-view";
-import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
+import type { Page, WorkspaceMember, WorkspaceMembershipSummary } from "@/shared/types";
 
 function findCachedWorkspaceIdForPage(pageId: string): string | null {
   const store = useWorkspaceStore.getState();
@@ -103,20 +103,23 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   const routeRef = useRef(route);
   routeRef.current = route;
 
-  const readyWorkspaceId = route.phase === "ready" ? route.workspaceId : null;
+  // Last-visited writes are gated on membership-axis access (accessMode
+  // "member"). Shared-surface visits do not pollute the root-gateway redirect
+  // target or the per-workspace last-visited-page map.
+  const readyMemberWorkspaceId = route.phase === "ready" && route.accessMode === "member" ? route.workspaceId : null;
 
   useEffect(() => {
-    if (!readyWorkspaceId) return;
+    if (!readyMemberWorkspaceId) return;
     const store = useWorkspaceStore.getState();
-    if (store.lastVisitedWorkspaceId !== readyWorkspaceId) {
-      store.setLastVisitedWorkspaceId(readyWorkspaceId);
+    if (store.lastVisitedWorkspaceId !== readyMemberWorkspaceId) {
+      store.setLastVisitedWorkspaceId(readyMemberWorkspaceId);
     }
-  }, [readyWorkspaceId]);
+  }, [readyMemberWorkspaceId]);
 
   useEffect(() => {
-    if (!readyWorkspaceId || !pageId) return;
-    useWorkspaceStore.getState().setLastVisitedPage(readyWorkspaceId, pageId);
-  }, [readyWorkspaceId, pageId]);
+    if (!readyMemberWorkspaceId || !pageId) return;
+    useWorkspaceStore.getState().setLastVisitedPage(readyMemberWorkspaceId, pageId);
+  }, [readyMemberWorkspaceId, pageId]);
 
   useEffect(() => {
     activeRef.current = true;
@@ -155,6 +158,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           if (!request.isCurrent()) return;
 
           const accessMode = ctx.viewer.access_mode as WorkspaceAccessMode;
+          const workspaceRole = ctx.viewer.workspace_role;
           const { pages, members } = await fetchWorkspaceData(ctx.workspace.id, accessMode);
           if (!request.isCurrent()) return;
 
@@ -162,13 +166,18 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
           store.replaceWorkspaceSnapshot(ctx.workspace.id, {
             workspace: ctx.workspace,
             accessMode,
+            workspaceRole,
             pages,
             members,
           });
-          if (accessMode === "member") {
-            store.upsertMemberWorkspace(ctx.workspace);
+          // `accessMode === "member"` implies membership row exists, which means
+          // `workspace_role` is non-null. `upsertMemberWorkspace` requires role,
+          // so we derive the membership summary here.
+          if (accessMode === "member" && workspaceRole !== null) {
+            store.upsertMemberWorkspace({ ...ctx.workspace, role: workspaceRole });
           }
-          store.setLastVisitedWorkspaceId(ctx.workspace.id);
+          // Last-visited writes are handled by the readyMemberWorkspaceId effect
+          // above so shared-surface visits do not pollute the cache.
 
           cacheStatusRef.current = "live";
           setRoute({ phase: "ready", workspaceId: ctx.workspace.id, accessMode });
@@ -192,7 +201,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
       }
 
       // Shell route or offline page route: slug-first.
-      let workspaces: Workspace[];
+      let workspaces: WorkspaceMembershipSummary[];
       try {
         workspaces = await api.workspaces.list();
       } catch {
@@ -213,8 +222,16 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
         try {
           const { pages, members } = await fetchWorkspaceData(ws.id, "member");
           if (!request.isCurrent()) return;
-          store.replaceWorkspaceSnapshot(ws.id, { workspace: ws, accessMode: "member", pages, members });
-          store.setLastVisitedWorkspaceId(ws.id);
+          // Guests stay on `accessMode: "member"` (they have a membership row),
+          // but carry `workspaceRole: "guest"` so role-aware affordances keep
+          // create/invite/AI hidden. This is the slug-first guest-lie fix.
+          store.replaceWorkspaceSnapshot(ws.id, {
+            workspace: ws,
+            accessMode: "member",
+            workspaceRole: ws.role,
+            pages,
+            members,
+          });
           cacheStatusRef.current = "live";
           setRoute({ phase: "ready", workspaceId: ws.id, accessMode: "member" });
         } catch {
@@ -256,6 +273,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
         store.replaceWorkspaceSnapshot(cachedWsId, {
           workspace: cachedSnapshot.workspace,
           accessMode: "shared",
+          workspaceRole: null,
           pages,
           members: [],
         });

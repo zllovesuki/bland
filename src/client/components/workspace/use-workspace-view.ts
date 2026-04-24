@@ -1,7 +1,7 @@
 import { createContext, use } from "react";
 import { hasWorkspaceIdentity, type WorkspaceRouteState } from "@/client/lib/workspace-route-model";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
-import type { Page, Workspace, WorkspaceMember } from "@/shared/types";
+import type { Page, Workspace, WorkspaceMember, WorkspaceRole } from "@/shared/types";
 
 export interface WorkspaceViewContext {
   route: WorkspaceRouteState;
@@ -40,6 +40,16 @@ export function useWorkspaceMembers(): WorkspaceMember[] {
   const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
   return useWorkspaceStore((s) =>
     workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.members ?? EMPTY_MEMBERS) : EMPTY_MEMBERS,
+  );
+}
+
+/** Caller's role in the current workspace (read from the snapshot — null when
+ *  no membership exists or the current view is shared-surface). */
+export function useWorkspaceRole(): WorkspaceRole | null {
+  const { route } = useWorkspaceView();
+  const workspaceId = hasWorkspaceIdentity(route) ? route.workspaceId : null;
+  return useWorkspaceStore((s) =>
+    workspaceId ? (s.snapshotsByWorkspaceId[workspaceId]?.workspaceRole ?? null) : null,
   );
 }
 

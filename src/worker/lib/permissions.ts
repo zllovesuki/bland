@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { checkMembership } from "@/worker/lib/membership";
 import { MAX_TREE_DEPTH } from "@/shared/constants";
 import type { Db } from "@/worker/db/d1/client";
+import type { WorkspaceRole } from "@/shared/types";
 
 export function canEdit(role: string): boolean {
   return role === "owner" || role === "admin" || role === "member";
@@ -9,6 +10,16 @@ export function canEdit(role: string): boolean {
 
 export function isAdminOrOwner(role: string): boolean {
   return role === "owner" || role === "admin";
+}
+
+/**
+ * Writer-role predicate for the role axis. Owner/admin/member are writers;
+ * guest and non-members (null) are not. Used by `toResolvedViewerContext`,
+ * the WS `member_edit` tag, and anywhere the writer/full-member fast path
+ * needs to be separated from the membership-presence question.
+ */
+export function isWriterRole(role: WorkspaceRole | null): boolean {
+  return role === "owner" || role === "admin" || role === "member";
 }
 
 export type ShareAction = "view" | "edit";
@@ -25,7 +36,18 @@ const ACCESS_RANK: Record<AccessLevel, number> = {
  * Either an authenticated user or a link share token.
  */
 export type Principal = { type: "user"; userId: string } | { type: "link"; token: string };
-export type ResolvedPrincipal = { principal: Principal; memberBypass: boolean };
+
+/**
+ * Resolved principal carries the caller's effective workspace role alongside the
+ * principal. Two axes live here:
+ *   - membership: `workspaceRole !== null` iff the caller holds a memberships
+ *     row on the canonical surface. Drives `access_mode`.
+ *   - writer: `isWriterRole(workspaceRole)` iff the caller can edit via their
+ *     role. Drives the WS `member_edit` tag and the writer fast-path shortcut.
+ * On the shared surface `workspaceRole` is always null — `/s/:token` and
+ * `?share=` requests are link-scoped end to end, even for workspace members.
+ */
+export type ResolvedPrincipal = { principal: Principal; workspaceRole: WorkspaceRole | null };
 export type ViewerSurface = "canonical" | "shared";
 
 export interface ResolvePrincipalOptions {
@@ -38,9 +60,7 @@ export interface ResolvePrincipalOptions {
  *
  * Route surface is authoritative: when `surface === "shared"` and a share token is
  * present, the principal resolves as a link even for a workspace member. That keeps
- * `/s/:token` link-scoped end to end. `memberBypass` is an internal hint
- * used by `resolvePageAccessLevels` and `toResolvedViewerContext`; route handlers
- * should not branch on it and should always resolve access via the shared path.
+ * `/s/:token` link-scoped end to end.
  */
 export async function resolvePrincipal(
   db: Db,
@@ -51,20 +71,25 @@ export async function resolvePrincipal(
   const { surface, shareToken } = opts;
 
   if (surface === "shared" && shareToken) {
-    return { principal: { type: "link", token: shareToken }, memberBypass: false };
+    return { principal: { type: "link", token: shareToken }, workspaceRole: null };
   }
 
   if (user) {
     const membership = await checkMembership(db, user.id, workspaceId);
     if (membership && membership.role !== "guest") {
-      return { principal: { type: "user", userId: user.id }, memberBypass: true };
+      // Writer role (owner/admin/member) on canonical surface — user principal
+      // flows through the writer fast-path in `resolvePageAccessLevels`.
+      return { principal: { type: "user", userId: user.id }, workspaceRole: membership.role };
     }
-    // Guest/non-member: prefer link share token if available (spec §10.8)
+    // Guest or non-member on canonical surface. Prefer link share token for
+    // page access (spec §10.8) so a guest with a link grant can still reach a
+    // shared page via the link principal. `workspaceRole` is orthogonal —
+    // "guest" for a membership row, null for a share-only canonical visitor.
     const principal: Principal = shareToken ? { type: "link", token: shareToken } : { type: "user", userId: user.id };
-    return { principal, memberBypass: false };
+    return { principal, workspaceRole: membership ? membership.role : null };
   }
   if (shareToken) {
-    return { principal: { type: "link", token: shareToken }, memberBypass: false };
+    return { principal: { type: "link", token: shareToken }, workspaceRole: null };
   }
   return null;
 }
@@ -78,12 +103,28 @@ export function toResolvedViewerContext(
   principal_type: "user" | "link";
   route_kind: "canonical" | "shared";
   workspace_slug: string | null;
+  workspace_role: WorkspaceRole | null;
 } {
+  // Shared surface is always `access_mode: "shared"` with `workspace_role: null`
+  // so the wire contract matches the link-scoped invariant. On canonical surface,
+  // membership presence drives access_mode; role is surfaced for entitlement
+  // gating (AI, member-management, affordances).
+  if (surface === "shared") {
+    return {
+      access_mode: "shared",
+      principal_type: resolved.principal.type,
+      route_kind: surface,
+      workspace_slug: null,
+      workspace_role: null,
+    };
+  }
+  const hasMembership = resolved.workspaceRole !== null;
   return {
-    access_mode: resolved.memberBypass ? "member" : "shared",
+    access_mode: hasMembership ? "member" : "shared",
     principal_type: resolved.principal.type,
     route_kind: surface,
-    workspace_slug: surface === "canonical" ? workspaceSlug : null,
+    workspace_slug: workspaceSlug,
+    workspace_role: resolved.workspaceRole,
   };
 }
 

@@ -1,11 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Loader2, ChevronDown, Pencil, Check, X } from "lucide-react";
-import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
+import { useCurrentWorkspace, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
-import { useMyRole } from "@/client/hooks/use-role";
 import { api } from "@/client/lib/api";
 import { slugify } from "@/lib/slugify";
 import { toast } from "@/client/components/toast";
@@ -14,9 +13,9 @@ import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 export function WorkspaceSwitcher() {
   const navigate = useNavigate();
   const currentWorkspace = useCurrentWorkspace();
+  const isOwner = useWorkspaceRole() === "owner";
   const workspaces = useWorkspaceStore((s) => s.memberWorkspaces);
   const patchWorkspace = useWorkspaceStore((s) => s.patchWorkspace);
-  const { isOwner } = useMyRole();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -42,7 +41,9 @@ export function WorkspaceSwitcher() {
     try {
       const updated = await api.workspaces.update(currentWorkspace.id, { name: renameName.trim() });
       patchWorkspace(currentWorkspace.id, updated);
-      useWorkspaceStore.getState().upsertMemberWorkspace(updated);
+      // Workspace PATCH returns plain Workspace (no role). Merge into the
+      // stored WorkspaceMembershipSummary without dropping role.
+      useWorkspaceStore.getState().patchMemberWorkspace(currentWorkspace.id, updated);
     } catch {
       toast.error("Failed to rename workspace");
     }

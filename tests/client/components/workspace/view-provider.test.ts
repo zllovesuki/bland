@@ -95,6 +95,8 @@ describe("recoverPageAccess contract", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-b", {
       workspace: wsB,
       accessMode: ctx.viewer.access_mode,
+
+      workspaceRole: ctx.viewer.workspace_role,
       pages,
       members,
     });
@@ -144,6 +146,8 @@ describe("recoverPageAccess contract", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-b", {
       workspace: wsB,
       accessMode: "shared",
+
+      workspaceRole: null,
       pages,
       members: [],
     });
@@ -163,10 +167,12 @@ describe("seedFromCache state transitions", () => {
 
   it("returns ready-member with cache for member workspace with snapshot", () => {
     const ws = createWorkspace({ id: "ws-1", slug: "my-ws" });
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
+    useWorkspaceStore.getState().setMemberWorkspaces([{ ...ws, role: "member" }]);
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
       workspace: ws,
       accessMode: "member",
+
+      workspaceRole: "member",
       pages: [createPage({ workspace_id: "ws-1" })],
       members: [createMember({ workspace_id: "ws-1" })],
     });
@@ -179,7 +185,7 @@ describe("seedFromCache state transitions", () => {
 
   it("returns seeded-identity for member workspace without snapshot", () => {
     const ws = createWorkspace({ id: "ws-1", slug: "my-ws" });
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
+    useWorkspaceStore.getState().setMemberWorkspaces([{ ...ws, role: "member" }]);
     // No snapshot added
     const snap = useWorkspaceStore.getState().snapshotsByWorkspaceId["ws-1"];
     expect(snap).toBeUndefined();
@@ -195,6 +201,8 @@ describe("seedFromCache state transitions", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-2", {
       workspace: ws,
       accessMode: "shared",
+
+      workspaceRole: null,
       pages: [createPage({ workspace_id: "ws-2" })],
       members: [],
     });
@@ -213,7 +221,7 @@ describe("resolve effect transitions", () => {
     // When member workspace is in cache but no snapshot, and live fetch fails,
     // the state should be error, not ready-member with empty data.
     const ws = createWorkspace({ id: "ws-1", slug: "my-ws" });
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
+    useWorkspaceStore.getState().setMemberWorkspaces([{ ...ws, role: "member" }]);
     // No snapshot — seeded-identity state
 
     // Simulate what resolve does on fetch failure:
@@ -228,6 +236,8 @@ describe("resolve effect transitions", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-shared", {
       workspace: ws,
       accessMode: "shared",
+
+      workspaceRole: null,
       pages: [createPage({ id: "old-page", workspace_id: "ws-shared" })],
       members: [],
     });
@@ -237,6 +247,8 @@ describe("resolve effect transitions", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-shared", {
       workspace: ws,
       accessMode: "shared",
+
+      workspaceRole: null,
       pages: newPages,
       members: [],
     });
@@ -284,10 +296,12 @@ describe("cache-to-live snapshot upgrade", () => {
     const stalePage = createPage({ id: "stale-page", workspace_id: "ws-1", title: "Stale" });
     const staleMember = createMember({ workspace_id: "ws-1", user_id: "old-user" });
 
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
+    useWorkspaceStore.getState().setMemberWorkspaces([{ ...ws, role: "member" }]);
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
       workspace: ws,
       accessMode: "member",
+
+      workspaceRole: "member",
       pages: [stalePage],
       members: [staleMember],
     });
@@ -304,6 +318,8 @@ describe("cache-to-live snapshot upgrade", () => {
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
       workspace: ws,
       accessMode: "member",
+
+      workspaceRole: "member",
       pages: [freshPage],
       members: [freshMember],
     });
@@ -333,10 +349,12 @@ describe("workspace provider error states", () => {
 
   it("network error with cached ready state preserves cache", () => {
     const ws = createWorkspace({ id: "ws-1", slug: "my-ws" });
-    useWorkspaceStore.getState().setMemberWorkspaces([ws]);
+    useWorkspaceStore.getState().setMemberWorkspaces([{ ...ws, role: "member" }]);
     useWorkspaceStore.getState().replaceWorkspaceSnapshot("ws-1", {
       workspace: ws,
       accessMode: "member",
+
+      workspaceRole: "member",
       pages: [createPage({ workspace_id: "ws-1" })],
       members: [createMember({ workspace_id: "ws-1" })],
     });
