@@ -7,10 +7,10 @@ import { workspaces, memberships, users, pages, invites, pageShares, uploads } f
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
-import { isAdminOrOwner } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { CreateWorkspaceRequest, UpdateWorkspaceRequest, UpdateMemberRoleRequest } from "@/shared/types";
+import { canChangeMemberRole, canRemoveMember } from "@/shared/entitlements";
 
 const workspacesRouter = new Hono<AppContext>();
 const log = createLogger("workspaces");
@@ -174,6 +174,9 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
 });
 
 // GET /workspaces/:id/members - List members
+// Guest callers receive a self-only projection so they can reach the Leave
+// Workspace action without the roster being disclosed. Byline/avatar lookups
+// for other users on guest surfaces degrade to "Unknown" as a consequence.
 workspacesRouter.get("/workspaces/:id/members", requireAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("id");
   const user = c.get("user")!;
@@ -184,7 +187,9 @@ workspacesRouter.get("/workspaces/:id/members", requireAuth, rateLimit("RL_API")
     return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
   }
 
-  const rows = await db
+  const scopedByUserId = membership.role === "guest" ? user.id : null;
+
+  const baseQuery = db
     .select({
       user_id: memberships.user_id,
       workspace_id: memberships.workspace_id,
@@ -197,8 +202,11 @@ workspacesRouter.get("/workspaces/:id/members", requireAuth, rateLimit("RL_API")
       user_created_at: users.created_at,
     })
     .from(memberships)
-    .innerJoin(users, eq(memberships.user_id, users.id))
-    .where(eq(memberships.workspace_id, workspaceId));
+    .innerJoin(users, eq(memberships.user_id, users.id));
+
+  const rows = scopedByUserId
+    ? await baseQuery.where(and(eq(memberships.workspace_id, workspaceId), eq(memberships.user_id, scopedByUserId)))
+    : await baseQuery.where(eq(memberships.workspace_id, workspaceId));
 
   const members = rows.map((row) => ({
     user_id: row.user_id,
@@ -219,7 +227,10 @@ workspacesRouter.patch("/workspaces/:id/members/:uid", requireAuth, rateLimit("R
   const db = c.get("db");
 
   const callerMembership = await checkMembership(db, user.id, workspaceId);
-  if (!callerMembership || !isAdminOrOwner(callerMembership.role)) {
+  // Caller-authorization fast-fail skips the target lookup when the caller
+  // has no role-change authority, so unauthorized callers never learn target
+  // existence via a 404.
+  if (!callerMembership || (callerMembership.role !== "owner" && callerMembership.role !== "admin")) {
     return c.json({ error: "forbidden", message: "Only owners and admins can change member roles" }, 403);
   }
 
@@ -228,19 +239,21 @@ workspacesRouter.patch("/workspaces/:id/members/:uid", requireAuth, rateLimit("R
 
   const { role } = data;
 
-  // Cannot change the owner's role
   const targetMembership = await checkMembership(db, targetUserId, workspaceId);
   if (!targetMembership) {
     return c.json({ error: "not_found", message: "Member not found" }, 404);
   }
 
-  if (targetMembership.role === "owner") {
-    return c.json({ error: "forbidden", message: "Cannot change the owner's role" }, 403);
-  }
-
-  // Only owner can promote to admin
-  if (role === "admin" && callerMembership.role !== "owner") {
-    return c.json({ error: "forbidden", message: "Only the owner can promote members to admin" }, 403);
+  // Policy enforced via the shared member-management entitlement. Error
+  // messages are preserved verbatim so client parsing does not regress.
+  if (!canChangeMemberRole(callerMembership.role, targetMembership.role, role)) {
+    if (targetMembership.role === "owner") {
+      return c.json({ error: "forbidden", message: "Cannot change the owner's role" }, 403);
+    }
+    if (role === "admin" && callerMembership.role !== "owner") {
+      return c.json({ error: "forbidden", message: "Only the owner can promote members to admin" }, 403);
+    }
+    return c.json({ error: "forbidden", message: "Only owners and admins can change member roles" }, 403);
   }
 
   await db
@@ -264,32 +277,36 @@ workspacesRouter.delete("/workspaces/:id/members/:uid", requireAuth, rateLimit("
     return c.json({ error: "forbidden", message: "You are not a member of this workspace" }, 403);
   }
 
-  // Self-removal is always allowed (except owner)
   const isSelf = user.id === targetUserId;
 
-  if (isSelf && callerMembership.role === "owner") {
-    return c.json(
-      { error: "forbidden", message: "The owner cannot leave the workspace. Transfer ownership first." },
-      403,
-    );
-  }
-
-  if (!isSelf && !isAdminOrOwner(callerMembership.role)) {
-    return c.json({ error: "forbidden", message: "Only owners and admins can remove members" }, 403);
-  }
-
-  // Cannot remove the owner
-  if (!isSelf) {
+  // Self-leave policy only depends on the caller's own role, so we can decide
+  // owner-leave rejection without a second DB lookup.
+  if (isSelf) {
+    if (!canRemoveMember(callerMembership.role, callerMembership.role, true)) {
+      return c.json(
+        { error: "forbidden", message: "The owner cannot leave the workspace. Transfer ownership first." },
+        403,
+      );
+    }
+  } else {
+    // Caller-authorization fast-fail skips the target lookup when the caller
+    // has no removal authority, so unauthorized callers never learn target
+    // existence via a 404.
+    if (callerMembership.role !== "owner" && callerMembership.role !== "admin") {
+      return c.json({ error: "forbidden", message: "Only owners and admins can remove members" }, 403);
+    }
     const targetMembership = await checkMembership(db, targetUserId, workspaceId);
     if (!targetMembership) {
       return c.json({ error: "not_found", message: "Member not found" }, 404);
     }
-    if (targetMembership.role === "owner") {
-      return c.json({ error: "forbidden", message: "Cannot remove the workspace owner" }, 403);
-    }
-    // Admins cannot remove other admins
-    if (targetMembership.role === "admin" && callerMembership.role !== "owner") {
-      return c.json({ error: "forbidden", message: "Only the owner can remove admins" }, 403);
+    if (!canRemoveMember(callerMembership.role, targetMembership.role, false)) {
+      if (targetMembership.role === "owner") {
+        return c.json({ error: "forbidden", message: "Cannot remove the workspace owner" }, 403);
+      }
+      if (targetMembership.role === "admin" && callerMembership.role !== "owner") {
+        return c.json({ error: "forbidden", message: "Only the owner can remove admins" }, 403);
+      }
+      return c.json({ error: "forbidden", message: "Only owners and admins can remove members" }, 403);
     }
   }
 

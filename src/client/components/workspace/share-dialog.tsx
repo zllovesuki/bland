@@ -6,9 +6,8 @@ import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import { pageSharesQueryKey, pageSharesQueryOptions } from "@/client/lib/queries/page-shares";
 import { sharedInboxQueryKey } from "@/client/lib/queries/shared-inbox";
-import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
+import { useWorkspaceMembers, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { getMyRole } from "@/client/lib/workspace-role";
 import { confirm } from "@/client/components/confirm";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
@@ -126,7 +125,7 @@ function useShareDialogController({ pageId, disabled, title }: ShareDialogProps)
   const members = useWorkspaceMembers();
   const user = useAuthStore((s) => s.user);
   const online = useOnline();
-  const workspaceRole: WorkspaceRole = getMyRole(members, user) ?? "none";
+  const workspaceRole: WorkspaceRole = useWorkspaceRole() ?? "none";
   const currentUserId = user?.id;
   const queryClient = useQueryClient();
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Save, Loader2, Camera, X, User as UserIcon } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
@@ -8,6 +8,7 @@ import { api, toApiError } from "@/client/lib/api";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { isWorkspaceWriterRole } from "@/shared/entitlements";
 
 function ProfileSettingsSkeleton() {
   return (
@@ -43,7 +44,20 @@ export function ProfileSettings() {
   const refreshState = useAuthStore((s) => s.refreshState);
   const lastWsId = useWorkspaceStore((s) => s.lastVisitedWorkspaceId);
   const lastWsSnapshot = useWorkspaceStore((s) => selectWorkspaceSnapshot(s, lastWsId));
+  const memberWorkspaces = useWorkspaceStore((s) => s.memberWorkspaces);
+  // `currentWorkspace` drives the Back link (keep pointing at the last-visited
+  // workspace — shared or member). Avatar upload target is derived separately.
   const currentWorkspace = lastWsSnapshot?.workspace ?? null;
+
+  // Avatar presign borrows workspace-level upload authorization, which only
+  // succeeds for writer roles. Prefer the last-visited workspace when it is
+  // writable, else fall back to any writable workspace on the account. When
+  // none exists, the upload affordance is disabled with explanatory copy.
+  const avatarUploadWorkspace = useMemo(() => {
+    const preferred = lastWsId ? memberWorkspaces.find((w) => w.id === lastWsId) : undefined;
+    if (preferred && isWorkspaceWriterRole(preferred.role)) return preferred;
+    return memberWorkspaces.find((w) => isWorkspaceWriterRole(w.role)) ?? null;
+  }, [lastWsId, memberWorkspaces]);
 
   const [name, setName] = useState(user?.name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? "");
@@ -54,12 +68,13 @@ export function ProfileSettings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canMutateProfile = sessionMode === SESSION_MODES.AUTHENTICATED && refreshState !== "refreshing";
+  const canUploadAvatar = !!avatarUploadWorkspace && canMutateProfile;
   const hasChanges = name.trim() !== (user?.name ?? "") || (avatarUrl.trim() || null) !== (user?.avatar_url ?? null);
 
   const handleAvatarUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file || !currentWorkspace || !canMutateProfile) return;
+      if (!file || !avatarUploadWorkspace || !canMutateProfile) return;
 
       if (!file.type.startsWith("image/")) {
         setError("Please select an image file");
@@ -74,7 +89,7 @@ export function ProfileSettings() {
       setUploading(true);
       setError(null);
       try {
-        const presign = await api.uploads.presign(currentWorkspace.id, {
+        const presign = await api.uploads.presign(avatarUploadWorkspace.id, {
           filename: file.name,
           content_type: file.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
           size_bytes: file.size,
@@ -87,7 +102,7 @@ export function ProfileSettings() {
         setUploading(false);
       }
     },
-    [currentWorkspace, canMutateProfile],
+    [avatarUploadWorkspace, canMutateProfile],
   );
 
   const handleSave = useCallback(async () => {
@@ -149,9 +164,10 @@ export function ProfileSettings() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || !canMutateProfile}
+              disabled={uploading || !canUploadAvatar}
               className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-50"
               aria-label="Change avatar"
+              title={!avatarUploadWorkspace ? "Avatar upload requires a workspace you can write to." : undefined}
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
             </button>
@@ -160,6 +176,9 @@ export function ProfileSettings() {
           <div className="flex-1">
             <p className="text-sm text-zinc-400">Profile photo</p>
             <p className="text-xs text-zinc-400">JPG, PNG, GIF, or WebP. Max 2MB.</p>
+            {!avatarUploadWorkspace && (
+              <p className="mt-1 text-xs text-zinc-500">Avatar upload requires a workspace you can write to.</p>
+            )}
             {avatarUrl && (
               <button
                 onClick={() => setAvatarUrl("")}

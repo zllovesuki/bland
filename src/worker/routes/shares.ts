@@ -79,6 +79,11 @@ sharesRouter.get("/me/shared-pages", requireAuth, rateLimit("RL_API"), async (c)
         workspace_name: workspaces.name,
         workspace_slug: workspaces.slug,
         workspace_icon: workspaces.icon,
+        // Metric: number of direct user-share rows granting the caller access
+        // in this workspace. This is NOT effective accessible pages — a single
+        // shared parent with many descendants still counts as one row. The
+        // Shared With Me summary copy reflects this explicitly.
+        //
         // Defensive: route-layer writes prevent duplicate user shares, but the
         // schema does not enforce one row per user/page pair yet.
         count: sql<number>`COUNT(DISTINCT ${pageShares.page_id})`,

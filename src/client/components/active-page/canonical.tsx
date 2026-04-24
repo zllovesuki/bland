@@ -1,8 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
-import { getMyRole } from "@/client/lib/workspace-role";
 import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
-import { useAuthStore } from "@/client/stores/auth-store";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { ActivePageProvider } from "@/client/components/active-page/provider";
@@ -18,9 +16,11 @@ import type { Page } from "@/shared/types";
  */
 export function CanonicalActivePageBoundary({ children }: { children: ReactNode }) {
   const params = useParams({ strict: false }) as { workspaceSlug: string; pageId: string };
-  const { workspaceId: effectiveWorkspaceId, members, accessMode, currentPageMeta } = useCanonicalPageContext();
-  const currentUser = useAuthStore((s) => s.user);
-  const role = getMyRole(members, currentUser);
+  const { workspaceId: effectiveWorkspaceId, accessMode, workspaceRole, currentPageMeta } = useCanonicalPageContext();
+  // Role flows from the workspace snapshot so restricted-ancestor loading does
+  // not depend on the `/members` fetch (which is empty on shared-surface
+  // snapshots and scoped to self on guest surfaces).
+  const role = workspaceRole;
 
   const upsertPage = useWorkspaceStore((s) => s.upsertPageInSnapshot);
   const removePage = useWorkspaceStore((s) => s.removePageFromSnapshot);

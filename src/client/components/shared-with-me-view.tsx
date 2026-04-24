@@ -215,7 +215,7 @@ export function SharedWithMeView() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-zinc-200">{workspace.name}</div>
                     <div className="mt-0.5 text-xs text-zinc-500">
-                      {count} {count === 1 ? "page" : "pages"} shared with you
+                      {count} {count === 1 ? "page" : "pages"} directly shared with you
                     </div>
                   </div>
                 </button>

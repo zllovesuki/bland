@@ -12,13 +12,14 @@ import {
   Crown,
   User as UserIcon,
   UserPlus,
+  LogOut,
   Copy,
   Check,
   X,
 } from "lucide-react";
 import { Avatar } from "@/client/components/ui/avatar";
 import { Button } from "@/client/components/ui/button";
-import { useCurrentWorkspace, useWorkspaceMembers } from "./use-workspace-view";
+import { useCurrentWorkspace, useWorkspaceMembers, useWorkspaceRole } from "./use-workspace-view";
 import { useWorkspaceStore } from "@/client/stores/workspace-store";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -26,10 +27,16 @@ import { api, toApiError } from "@/client/lib/api";
 import { toast } from "@/client/components/toast";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
-import { useMyRole } from "@/client/hooks/use-role";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
-import type { Workspace, WorkspaceMember, User } from "@/shared/types";
+import {
+  canChangeMemberRole,
+  canLeaveWorkspace,
+  canRemoveMember,
+  isWorkspaceAdminOrOwnerRole,
+  type ResolvedWorkspaceRole,
+} from "@/shared/entitlements";
+import type { InviteRole, Workspace, WorkspaceMember, User } from "@/shared/types";
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {
   owner: { label: "Owner", className: "bg-amber-500/10 text-amber-400 border border-amber-500/20" },
@@ -45,15 +52,17 @@ const ROLE_ICON: Record<string, typeof Crown> = {
   guest: UserIcon,
 };
 
-const ASSIGNABLE_ROLES = ["admin", "member", "guest"] as const;
+const ASSIGNABLE_ROLES = ["admin", "member", "guest"] as const satisfies readonly InviteRole[];
 
 export function WorkspaceSettings() {
   const params = useParams({ strict: false }) as { workspaceSlug?: string };
   const currentWorkspace = useCurrentWorkspace();
   const members = useWorkspaceMembers();
+  const role = useWorkspaceRole();
   const currentUser = useAuthStore((s) => s.user);
-  const { isOwner, isAdminOrOwner, role } = useMyRole();
-  const myRole = role ?? "guest";
+  const isOwner = role === "owner";
+  const isAdminOrOwner = isWorkspaceAdminOrOwnerRole(role ?? "none");
+  const myRole: ResolvedWorkspaceRole = role ?? "none";
   useDocumentTitle(currentWorkspace ? `Settings — ${currentWorkspace.name}` : "Settings");
 
   if (!currentWorkspace) return null;
@@ -78,14 +87,13 @@ export function WorkspaceSettings() {
 
       {isOwner && <ProfileSection key={currentWorkspace.id} workspace={currentWorkspace} />}
 
-      <MembersSection
-        workspace={currentWorkspace}
-        members={members}
-        currentUser={currentUser}
-        isAdminOrOwner={isAdminOrOwner}
-      />
+      <MembersSection workspace={currentWorkspace} members={members} currentUser={currentUser} myRole={myRole} />
 
-      {myRole !== "guest" && <InviteSection workspace={currentWorkspace} isAdminOrOwner={isAdminOrOwner} />}
+      {myRole !== "guest" && myRole !== "none" && (
+        <InviteSection workspace={currentWorkspace} isAdminOrOwner={isAdminOrOwner} />
+      )}
+
+      {canLeaveWorkspace(myRole) && <LeaveWorkspaceSection workspace={currentWorkspace} />}
 
       {isOwner && <DangerSection workspace={currentWorkspace} />}
     </div>
@@ -118,7 +126,9 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
         icon: icon.trim() || null,
       });
       patchWorkspace(workspace.id, updated);
-      useWorkspaceStore.getState().upsertMemberWorkspace(updated);
+      // `updated` is a plain Workspace (no role). `patchMemberWorkspace` merges
+      // into the existing WorkspaceMembershipSummary without dropping role.
+      useWorkspaceStore.getState().patchMemberWorkspace(workspace.id, updated);
       setName(updated.name);
       setIcon(updated.icon ?? "");
     } catch (err) {
@@ -196,10 +206,10 @@ interface MembersSectionProps {
   workspace: Workspace;
   members: WorkspaceMember[];
   currentUser: User | null;
-  isAdminOrOwner: boolean;
+  myRole: ResolvedWorkspaceRole;
 }
 
-function MembersSection({ workspace, members, currentUser, isAdminOrOwner }: MembersSectionProps) {
+function MembersSection({ workspace, members, currentUser, myRole }: MembersSectionProps) {
   const replaceMembers = useWorkspaceStore((s) => s.replaceSnapshotMembers);
   const [roleDropdownId, setRoleDropdownId] = useState<string | null>(null);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
@@ -273,7 +283,15 @@ function MembersSection({ workspace, members, currentUser, isAdminOrOwner }: Mem
           const RoleIcon = ROLE_ICON[member.role] ?? UserIcon;
           const isSelf = member.user_id === currentUser?.id;
           const isMemberOwner = member.role === "owner";
-          const canManage = isAdminOrOwner && !isSelf && !isMemberOwner;
+          // Row-level affordance mirrors worker policy. `allowedRoles` filters
+          // the dropdown so admins don't see options the worker will reject
+          // (e.g. promote-to-admin). `canRemove` hides the delete action for
+          // admin-vs-admin and owner-target cases.
+          const allowedRoles = ASSIGNABLE_ROLES.filter(
+            (option) => option !== member.role && canChangeMemberRole(myRole, member.role, option),
+          );
+          const canChangeRole = !isSelf && allowedRoles.length > 0;
+          const canRemove = !isSelf && !isMemberOwner && canRemoveMember(myRole, member.role, false);
 
           return (
             <div
@@ -297,7 +315,7 @@ function MembersSection({ workspace, members, currentUser, isAdminOrOwner }: Mem
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                {canManage ? (
+                {canChangeRole ? (
                   <div className="relative" ref={roleDropdownId === member.user_id ? roleDropdownRef : undefined}>
                     <button
                       onClick={() => setRoleDropdownId(roleDropdownId === member.user_id ? null : member.user_id)}
@@ -315,13 +333,11 @@ function MembersSection({ workspace, members, currentUser, isAdminOrOwner }: Mem
                     </button>
                     {roleDropdownId === member.user_id && (
                       <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
-                        {ASSIGNABLE_ROLES.map((role) => (
+                        {allowedRoles.map((role) => (
                           <button
                             key={role}
                             onClick={() => handleRoleChange(member.user_id, role)}
-                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-700/50 ${
-                              member.role === role ? "text-accent-400" : "text-zinc-400 hover:text-zinc-200"
-                            }`}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-400 transition-colors hover:bg-zinc-700/50 hover:text-zinc-200"
                           >
                             {role.charAt(0).toUpperCase() + role.slice(1)}
                           </button>
@@ -338,7 +354,7 @@ function MembersSection({ workspace, members, currentUser, isAdminOrOwner }: Mem
                   </span>
                 )}
 
-                {canManage && (
+                {canRemove && (
                   <button
                     onClick={() => handleRemoveMember(member.user_id, displayName)}
                     disabled={removingMember === member.user_id}
@@ -454,6 +470,60 @@ function InviteSection({ workspace, isAdminOrOwner }: { workspace: Workspace; is
             </button>
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function LeaveWorkspaceSection({ workspace }: { workspace: Workspace }) {
+  const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const [leaving, setLeaving] = useState(false);
+
+  const handleLeave = useCallback(async () => {
+    if (leaving || !currentUser) return;
+    const ok = await confirm({
+      title: "Leave workspace",
+      message: `You'll lose access to "${workspace.name}" and everything shared with you inside it. An admin can re-invite you if you change your mind.`,
+      confirmLabel: "Leave",
+      variant: "danger",
+    });
+    if (!ok) return;
+    setLeaving(true);
+    try {
+      await api.workspaces.removeMember(workspace.id, currentUser.id);
+      const store = useWorkspaceStore.getState();
+      // Remove both the snapshot and the member-list entry so root routing
+      // doesn't immediately redirect the user back into a workspace they just
+      // left.
+      store.removeMemberWorkspace(workspace.id);
+      store.removeWorkspaceSnapshot(workspace.id);
+      navigate({ to: "/" });
+    } catch (err) {
+      toast.error(toApiError(err).message);
+      setLeaving(false);
+    }
+  }, [workspace.id, workspace.name, currentUser, leaving, navigate]);
+
+  return (
+    <section className="mb-8">
+      <h2 className="mb-4 text-lg font-semibold text-zinc-200">Leave workspace</h2>
+      <div className="rounded-lg border border-zinc-800 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-zinc-200">Leave "{workspace.name}"</p>
+            <p className="text-xs text-zinc-400">You can rejoin later if re-invited.</p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleLeave}
+            disabled={leaving || !currentUser}
+            icon={leaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          >
+            Leave workspace
+          </Button>
+        </div>
       </div>
     </section>
   );

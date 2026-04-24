@@ -13,18 +13,12 @@ import {
   PenTool,
 } from "lucide-react";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
-import {
-  useWorkspaceView,
-  useWorkspaceMembers,
-  useCurrentWorkspace,
-} from "@/client/components/workspace/use-workspace-view";
+import { useCurrentWorkspace, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { PageTree } from "./page-tree";
 import { searchShortcutLabel } from "./search-shortcut";
 import { useOnline } from "@/client/hooks/use-online";
-import { useAuthStore } from "@/client/stores/auth-store";
-import { getMyRole } from "@/client/lib/workspace-role";
 import { deriveSidebarBaseAffordance, type SidebarBaseAffordance } from "@/client/lib/affordance/sidebar";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { toast } from "@/client/components/toast";
@@ -40,19 +34,21 @@ interface SidebarProps {
   onMobileClose?: () => void;
 }
 
-type SidebarWorkspaceRole = NonNullable<ReturnType<typeof getMyRole>> | "none";
+import type { WorkspaceRole } from "@/shared/types";
+type SidebarWorkspaceRole = WorkspaceRole | "none";
 type CreatePageAction = SidebarBaseAffordance["createPage"];
 type CreatePageFn = ReturnType<typeof useCreatePage>["createPage"];
 
 export function Sidebar({ collapsed, onCollapsedChange, mobileOpen, onMobileClose }: SidebarProps) {
-  const { route } = useWorkspaceView();
   const currentWorkspace = useCurrentWorkspace();
-  const isSharedMode = route.phase === "ready" && route.accessMode === "shared";
-  const members = useWorkspaceMembers();
-  const currentUser = useAuthStore((state) => state.user);
   const { createPage, isCreating } = useCreatePage();
   const online = useOnline();
-  const workspaceRole: SidebarWorkspaceRole = getMyRole(members, currentUser) ?? "none";
+  const workspaceRole: SidebarWorkspaceRole = useWorkspaceRole() ?? "none";
+  // "Shared mode" is role-defined, not access_mode-defined: guests belong in
+  // the authenticated shell (so they can reach Leave Workspace), but still
+  // need the sidebar to hide writer-only affordances. Anything outside the
+  // owner/admin/member/guest set is shared-surface.
+  const isSharedMode = workspaceRole === "none";
   const sidebarAffordance = deriveSidebarBaseAffordance({ workspaceRole, online });
   const { searchOpen, openSearch, closeSearch } = useSidebarSearch(online);
 
@@ -354,9 +350,13 @@ interface SidebarFooterProps {
 }
 
 function SidebarFooter({ currentWorkspace, isSharedMode, mobileOpen, onCollapse }: SidebarFooterProps) {
+  // Settings link is available to any membership (including guest, so they
+  // can reach Leave Workspace). Shared-surface viewers do not see it because
+  // they cannot act on workspace settings.
+  const showSettings = !!currentWorkspace && !isSharedMode;
   return (
     <div className="flex items-center gap-1 border-t border-zinc-800/60 px-2 py-2">
-      {currentWorkspace && !isSharedMode && (
+      {showSettings && (
         <Link
           to="/$workspaceSlug/settings"
           params={{ workspaceSlug: currentWorkspace.slug }}

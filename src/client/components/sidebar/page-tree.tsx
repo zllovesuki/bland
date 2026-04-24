@@ -1,9 +1,7 @@
 import { useMemo } from "react";
 import { useParams } from "@tanstack/react-router";
-import { useWorkspacePages, useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
+import { useWorkspacePages, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
 import { useOnline } from "@/client/hooks/use-online";
-import { useAuthStore } from "@/client/stores/auth-store";
-import { getMyRole } from "@/client/lib/workspace-role";
 import { buildPageTreeIndex } from "@/client/lib/page-tree-model";
 import { PageTreeItem } from "./page-tree-item";
 
@@ -18,9 +16,7 @@ export function PageTree({ alwaysShowActions = false, menuZIndex }: PageTreeProp
   const pages = useWorkspacePages();
   const params = useParams({ strict: false }) as { pageId?: string };
   const online = useOnline();
-  const members = useWorkspaceMembers();
-  const currentUser = useAuthStore((s) => s.user);
-  const workspaceRole = getMyRole(members, currentUser) ?? "none";
+  const workspaceRole = useWorkspaceRole() ?? "none";
 
   const index = useMemo(() => buildPageTreeIndex(pages), [pages]);
   const activePages = index.activePages;
