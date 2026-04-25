@@ -51,7 +51,8 @@ export function extractDocumentTitle(doc: PmNode): string {
 
 export function extractGenerateContext(state: EditorState, cursorPos: number): GenerateContext {
   const clamped = Math.max(0, Math.min(cursorPos, state.doc.content.size));
-  const boundary = topLevelBoundaryAt(state.doc, state.doc.resolve(clamped));
+  const $pos = state.doc.resolve(clamped);
+  const boundary = topLevelBoundaryAt(state.doc, $pos);
   if (!boundary) {
     return { beforeBlock: "", afterBlock: "" };
   }
@@ -69,10 +70,27 @@ export function extractGenerateContext(state: EditorState, cursorPos: number): G
     };
   }
 
-  const before = prevText ? `${prevText}\n\n${currentText}` : currentText;
+  // Slice the current block at the cursor. textBetween over the top-level
+  // block range works uniformly for paragraphs, headings, list items,
+  // callouts, and details blocks (depth >= 2). When the cursor is at a
+  // top-level boundary ($pos.depth === 0), there is no inside-block position
+  // to slice at, so treat the cursor as sitting at the start of the block.
+  let beforeCursor = "";
+  let afterCursor = currentText;
+  if ($pos.depth > 0) {
+    const blockStart = $pos.before(1) + 1;
+    const blockEnd = $pos.after(1) - 1;
+    if (clamped >= blockStart && clamped <= blockEnd) {
+      beforeCursor = state.doc.textBetween(blockStart, clamped, "\n", " ");
+      afterCursor = state.doc.textBetween(clamped, blockEnd, "\n", " ");
+    }
+  }
+
+  const before = prevText && beforeCursor ? `${prevText}\n\n${beforeCursor}` : prevText || beforeCursor;
+  const after = afterCursor && nextText ? `${afterCursor}\n\n${nextText}` : afterCursor || nextText;
   return {
     beforeBlock: capText(before, BLOCK_TEXT_CAP),
-    afterBlock: nextText,
+    afterBlock: capText(after, BLOCK_TEXT_CAP),
   };
 }
 

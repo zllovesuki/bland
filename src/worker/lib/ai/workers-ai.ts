@@ -25,9 +25,7 @@ export interface WorkersAiConfig {
 export function createWorkersAiClient(ai: Ai, config: WorkersAiConfig): AiClient {
   return {
     async chat(messages: AiChatMessage[], opts?: AiChatOptions): Promise<AsyncIterable<AiFrame>> {
-      const runOpts: AiOptions | undefined = opts?.sessionKey
-        ? { extraHeaders: { "x-session-affinity": opts.sessionKey } }
-        : undefined;
+      const runOpts = buildRunOptions(opts);
       const result = await ai.run(
         config.chatModel,
         {
@@ -52,6 +50,13 @@ export function createWorkersAiClient(ai: Ai, config: WorkersAiConfig): AiClient
         : runChatSummarize(ai, config.summarizeModel, text);
     },
   };
+}
+
+function buildRunOptions(opts?: AiChatOptions): AiOptions | undefined {
+  const runOpts: AiOptions = {};
+  if (opts?.sessionKey) runOpts.extraHeaders = { "x-session-affinity": opts.sessionKey };
+  if (opts?.signal) runOpts.signal = opts.signal;
+  return runOpts.extraHeaders || runOpts.signal ? runOpts : undefined;
 }
 
 // ---- Model quirks ----

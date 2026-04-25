@@ -7,8 +7,9 @@ import { getPage } from "@/worker/lib/page-access";
 import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { errorContext } from "@/worker/lib/logger";
-import { createAiClient, AiMisconfiguredError, AiBackendError } from "@/worker/lib/ai";
+import { createAiClient } from "@/worker/lib/ai";
 import type { AiChatMessage, AiClient, AiFrame } from "@/worker/lib/ai";
+import { clientAiErrorMessage } from "@/worker/lib/ai/client-error";
 import { buildAskMessages, buildGenerateMessages, buildRewriteMessages } from "@/worker/lib/ai/prompts";
 import {
   aiLogger,
@@ -54,7 +55,7 @@ aiRouter.post("/workspaces/:wid/pages/:id/rewrite", requireAuth, rateLimit("RL_A
   if (client instanceof Response) return client;
 
   const messages = buildRewriteMessages(data);
-  return streamChat(client, messages, `rewrite:${c.get("user")!.id}:${pageId}`, logCtx, startedAt);
+  return streamChat(c, client, messages, `rewrite:${c.get("user")!.id}:${pageId}`, logCtx, startedAt);
 });
 
 aiRouter.post("/workspaces/:wid/pages/:id/generate", requireAuth, rateLimit("RL_AI"), async (c) => {
@@ -74,7 +75,7 @@ aiRouter.post("/workspaces/:wid/pages/:id/generate", requireAuth, rateLimit("RL_
   if (client instanceof Response) return client;
 
   const messages = buildGenerateMessages(data);
-  return streamChat(client, messages, `generate:${c.get("user")!.id}:${pageId}`, logCtx, startedAt);
+  return streamChat(c, client, messages, `generate:${c.get("user")!.id}:${pageId}`, logCtx, startedAt);
 });
 
 aiRouter.post("/workspaces/:wid/pages/:id/summarize", optionalAuth, rateLimit("RL_AI"), async (c) => {
@@ -106,12 +107,9 @@ aiRouter.post("/workspaces/:wid/pages/:id/summarize", optionalAuth, rateLimit("R
     return c.json(result);
   } catch (err) {
     log.error("summarize_failed", { ...errorContext(err), action: "summarize", pageId, workspaceId });
-    const code = err instanceof AiBackendError ? err.code : "ai_failed";
-    logAiResponse(logCtx, startedAt, "error", { errorCode: code });
-    if (err instanceof AiBackendError) {
-      return c.json({ error: err.code, message: err.message }, 502);
-    }
-    return c.json({ error: "ai_failed", message: "AI summarize failed" }, 502);
+    const safe = clientAiErrorMessage(err);
+    logAiResponse(logCtx, startedAt, "error", { errorCode: safe.code });
+    return c.json({ error: safe.code, message: safe.message }, 502);
   }
 });
 
@@ -144,7 +142,7 @@ aiRouter.post("/workspaces/:wid/pages/:id/ask", optionalAuth, rateLimit("RL_AI")
   // Shared surface has no AI entitlements, so reaching this point guarantees an authenticated user.
   const userId = c.get("user")!.id;
   const messages = buildAskMessages(body.title, body.bodyText.slice(0, 6000), data.question, data.history ?? []);
-  return streamChat(client, messages, `ask:${userId}:${pageId}`, logCtx, startedAt);
+  return streamChat(c, client, messages, `ask:${userId}:${pageId}`, logCtx, startedAt);
 });
 
 export { aiRouter };
@@ -240,33 +238,45 @@ function resolveClient(c: Context<AppContext>): AiClient | Response {
     return createAiClient(c.env);
   } catch (err) {
     log.error("ai_client_misconfigured", errorContext(err));
-    const message = err instanceof AiMisconfiguredError ? err.message : "AI backend unavailable";
-    return c.json({ error: "ai_misconfigured", message }, 503);
+    const safe = clientAiErrorMessage(err);
+    return c.json({ error: safe.code, message: safe.message }, 503);
   }
 }
 
 async function streamChat(
+  c: Context<AppContext>,
   client: AiClient,
   messages: AiChatMessage[],
   sessionKey: string,
   logCtx: AiLogContext,
   startedAt: number,
 ): Promise<Response> {
+  // Single AbortController fed by both the inbound request signal (client gave
+  // up before we dispatched) and the outer stream's cancel() (client gave up
+  // mid-stream). Either should propagate to upstream fetch / ai.run.
+  const upstream = new AbortController();
+  const requestSignal = c.req.raw.signal;
+  if (requestSignal.aborted) upstream.abort();
+  else requestSignal.addEventListener("abort", () => upstream.abort(), { once: true });
+
   let iter: AsyncIterable<AiFrame>;
   try {
-    iter = await client.chat(messages, { sessionKey });
+    iter = await client.chat(messages, { sessionKey, signal: upstream.signal });
   } catch (err) {
     log.error("ai_chat_failed", { ...errorContext(err), action: logCtx.action, pageId: logCtx.pageId });
-    const code: AiErrorCode = err instanceof AiBackendError ? err.code : "ai_failed";
-    const message = err instanceof Error ? err.message : "AI chat failed";
-    logAiResponse(logCtx, startedAt, "error", { errorCode: code });
+    const safe = clientAiErrorMessage(err);
+    logAiResponse(logCtx, startedAt, "error", { errorCode: safe.code });
+    // 200 + SSE error frame so the client SSE parser sees it. A non-2xx here
+    // would be swallowed by sendApiRequest's JSON-only error path and the
+    // structured code/message would never reach the user.
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(encodeAiSseError(message, code));
+        controller.enqueue(encodeAiSseError(safe.message, safe.code));
+        controller.enqueue(encodeAiSseDone());
         controller.close();
       },
     });
-    return new Response(body, { headers: SSE_HEADERS, status: 502 });
+    return new Response(body, { headers: SSE_HEADERS, status: 200 });
   }
 
   const body = new ReadableStream<Uint8Array>({
@@ -275,6 +285,7 @@ async function streamChat(
       let errorCode: AiErrorCode | undefined;
       try {
         for await (const frame of iter) {
+          if (upstream.signal.aborted) return;
           if (frame.type === "chunk") {
             controller.enqueue(encodeAiSseChunk(frame.text));
           } else if (frame.type === "usage") {
@@ -286,19 +297,29 @@ async function streamChat(
         }
         controller.enqueue(encodeAiSseDone(usage));
       } catch (err) {
+        if (upstream.signal.aborted) return;
         log.error("ai_chat_stream_failed", { ...errorContext(err), action: logCtx.action, pageId: logCtx.pageId });
-        errorCode = "ai_failed";
-        const message = err instanceof Error ? err.message : "AI chat failed";
-        controller.enqueue(encodeAiSseError(message, "ai_failed"));
+        const safe = clientAiErrorMessage(err);
+        errorCode = safe.code;
+        controller.enqueue(encodeAiSseError(safe.message, safe.code));
         controller.enqueue(encodeAiSseDone(usage));
       } finally {
         if (errorCode) {
           logAiResponse(logCtx, startedAt, "error", { errorCode });
-        } else {
+        } else if (!upstream.signal.aborted) {
           logAiResponse(logCtx, startedAt, "ok", usage ? { usage } : undefined);
         }
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // already closed via cancel()
+        }
       }
+    },
+    cancel() {
+      // Client disconnected mid-stream; abort upstream so we stop spending
+      // tokens on output no one will read.
+      upstream.abort();
     },
   });
   return new Response(body, { headers: SSE_HEADERS });

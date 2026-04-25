@@ -50,9 +50,10 @@ export async function* parseProviderSseFrames(
       }
     }
     if (usage) yield { type: "usage", usage };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : opts.errorLabel;
-    yield { type: "error", message, code: "ai_chat_failed" };
+  } catch {
+    // Stream parser errors can carry upstream-derived text; emit only the safe
+    // label so nothing leaks into client-facing SSE error frames.
+    yield { type: "error", message: opts.errorLabel, code: "ai_chat_failed" };
   } finally {
     reader.releaseLock();
   }

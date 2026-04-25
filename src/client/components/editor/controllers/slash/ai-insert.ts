@@ -4,8 +4,10 @@ import { extractDocumentTitle, extractGenerateContext } from "@/client/lib/ai/co
 import { parseAiBlocksFromText, isSingleInlineParagraph, getInlineTextFromParagraph } from "@/client/lib/ai/blocks";
 import { toast } from "@/client/components/toast";
 import {
+  appendAiGenerateChunk,
   beginAiGenerate,
   endAiGenerate,
+  getAiGenerateSession,
   registerAiGenerateAbort,
   unregisterAiGenerateAbort,
 } from "../../extensions/ai-generate-indicator";
@@ -51,29 +53,26 @@ export async function startGenerateAtRange(opts: {
     controller.signal,
   );
 
-  let insertionPos = startPos;
   let received = "";
   try {
     for await (const chunk of iter) {
       if (controller.signal.aborted) break;
       if (!chunk.text) continue;
       received += chunk.text;
-      const tr = editor.state.tr.insertText(chunk.text, insertionPos);
-      editor.view.dispatch(tr);
-      insertionPos += chunk.text.length;
+      appendAiGenerateChunk(editor.view, sessionId, chunk.text);
     }
     if (controller.signal.aborted) {
-      rollbackInserted(editor, startPos, insertionPos);
+      rollbackIfClean(editor, sessionId);
       return;
     }
     if (received.trim().length === 0) {
-      rollbackInserted(editor, startPos, insertionPos);
+      rollbackIfClean(editor, sessionId);
       toast.error("The model returned no content. Try again or switch models.");
       return;
     }
-    finalizeGenerated(editor, startPos, insertionPos, received);
+    finalizeIfClean(editor, sessionId, received);
   } catch (err) {
-    rollbackInserted(editor, startPos, insertionPos);
+    rollbackIfClean(editor, sessionId);
     if (controller.signal.aborted) return;
     const message = err instanceof AiStreamError ? err.message : "AI generation failed";
     toast.error(message);
@@ -86,13 +85,30 @@ export async function startGenerateAtRange(opts: {
   }
 }
 
-function rollbackInserted(editor: Editor, from: number, to: number): void {
-  if (to <= from) return;
-  const tr = editor.state.tr.delete(from, to);
+// Concurrent edits to the generated range mark the session dirty (range
+// length diverged from the streamed accumulator, or the range collapsed). In
+// that case never delete or replace — the doc now holds user/peer content
+// and we must not overwrite it. Clean rollback uses the plugin's mapped
+// `from`/`to`, not the original ints.
+function rollbackIfClean(editor: Editor, sessionId: string): void {
+  const session = getAiGenerateSession(editor.state);
+  if (!session || session.sessionId !== sessionId) return;
+  if (session.dirty) return;
+  if (session.to <= session.from) return;
+  const tr = editor.state.tr.delete(session.from, session.to);
   editor.view.dispatch(tr);
 }
 
-function finalizeGenerated(editor: Editor, from: number, to: number, raw: string): void {
+function finalizeIfClean(editor: Editor, sessionId: string, raw: string): void {
+  const session = getAiGenerateSession(editor.state);
+  if (!session || session.sessionId !== sessionId) return;
+  if (session.dirty) {
+    toast.info("Generation kept as-is — external edits detected.");
+    return;
+  }
+  const { from, to } = session;
+  if (to <= from) return;
+
   const blocks = parseAiBlocksFromText(raw);
   if (blocks.length === 0) return;
   if (isSingleInlineParagraph(blocks)) {

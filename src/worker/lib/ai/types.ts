@@ -11,6 +11,7 @@ export interface AiChatOptions {
   maxTokens?: number;
   temperature?: number;
   sessionKey?: string;
+  signal?: AbortSignal;
 }
 
 export interface AiSummarizeOptions {

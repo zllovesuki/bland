@@ -56,7 +56,7 @@ describe("extractRewriteContext", () => {
 });
 
 describe("extractGenerateContext", () => {
-  it("includes the current block in beforeBlock when the cursor is mid-text", () => {
+  it("slices the current block at the cursor and joins with prev sibling", () => {
     const state = stateFromDoc(
       {
         type: "doc",
@@ -69,9 +69,66 @@ describe("extractGenerateContext", () => {
     );
 
     const ctx = extractGenerateContext(state, 18);
-    expect(ctx.beforeBlock).toContain("First thought.");
-    expect(ctx.beforeBlock).toContain("Second thought.");
-    expect(ctx.afterBlock).toBe("");
+    expect(ctx.beforeBlock).toBe("First thought.\n\nS");
+    expect(ctx.afterBlock).toBe("econd thought.");
+  });
+
+  it("at the start of a paragraph, includes only prev sibling before and full current after", () => {
+    const state = stateFromDoc(
+      {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "First thought." }] },
+          { type: "paragraph", content: [{ type: "text", text: "Second thought." }] },
+        ],
+      },
+      17,
+    );
+
+    const ctx = extractGenerateContext(state, 17);
+    expect(ctx.beforeBlock).toBe("First thought.");
+    expect(ctx.afterBlock).toBe("Second thought.");
+  });
+
+  it("at the end of a paragraph, includes the full current block before and next sibling after", () => {
+    const state = stateFromDoc(
+      {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "First thought." }] },
+          { type: "paragraph", content: [{ type: "text", text: "Second thought." }] },
+        ],
+      },
+      15,
+    );
+
+    const ctx = extractGenerateContext(state, 15);
+    expect(ctx.beforeBlock).toBe("First thought.");
+    expect(ctx.afterBlock).toBe("Second thought.");
+  });
+
+  it("slices a nested list item's content at the cursor", () => {
+    const state = stateFromDoc(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "bulletList",
+            content: [
+              {
+                type: "listItem",
+                content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }],
+              },
+            ],
+          },
+        ],
+      },
+      5,
+    );
+
+    const ctx = extractGenerateContext(state, 5);
+    expect(ctx.beforeBlock).toBe("He");
+    expect(ctx.afterBlock).toBe("llo");
   });
 
   it("uses prev/next blocks when the cursor lands in an empty paragraph", () => {
@@ -106,10 +163,10 @@ describe("extractGenerateContext", () => {
           { type: "paragraph", content: [{ type: "text", text: "Anchor after." }] },
         ],
       },
-      12,
+      19,
     );
 
-    const ctx = extractGenerateContext(state, 12);
+    const ctx = extractGenerateContext(state, 19);
     expect(ctx.beforeBlock).toBe("Anchor before.");
     expect(ctx.afterBlock).toBe("Anchor after.");
   });

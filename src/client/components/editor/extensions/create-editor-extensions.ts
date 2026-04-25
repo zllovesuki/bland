@@ -124,7 +124,7 @@ export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExt
     TaskItem.configure({ nested: true }),
     FileHandler.configure(createImageFileHandlerConfig({ getRuntime, getAffordance })),
     SlashCommands.configure({ getItems: getInsertPaletteItems }),
-    PageMentionNode,
+    PageMentionNode.configure({ getAffordance }),
     PageMentionSuggestion.configure({
       getCurrentPageId: () => getRuntime().pageId,
       isAvailable: (editor) => editor.isEditable && getAffordance().canInsertPageMentions,

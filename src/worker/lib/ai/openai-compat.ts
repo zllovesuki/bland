@@ -29,6 +29,7 @@ export function createOpenAiCompatClient(config: OpenAiCompatConfig): AiClient {
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: chatHeaders(config.apiKey),
+        signal: opts?.signal,
         body: JSON.stringify({
           model: config.chatModel,
           messages,
@@ -43,8 +44,8 @@ export function createOpenAiCompatClient(config: OpenAiCompatConfig): AiClient {
       });
 
       if (!response.ok || !response.body) {
-        const text = await safeReadText(response);
-        throw new AiBackendError(`OpenAI-compat chat failed: ${response.status} ${text}`, "ai_chat_failed");
+        await drainAndDiscard(response);
+        throw new AiBackendError(`openai-compat chat failed: ${response.status}`, "ai_chat_failed");
       }
 
       return parseProviderSseFrames(response.body, {
@@ -74,8 +75,8 @@ export function createOpenAiCompatClient(config: OpenAiCompatConfig): AiClient {
       });
 
       if (!response.ok) {
-        const detail = await safeReadText(response);
-        throw new AiBackendError(`OpenAI-compat summarize failed: ${response.status} ${detail}`, "ai_summarize_failed");
+        await drainAndDiscard(response);
+        throw new AiBackendError(`openai-compat summarize failed: ${response.status}`, "ai_summarize_failed");
       }
 
       const body = (await response.json()) as {
@@ -101,12 +102,14 @@ function chatHeaders(apiKey: string): HeadersInit {
   return headers;
 }
 
-async function safeReadText(response: Response): Promise<string> {
+// Upstream error bodies can echo prompts, request headers, or provider-internal
+// detail. Drain the stream so the connection releases, and discard the content
+// without keeping it on any field that could later flow into logs or clients.
+async function drainAndDiscard(response: Response): Promise<void> {
   try {
-    const text = await response.text();
-    return text.slice(0, 500);
+    await response.text();
   } catch {
-    return "<unreadable body>";
+    // ignore
   }
 }
 
