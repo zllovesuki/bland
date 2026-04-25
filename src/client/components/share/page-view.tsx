@@ -72,6 +72,7 @@ export function SharePageView() {
       <PageLoadingSkeleton
         canvasLayout="stage"
         kind={presentation.isRootActive ? presentation.rootPage.kind : "unknown"}
+        documentLayout="rail"
       />
     );
   }

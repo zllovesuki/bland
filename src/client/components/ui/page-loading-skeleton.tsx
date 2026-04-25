@@ -146,6 +146,26 @@ export function PageLoadingSkeleton({
   }
 
   if (kind === "unknown") {
+    const reserveTracks = canvasLayout === "stage" || documentLayout === "rail";
+    if (reserveTracks) {
+      return (
+        <div className={PAGE_SHELL_CLASS} aria-busy="true">
+          <div className={PAGE_STAGE_WITH_TRACKS_CLASS}>
+            <div className={DOC_PAGE_MAIN_CLASS}>
+              <div className={PAGE_CONTENT_COLUMN_CLASS}>
+                <PageChromeSkeleton />
+                <UnknownBodySkeleton />
+              </div>
+            </div>
+            <aside className={DOC_PAGE_RAIL_CLASS} aria-hidden="true">
+              <div className={DOC_PAGE_RAIL_INNER_CLASS}>
+                <RailSkeleton />
+              </div>
+            </aside>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={PAGE_SHELL_CLASS} aria-busy="true">
         <div className={PAGE_STAGE_CLASS}>
@@ -153,6 +173,9 @@ export function PageLoadingSkeleton({
             <div className={PAGE_CONTENT_COLUMN_CLASS}>
               <PageChromeSkeleton />
               <UnknownBodySkeleton />
+              <div className="mt-8">
+                <RailSkeleton />
+              </div>
             </div>
           </div>
         </div>

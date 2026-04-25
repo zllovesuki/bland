@@ -93,7 +93,7 @@ function PageViewContent() {
     return (
       <PageLoadingSkeleton
         canvasLayout={canvasLayout}
-        kind={currentPageMeta?.kind ?? "doc"}
+        kind={currentPageMeta?.kind ?? "unknown"}
         documentLayout={expanded ? "rail" : "inline"}
       />
     );
