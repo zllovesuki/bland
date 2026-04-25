@@ -11,7 +11,7 @@ export function Footer({ expanded }: FooterProps) {
         className={`flex items-center justify-between border-t border-zinc-800/60 px-4 py-2 sm:px-6 ${expanded ? "" : "mx-auto max-w-7xl"}`}
       >
         <a
-          href="https://edgenative.dev"
+          href="https://limic.dev"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
@@ -21,7 +21,7 @@ export function Footer({ expanded }: FooterProps) {
           on Cloudflare
         </a>
         <a
-          href="https://git.edgenative.dev/rachel/bland"
+          href="https://git.limic.dev/rachel/bland"
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"

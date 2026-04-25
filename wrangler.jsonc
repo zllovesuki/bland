@@ -10,7 +10,7 @@
 	},
 	"vars": {
 		"LOG_LEVEL": "info",
-		"ALLOWED_ORIGINS": "https://bland.tools,https://docs.edgenative.dev",
+		"ALLOWED_ORIGINS": "https://bland.tools,https://docs.limic.dev",
 	},
 	"assets": {
 		"binding": "ASSETS",
@@ -23,7 +23,7 @@
 			"custom_domain": true,
 		},
 		{
-			"pattern": "docs.edgenative.dev",
+			"pattern": "docs.limic.dev",
 			"custom_domain": true,
 		},
 	],

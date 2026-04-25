@@ -432,7 +432,7 @@ export function LandingPage() {
       <footer className="border-t border-zinc-800/40 py-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
           <a
-            href="https://edgenative.dev"
+            href="https://limic.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
@@ -442,7 +442,7 @@ export function LandingPage() {
             on Cloudflare
           </a>
           <a
-            href="https://git.edgenative.dev/rachel/bland"
+            href="https://git.limic.dev/rachel/bland"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
