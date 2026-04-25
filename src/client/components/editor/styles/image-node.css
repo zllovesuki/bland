@@ -59,8 +59,7 @@
 }
 
 .tiptap-image-container.is-loading {
-  display: block;
-  width: 100%;
+  display: inline-block;
 }
 
 .tiptap-image-container.is-loading .tiptap-image {
@@ -81,7 +80,7 @@
 
 .tiptap-image-uploading {
   position: relative;
-  display: block;
+  display: inline-block;
   max-width: 100%;
   border-radius: 0.5rem;
   overflow: hidden;
@@ -119,8 +118,7 @@
 }
 
 .tiptap-image-container.is-errored {
-  display: block;
-  width: 100%;
+  display: inline-block;
 }
 
 .tiptap-image-container.is-errored .tiptap-image {

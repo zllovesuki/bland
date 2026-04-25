@@ -99,7 +99,7 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
     },
     [updateAttributes, finishDrag],
   );
-  const displayWidth = liveWidth ?? (typeof width === "number" ? width : undefined);
+  const displayWidth = liveWidth ?? (typeof width === "number" && width > 0 ? width : undefined);
   const alignClass =
     align === "center"
       ? "tiptap-image-node--align-center"
@@ -122,16 +122,19 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
     typeof naturalWidth === "number" && typeof naturalHeight === "number" && naturalWidth > 0 && naturalHeight > 0
       ? naturalWidth / naturalHeight
       : FALLBACK_ASPECT_RATIO;
+  const naturalDisplayWidth = typeof naturalWidth === "number" && naturalWidth > 0 ? naturalWidth : undefined;
+  const frameWidth = displayWidth ?? naturalDisplayWidth;
+  const frameStyle: React.CSSProperties = {
+    aspectRatio: String(aspectRatio),
+    width: frameWidth ? `${frameWidth}px` : "100%",
+  };
   const pendingPreviewUrl = typeof pendingInsertId === "string" ? getLocalImagePreview(pendingInsertId) : null;
 
   if (!resolvedSrc) {
     if (pendingPreviewUrl) {
       return (
         <NodeViewWrapper className={`tiptap-image-node ${alignClass}`}>
-          <div
-            className="tiptap-image-uploading"
-            style={{ aspectRatio: String(aspectRatio), width: displayWidth ? `${displayWidth}px` : undefined }}
-          >
+          <div className="tiptap-image-uploading" style={frameStyle}>
             <img className="tiptap-image-uploading-preview" src={pendingPreviewUrl} alt="" />
             <Skeleton className="tiptap-image-uploading-skeleton" />
             <span className="tiptap-image-uploading-label">Uploading…</span>
@@ -168,11 +171,8 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
 
   const isLoading = loadStatus === "loading";
   const isErrored = loadStatus === "errored";
-  const containerStyle: React.CSSProperties | undefined = isLoading
-    ? { aspectRatio: String(aspectRatio), width: displayWidth ? `${displayWidth}px` : "100%" }
-    : displayWidth
-      ? { width: `${displayWidth}px` }
-      : undefined;
+  const containerStyle: React.CSSProperties | undefined =
+    isLoading || isErrored ? frameStyle : displayWidth ? { width: `${displayWidth}px` } : undefined;
 
   const containerClass = [
     "tiptap-image-container",
