@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Serwist } from "@serwist/window";
+import { reloadPwa } from "@/client/lib/pwa-reload";
 
 // Shell delivery uses `NetworkOnly` + precache fallback (see `vite.config.ts`),
 // so there is no runtime shell cache to evict. Only user-content caches need
@@ -43,7 +44,7 @@ export function registerServiceWorker(): void {
 
   const apply = () => {
     instance.addEventListener("controlling", () => {
-      window.location.reload();
+      reloadPwa();
     });
     instance.messageSkipWaiting();
   };

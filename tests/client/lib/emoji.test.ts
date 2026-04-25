@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { emojis as tiptapEmojis } from "@tiptap/extension-emoji";
 import { normalizeEmoji } from "@/client/lib/emoji";
 import { getEmojiAssetUrl } from "@/client/lib/emoji/asset-lookup";
@@ -6,26 +6,6 @@ import { PICKER_EMOJI_ITEMS } from "@/client/lib/emoji/picker-data";
 import { getEmojiSuggestionItems } from "@/client/components/editor/extensions/emoji";
 import { readRecentEmojis, writeRecentEmoji } from "@/client/lib/emoji/recents";
 import { STORAGE_KEYS } from "@/client/lib/constants";
-
-function installLocalStorageMock() {
-  const store = new Map<string, string>();
-  const mock: Storage = {
-    get length() {
-      return store.size;
-    },
-    clear: () => store.clear(),
-    getItem: (key) => store.get(key) ?? null,
-    key: (index) => Array.from(store.keys())[index] ?? null,
-    removeItem: (key) => {
-      store.delete(key);
-    },
-    setItem: (key, value) => {
-      store.set(key, String(value));
-    },
-  };
-  vi.stubGlobal("localStorage", mock);
-  return mock;
-}
 
 describe("emoji helpers", () => {
   it("normalizes variation selectors while keeping the correct Apple asset mapping", () => {
@@ -56,7 +36,7 @@ describe("emoji helpers", () => {
 
 describe("emoji recents", () => {
   beforeEach(() => {
-    installLocalStorageMock();
+    localStorage.clear();
   });
 
   it("returns empty when storage is unset", () => {

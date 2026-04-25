@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 import { createUser } from "@tests/client/util/fixtures";
 import { SESSION_MODES } from "@/client/lib/constants";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
@@ -11,7 +10,7 @@ let api: typeof import("@/client/lib/api").api;
 const mockFetch = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>();
 
 beforeEach(async () => {
-  installLocalStorageStub();
+  localStorage.clear();
   mockFetch.mockReset();
   vi.stubGlobal("fetch", mockFetch);
   vi.resetModules();
@@ -23,7 +22,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  restoreLocalStorage();
+  localStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

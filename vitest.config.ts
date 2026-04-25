@@ -27,6 +27,21 @@ const WORKER_INCLUDE = [
   "tests/worker/lib/spa-shell.test.ts",
 ];
 
+// Tests whose subject is browser DOM, browser storage, or PWA lifecycle. Future
+// tests asserting mounted EditorView DOM, paste/copy events, drag handles, or
+// selection APIs belong here. Pure ProseMirror state, model, and reducer tests
+// stay on Node.
+const CLIENT_DOM_INCLUDE = [
+  "tests/client/components/auth/turnstile-widget.test.ts",
+  "tests/client/lib/install-gate.test.ts",
+  "tests/client/lib/client-config.test.ts",
+  "tests/client/lib/pwa.test.ts",
+  "tests/client/lib/api.test.ts",
+  "tests/client/lib/doc-cache-registry.test.ts",
+  "tests/client/lib/emoji.test.ts",
+  "tests/client/stores/auth-store.test.ts",
+];
+
 const CLIENT_INCLUDE = ["tests/client/**/*.test.ts", "tests/client/**/*.test.tsx"];
 
 export default defineConfig(() => {
@@ -45,6 +60,16 @@ export default defineConfig(() => {
           test: {
             name: "client",
             include: CLIENT_INCLUDE,
+            exclude: CLIENT_DOM_INCLUDE,
+          },
+        }),
+        defineProject({
+          resolve: { alias: aliases },
+          test: {
+            name: "client-dom",
+            include: CLIENT_DOM_INCLUDE,
+            environment: "jsdom",
+            environmentOptions: { jsdom: { url: "http://127.0.0.1/" } },
           },
         }),
         defineProject({

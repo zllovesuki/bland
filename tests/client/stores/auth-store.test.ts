@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 import { createUser } from "@tests/client/util/fixtures";
 import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 
@@ -8,7 +7,7 @@ let selectIsAuthenticated: typeof import("@/client/stores/auth-store").selectIsA
 let selectHasLocalSession: typeof import("@/client/stores/auth-store").selectHasLocalSession;
 
 beforeEach(async () => {
-  installLocalStorageStub();
+  localStorage.clear();
   vi.resetModules();
   const mod = await import("@/client/stores/auth-store");
   useAuthStore = mod.useAuthStore;
@@ -17,7 +16,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  restoreLocalStorage();
+  vi.restoreAllMocks();
+  localStorage.clear();
 });
 
 describe("auth-store", () => {

@@ -1,17 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 
 let docCache: typeof import("@/client/lib/doc-cache-registry").docCache;
 
 beforeEach(async () => {
-  installLocalStorageStub();
+  localStorage.clear();
   vi.resetModules();
   const mod = await import("@/client/lib/doc-cache-registry");
   docCache = mod.docCache;
 });
 
 afterEach(() => {
-  restoreLocalStorage();
+  localStorage.clear();
   vi.restoreAllMocks();
 });
 

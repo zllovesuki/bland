@@ -1,53 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installLocalStorageStub, restoreLocalStorage } from "@tests/client/util/storage";
 import { SESSION_MODES } from "@/client/lib/constants";
 
 let installManifestGate: typeof import("@/client/lib/install-gate").installManifestGate;
 let useAuthStore: typeof import("@/client/stores/auth-store").useAuthStore;
 
-function createHeadStub() {
-  const children = new Set<Record<string, unknown>>();
-  return {
-    querySelector: (selector: string) => {
-      if (selector !== 'link[rel="manifest"]') return null;
-      for (const el of children) {
-        if (el.rel === "manifest") return el;
-      }
-      return null;
-    },
-    appendChild: (el: Record<string, unknown>) => {
-      children.add(el);
-      return el;
-    },
-    children,
-  };
-}
-
-function installDocumentStub() {
-  const head = createHeadStub();
-  const doc = {
-    head,
-    createElement: (tag: string) => {
-      const el: Record<string, unknown> = { tagName: tag.toUpperCase() };
-      el.remove = () => {
-        head.children.delete(el);
-      };
-      return el;
-    },
-  };
-  Object.defineProperty(globalThis, "document", { value: doc, writable: true, configurable: true });
-  return head;
-}
-
-function restoreDocumentStub() {
-  Object.defineProperty(globalThis, "document", { value: undefined, writable: true, configurable: true });
-}
-
-let head: ReturnType<typeof installDocumentStub>;
-
 beforeEach(async () => {
-  installLocalStorageStub();
-  head = installDocumentStub();
+  localStorage.clear();
+  document.head.querySelectorAll('link[rel="manifest"]').forEach((el) => el.remove());
   vi.resetModules();
   const authMod = await import("@/client/stores/auth-store");
   useAuthStore = authMod.useAuthStore;
@@ -56,16 +15,13 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  restoreLocalStorage();
-  restoreDocumentStub();
+  document.head.querySelectorAll('link[rel="manifest"]').forEach((el) => el.remove());
+  localStorage.clear();
   vi.restoreAllMocks();
 });
 
 function hasManifestLink(): boolean {
-  for (const el of head.children) {
-    if (el.rel === "manifest") return true;
-  }
-  return false;
+  return document.head.querySelector('link[rel="manifest"]') !== null;
 }
 
 describe("installManifestGate", () => {
@@ -125,10 +81,6 @@ describe("installManifestGate", () => {
     });
     installManifestGate();
     installManifestGate();
-    let count = 0;
-    for (const el of head.children) {
-      if (el.rel === "manifest") count += 1;
-    }
-    expect(count).toBe(1);
+    expect(document.head.querySelectorAll('link[rel="manifest"]').length).toBe(1);
   });
 });

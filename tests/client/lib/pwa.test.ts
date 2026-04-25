@@ -4,11 +4,6 @@ let clearPwaRuntimeCaches: typeof import("@/client/lib/pwa").clearPwaRuntimeCach
 let registerServiceWorker: typeof import("@/client/lib/pwa").registerServiceWorker;
 let usePwaUpdate: typeof import("@/client/lib/pwa").usePwaUpdate;
 
-let deleted: string[];
-let originalCaches: typeof globalThis.caches | undefined;
-let originalNavigator: typeof globalThis.navigator | undefined;
-let originalWindow: typeof globalThis.window | undefined;
-
 const serwistMock = vi.hoisted(() => {
   class MockSerwist {
     scriptURL: string;
@@ -45,54 +40,64 @@ const serwistMock = vi.hoisted(() => {
   return serwistMock;
 });
 
+const reloadPwaMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@serwist/window", () => ({ Serwist: serwistMock.Serwist }));
 vi.mock("react", () => ({
   useSyncExternalStore: (_subscribe: () => () => void, getSnapshot: () => unknown) => getSnapshot(),
 }));
+vi.mock("@/client/lib/pwa-reload", () => ({ reloadPwa: reloadPwaMock }));
+
+let originalCachesDescriptor: PropertyDescriptor | undefined;
+let originalServiceWorkerDescriptor: PropertyDescriptor | undefined;
+let originalVisibilityDescriptor: PropertyDescriptor | undefined;
+
+let cachesDeleted: string[];
 
 function installCachesStub(options: { throwOnDelete?: boolean } = {}) {
-  deleted = [];
+  cachesDeleted = [];
   const stub = {
     delete: async (name: string) => {
       if (options.throwOnDelete) throw new Error("quota exceeded");
-      deleted.push(name);
+      cachesDeleted.push(name);
       return true;
     },
   };
-  originalCaches = (globalThis as { caches?: typeof globalThis.caches }).caches;
   Object.defineProperty(globalThis, "caches", { value: stub, writable: true, configurable: true });
 }
 
-function restoreCachesStub() {
-  Object.defineProperty(globalThis, "caches", { value: originalCaches, writable: true, configurable: true });
+function uninstallCaches() {
+  Object.defineProperty(globalThis, "caches", { value: undefined, writable: true, configurable: true });
 }
 
-function installNavigatorStub(hasServiceWorker: boolean) {
-  originalNavigator = globalThis.navigator;
-  const nav = hasServiceWorker ? { serviceWorker: { register: vi.fn(async () => ({})) } } : {};
-  Object.defineProperty(globalThis, "navigator", { value: nav, writable: true, configurable: true });
-}
-
-function restoreNavigatorStub() {
-  Object.defineProperty(globalThis, "navigator", { value: originalNavigator, writable: true, configurable: true });
-}
-
-function installWindowReloadStub() {
-  const reload = vi.fn();
-  originalWindow = (globalThis as { window?: typeof globalThis.window }).window;
-  Object.defineProperty(globalThis, "window", {
-    value: { location: { reload } },
+function installServiceWorker(): void {
+  Object.defineProperty(navigator, "serviceWorker", {
+    value: { register: vi.fn(async () => ({})) },
     writable: true,
     configurable: true,
   });
-  return reload;
 }
 
-function restoreWindowStub() {
-  Object.defineProperty(globalThis, "window", { value: originalWindow, writable: true, configurable: true });
+function uninstallServiceWorker(): void {
+  // Force the `"serviceWorker" in navigator` check to be false by deleting
+  // the slot on the navigator instance.
+  delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+}
+
+function setVisibilityState(state: DocumentVisibilityState): void {
+  Object.defineProperty(document, "visibilityState", {
+    value: state,
+    writable: true,
+    configurable: true,
+  });
 }
 
 beforeEach(async () => {
+  originalCachesDescriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  originalServiceWorkerDescriptor = Object.getOwnPropertyDescriptor(navigator, "serviceWorker");
+  originalVisibilityDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
+
+  reloadPwaMock.mockReset();
   vi.resetModules();
   vi.unstubAllEnvs();
   serwistMock.instances.length = 0;
@@ -103,9 +108,21 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  restoreCachesStub();
-  restoreNavigatorStub();
-  restoreWindowStub();
+  if (originalCachesDescriptor) {
+    Object.defineProperty(globalThis, "caches", originalCachesDescriptor);
+  } else {
+    delete (globalThis as { caches?: unknown }).caches;
+  }
+  if (originalServiceWorkerDescriptor) {
+    Object.defineProperty(navigator, "serviceWorker", originalServiceWorkerDescriptor);
+  } else {
+    delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+  }
+  if (originalVisibilityDescriptor) {
+    Object.defineProperty(document, "visibilityState", originalVisibilityDescriptor);
+  } else {
+    delete (document as { visibilityState?: unknown }).visibilityState;
+  }
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
@@ -114,11 +131,11 @@ describe("clearPwaRuntimeCaches", () => {
   it("deletes only the bland-uploads-v1 runtime cache", async () => {
     installCachesStub();
     await clearPwaRuntimeCaches();
-    expect(deleted).toEqual(["bland-uploads-v1"]);
+    expect(cachesDeleted).toEqual(["bland-uploads-v1"]);
   });
 
   it("is a no-op when Cache Storage is unavailable", async () => {
-    Object.defineProperty(globalThis, "caches", { value: undefined, writable: true, configurable: true });
+    uninstallCaches();
     await expect(clearPwaRuntimeCaches()).resolves.toBeUndefined();
   });
 
@@ -130,21 +147,21 @@ describe("clearPwaRuntimeCaches", () => {
 
 describe("registerServiceWorker", () => {
   it("is a no-op when navigator.serviceWorker is unavailable", () => {
-    installNavigatorStub(false);
+    uninstallServiceWorker();
     expect(() => registerServiceWorker()).not.toThrow();
     expect(serwistMock.instances).toHaveLength(0);
   });
 
   it("is a no-op outside production", () => {
     vi.stubEnv("PROD", false);
-    installNavigatorStub(true);
+    installServiceWorker();
     registerServiceWorker();
     expect(serwistMock.instances).toHaveLength(0);
   });
 
   it("registers the production service worker through Serwist", () => {
     vi.stubEnv("PROD", true);
-    installNavigatorStub(true);
+    installServiceWorker();
     registerServiceWorker();
 
     expect(serwistMock.instances).toHaveLength(1);
@@ -155,8 +172,7 @@ describe("registerServiceWorker", () => {
 
   it("exposes a waiting update prompt and applies it on request", () => {
     vi.stubEnv("PROD", true);
-    installNavigatorStub(true);
-    const reload = installWindowReloadStub();
+    installServiceWorker();
 
     registerServiceWorker();
     const instance = serwistMock.instances[0];
@@ -170,9 +186,33 @@ describe("registerServiceWorker", () => {
 
     update.apply?.();
     expect(instance.messageSkipWaiting).toHaveBeenCalledTimes(1);
-    expect(reload).not.toHaveBeenCalled();
+    expect(reloadPwaMock).not.toHaveBeenCalled();
 
     instance.emit("controlling");
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reloadPwaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechecks for updates when the tab becomes visible", () => {
+    vi.stubEnv("PROD", true);
+    installServiceWorker();
+
+    registerServiceWorker();
+    const instance = serwistMock.instances[0];
+
+    setVisibilityState("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(instance.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not recheck for updates while the tab is hidden", () => {
+    vi.stubEnv("PROD", true);
+    installServiceWorker();
+
+    registerServiceWorker();
+    const instance = serwistMock.instances[0];
+
+    setVisibilityState("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(instance.update).not.toHaveBeenCalled();
   });
 });
