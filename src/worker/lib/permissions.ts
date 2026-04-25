@@ -245,6 +245,7 @@ function buildBatchPageAccessQuery(pageIds: string[], principal: Principal, work
       FROM pages p
       JOIN ancestors a ON p.id = a.parent_id
       WHERE p.workspace_id = ${workspaceId}
+        AND p.archived_at IS NULL
         AND a.depth < ${MAX_TREE_DEPTH - 1}
     ),
     nearest_shared_depth AS (

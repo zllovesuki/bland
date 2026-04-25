@@ -181,6 +181,39 @@ describe("AI route entitlement gating", () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("not_found");
   });
+
+  it("returns 404 not_found for an inaccessible canvas page (no kind leak)", async () => {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, kind: "canvas" });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
+      method: "POST",
+      body: REWRITE_PAYLOAD,
+      userId: outsider.id,
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("not_found");
+  });
+
+  it("returns 404 page_empty for an accessible canvas page (kind check after access)", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, kind: "canvas" });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
+      method: "POST",
+      body: REWRITE_PAYLOAD,
+      userId: member.id,
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("page_empty");
+  });
 });
 
 describe("AI empty-page gating", () => {

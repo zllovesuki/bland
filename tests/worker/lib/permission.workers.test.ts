@@ -8,6 +8,7 @@ import {
   toResolvedViewerContext,
 } from "@/worker/lib/permissions";
 import { getDb, resetD1Tables } from "@tests/worker/helpers/db";
+import { TEST_TIMESTAMP } from "@tests/worker/helpers/fixtures";
 import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
 describe("worker permissions (real D1)", () => {
@@ -336,6 +337,90 @@ describe("worker permissions (real D1)", () => {
       );
 
       expect(levels).toEqual(new Map([[page.id, "edit"]]));
+    });
+  });
+
+  describe("archived ancestor inheritance", () => {
+    it("blocks share inheritance through an archived ancestor", async () => {
+      const owner = await seedUser();
+      const grantee = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const parent = await seedPage({
+        workspace_id: ws.id,
+        created_by: owner.id,
+        title: "Archived Parent",
+        archived_at: TEST_TIMESTAMP,
+      });
+      const child = await seedPage({
+        workspace_id: ws.id,
+        created_by: owner.id,
+        parent_id: parent.id,
+        title: "Live Child",
+      });
+      await seedPageShare({
+        page_id: parent.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: grantee.id,
+        permission: "edit",
+      });
+
+      const levels = await resolvePageAccessLevels(getDb(), { type: "user", userId: grantee.id }, [child.id], ws.id);
+
+      expect(levels).toEqual(new Map([[child.id, "none"]]));
+      expect(await canAccessPage(getDb(), { type: "user", userId: grantee.id }, child.id, ws.id, "view")).toBe(false);
+    });
+
+    it("preserves a direct share on the descendant when an ancestor is archived", async () => {
+      const owner = await seedUser();
+      const grantee = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const parent = await seedPage({
+        workspace_id: ws.id,
+        created_by: owner.id,
+        title: "Archived Parent",
+        archived_at: TEST_TIMESTAMP,
+      });
+      const child = await seedPage({
+        workspace_id: ws.id,
+        created_by: owner.id,
+        parent_id: parent.id,
+        title: "Live Child",
+      });
+      await seedPageShare({
+        page_id: child.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: grantee.id,
+        permission: "view",
+      });
+
+      const levels = await resolvePageAccessLevels(getDb(), { type: "user", userId: grantee.id }, [child.id], ws.id);
+
+      expect(levels).toEqual(new Map([[child.id, "view"]]));
+    });
+
+    it("returns none when the target page itself is archived even with a direct share", async () => {
+      const owner = await seedUser();
+      const grantee = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const page = await seedPage({
+        workspace_id: ws.id,
+        created_by: owner.id,
+        title: "Archived Page",
+        archived_at: TEST_TIMESTAMP,
+      });
+      await seedPageShare({
+        page_id: page.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: grantee.id,
+        permission: "edit",
+      });
+
+      const levels = await resolvePageAccessLevels(getDb(), { type: "user", userId: grantee.id }, [page.id], ws.id);
+
+      expect(levels).toEqual(new Map([[page.id, "none"]]));
     });
   });
 });

@@ -38,7 +38,7 @@ describe("docCache.mark / docCache.has", () => {
 });
 
 describe("docCache.remove", () => {
-  it("removes the hint and dispatches an IndexedDB clear for the doc", async () => {
+  it("removes the hint and dispatches an IndexedDB clear for both doc and canvas namespaces", async () => {
     const clearDocument = vi.fn().mockResolvedValue(undefined);
     vi.doMock("y-indexeddb", () => ({ clearDocument }));
 
@@ -50,18 +50,20 @@ describe("docCache.remove", () => {
     expect(docCache.has("p2")).toBe(true);
     await vi.dynamicImportSettled();
     expect(clearDocument).toHaveBeenCalledWith("bland:doc:p1");
+    expect(clearDocument).toHaveBeenCalledWith("bland:canvas:p1");
   });
 
-  it("no-ops cleanly when the doc was never cached", async () => {
+  it("no-ops cleanly when the page was never cached but still clears both IDB namespaces best-effort", async () => {
     const clearDocument = vi.fn().mockResolvedValue(undefined);
     vi.doMock("y-indexeddb", () => ({ clearDocument }));
 
     expect(() => docCache.remove("p1")).not.toThrow();
     expect(docCache.has("p1")).toBe(false);
     // Fires IDB clear best-effort even if the hint set didn't track the id —
-    // handles cases where the hint was already pruned but the IDB doc remains.
+    // handles cases where the hint was already pruned but the IDB entries remain.
     await vi.dynamicImportSettled();
     expect(clearDocument).toHaveBeenCalledWith("bland:doc:p1");
+    expect(clearDocument).toHaveBeenCalledWith("bland:canvas:p1");
   });
 
   it("does not throw when y-indexeddb import fails", () => {
@@ -75,7 +77,7 @@ describe("docCache.remove", () => {
 });
 
 describe("docCache.clearAll", () => {
-  it("clears hints and calls clearDocument for each cached page", async () => {
+  it("clears hints and calls clearDocument for both doc and canvas namespaces of each cached page", async () => {
     const clearDocument = vi.fn().mockResolvedValue(undefined);
     vi.doMock("y-indexeddb", () => ({ clearDocument }));
 
@@ -85,7 +87,9 @@ describe("docCache.clearAll", () => {
 
     await vi.dynamicImportSettled();
     expect(clearDocument).toHaveBeenCalledWith("bland:doc:p1");
+    expect(clearDocument).toHaveBeenCalledWith("bland:canvas:p1");
     expect(clearDocument).toHaveBeenCalledWith("bland:doc:p2");
+    expect(clearDocument).toHaveBeenCalledWith("bland:canvas:p2");
     expect(localStorage.getItem("bland:cached-docs")).toBeNull();
   });
 
@@ -107,6 +111,7 @@ describe("docCache.clearAll", () => {
     expect(() => docCache.clearAll()).not.toThrow();
     await vi.dynamicImportSettled();
     expect(clearDocument).toHaveBeenCalledWith("bland:doc:p1");
+    expect(clearDocument).toHaveBeenCalledWith("bland:canvas:p1");
   });
 
   it("skips clearDocument when no docs are cached", async () => {

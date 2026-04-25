@@ -166,7 +166,7 @@ uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c
 });
 
 // GET /:id - Serve file from R2 (auth via refresh cookie or ?share=token)
-uploadServingRouter.get("/:id", async (c) => {
+uploadServingRouter.get("/:id", rateLimit("RL_API"), async (c) => {
   const uploadId = c.req.param("id");
   const db = c.get("db");
 

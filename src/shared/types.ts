@@ -154,7 +154,17 @@ export const AcceptInviteRequest = z.object({
 export type AcceptInviteRequest = z.infer<typeof AcceptInviteRequest>;
 
 // Reserved slugs that conflict with frontend routes
-const RESERVED_SLUGS = new Set(["s", "login", "invite", "profile", "shared-with-me", "api", "uploads", "ws"]);
+const RESERVED_SLUGS = new Set([
+  "s",
+  "login",
+  "invite",
+  "profile",
+  "shared-with-me",
+  "api",
+  "uploads",
+  "ws",
+  "parties",
+]);
 
 const workspaceSlug = z
   .string()

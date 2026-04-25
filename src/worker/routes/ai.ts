@@ -169,6 +169,14 @@ async function gateAiAction(
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
+  // Resolve access before loading page metadata so an inaccessible canvas page
+  // returns the same `not_found` as a missing page (no kind leak via response code).
+  const levels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
+  const pageAccess = levels.get(pageId) ?? "none";
+  if (pageAccess === "none") {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+
   const page = await getPage(db, pageId, workspaceId);
   if (!page) {
     return c.json({ error: "not_found", message: "Page not found" }, 404);
@@ -176,12 +184,6 @@ async function gateAiAction(
 
   if (page.kind === "canvas") {
     return c.json({ error: "page_empty", message: "AI is not available on canvas pages yet" }, 404);
-  }
-
-  const levels = await resolvePageAccessLevels(db, resolved.principal, [pageId], workspaceId);
-  const pageAccess = (levels.get(pageId) ?? "none") as PageAccessLevel;
-  if (pageAccess === "none") {
-    return c.json({ error: "not_found", message: "Page not found" }, 404);
   }
 
   // Role axis enforces member-only on canonical surface even if the caller has

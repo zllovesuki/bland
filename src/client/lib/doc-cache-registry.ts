@@ -1,4 +1,4 @@
-import { getCachedDocKey, STORAGE_KEYS } from "./constants";
+import { getCachedCanvasKey, getCachedDocKey, STORAGE_KEYS } from "./constants";
 import { readVersionedStorageJson, writeVersionedStorageJson, removeStorageItem } from "./storage";
 
 const VERSION = 1;
@@ -17,22 +17,24 @@ function persist(set: Set<string>) {
   writeVersionedStorageJson(STORAGE_KEYS.CACHED_DOCS, VERSION, [...set]);
 }
 
-function dropIndexedDbDocs(pageIds: string[]): void {
+function dropIndexedDbCaches(pageIds: string[]): void {
   if (pageIds.length === 0) return;
   import("y-indexeddb")
     .then((m) => {
       for (const id of pageIds) {
         m.clearDocument(getCachedDocKey(id)).catch(() => {});
+        m.clearDocument(getCachedCanvasKey(id)).catch(() => {});
       }
     })
     .catch(() => {});
 }
 
 /**
- * Authoritative registry for "this page's Yjs doc is persisted locally." Owns
- * both the localStorage hint set and the `y-indexeddb` lifecycle for listed
- * pages. Callers should not import `y-indexeddb` directly for eviction — use
- * {@link docCache.remove} instead, so a single call handles both layers.
+ * Authoritative registry for "this page's Yjs state is persisted locally." Owns
+ * both the localStorage hint set and the `y-indexeddb` lifecycle for the doc
+ * and canvas namespaces of listed pages. Callers should not import
+ * `y-indexeddb` directly for eviction — use {@link docCache.remove} instead,
+ * so a single call clears every persisted namespace for the page id.
  *
  * Cleanup is fire-and-forget: IDB purges are dispatched but not awaited, so
  * callers don't block user flows on storage housekeeping.
@@ -55,12 +57,12 @@ export const docCache = {
     if (set.delete(pageId)) {
       persist(set);
     }
-    dropIndexedDbDocs([pageId]);
+    dropIndexedDbCaches([pageId]);
   },
 
   clearAll(): void {
     const pageIds = [...getSet()];
     removeStorageItem(STORAGE_KEYS.CACHED_DOCS);
-    dropIndexedDbDocs(pageIds);
+    dropIndexedDbCaches(pageIds);
   },
 };

@@ -28,6 +28,13 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/children", optionalAuth, rateLimi
     return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
   }
 
+  // Resolve parent access before loading metadata or children so an inaccessible
+  // existing parent returns the same `not_found` as a missing parent (no existence leak).
+  const parentAccess = await canAccessPages(db, resolved.principal, [pageId], workspaceId, "view");
+  if (!parentAccess.get(pageId)) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+
   const parentPage = await getPage(db, pageId, workspaceId);
   if (!parentPage) return c.json({ error: "not_found", message: "Page not found" }, 404);
 
@@ -37,19 +44,20 @@ pageTreeRouter.get("/workspaces/:wid/pages/:id/children", optionalAuth, rateLimi
     .where(and(eq(pages.workspace_id, workspaceId), eq(pages.parent_id, pageId), isNull(pages.archived_at)))
     .orderBy(asc(pages.position));
 
+  if (children.length === 0) {
+    return c.json({ pages: [] });
+  }
+
   // `canAccessPages` fast-paths canonical members internally, so the same branch
   // handles members, guests, and shared-link viewers.
-  const accessByPage = await canAccessPages(
+  const childAccess = await canAccessPages(
     db,
     resolved.principal,
-    [pageId, ...children.map((child) => child.id)],
+    children.map((child) => child.id),
     workspaceId,
     "view",
   );
-  if (!accessByPage.get(pageId)) {
-    return c.json({ error: "forbidden", message: "You do not have access to this page" }, 403);
-  }
-  const visible = children.filter((child) => accessByPage.get(child.id));
+  const visible = children.filter((child) => childAccess.get(child.id));
   return c.json({ pages: visible });
 });
 
