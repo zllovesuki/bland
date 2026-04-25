@@ -2,10 +2,12 @@ import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { uploadFile } from "@/client/lib/uploads";
 import { toast } from "@/client/components/toast";
+import { MAX_UPLOAD_SIZE } from "@/shared/constants";
 import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 
 export const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic"];
+const IMAGE_MIME_SET = new Set<string>(IMAGE_MIME_TYPES);
 export const IMAGE_TARGET_MISSING_MESSAGE = "That image block no longer exists.";
 
 export interface UploadContext {
@@ -22,6 +24,45 @@ export interface ImageNodeTarget {
 export interface InsertedImagePlaceholder {
   target: ImageNodeTarget;
   nextPos: number;
+}
+
+const localImagePreviews = new Map<string, string>();
+
+export function getLocalImagePreview(pendingInsertId: string | null): string | null {
+  if (pendingInsertId === null) return null;
+  return localImagePreviews.get(pendingInsertId) ?? null;
+}
+
+function setLocalImagePreview(pendingInsertId: string, blobUrl: string): void {
+  const existing = localImagePreviews.get(pendingInsertId);
+  if (existing && existing !== blobUrl) URL.revokeObjectURL(existing);
+  localImagePreviews.set(pendingInsertId, blobUrl);
+}
+
+function clearLocalImagePreview(pendingInsertId: string): void {
+  const existing = localImagePreviews.get(pendingInsertId);
+  if (!existing) return;
+  URL.revokeObjectURL(existing);
+  localImagePreviews.delete(pendingInsertId);
+}
+
+function validateImageFile(file: File): void {
+  if (!IMAGE_MIME_SET.has(file.type)) throw new Error("File type not allowed");
+  if (file.size > MAX_UPLOAD_SIZE) throw new Error("File too large (max 10MB)");
+}
+
+async function probeImageDimensions(file: File): Promise<{ naturalWidth: number; naturalHeight: number } | null> {
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise<{ naturalWidth: number; naturalHeight: number } | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 interface CreateImageFileHandlerConfigOptions {
@@ -275,7 +316,36 @@ export async function uploadAndReplaceImageAtTarget(
   target: ImageNodeTarget,
 ): Promise<boolean> {
   if (!ctx.workspaceId) return false;
+  if (resolveImageTargetPos(editor, target) === null) {
+    toast.error(IMAGE_TARGET_MISSING_MESSAGE);
+    return false;
+  }
+
   try {
+    validateImageFile(file);
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : "Upload failed");
+    return false;
+  }
+
+  const pendingInsertId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const markerSet = updateImageAttributesAtTarget(editor, target, { pendingInsertId });
+  if (!markerSet) {
+    toast.error(IMAGE_TARGET_MISSING_MESSAGE);
+    return false;
+  }
+
+  setLocalImagePreview(pendingInsertId, URL.createObjectURL(file));
+
+  try {
+    const dims = await probeImageDimensions(file);
+    if (dims) {
+      updateImageAttributesAtTarget(editor, target, {
+        naturalWidth: dims.naturalWidth,
+        naturalHeight: dims.naturalHeight,
+      });
+    }
+
     const src = await uploadFile(ctx.workspaceId, file, ctx.pageId, ctx.shareToken);
     if (!replaceImageSourceAtTarget(editor, target, src)) {
       toast.error(IMAGE_TARGET_MISSING_MESSAGE);
@@ -284,7 +354,10 @@ export async function uploadAndReplaceImageAtTarget(
     return true;
   } catch (e) {
     toast.error(e instanceof Error ? e.message : "Upload failed");
+    updateImageAttributesAtTarget(editor, target, { pendingInsertId: null });
     return false;
+  } finally {
+    clearLocalImagePreview(pendingInsertId);
   }
 }
 

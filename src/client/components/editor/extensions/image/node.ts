@@ -31,6 +31,8 @@ export const ShareAwareImage = Image.extend<ShareAwareImageOptions>({
       ...this.parent?.(),
       align: { default: "left" },
       width: { default: null },
+      naturalWidth: { default: null },
+      naturalHeight: { default: null },
       pendingInsertId: { default: null },
     };
   },

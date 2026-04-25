@@ -2,24 +2,32 @@ import { useRef, useCallback, useState, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import { showImageInsertPanel } from "../../controllers/image/insert-panel";
 import { prepareBlockDragPreview } from "../../lib/block-drag-preview";
-import { createImageNodeTarget, resolveShareUrl } from "../../lib/media-actions";
+import { createImageNodeTarget, getLocalImagePreview, resolveShareUrl } from "../../lib/media-actions";
 import "../../styles/image-node.css";
+
+const FALLBACK_ASPECT_RATIO = 16 / 9;
 
 export function ImageNodeView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const { canInsertImages } = useEditorAffordance();
-  const { src, alt = "", title, align = "left", width } = node.attrs;
+  const { src, alt = "", title, align = "left", width, naturalWidth, naturalHeight, pendingInsertId } = node.attrs;
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const [loadStatus, setLoadStatus] = useState<"loading" | "loaded" | "errored">("loading");
   const editable = editor.isEditable;
 
   const resolvedSrc = resolveShareUrl(typeof src === "string" ? src : "", shareToken);
+
+  useEffect(() => {
+    setLoadStatus("loading");
+  }, [resolvedSrc]);
 
   const finishDrag = useCallback(() => {
     abortRef.current?.abort();
@@ -110,7 +118,27 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
     });
   }, [canInsertImages, editor, getPos, pageId, shareToken, workspaceId]);
 
+  const aspectRatio =
+    typeof naturalWidth === "number" && typeof naturalHeight === "number" && naturalWidth > 0 && naturalHeight > 0
+      ? naturalWidth / naturalHeight
+      : FALLBACK_ASPECT_RATIO;
+  const pendingPreviewUrl = typeof pendingInsertId === "string" ? getLocalImagePreview(pendingInsertId) : null;
+
   if (!resolvedSrc) {
+    if (pendingPreviewUrl) {
+      return (
+        <NodeViewWrapper className={`tiptap-image-node ${alignClass}`}>
+          <div
+            className="tiptap-image-uploading"
+            style={{ aspectRatio: String(aspectRatio), width: displayWidth ? `${displayWidth}px` : undefined }}
+          >
+            <img className="tiptap-image-uploading-preview" src={pendingPreviewUrl} alt="" />
+            <Skeleton className="tiptap-image-uploading-skeleton" />
+            <span className="tiptap-image-uploading-label">Uploading…</span>
+          </div>
+        </NodeViewWrapper>
+      );
+    }
     return (
       <NodeViewWrapper>
         <div
@@ -138,12 +166,26 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
     );
   }
 
+  const isLoading = loadStatus === "loading";
+  const isErrored = loadStatus === "errored";
+  const containerStyle: React.CSSProperties | undefined = isLoading
+    ? { aspectRatio: String(aspectRatio), width: displayWidth ? `${displayWidth}px` : "100%" }
+    : displayWidth
+      ? { width: `${displayWidth}px` }
+      : undefined;
+
+  const containerClass = [
+    "tiptap-image-container",
+    selected ? "is-selected" : "",
+    isLoading ? "is-loading" : "",
+    isErrored ? "is-errored" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <NodeViewWrapper className={`tiptap-image-node ${alignClass}`}>
-      <div
-        className={`tiptap-image-container${selected ? " is-selected" : ""}`}
-        style={displayWidth ? { width: `${displayWidth}px` } : undefined}
-      >
+      <div className={containerClass} style={containerStyle}>
         <img
           className="tiptap-image"
           ref={imgRef}
@@ -151,16 +193,25 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
           alt={alt ?? undefined}
           title={title ?? undefined}
           draggable={false}
-          data-drag-handle={editable ? "" : undefined}
-          style={displayWidth ? { width: "100%" } : undefined}
+          data-drag-handle={editable && !isLoading && !isErrored ? "" : undefined}
+          style={displayWidth && !isLoading ? { width: "100%" } : undefined}
+          onLoad={() => setLoadStatus("loaded")}
+          onError={() => setLoadStatus("errored")}
         />
-        {editable && (
+        {isLoading && <Skeleton className="tiptap-image-load-skeleton" />}
+        {isErrored && (
+          <div className="tiptap-image-error">
+            <ImageIcon size={20} />
+            <span>Image failed to load</span>
+          </div>
+        )}
+        {editable && !isLoading && !isErrored && (
           <>
             <div className="tiptap-image-resize-handle left" onPointerDown={(e) => handleResizeStart("left", e)} />
             <div className="tiptap-image-resize-handle right" onPointerDown={(e) => handleResizeStart("right", e)} />
           </>
         )}
-        {alt && <figcaption className="tiptap-image-alt">{alt}</figcaption>}
+        {alt && !isLoading && !isErrored && <figcaption className="tiptap-image-alt">{alt}</figcaption>}
       </div>
     </NodeViewWrapper>
   );
