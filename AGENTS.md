@@ -124,6 +124,10 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - For most code changes, run `npm run typecheck`.
 - Also run `npm run build` when route wiring, bundling, or runtime registration changes.
 - Add or update focused Vitest or Playwright coverage when behavior becomes non-trivial.
+- Vitest projects are split by runtime. Keep pure Node shared, client, and worker unit tests as `.test.ts` or `.test.tsx`; use `.dom.test.ts` or `.dom.test.tsx` for browser DOM, browser storage, and PWA lifecycle tests; use `.workers.test.ts` for Cloudflare Worker runtime specs.
+- The Cloudflare Worker runtime test harness is slow. Prefer `npm run test:worker-unit` for pure worker logic, and run `npm run test:worker-runtime` with focused `.workers.test.ts` coverage only when the behavior depends on Cloudflare runtime bindings, D1, Durable Objects, assets, or Worker request handling. Use `npm run test:worker` only when both Worker projects are warranted.
+- Use `npm run test:client` and `npm run test:client-dom` for focused client Vitest validation.
+- Keep Cloudflare runtime Vitest bindings centralized in `tests/vitest/cloudflare.ts`. Update that helper instead of duplicating Miniflare bindings in `vitest.config.ts`.
 - Run E2E with `npm run test:e2e`. The Playwright harness in `tests/e2e/` applies local D1 migrations, seeds the test user, and starts its own isolated dev server.
 - Run a focused E2E spec with `npx playwright test -c tests/e2e/playwright.config.ts tests/e2e/specs/<spec>.spec.ts`.
 - Do not start `npm run dev` just to run E2E unless the task explicitly requires manual debugging outside the harness.
@@ -152,3 +156,4 @@ Known gaps that are intentionally deferred. Do not fix these unless the task exp
 - Editor and client state: `src/client/components/editor/`, `src/client/lib/affordance/`, `src/client/stores/workspace-store.ts`, `src/client/lib/api.ts`, `src/client/lib/*-model.ts`, `src/client/lib/ai/`
 - Worker entrypoints and permissions: `src/worker/index.ts`, `src/worker/router.ts`, `src/worker/routes/`, `src/worker/lib/permissions.ts`, `src/worker/lib/ai/`
 - Data and runtime backends: `src/worker/db/*/schema.ts`, `src/worker/durable-objects/`, `src/worker/queues/search-indexer.ts`
+- Test configuration: `vitest.config.ts`, `tests/vitest/cloudflare.ts`, `tests/setup/worker.ts`, `tests/e2e/playwright.config.ts`
