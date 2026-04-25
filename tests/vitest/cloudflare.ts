@@ -1,8 +1,11 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 
+const TEST_AI_MODE: string = "mock";
+
 export function cloudflareWorkerPlugin() {
   return cloudflareTest({
     main: "./src/worker/index.ts",
+    remoteBindings: TEST_AI_MODE === "workers-ai",
     wrangler: { configPath: "./wrangler.jsonc" },
     miniflare: {
       compatibilityDate: "2026-03-01",
@@ -16,7 +19,7 @@ export function cloudflareWorkerPlugin() {
         TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
         TURNSTILE_SECRET: "1x0000000000000000000000000000000AA",
         SENTRY_DSN: "",
-        BLAND_AI_MODE: "mock",
+        BLAND_AI_MODE: TEST_AI_MODE,
         BLAND_AI_OPENAI_ENDPOINT: "",
         BLAND_AI_OPENAI_API_KEY: "",
         BLAND_AI_OPENAI_CHAT_MODEL: "",

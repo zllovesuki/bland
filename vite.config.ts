@@ -4,7 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { serwist } from "@serwist/vite";
 import path from "path";
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 
 // Captured once per build. Used as the revision for the precached Worker
 // rendered shell so every deploy refreshes the offline fallback copy.
@@ -22,6 +23,24 @@ const SHELL_PRECACHE_URL = "/__pwa-shell";
 const persistStatePath = process.env.BLAND_PERSIST_STATE_PATH;
 const ignoredWatchPaths = ["docs/**", "scripts/**", "playwright-report/**", "test-results/**", "tests/**"];
 const fontAssetPattern = /\.(?:woff2?|ttf|otf|eot)$/i;
+
+function readDevVarsAiMode(): string {
+  const cloudflareEnv = process.env.CLOUDFLARE_ENV;
+  const devVarsPaths = [
+    ...(cloudflareEnv ? [path.resolve(__dirname, `.dev.vars.${cloudflareEnv}`)] : []),
+    path.resolve(__dirname, ".dev.vars"),
+  ];
+
+  for (const devVarsPath of devVarsPaths) {
+    if (!existsSync(devVarsPath)) continue;
+
+    return parseEnv(readFileSync(devVarsPath, "utf8")).BLAND_AI_MODE || "workers-ai";
+  }
+
+  return "workers-ai";
+}
+
+const useRemoteBindings = readDevVarsAiMode() === "workers-ai";
 
 // Excalidraw defaults to fetching its font .woff2 files from esm.sh. Self-host
 // by copying `dist/prod/fonts/*` from node_modules into `public/fonts/`; at
@@ -51,6 +70,7 @@ export default defineConfig({
     excalidrawFontsPlugin(),
     cloudflare({
       ...(persistStatePath ? { persistState: { path: persistStatePath } } : {}),
+      remoteBindings: useRemoteBindings,
     }),
     serwist({
       swSrc: "src/client/service-worker.ts",
