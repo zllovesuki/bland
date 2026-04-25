@@ -1,143 +1,110 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { workspaces } from "@/worker/db/d1/schema";
-import { getPage } from "@/worker/lib/page-access";
-import { resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
-import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { apiRequest } from "@tests/worker/helpers/request";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
-vi.mock("@/worker/lib/page-access", () => ({
-  getPage: vi.fn(),
-}));
-vi.mock("@/worker/lib/permissions", async () => {
-  const actual = await vi.importActual<typeof import("@/worker/lib/permissions")>("@/worker/lib/permissions");
-  return {
-    ...actual,
-    resolvePrincipal: vi.fn(),
-    resolvePageAccessLevels: vi.fn(),
+type ContextResponse = {
+  workspace: { id: string; slug: string; name: string };
+  viewer: {
+    access_mode: "member" | "shared";
+    principal_type: "user" | "link";
+    route_kind: "canonical" | "shared";
+    workspace_slug: string | null;
+    workspace_role: "owner" | "admin" | "member" | "guest" | null;
   };
-});
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
+};
 
-const getPageMock = vi.mocked(getPage);
-const resolvePrincipalMock = vi.mocked(resolvePrincipal);
-const resolvePageAccessLevelsMock = vi.mocked(resolvePageAccessLevels);
-
-function createDbMock(workspaceSlug: string | undefined) {
-  const workspaceGet = vi.fn().mockResolvedValue(workspaceSlug ? { id: "ws-1", slug: workspaceSlug } : undefined);
-  const select = vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation((table: unknown) => {
-      if (table === workspaces) {
-        return { where: vi.fn().mockReturnValue({ get: workspaceGet }) };
-      }
-      throw new Error(`Unexpected table in test mock: ${String(table)}`);
-    }),
-  }));
-  return { db: { select }, workspaceGet };
-}
-
-describe("page-context", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getPageMock.mockResolvedValue({
-      id: "page-1",
-      workspace_id: "ws-1",
-      parent_id: null,
-      kind: "doc",
-      title: "Alpha",
-      icon: null,
-      cover_url: null,
-      position: 0,
-      created_by: "user-1",
-      created_at: "2026-01-01T00:00:00.000Z",
-      updated_at: "2026-01-01T00:00:00.000Z",
-      archived_at: null,
-    });
+describe("GET /pages/:id/context", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
   });
 
   it("returns canonical member viewer metadata with writer workspace_role for full members", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "edit"]]));
+    const owner = await seedUser();
+    const memberCaller = await seedUser();
+    const workspace = await seedWorkspace({ owner_id: owner.id, slug: "demo" });
+    await seedMembership({ user_id: memberCaller.id, workspace_id: workspace.id, role: "member" });
+    const page = await seedPage({ workspace_id: workspace.id, created_by: owner.id, title: "Alpha" });
 
-    const { pageContextRouter } = await import("@/worker/routes/page-context");
-    const { db } = createDbMock("demo");
-    const app = await createTestApp(pageContextRouter, "/api/v1", { db });
-
-    const res = await app.request(new Request("http://test/api/v1/pages/page-1/context"));
-
+    const res = await apiRequest(`/api/v1/pages/${page.id}/context`, { userId: memberCaller.id });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      workspace: {
-        id: "ws-1",
-        slug: "demo",
-      },
-      viewer: {
-        access_mode: "member",
-        principal_type: "user",
-        route_kind: "canonical",
-        workspace_slug: "demo",
-        workspace_role: "member",
-      },
+
+    const body = (await res.json()) as ContextResponse;
+    expect(body.workspace).toMatchObject({ id: workspace.id, slug: "demo" });
+    expect(body.viewer).toMatchObject({
+      access_mode: "member",
+      principal_type: "user",
+      route_kind: "canonical",
+      workspace_slug: "demo",
+      workspace_role: "member",
     });
   });
 
-  it("emits access_mode member with guest role for a canonical guest", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "guest",
+  it("emits access_mode member with guest role for a canonical guest with a direct user share", async () => {
+    const owner = await seedUser();
+    const guestCaller = await seedUser();
+    const workspace = await seedWorkspace({ owner_id: owner.id, slug: "demo" });
+    await seedMembership({ user_id: guestCaller.id, workspace_id: workspace.id, role: "guest" });
+    const page = await seedPage({ workspace_id: workspace.id, created_by: owner.id });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: guestCaller.id,
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 
-    const { pageContextRouter } = await import("@/worker/routes/page-context");
-    const { db } = createDbMock("demo");
-    const app = await createTestApp(pageContextRouter, "/api/v1", { db });
-
-    const res = await app.request(new Request("http://test/api/v1/pages/page-1/context"));
-
+    const res = await apiRequest(`/api/v1/pages/${page.id}/context`, { userId: guestCaller.id });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      viewer: {
-        access_mode: "member",
-        workspace_role: "guest",
-      },
+
+    const body = (await res.json()) as ContextResponse;
+    expect(body.viewer).toMatchObject({
+      access_mode: "member",
+      workspace_role: "guest",
     });
   });
 
-  it("emits access_mode shared with null workspace_role for canonical share-only access", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: null,
+  it("emits access_mode shared with null workspace_role for canonical share-only access (no workspace membership)", async () => {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const workspace = await seedWorkspace({ owner_id: owner.id, slug: "demo" });
+    const page = await seedPage({ workspace_id: workspace.id, created_by: owner.id });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: outsider.id,
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["page-1", "view"]]));
 
-    const { pageContextRouter } = await import("@/worker/routes/page-context");
-    const { db } = createDbMock("demo");
-    const app = await createTestApp(pageContextRouter, "/api/v1", { db });
-
-    const res = await app.request(new Request("http://test/api/v1/pages/page-1/context"));
-
+    const res = await apiRequest(`/api/v1/pages/${page.id}/context`, { userId: outsider.id });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      workspace: {
-        id: "ws-1",
-        slug: "demo",
-      },
-      viewer: {
-        access_mode: "shared",
-        principal_type: "user",
-        route_kind: "canonical",
-        workspace_slug: "demo",
-        workspace_role: null,
-      },
+
+    const body = (await res.json()) as ContextResponse;
+    expect(body.workspace).toMatchObject({ id: workspace.id, slug: "demo" });
+    expect(body.viewer).toMatchObject({
+      access_mode: "shared",
+      principal_type: "user",
+      route_kind: "canonical",
+      workspace_slug: "demo",
+      workspace_role: null,
     });
-    expect(resolvePageAccessLevelsMock).toHaveBeenCalledWith(
-      expect.anything(),
-      { type: "user", userId: "user-1" },
-      ["page-1"],
-      "ws-1",
-    );
+  });
+
+  it("returns 403 when the caller has neither membership nor any share grant", async () => {
+    const owner = await seedUser();
+    const stranger = await seedUser();
+    const workspace = await seedWorkspace({ owner_id: owner.id, slug: "demo" });
+    const page = await seedPage({ workspace_id: workspace.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/pages/${page.id}/context`, { userId: stranger.id });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the page does not exist", async () => {
+    const caller = await seedUser();
+    const res = await apiRequest(`/api/v1/pages/page-does-not-exist/context`, { userId: caller.id });
+    expect(res.status).toBe(404);
   });
 });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   canAccessPage,
@@ -7,27 +7,22 @@ import {
   resolvePrincipal,
   toResolvedViewerContext,
 } from "@/worker/lib/permissions";
-import { checkMembership } from "@/worker/lib/membership";
-import { createDbMock } from "@tests/worker/util/db";
-import { createMembership } from "@tests/worker/util/fixtures";
+import { getDb, resetD1Tables } from "@tests/worker/helpers/db";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
-vi.mock("@/worker/lib/membership", () => ({
-  checkMembership: vi.fn(),
-}));
-
-const checkMembershipMock = vi.mocked(checkMembership);
-
-describe("worker permissions", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+describe("worker permissions (real D1)", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
   });
 
   describe("resolvePrincipal", () => {
     it("returns link principal on shared surface even when the user is a full member", async () => {
-      const db = createDbMock();
-      checkMembershipMock.mockResolvedValue(createMembership("member", { workspace_id: "workspace-1" }));
+      const owner = await seedUser();
+      const member = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
 
-      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", {
+      const resolved = await resolvePrincipal(getDb(), { id: member.id }, ws.id, {
         surface: "shared",
         shareToken: "share-token",
       });
@@ -36,26 +31,29 @@ describe("worker permissions", () => {
         principal: { type: "link", token: "share-token" },
         workspaceRole: null,
       });
-      expect(checkMembershipMock).not.toHaveBeenCalled();
     });
 
     it("returns user principal with writer role on canonical surface for members", async () => {
-      const db = createDbMock();
-      checkMembershipMock.mockResolvedValue(createMembership("member", { workspace_id: "workspace-1" }));
+      const owner = await seedUser();
+      const member = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
 
-      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", { surface: "canonical" });
+      const resolved = await resolvePrincipal(getDb(), { id: member.id }, ws.id, { surface: "canonical" });
 
       expect(resolved).toEqual({
-        principal: { type: "user", userId: "user-1" },
+        principal: { type: "user", userId: member.id },
         workspaceRole: "member",
       });
     });
 
     it("prefers share token for guests on canonical surface but still surfaces guest role", async () => {
-      const db = createDbMock();
-      checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
+      const owner = await seedUser();
+      const guest = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: guest.id, workspace_id: ws.id, role: "guest" });
 
-      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", {
+      const resolved = await resolvePrincipal(getDb(), { id: guest.id }, ws.id, {
         surface: "canonical",
         shareToken: "share-token",
       });
@@ -67,33 +65,37 @@ describe("worker permissions", () => {
     });
 
     it("returns user principal with guest role on canonical surface without share token", async () => {
-      const db = createDbMock();
-      checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
+      const owner = await seedUser();
+      const guest = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: guest.id, workspace_id: ws.id, role: "guest" });
 
-      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", { surface: "canonical" });
+      const resolved = await resolvePrincipal(getDb(), { id: guest.id }, ws.id, { surface: "canonical" });
 
       expect(resolved).toEqual({
-        principal: { type: "user", userId: "user-1" },
+        principal: { type: "user", userId: guest.id },
         workspaceRole: "guest",
       });
     });
 
     it("returns null workspace role for an authenticated non-member on canonical surface", async () => {
-      const db = createDbMock();
-      checkMembershipMock.mockResolvedValue(null);
+      const owner = await seedUser();
+      const outsider = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
 
-      const resolved = await resolvePrincipal(db, { id: "user-1" }, "workspace-1", { surface: "canonical" });
+      const resolved = await resolvePrincipal(getDb(), { id: outsider.id }, ws.id, { surface: "canonical" });
 
       expect(resolved).toEqual({
-        principal: { type: "user", userId: "user-1" },
+        principal: { type: "user", userId: outsider.id },
         workspaceRole: null,
       });
     });
 
-    it("returns anonymous link principal when no user is present", async () => {
-      const db = createDbMock();
+    it("returns anonymous link principal when no user is present on shared surface", async () => {
+      const owner = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
 
-      const resolved = await resolvePrincipal(db, null, "workspace-1", {
+      const resolved = await resolvePrincipal(getDb(), null, ws.id, {
         surface: "shared",
         shareToken: "share-token",
       });
@@ -105,9 +107,10 @@ describe("worker permissions", () => {
     });
 
     it("returns null when no user and no share token", async () => {
-      const db = createDbMock();
+      const owner = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
 
-      const resolved = await resolvePrincipal(db, null, "workspace-1", { surface: "canonical" });
+      const resolved = await resolvePrincipal(getDb(), null, ws.id, { surface: "canonical" });
 
       expect(resolved).toBeNull();
     });
@@ -175,114 +178,164 @@ describe("worker permissions", () => {
     });
   });
 
-  it("short-circuits workspace members to full access without running the share query", async () => {
-    const db = createDbMock();
+  describe("resolvePageAccessLevels + canAccessPage(s)", () => {
+    it("short-circuits full workspace members to edit on every requested page", async () => {
+      const owner = await seedUser();
+      const member = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+      const pageA = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "A" });
+      const pageB = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "B" });
 
-    checkMembershipMock.mockResolvedValue(createMembership("member", { workspace_id: "workspace-1" }));
+      const levels = await resolvePageAccessLevels(
+        getDb(),
+        { type: "user", userId: member.id },
+        [pageA.id, pageB.id],
+        ws.id,
+      );
 
-    const levels = await resolvePageAccessLevels(
-      db,
-      { type: "user", userId: "user-1" },
-      ["page-a", "page-b"],
-      "workspace-1",
-    );
+      expect(levels).toEqual(
+        new Map([
+          [pageA.id, "edit"],
+          [pageB.id, "edit"],
+        ]),
+      );
+    });
 
-    expect(levels).toEqual(
-      new Map([
-        ["page-a", "edit"],
-        ["page-b", "edit"],
-      ]),
-    );
-    expect(db.all).not.toHaveBeenCalled();
-  });
+    it("maps share grants to per-page access levels for guests and non-members", async () => {
+      const owner = await seedUser();
+      const guest = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      await seedMembership({ user_id: guest.id, workspace_id: ws.id, role: "guest" });
+      const pageA = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "A" });
+      const pageB = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "B" });
+      const pageC = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "C" });
+      await seedPageShare({
+        page_id: pageA.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: guest.id,
+        permission: "edit",
+      });
+      await seedPageShare({
+        page_id: pageB.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: guest.id,
+        permission: "view",
+      });
 
-  it("maps batch query ranks to access levels and fills missing pages with none", async () => {
-    const db = createDbMock([
-      { page_id: "page-a", access_rank: 2 },
-      { page_id: "page-b", access_rank: 1 },
-    ]);
+      const levels = await resolvePageAccessLevels(
+        getDb(),
+        { type: "user", userId: guest.id },
+        [pageA.id, pageB.id, pageC.id],
+        ws.id,
+      );
 
-    checkMembershipMock.mockResolvedValue(createMembership("guest", { workspace_id: "workspace-1" }));
+      expect(levels).toEqual(
+        new Map([
+          [pageA.id, "edit"],
+          [pageB.id, "view"],
+          [pageC.id, "none"],
+        ]),
+      );
+    });
 
-    const levels = await resolvePageAccessLevels(
-      db,
-      { type: "user", userId: "user-1" },
-      ["page-a", "page-b", "page-c"],
-      "workspace-1",
-    );
+    it("converts resolved levels into booleans for batch view and edit checks", async () => {
+      const owner = await seedUser();
+      const outsider = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const pageEdit = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "EditPage" });
+      const pageView = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "ViewPage" });
+      const pageNone = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "NonePage" });
+      await seedPageShare({
+        page_id: pageEdit.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: outsider.id,
+        permission: "edit",
+      });
+      await seedPageShare({
+        page_id: pageView.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: outsider.id,
+        permission: "view",
+      });
 
-    expect(levels).toEqual(
-      new Map([
-        ["page-a", "edit"],
-        ["page-b", "view"],
-        ["page-c", "none"],
-      ]),
-    );
-    expect(db.all).toHaveBeenCalledTimes(1);
-  });
+      const viewResults = await canAccessPages(
+        getDb(),
+        { type: "user", userId: outsider.id },
+        [pageEdit.id, pageView.id, pageNone.id],
+        ws.id,
+        "view",
+      );
+      const editResults = await canAccessPages(
+        getDb(),
+        { type: "user", userId: outsider.id },
+        [pageEdit.id, pageView.id, pageNone.id],
+        ws.id,
+        "edit",
+      );
 
-  it("converts resolved levels into booleans for batch view and edit checks", async () => {
-    const rows = [
-      { page_id: "page-a", access_rank: 2 },
-      { page_id: "page-b", access_rank: 1 },
-      { page_id: "page-c", access_rank: 0 },
-    ];
-    const db = createDbMock(rows, rows);
+      expect(viewResults).toEqual(
+        new Map([
+          [pageEdit.id, true],
+          [pageView.id, true],
+          [pageNone.id, false],
+        ]),
+      );
+      expect(editResults).toEqual(
+        new Map([
+          [pageEdit.id, true],
+          [pageView.id, false],
+          [pageNone.id, false],
+        ]),
+      );
+    });
 
-    checkMembershipMock.mockResolvedValue(null);
+    it("uses the same resolver path for single-page checks", async () => {
+      const owner = await seedUser();
+      const outsider = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Single" });
+      await seedPageShare({
+        page_id: page.id,
+        created_by: owner.id,
+        grantee_type: "user",
+        grantee_id: outsider.id,
+        permission: "view",
+      });
 
-    const viewResults = await canAccessPages(
-      db,
-      { type: "user", userId: "user-1" },
-      ["page-a", "page-b", "page-c"],
-      "workspace-1",
-      "view",
-    );
-    const editResults = await canAccessPages(
-      db,
-      { type: "user", userId: "user-1" },
-      ["page-a", "page-b", "page-c"],
-      "workspace-1",
-      "edit",
-    );
+      await expect(canAccessPage(getDb(), { type: "user", userId: outsider.id }, page.id, ws.id, "view")).resolves.toBe(
+        true,
+      );
+      await expect(canAccessPage(getDb(), { type: "user", userId: outsider.id }, page.id, ws.id, "edit")).resolves.toBe(
+        false,
+      );
+    });
 
-    expect(viewResults).toEqual(
-      new Map([
-        ["page-a", true],
-        ["page-b", true],
-        ["page-c", false],
-      ]),
-    );
-    expect(editResults).toEqual(
-      new Map([
-        ["page-a", true],
-        ["page-b", false],
-        ["page-c", false],
-      ]),
-    );
-  });
+    it("skips membership checks for link principals and resolves access from shares only", async () => {
+      const owner = await seedUser();
+      const ws = await seedWorkspace({ owner_id: owner.id });
+      const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Link" });
+      await seedPageShare({
+        page_id: page.id,
+        created_by: owner.id,
+        grantee_type: "link",
+        grantee_id: null,
+        link_token: "link-principal-tok",
+        permission: "edit",
+      });
 
-  it("uses the same resolver path for single-page checks", async () => {
-    const rows = [{ page_id: "page-a", access_rank: 1 }];
-    const db = createDbMock(rows, rows);
+      const levels = await resolvePageAccessLevels(
+        getDb(),
+        { type: "link", token: "link-principal-tok" },
+        [page.id],
+        ws.id,
+      );
 
-    checkMembershipMock.mockResolvedValue(null);
-
-    await expect(canAccessPage(db, { type: "user", userId: "user-1" }, "page-a", "workspace-1", "view")).resolves.toBe(
-      true,
-    );
-    await expect(canAccessPage(db, { type: "user", userId: "user-1" }, "page-a", "workspace-1", "edit")).resolves.toBe(
-      false,
-    );
-  });
-
-  it("skips membership checks for link principals and resolves access from shares only", async () => {
-    const db = createDbMock([{ page_id: "page-a", access_rank: 2 }]);
-
-    const levels = await resolvePageAccessLevels(db, { type: "link", token: "share-token" }, ["page-a"], "workspace-1");
-
-    expect(levels).toEqual(new Map([["page-a", "edit"]]));
-    expect(checkMembershipMock).not.toHaveBeenCalled();
-    expect(db.all).toHaveBeenCalledTimes(1);
+      expect(levels).toEqual(new Map([[page.id, "edit"]]));
+    });
   });
 });

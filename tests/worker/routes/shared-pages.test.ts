@@ -1,129 +1,120 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { apiRequest } from "@tests/worker/helpers/request";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
-
-/**
- * `/me/shared-pages` partitions user-grantee page_shares into:
- *   * `items`: pages in workspaces the caller is NOT a member of (discovery).
- *   * `workspace_summaries`: grouped counts for workspaces the caller already
- *     belongs to (those pages are reachable in the workspace tree).
- *
- * The route issues two queries and then shapes the response. This test
- * verifies the shape and that the two queries are parallelized.
- */
-
-function createInboxDbMock(opts: { crossWorkspaceRows: object[]; summaryRows: object[] }) {
-  let callCount = 0;
-
-  const select = vi.fn().mockImplementation(() => {
-    const call = callCount++;
-    const chain = {
-      from: vi.fn().mockReturnValue(null as unknown),
-      as: vi.fn().mockReturnValue({ id: "shared_by_user.id", name: "shared_by_user.name" }),
-    };
-    const terminal = {
-      innerJoin: vi.fn().mockReturnThis(),
-      leftJoin: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockImplementation(() => Promise.resolve(opts.crossWorkspaceRows)),
-      groupBy: vi.fn().mockImplementation(() => Promise.resolve(opts.summaryRows)),
-    };
-    chain.from.mockReturnValue(terminal);
-    // The `users.as()` shortcut (first select) returns a subquery spec, not
-    // a terminal query. The route call sequence is:
-    //   0: aliased subquery (sharedByUser)
-    //   1: cross-workspace items
-    //   2: summaries
-    if (call === 0) {
-      return { from: vi.fn().mockReturnValue({ as: chain.as }) };
-    }
-    return chain;
-  });
-
-  return { select };
-}
+type SharedPagesResponse = {
+  items: Array<{
+    page_id: string;
+    title: string;
+    permission: "view" | "edit";
+    workspace: { id: string; slug: string; role: string | null };
+    shared_by: string;
+    shared_by_name: string;
+  }>;
+  workspace_summaries: Array<{
+    workspace: { id: string; slug: string; name: string };
+    count: number;
+  }>;
+};
 
 describe("GET /me/shared-pages", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    await resetD1Tables();
   });
 
-  it("returns items and workspace_summaries in the response shape", async () => {
-    const { sharesRouter } = await import("@/worker/routes/shares");
-    const db = createInboxDbMock({
-      crossWorkspaceRows: [
-        {
-          page_id: "p1",
-          title: "Cross",
-          icon: null,
-          cover_url: null,
-          workspace_id: "ws-other",
-          workspace_name: "Other",
-          workspace_slug: "other",
-          workspace_icon: null,
-          permission: "view",
-          shared_by: "user-2",
-          shared_by_name: "Alice",
-          shared_at: "2026-04-01T00:00:00.000Z",
-        },
-      ],
-      summaryRows: [
-        {
-          workspace_id: "ws-home",
-          workspace_name: "Home",
-          workspace_slug: "home",
-          workspace_icon: null,
-          count: 3,
-        },
-      ],
+  it("partitions user-grantee shares into cross-workspace items and same-workspace summaries", async () => {
+    const caller = await seedUser();
+    const sharerOther = await seedUser({ name: "Alice" });
+    const sharerHome = await seedUser({ name: "Bob" });
+
+    const otherWs = await seedWorkspace({ owner_id: sharerOther.id, slug: "other", name: "Other" });
+    const homeWs = await seedWorkspace({ owner_id: sharerHome.id, slug: "home", name: "Home" });
+    await seedMembership({ user_id: caller.id, workspace_id: homeWs.id, role: "member" });
+
+    const crossPage = await seedPage({
+      workspace_id: otherWs.id,
+      created_by: sharerOther.id,
+      title: "Cross-workspace page",
+    });
+    await seedPageShare({
+      page_id: crossPage.id,
+      created_by: sharerOther.id,
+      grantee_type: "user",
+      grantee_id: caller.id,
+      permission: "view",
     });
 
-    const app = await createTestApp(sharesRouter, "/api/v1", { db });
-    const res = await app.request("/api/v1/me/shared-pages");
+    const sameWsPageA = await seedPage({ workspace_id: homeWs.id, created_by: sharerHome.id, title: "A" });
+    const sameWsPageB = await seedPage({ workspace_id: homeWs.id, created_by: sharerHome.id, title: "B" });
+    const sameWsPageC = await seedPage({ workspace_id: homeWs.id, created_by: sharerHome.id, title: "C" });
+    for (const page of [sameWsPageA, sameWsPageB, sameWsPageC]) {
+      await seedPageShare({
+        page_id: page.id,
+        created_by: sharerHome.id,
+        grantee_type: "user",
+        grantee_id: caller.id,
+        permission: "edit",
+      });
+    }
+
+    const res = await apiRequest("/api/v1/me/shared-pages", { userId: caller.id });
     expect(res.status).toBe(200);
 
-    const body = (await res.json()) as {
-      items: Array<{ page_id: string; workspace: { id: string; role: null | string } }>;
-      workspace_summaries: Array<{ workspace: { id: string; slug: string }; count: number }>;
-    };
+    const body = (await res.json()) as SharedPagesResponse;
 
     expect(body.items).toHaveLength(1);
-    expect(body.items[0].page_id).toBe("p1");
-    expect(body.items[0].workspace.id).toBe("ws-other");
-    expect(body.items[0].workspace.role).toBeNull();
+    expect(body.items[0]).toMatchObject({
+      page_id: crossPage.id,
+      title: "Cross-workspace page",
+      workspace: { id: otherWs.id, slug: "other", role: null },
+      permission: "view",
+      shared_by: sharerOther.id,
+      shared_by_name: "Alice",
+    });
 
     expect(body.workspace_summaries).toHaveLength(1);
-    expect(body.workspace_summaries[0]).toEqual({
-      workspace: { id: "ws-home", name: "Home", slug: "home", icon: null },
+    expect(body.workspace_summaries[0]).toMatchObject({
+      workspace: { id: homeWs.id, slug: "home", name: "Home" },
       count: 3,
     });
   });
 
-  it("coerces string counts from D1 into numbers", async () => {
-    const { sharesRouter } = await import("@/worker/routes/shares");
-    const db = createInboxDbMock({
-      crossWorkspaceRows: [],
-      summaryRows: [
-        {
-          workspace_id: "ws-home",
-          workspace_name: "Home",
-          workspace_slug: "home",
-          workspace_icon: null,
-          count: "2",
-        },
-      ],
+  it("ignores link-grantee shares and archived pages", async () => {
+    const caller = await seedUser();
+    const sharer = await seedUser();
+    const ws = await seedWorkspace({ owner_id: sharer.id });
+    await seedMembership({ user_id: caller.id, workspace_id: ws.id, role: "member" });
+
+    const archivedPage = await seedPage({
+      workspace_id: ws.id,
+      created_by: sharer.id,
+      archived_at: "2026-04-01T00:00:00.000Z",
+    });
+    await seedPageShare({
+      page_id: archivedPage.id,
+      created_by: sharer.id,
+      grantee_type: "user",
+      grantee_id: caller.id,
+      permission: "view",
     });
 
-    const app = await createTestApp(sharesRouter, "/api/v1", { db });
-    const res = await app.request("/api/v1/me/shared-pages");
+    const livePage = await seedPage({ workspace_id: ws.id, created_by: sharer.id });
+    await seedPageShare({
+      page_id: livePage.id,
+      created_by: sharer.id,
+      grantee_type: "link",
+      grantee_id: null,
+      link_token: "link-token-1",
+      permission: "view",
+    });
+
+    const res = await apiRequest("/api/v1/me/shared-pages", { userId: caller.id });
     expect(res.status).toBe(200);
 
-    const body = (await res.json()) as {
-      workspace_summaries: Array<{ count: number }>;
-    };
-    expect(body.workspace_summaries[0].count).toBe(2);
+    const body = (await res.json()) as SharedPagesResponse;
+    expect(body.items).toEqual([]);
+    expect(body.workspace_summaries).toEqual([]);
   });
 });

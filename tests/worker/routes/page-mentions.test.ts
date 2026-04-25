@@ -1,301 +1,202 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { workspaces, pages } from "@/worker/db/d1/schema";
 import { ResolvePageMentionsResponse } from "@/shared/types";
-import { resolvePrincipal, resolvePageAccessLevels } from "@/worker/lib/permissions";
-import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
-import { ApiErrorResponse } from "@tests/worker/util/schemas";
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { PROD_ORIGIN, apiRequest } from "@tests/worker/helpers/request";
+import { ApiErrorResponse } from "@tests/worker/helpers/schemas";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
-vi.mock("@/worker/lib/permissions", async () => {
-  const actual = await vi.importActual<typeof import("@/worker/lib/permissions")>("@/worker/lib/permissions");
-  return {
-    ...actual,
-    resolvePrincipal: vi.fn(),
-    resolvePageAccessLevels: vi.fn(),
-  };
-});
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
-
-const resolvePrincipalMock = vi.mocked(resolvePrincipal);
-const resolvePageAccessLevelsMock = vi.mocked(resolvePageAccessLevels);
-
-function createDbMock(opts: {
-  workspaceSlug: string | undefined;
-  pageRows: Array<{ id: string; title: string; icon: string | null }>;
-}) {
-  const workspaceGet = vi
-    .fn()
-    .mockResolvedValue(opts.workspaceSlug ? { id: "ws-1", slug: opts.workspaceSlug } : undefined);
-  const pagesWhere = vi.fn().mockResolvedValue(opts.pageRows);
-
-  const select = vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation((table: unknown) => {
-      if (table === workspaces) {
-        return { where: vi.fn().mockReturnValue({ get: workspaceGet }) };
-      }
-      if (table === pages) {
-        return { where: pagesWhere };
-      }
-      throw new Error(`Unexpected table in test mock: ${String(table)}`);
-    }),
-  }));
-
-  return { db: { select }, workspaceGet, pagesWhere };
-}
-
-async function postResolve(body: unknown, query = "") {
-  return new Request(`http://test/api/v1/workspaces/ws-1/page-mentions/resolve${query}`, {
+async function postResolve(
+  workspaceId: string,
+  body: { page_ids: string[] },
+  opts: { userId?: string; shareToken?: string; origin?: string } = {},
+) {
+  return apiRequest(`/api/v1/workspaces/${workspaceId}/page-mentions/resolve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body,
+    userId: opts.userId,
+    shareToken: opts.shareToken,
+    origin: opts.origin,
   });
 }
 
-describe("page-mentions: resolve", () => {
-  beforeEach(() => vi.clearAllMocks());
+describe("POST /workspaces/:wid/page-mentions/resolve", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
+  });
 
   it("resolves accessible pages for a full member", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
-    resolvePageAccessLevelsMock.mockResolvedValue(
-      new Map([
-        ["p-1", "edit"],
-        ["p-2", "edit"],
-      ]),
-    );
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const alpha = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha", icon: "A" });
+    const beta = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Beta" });
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [
-        { id: "p-1", title: "Alpha", icon: "A" },
-        { id: "p-2", title: "Beta", icon: null },
-      ],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1", "p-2"] }));
+    const res = await postResolve(ws.id, { page_ids: [alpha.id, beta.id] }, { userId: member.id });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions).toEqual([
-      { page_id: "p-1", accessible: true, title: "Alpha", icon: "A" },
-      { page_id: "p-2", accessible: true, title: "Beta", icon: null },
+      { page_id: alpha.id, accessible: true, title: "Alpha", icon: "A" },
+      { page_id: beta.id, accessible: true, title: "Beta", icon: null },
     ]);
   });
 
   it("resolves shared-link mentions when the principal is a link token", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "link", token: "tok" },
-      workspaceRole: null,
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "link",
+      grantee_id: null,
+      link_token: "tok-link",
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: null }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1"] }, "?share=tok"));
+    const res = await postResolve(ws.id, { page_ids: [page.id] }, { shareToken: "tok-link" });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions[0].accessible).toBe(true);
   });
 
-  it("keeps member precedence when a full member request also carries ?share=", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
+  it("keeps full-member access when a member request also carries ?share=", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "link",
+      grantee_id: null,
+      link_token: "tok-combo",
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "edit"]]));
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: null }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1"] }, "?share=tok"));
+    const res = await postResolve(ws.id, { page_ids: [page.id] }, { userId: member.id, shareToken: "tok-combo" });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions[0].accessible).toBe(true);
   });
 
-  it("resolves canonical shared access without a share token", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: null,
+  it("resolves canonical user-grantee shared access without a share token", async () => {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: outsider.id,
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "view"]]));
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: null }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1"] }));
+    const res = await postResolve(ws.id, { page_ids: [page.id] }, { userId: outsider.id });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions[0].accessible).toBe(true);
   });
 
   it("collapses inaccessible ids to restricted without leaking title or icon", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "link", token: "tok" },
-      workspaceRole: null,
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const visible = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha", icon: "A" });
+    const blocked = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Secret" });
+    await seedPageShare({
+      page_id: visible.id,
+      created_by: owner.id,
+      grantee_type: "link",
+      grantee_id: null,
+      link_token: "tok-restrict",
+      permission: "view",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(
-      new Map([
-        ["p-1", "view"],
-        ["p-blocked", "none"],
-      ]),
-    );
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db, pagesWhere } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: "A" }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1", "p-blocked"] }, "?share=tok"));
+    const res = await postResolve(ws.id, { page_ids: [visible.id, blocked.id] }, { shareToken: "tok-restrict" });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions).toEqual([
-      { page_id: "p-1", accessible: true, title: "Alpha", icon: "A" },
-      { page_id: "p-blocked", accessible: false, title: null, icon: null },
+      { page_id: visible.id, accessible: true, title: "Alpha", icon: "A" },
+      { page_id: blocked.id, accessible: false, title: null, icon: null },
     ]);
-    expect(pagesWhere).toHaveBeenCalledTimes(1);
   });
 
-  it("collapses shared non-member misses to restricted mention entries", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "link", token: "tok" },
-      workspaceRole: null,
+  it("collapses archived accessible pages to restricted mention entries", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const archived = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      title: "Tombstone",
+      archived_at: "2026-04-01T00:00:00.000Z",
     });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-blocked", "none"]]));
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-blocked"] }, "?share=tok"));
+    const res = await postResolve(ws.id, { page_ids: [archived.id] }, { userId: member.id });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.mentions).toEqual([{ page_id: "p-blocked", accessible: false, title: null, icon: null }]);
-  });
-
-  it("collapses archived-or-missing accessible pages to restricted mention entries", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-archived", "edit"]]));
-
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({ workspaceSlug: "demo", pageRows: [] });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-archived"] }));
-    expect(res.status).toBe(200);
-    const body = ResolvePageMentionsResponse.parse(await res.json());
-    expect(body.mentions).toEqual([{ page_id: "p-archived", accessible: false, title: null, icon: null }]);
+    expect(body.mentions).toEqual([{ page_id: archived.id, accessible: false, title: null, icon: null }]);
   });
 
   it("returns 404 when the workspace does not exist", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
+    const caller = await seedUser();
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({ workspaceSlug: undefined, pageRows: [] });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1"] }));
+    const res = await postResolve("ws-unknown", { page_ids: ["p-1"] }, { userId: caller.id });
     expect(res.status).toBe(404);
     expect(ApiErrorResponse.parse(await res.json()).error).toBe("not_found");
   });
 
-  it("returns 401 when no principal can be resolved", async () => {
-    resolvePrincipalMock.mockResolvedValue(null);
+  it("returns 401 when no principal can be resolved (anonymous, no share token)", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({ workspaceSlug: "demo", pageRows: [] });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1"] }));
+    const res = await postResolve(ws.id, { page_ids: ["p-1"] }, { origin: PROD_ORIGIN });
     expect(res.status).toBe(401);
   });
 
   it("rejects batches larger than the cap", async () => {
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({ workspaceSlug: "demo", pageRows: [] });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
 
-    const ids = Array.from({ length: 101 }, (_, i) => `p-${i}`);
-    const res = await app.request(await postResolve({ page_ids: ids }));
+    const ids = Array.from({ length: 101 }, (_, i) => `p-${i.toString().padStart(3, "0")}`);
+    const res = await postResolve(ws.id, { page_ids: ids }, { userId: member.id });
     expect(res.status).toBe(400);
-    expect(resolvePrincipalMock).not.toHaveBeenCalled();
   });
 
-  it("dedupes duplicate ids before resolving access", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
-    resolvePageAccessLevelsMock.mockResolvedValue(new Map([["p-1", "edit"]]));
+  it("dedupes duplicate ids and only resolves unique ones", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: null }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const res = await app.request(await postResolve({ page_ids: ["p-1", "p-1", "p-1"] }));
+    const res = await postResolve(ws.id, { page_ids: [page.id, page.id, page.id] }, { userId: member.id });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions).toHaveLength(1);
-    expect(resolvePageAccessLevelsMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), ["p-1"], "ws-1");
+    expect(body.mentions[0].page_id).toBe(page.id);
   });
 
-  it("collapses malformed ids to restricted instead of rejecting the whole batch", async () => {
-    resolvePrincipalMock.mockResolvedValue({
-      principal: { type: "user", userId: "user-1" },
-      workspaceRole: "member",
-    });
-    resolvePageAccessLevelsMock.mockResolvedValue(
-      new Map([
-        ["p-1", "edit"],
-        ["not-a-real-id-that-is-way-too-long-for-a-page", "none"],
-      ]),
-    );
+  it("collapses unknown ids to restricted instead of rejecting the whole batch", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const known = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    const unknownId = "page-unknown";
 
-    const { pageMentionsRouter } = await import("@/worker/routes/page-mentions");
-    const { db } = createDbMock({
-      workspaceSlug: "demo",
-      pageRows: [{ id: "p-1", title: "Alpha", icon: null }],
-    });
-    const app = await createTestApp(pageMentionsRouter, "/api/v1", { db });
-
-    const malformedId = "not-a-real-id-that-is-way-too-long-for-a-page";
-    const res = await app.request(await postResolve({ page_ids: ["p-1", malformedId] }));
+    const res = await postResolve(ws.id, { page_ids: [known.id, unknownId] }, { userId: member.id });
     expect(res.status).toBe(200);
     const body = ResolvePageMentionsResponse.parse(await res.json());
     expect(body.mentions).toEqual([
-      { page_id: "p-1", accessible: true, title: "Alpha", icon: null },
-      { page_id: malformedId, accessible: false, title: null, icon: null },
+      { page_id: known.id, accessible: true, title: "Alpha", icon: null },
+      { page_id: unknownId, accessible: false, title: null, icon: null },
     ]);
   });
 });

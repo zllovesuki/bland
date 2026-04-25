@@ -1,271 +1,241 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { resolvePrincipal, resolvePageAccessLevels } from "@/worker/lib/permissions";
-import { getPage } from "@/worker/lib/page-access";
-import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
-import type { WorkspaceRole } from "@/shared/types";
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { PROD_ORIGIN, apiRequest } from "@tests/worker/helpers/request";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
+import { buildYjsDocBytes, seedDocSyncSnapshot } from "@tests/worker/helpers/do";
 
-vi.mock("@/worker/lib/permissions", () => ({
-  resolvePrincipal: vi.fn(),
-  resolvePageAccessLevels: vi.fn(),
-}));
-vi.mock("@/worker/lib/page-access", () => ({ getPage: vi.fn() }));
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
-vi.mock("@/worker/lib/ai", async () => {
-  const actual = await vi.importActual<typeof import("@/worker/lib/ai")>("@/worker/lib/ai");
-  return {
-    ...actual,
-    createAiClient: vi.fn(() => ({
-      async chat() {
-        return (async function* () {
-          yield { type: "chunk", text: "ok" } as const;
-        })();
-      },
-      async summarize() {
-        return { summary: "mocked summary" };
-      },
-    })),
-  };
-});
+const REWRITE_PAYLOAD = {
+  action: "proofread",
+  selectedText: "hi",
+  parentBlock: "hi",
+  beforeBlock: "",
+  afterBlock: "",
+  pageTitle: "",
+};
 
-const resolvePrincipalMock = vi.mocked(resolvePrincipal);
-const resolvePageAccessLevelsMock = vi.mocked(resolvePageAccessLevels);
-const getPageMock = vi.mocked(getPage);
-
-type AccessLevel = "none" | "view" | "edit";
-
-function seedPrincipal(workspaceRole: WorkspaceRole | null) {
-  resolvePrincipalMock.mockResolvedValue({
-    principal: { kind: "user", id: "user-1" } as never,
-    workspaceRole,
+describe("AI route entitlement gating", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
   });
-}
-
-function seedPage(pageId = "pg-1") {
-  getPageMock.mockResolvedValue({ id: pageId, workspace_id: "ws-1", archived_at: null } as never);
-}
-
-function seedAccess(level: AccessLevel, pageId = "pg-1") {
-  resolvePageAccessLevelsMock.mockResolvedValue(new Map([[pageId, level]]));
-}
-
-function createAiEnv(bodyText = "Hello, this is the body of the page.") {
-  const getIndexPayload = vi.fn().mockResolvedValue({ kind: "found", title: "Page", bodyText });
-  return {
-    env: {
-      DocSync: { getByName: vi.fn().mockReturnValue({ getIndexPayload }) },
-    },
-    getIndexPayload,
-  };
-}
-
-async function buildApp(env: ReturnType<typeof createAiEnv>["env"]) {
-  const { aiRouter } = await import("@/worker/routes/ai");
-  return createTestApp(aiRouter, "/api/v1", { env });
-}
-
-function rewritePayload() {
-  return {
-    action: "proofread",
-    selectedText: "hi",
-    parentBlock: "hi",
-    beforeBlock: "",
-    afterBlock: "",
-    pageTitle: "",
-  };
-}
-
-const REWRITE_URL = "/api/v1/workspaces/ws-1/pages/pg-1/rewrite";
-
-describe("ai entitlement gating", () => {
-  beforeEach(() => vi.clearAllMocks());
 
   it("returns 401 when no principal can be resolved", async () => {
-    resolvePrincipalMock.mockResolvedValue(null);
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+      body: REWRITE_PAYLOAD,
+      origin: PROD_ORIGIN,
     });
     expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({ error: "unauthorized" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("unauthorized");
   });
 
-  it("returns 403 ai_not_entitled for a non-member canonical viewer attempting rewrite", async () => {
-    seedPrincipal(null);
-    seedPage();
-    seedAccess("view");
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
+  it("returns 403 ai_not_entitled for a non-member canonical viewer with share access attempting rewrite", async () => {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: outsider.id,
+      permission: "view",
+    });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+      body: REWRITE_PAYLOAD,
+      userId: outsider.id,
     });
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ error: "ai_not_entitled" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("ai_not_entitled");
   });
 
   it("denies every AI action for a guest on canonical surface even with edit share access", async () => {
-    const cases: Array<{ path: string; init: RequestInit }> = [
+    const owner = await seedUser();
+    const guest = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: guest.id, workspace_id: ws.id, role: "guest" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: guest.id,
+      permission: "edit",
+    });
+    await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Page", "Hello body"));
+
+    const cases: Array<{ path: string; body?: unknown }> = [
+      { path: `/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, body: REWRITE_PAYLOAD },
       {
-        path: "/api/v1/workspaces/ws-1/pages/pg-1/rewrite",
-        init: {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(rewritePayload()),
-        },
+        path: `/api/v1/workspaces/${ws.id}/pages/${page.id}/generate`,
+        body: { intent: "continue", beforeBlock: "", afterBlock: "", pageTitle: "" },
       },
-      {
-        path: "/api/v1/workspaces/ws-1/pages/pg-1/generate",
-        init: {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ intent: "continue", beforeBlock: "", afterBlock: "", pageTitle: "" }),
-        },
-      },
-      { path: "/api/v1/workspaces/ws-1/pages/pg-1/summarize", init: { method: "POST" } },
-      {
-        path: "/api/v1/workspaces/ws-1/pages/pg-1/ask",
-        init: {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question: "What is this?" }),
-        },
-      },
+      { path: `/api/v1/workspaces/${ws.id}/pages/${page.id}/summarize` },
+      { path: `/api/v1/workspaces/${ws.id}/pages/${page.id}/ask`, body: { question: "What is this?" } },
     ];
-    for (const { path, init } of cases) {
-      seedPrincipal("guest");
-      seedPage();
-      seedAccess("edit");
-      const { env } = createAiEnv();
-      const app = await buildApp(env);
-      const res = await app.request(path, init);
+
+    for (const { path, body } of cases) {
+      const res = await apiRequest(path, {
+        method: "POST",
+        body: body as never,
+        userId: guest.id,
+      });
       expect(res.status, `guest should be denied on ${path}`).toBe(403);
-      expect(await res.json()).toMatchObject({ error: "ai_not_entitled" });
+      const payload = (await res.json()) as { error: string };
+      expect(payload.error).toBe("ai_not_entitled");
     }
   });
 
-  it("returns 403 ai_not_entitled for a canonical viewer (view-only) attempting rewrite", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("view");
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+  it("full members keep edit entitlement even when they also carry a redundant view-only user share", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    await seedPageShare({
+      page_id: page.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: member.id,
+      permission: "view",
     });
-    expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ error: "ai_not_entitled" });
-  });
 
-  it("allows a canonical viewer to summarize", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("view");
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request("/api/v1/workspaces/ws-1/pages/pg-1/summarize", {
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
       method: "POST",
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ summary: "mocked summary" });
-  });
-
-  it("allows a canonical editor to rewrite", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("edit");
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+      body: REWRITE_PAYLOAD,
+      userId: member.id,
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
   });
 
-  it("returns 404 not_found when the page does not exist", async () => {
-    seedPrincipal("member");
-    getPageMock.mockResolvedValue(undefined as never);
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
+  it("allows a canonical member to summarize a page with body text", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Page", "This is the body."));
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/summarize`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+      userId: member.id,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { summary: string };
+    expect(typeof body.summary).toBe("string");
+    expect(body.summary.length).toBeGreaterThan(0);
+  });
+
+  it("allows a canonical editor (full member) to rewrite and streams SSE", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
+      method: "POST",
+      body: REWRITE_PAYLOAD,
+      userId: member.id,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    await res.body?.cancel();
+  });
+
+  it("returns 404 not_found when the page does not exist", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/page-does-not-exist/rewrite`, {
+      method: "POST",
+      body: REWRITE_PAYLOAD,
+      userId: owner.id,
     });
     expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "not_found" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("not_found");
   });
 
   it("returns 404 not_found when access level is none (no existence leak)", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("none");
-    const { env } = createAiEnv();
-    const app = await buildApp(env);
-    const res = await app.request(REWRITE_URL, {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/rewrite`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(rewritePayload()),
+      body: REWRITE_PAYLOAD,
+      userId: outsider.id,
     });
     expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "not_found" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("not_found");
   });
 });
 
-describe("ai empty-page gating", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns 404 page_empty on /ask when the page body is empty", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("edit");
-    const { env } = createAiEnv("");
-    const app = await buildApp(env);
-    const res = await app.request("/api/v1/workspaces/ws-1/pages/pg-1/ask", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: "What is this?" }),
-    });
-    expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "page_empty" });
+describe("AI empty-page gating", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
   });
 
-  it("returns 404 page_empty on /summarize when the page body is empty", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("view");
-    const { env } = createAiEnv("");
-    const app = await buildApp(env);
-    const res = await app.request("/api/v1/workspaces/ws-1/pages/pg-1/summarize", {
+  it("returns 404 page_empty on /ask when the page body is empty (no snapshot)", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/ask`, {
       method: "POST",
+      body: { question: "What is this?" },
+      userId: member.id,
     });
     expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "page_empty" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("page_empty");
   });
 
-  it("returns 404 page_empty on /ask when getIndexPayload says missing", async () => {
-    seedPrincipal("member");
-    seedPage();
-    seedAccess("edit");
-    const getIndexPayload = vi.fn().mockResolvedValue({ kind: "missing" });
-    const env = { DocSync: { getByName: vi.fn().mockReturnValue({ getIndexPayload }) } };
-    const app = await buildApp(env);
-    const res = await app.request("/api/v1/workspaces/ws-1/pages/pg-1/ask", {
+  it("returns 404 page_empty on /summarize when the page body is empty (no snapshot)", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/summarize`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: "hi" }),
+      userId: member.id,
     });
     expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "page_empty" });
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("page_empty");
+  });
+
+  it("returns 404 page_empty on /ask when the DocSync snapshot exists but body is empty", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Title only", ""));
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}/ask`, {
+      method: "POST",
+      body: { question: "hi" },
+      userId: member.id,
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("page_empty");
   });
 });

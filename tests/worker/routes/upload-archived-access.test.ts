@@ -1,123 +1,123 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { pages, uploads } from "@/worker/db/d1/schema";
-import { getPage } from "@/worker/lib/page-access";
-import { checkMembership } from "@/worker/lib/membership";
-import {
-  mockJose,
-  mockAuthHelpers,
-  mockAuthMiddleware,
-  mockRateLimitMiddleware,
-  createSelectMock,
-  createTestApp,
-} from "@tests/worker/util/mocks";
-import { createMembership, TEST_TIMESTAMP } from "@tests/worker/util/fixtures";
-import { ApiErrorResponse } from "@tests/worker/util/schemas";
+import { apiRequest } from "@tests/worker/helpers/request";
+import { refreshCookieFor } from "@tests/worker/helpers/auth";
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { ApiErrorResponse } from "@tests/worker/helpers/schemas";
+import { seedPage, seedPageShare, seedUpload, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
-vi.mock("@/worker/lib/page-access", () => ({ getPage: vi.fn() }));
-vi.mock("@/worker/lib/membership", () => ({ checkMembership: vi.fn() }));
-vi.mock("jose", () => mockJose());
-vi.mock("@/worker/lib/auth", () => mockAuthHelpers());
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
-
-const getPageMock = vi.mocked(getPage);
-const checkMembershipMock = vi.mocked(checkMembership);
-
-function createUpload(overrides: Partial<typeof uploads.$inferSelect> = {}): typeof uploads.$inferSelect {
-  return {
-    id: "upload-1",
-    workspace_id: "ws-1",
-    page_id: null,
-    uploaded_by: "user-1",
-    r2_key: "uploads/u",
-    filename: "f.png",
-    content_type: "image/png",
-    size_bytes: 1024,
-    created_at: TEST_TIMESTAMP,
-    ...overrides,
-  };
+async function putR2(key: string, bytes: Uint8Array) {
+  await env.R2.put(key, bytes);
 }
 
-function createPage(overrides: Partial<typeof pages.$inferSelect> = {}): typeof pages.$inferSelect {
-  return {
-    id: "page-1",
-    workspace_id: "ws-1",
-    kind: "doc",
-    title: "T",
-    parent_id: null,
-    position: 0,
-    icon: null,
-    cover_url: null,
-    created_by: "user-1",
-    archived_at: null,
-    created_at: TEST_TIMESTAMP,
-    updated_at: TEST_TIMESTAMP,
-    ...overrides,
-  };
+async function resetR2() {
+  let cursor: string | undefined;
+  do {
+    const list = await env.R2.list({ cursor });
+    if (list.objects.length > 0) {
+      await env.R2.delete(list.objects.map((o) => o.key));
+    }
+    cursor = list.truncated ? list.cursor : undefined;
+  } while (cursor);
 }
 
-const MEMBER = createMembership();
-const R2_MOCK = { get: vi.fn().mockResolvedValue({ body: new ReadableStream(), size: 1024 }) };
+describe("GET /uploads/:id - archived page gating", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
+    await resetR2();
+  });
 
-describe("upload serving: archived page access", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns 404 for page-scoped uploads when the linked page is archived", async () => {
-    checkMembershipMock.mockResolvedValue(MEMBER);
-    getPageMock.mockResolvedValue(undefined);
-
-    const { uploadServingRouter } = await import("@/worker/routes/uploads");
-    const app = await createTestApp(uploadServingRouter, "/uploads", {
-      db: createSelectMock(createUpload({ id: "u-1", page_id: "page-1" })),
-      env: { R2: R2_MOCK, JWT_SECRET: "s" },
+  it("returns 404 for page-scoped uploads when the linked page is archived (member via cookie)", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const archivedPage = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      archived_at: "2026-04-01T00:00:00.000Z",
     });
+    const upload = await seedUpload({
+      workspace_id: ws.id,
+      page_id: archivedPage.id,
+      uploaded_by: owner.id,
+      r2_key: "uploads/archived-page-asset.png",
+    });
+    await putR2(upload.r2_key, new Uint8Array([1, 2, 3]));
 
-    const res = await app.request("/uploads/u-1", { headers: { cookie: "bland_refresh=t" } });
+    const cookie = await refreshCookieFor(owner.id);
+    const res = await apiRequest(`/uploads/${upload.id}`, { cookie });
+
     expect(res.status).toBe(404);
     expect(ApiErrorResponse.parse(await res.json()).error).toBe("not_found");
   });
 
-  it("serves workspace-level uploads (no page_id) without archive check", async () => {
-    checkMembershipMock.mockResolvedValue(MEMBER);
-
-    const { uploadServingRouter } = await import("@/worker/routes/uploads");
-    const app = await createTestApp(uploadServingRouter, "/uploads", {
-      db: createSelectMock(createUpload({ id: "u-2" })),
-      env: { R2: R2_MOCK, JWT_SECRET: "s" },
+  it("serves workspace-level uploads (no page_id) for any authenticated member without archive checks", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const upload = await seedUpload({
+      workspace_id: ws.id,
+      page_id: null,
+      uploaded_by: owner.id,
+      r2_key: "uploads/avatar.png",
+      content_type: "image/png",
     });
+    await putR2(upload.r2_key, new Uint8Array([9, 8, 7]));
 
-    const res = await app.request("/uploads/u-2", { headers: { cookie: "bland_refresh=t" } });
+    const cookie = await refreshCookieFor(owner.id);
+    const res = await apiRequest(`/uploads/${upload.id}`, { cookie });
+
     expect(res.status).toBe(200);
-    expect(getPageMock).not.toHaveBeenCalled();
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("cache-control")).toContain("immutable");
   });
 
-  it("returns 404 for archived page-scoped uploads via share-token auth", async () => {
-    getPageMock.mockResolvedValue(undefined);
-
-    const { uploadServingRouter } = await import("@/worker/routes/uploads");
-    const app = await createTestApp(uploadServingRouter, "/uploads", {
-      db: createSelectMock(createUpload({ id: "u-share", page_id: "page-1" })),
-      env: { R2: R2_MOCK, JWT_SECRET: "s" },
+  it("returns 404 for archived page-scoped uploads accessed via share token", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const archivedPage = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      archived_at: "2026-04-01T00:00:00.000Z",
     });
+    await seedPageShare({
+      page_id: archivedPage.id,
+      created_by: owner.id,
+      grantee_type: "link",
+      grantee_id: null,
+      link_token: "tok-archived",
+      permission: "view",
+    });
+    const upload = await seedUpload({
+      workspace_id: ws.id,
+      page_id: archivedPage.id,
+      uploaded_by: owner.id,
+      r2_key: "uploads/share-archived.png",
+    });
+    await putR2(upload.r2_key, new Uint8Array([4, 5, 6]));
 
-    const res = await app.request("/uploads/u-share?share=t");
+    const res = await apiRequest(`/uploads/${upload.id}`, { shareToken: "tok-archived" });
     expect(res.status).toBe(404);
     expect(ApiErrorResponse.parse(await res.json()).error).toBe("not_found");
   });
 
-  it("serves page-scoped uploads when the page is not archived", async () => {
-    checkMembershipMock.mockResolvedValue(MEMBER);
-    getPageMock.mockResolvedValue(createPage());
-
-    const { uploadServingRouter } = await import("@/worker/routes/uploads");
-    const app = await createTestApp(uploadServingRouter, "/uploads", {
-      db: createSelectMock(createUpload({ id: "u-3", page_id: "page-1" })),
-      env: { R2: R2_MOCK, JWT_SECRET: "s" },
+  it("serves page-scoped uploads for members when the page is not archived", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
+    const upload = await seedUpload({
+      workspace_id: ws.id,
+      page_id: page.id,
+      uploaded_by: owner.id,
+      r2_key: "uploads/live-page-asset.png",
+      content_type: "image/png",
     });
+    await putR2(upload.r2_key, new Uint8Array([2, 4, 6, 8]));
 
-    const res = await app.request("/uploads/u-3", { headers: { cookie: "bland_refresh=t" } });
+    const cookie = await refreshCookieFor(owner.id);
+    const res = await apiRequest(`/uploads/${upload.id}`, { cookie });
     expect(res.status).toBe(200);
-    expect(getPageMock).toHaveBeenCalledWith(expect.anything(), "page-1", "ws-1");
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("cache-control")).toContain("private");
+    expect(res.headers.get("cache-control")).toContain("max-age=300");
   });
 });

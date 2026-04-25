@@ -1,71 +1,122 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { checkMembership } from "@/worker/lib/membership";
 import { SearchResult } from "@/shared/types";
-import { mockAuthMiddleware, mockRateLimitMiddleware, createTestApp } from "@tests/worker/util/mocks";
-import { createMembership } from "@tests/worker/util/fixtures";
-
-vi.mock("@/worker/lib/membership", () => ({ checkMembership: vi.fn() }));
-vi.mock("@/worker/lib/permissions", () => ({ canAccessPages: vi.fn().mockResolvedValue(new Map()) }));
-vi.mock("@/worker/middleware/auth", () => mockAuthMiddleware());
-vi.mock("@/worker/middleware/rate-limit", () => mockRateLimitMiddleware());
-
-const checkMembershipMock = vi.mocked(checkMembership);
+import { resetD1Tables } from "@tests/worker/helpers/db";
+import { apiRequest } from "@tests/worker/helpers/request";
+import { seedMembership, seedPage, seedPageShare, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
 const SearchResponse = z.object({ results: z.array(SearchResult) });
 
-function createMockWorkspaceIndexerEnv() {
-  const search = vi.fn().mockResolvedValue({ kind: "results", items: [] });
-  return {
-    env: {
-      WorkspaceIndexer: {
-        getByName: vi.fn().mockReturnValue({ search }),
-      },
-    },
-    search,
-  };
+async function indexPage(workspaceId: string, pageId: string, title: string, bodyText: string): Promise<void> {
+  const stub = env.WorkspaceIndexer.getByName(workspaceId);
+  const result = await stub.indexPage(pageId, title, bodyText);
+  if (result.kind !== "indexed") {
+    throw new Error(`indexPage failed for ${pageId}: ${JSON.stringify(result)}`);
+  }
 }
 
-describe("search: membership gating", () => {
-  beforeEach(() => vi.clearAllMocks());
+async function clearIndex(workspaceId: string): Promise<void> {
+  const stub = env.WorkspaceIndexer.getByName(workspaceId);
+  await stub.clear();
+}
 
-  it("returns empty results for non-members without accessible hits", async () => {
-    checkMembershipMock.mockResolvedValue(null);
-
-    const { searchRouter } = await import("@/worker/routes/search");
-    const { env, search } = createMockWorkspaceIndexerEnv();
-    const app = await createTestApp(searchRouter, "/api/v1", { env });
-
-    const res = await app.request("/api/v1/workspaces/ws-1/search?q=test");
-    expect(res.status).toBe(200);
-    expect(SearchResponse.parse(await res.json()).results).toEqual([]);
-    expect(search).toHaveBeenCalledWith("test", 100);
+describe("GET /workspaces/:wid/search - membership gating", () => {
+  beforeEach(async () => {
+    await resetD1Tables();
   });
 
-  it("allows workspace members to search", async () => {
-    checkMembershipMock.mockResolvedValue(createMembership("member"));
+  it("returns empty results for non-members with no accessible hits", async () => {
+    const owner = await seedUser();
+    const outsider = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    await clearIndex(ws.id);
+    await indexPage(ws.id, page.id, "Alpha", "something about testing");
 
-    const { searchRouter } = await import("@/worker/routes/search");
-    const { env, search } = createMockWorkspaceIndexerEnv();
-    const app = await createTestApp(searchRouter, "/api/v1", { env });
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/search`, {
+      search: { q: "testing" },
+      userId: outsider.id,
+    });
 
-    const res = await app.request("/api/v1/workspaces/ws-1/search?q=test");
     expect(res.status).toBe(200);
-    expect(SearchResponse.parse(await res.json()).results).toEqual([]);
-    expect(search).toHaveBeenCalledWith("test", 50);
+    const body = SearchResponse.parse(await res.json());
+    expect(body.results).toEqual([]);
   });
 
-  it("allows guest members to search (with post-filtering)", async () => {
-    checkMembershipMock.mockResolvedValue(createMembership("guest"));
+  it("returns matching pages for full workspace members", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Alpha" });
+    await clearIndex(ws.id);
+    await indexPage(ws.id, page.id, "Alpha", "unique-search-keyword-for-members");
 
-    const { searchRouter } = await import("@/worker/routes/search");
-    const { env, search } = createMockWorkspaceIndexerEnv();
-    const app = await createTestApp(searchRouter, "/api/v1", { env });
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/search`, {
+      search: { q: "unique-search-keyword-for-members" },
+      userId: member.id,
+    });
 
-    const res = await app.request("/api/v1/workspaces/ws-1/search?q=test");
     expect(res.status).toBe(200);
-    expect(SearchResponse.parse(await res.json()).results).toEqual([]);
-    expect(search).toHaveBeenCalledWith("test", 100);
+    const body = SearchResponse.parse(await res.json());
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].page_id).toBe(page.id);
+    expect(body.results[0].title).toBe("Alpha");
+  });
+
+  it("excludes archived pages from member results", async () => {
+    const owner = await seedUser();
+    const member = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: member.id, workspace_id: ws.id, role: "member" });
+    const livePage = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Live" });
+    const archivedPage = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      title: "Old",
+      archived_at: "2026-04-01T00:00:00.000Z",
+    });
+    await clearIndex(ws.id);
+    await indexPage(ws.id, livePage.id, "Live", "archive-gating-live-keyword");
+    await indexPage(ws.id, archivedPage.id, "Old", "archive-gating-live-keyword");
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/search`, {
+      search: { q: "archive-gating-live-keyword" },
+      userId: member.id,
+    });
+
+    expect(res.status).toBe(200);
+    const body = SearchResponse.parse(await res.json());
+    expect(body.results.map((r) => r.page_id)).toEqual([livePage.id]);
+  });
+
+  it("post-filters guest results by per-page share access", async () => {
+    const owner = await seedUser();
+    const guest = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    await seedMembership({ user_id: guest.id, workspace_id: ws.id, role: "guest" });
+    const sharedWithGuest = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Granted" });
+    const hiddenFromGuest = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Secret" });
+    await seedPageShare({
+      page_id: sharedWithGuest.id,
+      created_by: owner.id,
+      grantee_type: "user",
+      grantee_id: guest.id,
+      permission: "view",
+    });
+    await clearIndex(ws.id);
+    await indexPage(ws.id, sharedWithGuest.id, "Granted", "guest-post-filter-keyword");
+    await indexPage(ws.id, hiddenFromGuest.id, "Secret", "guest-post-filter-keyword");
+
+    const res = await apiRequest(`/api/v1/workspaces/${ws.id}/search`, {
+      search: { q: "guest-post-filter-keyword" },
+      userId: guest.id,
+    });
+
+    expect(res.status).toBe(200);
+    const body = SearchResponse.parse(await res.json());
+    expect(body.results.map((r) => r.page_id)).toEqual([sharedWithGuest.id]);
   });
 });

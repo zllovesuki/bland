@@ -5,7 +5,7 @@
     // project continue excluding tests while still giving tests the same alias
     // and module-resolution behavior as src/.
     "rootDir": "..",
-    "types": ["vite/client", "node"],
+    "types": ["vite/client", "node", "@cloudflare/vitest-pool-workers/types"],
     "paths": {
       "@/*": ["../src/*"],
       "@tests/*": ["./*"]
