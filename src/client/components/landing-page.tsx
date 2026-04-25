@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { FileText, ChevronRight, Circle, Search, Pilcrow } from "lucide-react";
+import { FileText, ChevronRight, Circle, Search, Pilcrow, Heart } from "lucide-react";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 
 const STACK = [
@@ -431,25 +431,24 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-zinc-800/40 py-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
-          <p className="text-xs text-zinc-500">Runs on Cloudflare.</p>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://git-on-cloudflare.com/rachel/bland"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
-            >
-              Source code
-            </a>
-            <a
-              href="https://devbin.tools"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
-            >
-              Part of devbin.tools
-            </a>
-          </div>
+          <a
+            href="https://edgenative.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
+          >
+            Made with
+            <Heart className="inline h-3 w-3 text-accent-500" aria-hidden="true" />
+            on Cloudflare
+          </a>
+          <a
+            href="https://git.edgenative.dev/rachel/bland"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-zinc-500 underline decoration-zinc-700 underline-offset-2 transition-colors hover:text-accent-400"
+          >
+            Source code
+          </a>
         </div>
       </footer>
     </div>

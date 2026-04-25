@@ -10,7 +10,7 @@
 	},
 	"vars": {
 		"LOG_LEVEL": "info",
-		"ALLOWED_ORIGINS": "https://bland.tools",
+		"ALLOWED_ORIGINS": "https://bland.tools,https://docs.edgenative.dev",
 	},
 	"assets": {
 		"binding": "ASSETS",
@@ -20,6 +20,10 @@
 	"routes": [
 		{
 			"pattern": "bland.tools",
+			"custom_domain": true,
+		},
+		{
+			"pattern": "docs.edgenative.dev",
 			"custom_domain": true,
 		},
 	],
