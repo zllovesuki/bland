@@ -11,7 +11,9 @@ interface IndexPageMessage {
   pageId: string;
 }
 
-export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env): Promise<void> {
+export type SearchIndexResult = { kind: "ok" } | { kind: "retry"; delaySeconds: number; reason: string };
+
+export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env): Promise<SearchIndexResult> {
   const { pageId } = msg;
   const db = createDb(env.DB);
 
@@ -27,12 +29,11 @@ export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env):
     .where(eq(pages.id, pageId))
     .get();
 
-  // Page not found in D1 — likely hard-deleted. Remove stale FTS entry if one exists.
-  // We don't know the workspace_id, so we can't target the right WorkspaceIndexer.
-  // This is acceptable: the search route post-filters missing pages from results.
+  // Page not visible yet from D1: most often the queue consumer raced ahead
+  // of the producer's bookmark. Retry so create-immediately-search works.
   if (!page) {
-    log.info("fts_skipped", { pageId, reason: "page_not_found" });
-    return;
+    log.info("fts_retry", { pageId, reason: "page_not_yet_visible" });
+    return { kind: "retry", delaySeconds: 2, reason: "page_not_yet_visible" };
   }
 
   const indexer = env.WorkspaceIndexer.getByName(page.workspace_id);
@@ -41,7 +42,7 @@ export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env):
   if (page.archived_at) {
     await indexer.removePage(pageId);
     log.info("fts_removed", { pageId, reason: "archived" });
-    return;
+    return { kind: "ok" };
   }
 
   // Fetch indexable text from DocSync DO
@@ -65,4 +66,5 @@ export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env):
     throw new Error(`WorkspaceIndexer.indexPage failed for ${pageId}: ${result.message}`);
   }
   log.info("fts_indexed", { pageId, titleLen: title.length, bodyLen: bodyText.length });
+  return { kind: "ok" };
 }

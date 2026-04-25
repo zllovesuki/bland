@@ -130,19 +130,29 @@ uploadServingRouter.put("/:id/data", optionalAuth, rateLimit("RL_API"), async (c
     putAuthorized =
       (await canAccessPage(db, { type: "link", token: shareToken }, upload.page_id, upload.workspace_id, "edit")) &&
       getPageEditEntitlements("shared", "edit").uploadImage;
-  } else if (user && upload.uploaded_by === user.id) {
-    const membership = await checkMembership(db, user.id, upload.workspace_id);
-    if (membership && canEdit(membership.role)) {
-      putAuthorized = true;
-    } else if (upload.page_id) {
-      putAuthorized =
-        (await canAccessPage(db, { type: "user", userId: user.id }, upload.page_id, upload.workspace_id, "edit")) &&
-        getPageEditEntitlements("canonical", "edit").uploadImage;
+    if (!putAuthorized) {
+      return c.json({ error: "forbidden", message: "Share link does not grant edit access" }, 403);
     }
-  }
-
-  if (!putAuthorized) {
-    return c.json({ error: "forbidden", message: "You do not have edit access" }, 403);
+  } else {
+    // Canonical path: distinguish "no valid bearer" (401, refresh-eligible)
+    // from "valid bearer without rights" (403, terminal). The client refresh
+    // gate at api.ts triggers only on 401 / 403+`unauthorized`.
+    if (!user) {
+      return c.json({ error: "unauthorized", message: "Authentication required" }, 401);
+    }
+    if (upload.uploaded_by === user.id) {
+      const membership = await checkMembership(db, user.id, upload.workspace_id);
+      if (membership && canEdit(membership.role)) {
+        putAuthorized = true;
+      } else if (upload.page_id) {
+        putAuthorized =
+          (await canAccessPage(db, { type: "user", userId: user.id }, upload.page_id, upload.workspace_id, "edit")) &&
+          getPageEditEntitlements("canonical", "edit").uploadImage;
+      }
+    }
+    if (!putAuthorized) {
+      return c.json({ error: "forbidden", message: "You do not have edit access" }, 403);
+    }
   }
 
   // Prevent overwriting an already-uploaded file

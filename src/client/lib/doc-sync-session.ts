@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
-import { api } from "@/client/lib/api";
+import { api, refreshSession } from "@/client/lib/api";
 import { docCache } from "@/client/lib/doc-cache-registry";
 import { reconcileDocSyncProvider } from "@/client/lib/doc-sync-provider";
 import { reportClientError } from "@/client/lib/report-client-error";
@@ -49,6 +49,34 @@ export function deriveDocSyncPhase(i: DocSyncPhaseInputs): DocSyncPhaseSnapshot 
     case "resolved":
       return { ready: true, shouldConnect: true, snapshotFetch: null, error: false };
   }
+}
+
+export interface DocSyncRefreshDecisionInput {
+  isOnline: boolean;
+  isProviderActive: boolean;
+  hasShareToken: boolean;
+  currentAccessToken: string | null;
+  lastRefreshAttemptedFor: string | null;
+}
+
+export type DocSyncRefreshDecision =
+  | { kind: "skip"; reason: "share" | "offline" | "inactive" | "no_token" | "already_attempted" }
+  | { kind: "refresh"; tokenAtAttempt: string };
+
+// Reconnect-time refresh policy. The browser cannot read the HTTP 401 from a
+// failed WS upgrade, so every authenticated `connection-close` is treated as
+// potentially auth-related. The gate keys on the access-token value to avoid
+// looping on the same stale token, while still allowing a future expiration
+// of the rotated token to refresh again.
+export function decideDocSyncRefresh(i: DocSyncRefreshDecisionInput): DocSyncRefreshDecision {
+  if (!i.isOnline) return { kind: "skip", reason: "offline" };
+  if (!i.isProviderActive) return { kind: "skip", reason: "inactive" };
+  if (i.hasShareToken) return { kind: "skip", reason: "share" };
+  if (!i.currentAccessToken) return { kind: "skip", reason: "no_token" };
+  if (i.lastRefreshAttemptedFor === i.currentAccessToken) {
+    return { kind: "skip", reason: "already_attempted" };
+  }
+  return { kind: "refresh", tokenAtAttempt: i.currentAccessToken };
 }
 
 export interface DocSyncSessionOptions<TRuntime> {
@@ -126,10 +154,13 @@ export function useDocSyncSession<TRuntime extends object>({
   onProviderRef.current = onProvider;
   const wantsConnectionRef = useRef(wantsConnection);
   wantsConnectionRef.current = wantsConnection;
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
   const rootsRef = useRef(roots);
   rootsRef.current = roots;
   const hasBodyRef = useRef(hasBody);
   hasBodyRef.current = hasBody;
+  const lastRefreshAttemptedFor = useRef<string | null>(null);
 
   useEffect(() => {
     setTitle(initialTitleRef.current);
@@ -188,6 +219,23 @@ export function useDocSyncSession<TRuntime extends object>({
     };
     wsProvider.on("sync", handleProviderSync);
 
+    const handleConnectionClose = () => {
+      if (!mounted) return;
+      const decision = decideDocSyncRefresh({
+        isOnline: onlineRef.current,
+        isProviderActive: wantsConnectionRef.current,
+        hasShareToken: !!shareToken,
+        currentAccessToken: useAuthStore.getState().accessToken,
+        lastRefreshAttemptedFor: lastRefreshAttemptedFor.current,
+      });
+      if (decision.kind !== "refresh") return;
+      // Mark before the async call. Do NOT overwrite on success: a future
+      // expiration of the rotated token must remain refreshable.
+      lastRefreshAttemptedFor.current = decision.tokenAtAttempt;
+      void refreshSession();
+    };
+    wsProvider.on("connection-close", handleConnectionClose);
+
     const handleIdbSync = () => {
       if (!mounted) return;
       const bodyReady = hasBodyRef.current(projected);
@@ -220,6 +268,7 @@ export function useDocSyncSession<TRuntime extends object>({
       titleText.unobserve(titleObserver);
       if (seedTitleTimeout !== null) window.clearTimeout(seedTitleTimeout);
       wsProvider.off("sync", handleProviderSync);
+      wsProvider.off("connection-close", handleConnectionClose);
       onProviderRef.current?.(null);
       wsProvider.destroy();
       idb.destroy();

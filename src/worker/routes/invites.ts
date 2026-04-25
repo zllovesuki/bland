@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { AppContext } from "@/worker/app-context";
@@ -26,11 +26,10 @@ const log = createLogger("invites");
 
 type InviteRow = { revoked_at: string | null; accepted_at: string | null; expires_at: string };
 
-function validateInviteState(invite: InviteRow): { error: string; message: string; status: 410 } | null {
-  if (invite.revoked_at) return { error: "gone", message: "This invite has been revoked", status: 410 };
-  if (invite.accepted_at) return { error: "gone", message: "This invite has already been accepted", status: 410 };
-  if (new Date(invite.expires_at) < new Date())
-    return { error: "gone", message: "This invite has expired", status: 410 };
+function validateInviteState(invite: InviteRow): { error: string; message: string } | null {
+  if (invite.revoked_at) return { error: "gone", message: "This invite has been revoked" };
+  if (invite.accepted_at) return { error: "gone", message: "This invite has already been accepted" };
+  if (new Date(invite.expires_at) < new Date()) return { error: "gone", message: "This invite has expired" };
   return null;
 }
 
@@ -123,7 +122,7 @@ invitesRouter.get("/invite/:token", async (c) => {
   }
 
   const stateError = validateInviteState(result);
-  if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
+  if (stateError) return c.json(stateError, 410);
 
   return c.json({
     invite: {
@@ -166,7 +165,7 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   }
 
   const stateError = validateInviteState(invite);
-  if (stateError) return c.json({ error: stateError.error, message: stateError.message }, stateError.status);
+  if (stateError) return c.json(stateError, 410);
 
   // If invite is pinned to a specific email, enforce it (pre-check for new-user flow)
   if (invite.email && email && email.toLowerCase() !== invite.email) {
@@ -255,21 +254,59 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     created_at: userCreatedAt,
   };
 
-  // Check if already a member
+  // Conditional acceptance gate, atomic with the membership insert.
+  // The UPDATE only matches an open invite. The INSERT-from-SELECT only
+  // materializes a membership row if this caller's UPDATE just claimed the
+  // invite (filter on the `accepted_by`/`accepted_at` we wrote in step 1).
+  // `onConflictDoNothing` makes the INSERT a no-op for an already-member
+  // caller via the (user_id, workspace_id) primary key, so one batch shape
+  // serves both paths.
+  const now = new Date().toISOString();
   const existingMembership = await checkMembership(db, userId, invite.workspace_id);
-  if (existingMembership) {
-    // Mark invite as accepted but don't create duplicate membership
-    await db
+
+  const [claimedRows] = await db.batch([
+    db
       .update(invites)
-      .set({ accepted_at: new Date().toISOString(), accepted_by: userId })
-      .where(eq(invites.id, invite.id));
+      .set({ accepted_at: now, accepted_by: userId })
+      .where(
+        and(
+          eq(invites.id, invite.id),
+          isNull(invites.accepted_at),
+          isNull(invites.revoked_at),
+          gt(invites.expires_at, now),
+        ),
+      )
+      .returning({ id: invites.id }),
+    db
+      .insert(memberships)
+      .select((qb) =>
+        qb
+          .select({
+            user_id: sql<string>`${userId}`.as("user_id"),
+            workspace_id: invites.workspace_id,
+            role: invites.role,
+            joined_at: sql<string>`${now}`.as("joined_at"),
+          })
+          .from(invites)
+          .where(and(eq(invites.id, invite.id), eq(invites.accepted_by, userId), eq(invites.accepted_at, now))),
+      )
+      .onConflictDoNothing(),
+  ]);
 
-    const [accessToken, refreshToken] = await Promise.all([
-      createAccessToken(userId, c.env),
-      createRefreshToken(userId, c.env),
-    ]);
-    setRefreshCookie(c, refreshToken);
+  if (!claimedRows || claimedRows.length === 0) {
+    // Lost the gate: invite was concurrently accepted, revoked, or expired.
+    const reread = await db.select().from(invites).where(eq(invites.id, invite.id)).get();
+    const stateError = reread ? validateInviteState(reread) : null;
+    return c.json(stateError ?? { error: "gone", message: "This invite has already been accepted" }, 410);
+  }
 
+  const [accessToken, refreshToken] = await Promise.all([
+    createAccessToken(userId, c.env),
+    createRefreshToken(userId, c.env),
+  ]);
+  setRefreshCookie(c, refreshToken);
+
+  if (existingMembership) {
     log.info("invite_accepted", {
       inviteId: invite.id,
       userId,
@@ -277,7 +314,6 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
       isNewUser: false,
       alreadyMember: true,
     });
-
     return c.json({
       user: userPayload,
       workspace_id: invite.workspace_id,
@@ -286,24 +322,6 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     });
   }
 
-  // Create membership and mark invite accepted
-  const now = new Date().toISOString();
-
-  await db.batch([
-    db.insert(memberships).values({
-      user_id: userId,
-      workspace_id: invite.workspace_id,
-      role: invite.role,
-    }),
-    db.update(invites).set({ accepted_at: now, accepted_by: userId }).where(eq(invites.id, invite.id)),
-  ]);
-
-  const [accessToken, refreshToken] = await Promise.all([
-    createAccessToken(userId, c.env),
-    createRefreshToken(userId, c.env),
-  ]);
-
-  setRefreshCookie(c, refreshToken);
   log.info("invite_accepted", {
     inviteId: invite.id,
     userId,

@@ -115,10 +115,14 @@ async function parseApiError(response: Response): Promise<ApiError> {
   }))) as ApiError;
 }
 
-export async function sendApiRequest(path: string, options?: RequestInit): Promise<Response> {
+export async function sendApiRequest(
+  path: string,
+  options?: RequestInit,
+  basePrefix: string = API_BASE,
+): Promise<Response> {
   const token = useAuthStore.getState().accessToken;
   const headers = buildApiHeaders(options, token);
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${basePrefix}${path}`, {
     ...options,
     credentials: "include",
     headers,
@@ -140,7 +144,7 @@ export async function sendApiRequest(path: string, options?: RequestInit): Promi
       }
 
       const retryHeaders = buildApiHeaders(options, refreshResult.data.accessToken);
-      const retry = await fetch(`${API_BASE}${path}`, {
+      const retry = await fetch(`${basePrefix}${path}`, {
         ...options,
         credentials: "include",
         headers: retryHeaders,
@@ -306,17 +310,7 @@ export const api = {
     },
     uploadData: async (uploadUrl: string, file: File, shareToken?: string) => {
       const url = shareToken ? `${uploadUrl}?share=${encodeURIComponent(shareToken)}` : uploadUrl;
-      const token = useAuthStore.getState().accessToken;
-      const res = await fetch(url, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": file.type,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: file,
-      });
-      if (!res.ok) throw await res.json().catch(() => ({ error: "upload_failed", message: "Upload failed" }));
+      const res = await sendApiRequest(url, { method: "PUT", body: file, headers: { "Content-Type": file.type } }, "");
       return res.json();
     },
   },

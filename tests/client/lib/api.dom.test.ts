@@ -170,6 +170,59 @@ describe("apiFetch auto-refresh", () => {
   });
 });
 
+describe("uploads.uploadData", () => {
+  const user = createUser();
+  const refreshedUser = createUser({ name: "Refreshed" });
+
+  it("targets the absolute /uploads/:id/data path (no /api/v1 prefix)", async () => {
+    useAuthStore.getState().setAuth("tok", user);
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    const file = new File(["payload"], "x.png", { type: "image/png" });
+    await api.uploads.uploadData("/uploads/abc/data", file);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("/uploads/abc/data");
+    const init = mockFetch.mock.calls[0][1];
+    expect(init?.method).toBe("PUT");
+    expect(init?.body).toBe(file);
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer tok");
+    expect(new Headers(init?.headers).get("Content-Type")).toBe("image/png");
+  });
+
+  it("refreshes on 401 unauthorized and retries the PUT with the same File body", async () => {
+    useAuthStore.getState().setAuth("old-token", user);
+    const file = new File(["payload"], "x.png", { type: "image/png" });
+
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(401, { error: "unauthorized", message: "expired" }))
+      .mockResolvedValueOnce(jsonResponse(200, { accessToken: "new-token", user: refreshedUser }))
+      .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    await expect(api.uploads.uploadData("/uploads/abc/data", file)).resolves.toEqual({ ok: true });
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    const retryCall = mockFetch.mock.calls[2];
+    expect(retryCall[0]).toBe("/uploads/abc/data");
+    expect(new Headers(retryCall[1]?.headers).get("Authorization")).toBe("Bearer new-token");
+    expect(retryCall[1]?.body).toBe(file);
+    expect(useAuthStore.getState().accessToken).toBe("new-token");
+  });
+
+  it("does not refresh on 403 forbidden when the share token is rejected", async () => {
+    useAuthStore.getState().setAuth("tok", user);
+    mockFetch.mockResolvedValueOnce(jsonResponse(403, { error: "forbidden", message: "no edit" }));
+
+    const file = new File(["payload"], "x.png", { type: "image/png" });
+    await expect(api.uploads.uploadData("/uploads/abc/data", file, "share-token")).rejects.toEqual(
+      expect.objectContaining({ error: "forbidden" }),
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toBe("/uploads/abc/data?share=share-token");
+  });
+});
+
 describe("pages.snapshot", () => {
   it("returns binary snapshot bytes on 200", async () => {
     const bytes = Uint8Array.from([5, 4, 3, 2]);

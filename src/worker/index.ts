@@ -133,7 +133,11 @@ export default {
       const body = msg.body as { type: string; pageId?: string };
       try {
         if (body.type === "index-page" && body.pageId) {
-          await handleSearchIndexMessage({ type: "index-page", pageId: body.pageId }, env);
+          const result = await handleSearchIndexMessage({ type: "index-page", pageId: body.pageId }, env);
+          if (result.kind === "retry") {
+            msg.retry({ delaySeconds: result.delaySeconds });
+            continue;
+          }
         } else {
           log.warn("unknown_message_type", { type: body.type });
         }
