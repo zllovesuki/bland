@@ -21,6 +21,7 @@ const SHELL_PRECACHE_URL = "/__pwa-shell";
 
 const persistStatePath = process.env.BLAND_PERSIST_STATE_PATH;
 const ignoredWatchPaths = ["docs/**", "scripts/**", "playwright-report/**", "test-results/**", "tests/**"];
+const fontAssetPattern = /\.(?:woff2?|ttf|otf|eot)$/i;
 
 // Excalidraw defaults to fetching its font .woff2 files from esm.sh. Self-host
 // by copying `dist/prod/fonts/*` from node_modules into `public/fonts/`; at
@@ -84,6 +85,7 @@ export default defineConfig({
     },
   },
   build: {
+    assetsInlineLimit: (filePath) => (fontAssetPattern.test(filePath) ? false : undefined),
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
