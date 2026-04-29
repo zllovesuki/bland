@@ -8,11 +8,13 @@ import {
   DOC_PAGE_RAIL_CLASS,
   DOC_PAGE_RAIL_INNER_CLASS,
   type DocumentOutlineMode,
+  OUTLINE_RAIL_MEDIA_QUERY,
   PAGE_CONTENT_COLUMN_CLASS,
   PAGE_SHELL_CLASS,
   PAGE_STAGE_CLASS,
   PAGE_STAGE_WITH_TRACKS_CLASS,
 } from "@/client/components/ui/page-layout";
+import { useMediaQuery } from "@/client/hooks/use-media-query";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { toast } from "@/client/components/toast";
@@ -51,6 +53,13 @@ export function DocumentPage({
   const setOutlineTarget = useCallback((node: HTMLDivElement | null) => {
     setOutlineTargetState(node);
   }, []);
+
+  // The rail layout is only realized in CSS at min-[1440px]; below that, an
+  // <aside> stacks after the main column and the outline would render below
+  // metrics. Gate the JS placement on the same breakpoint so callers can keep
+  // expressing intent without re-deriving viewport state.
+  const railViewport = useMediaQuery(OUTLINE_RAIL_MEDIA_QUERY);
+  const effectiveOutlineMode: DocumentOutlineMode = outlineMode === "rail" && railViewport ? "rail" : "inline";
 
   const [schemaError, setSchemaError] = useState<Error | null>(null);
   const schemaErrorReportedRef = useRef(false);
@@ -114,7 +123,7 @@ export function DocumentPage({
       workspaceId={workspaceId}
       affordance={affordance}
       onSchemaError={handleSchemaError}
-      outline={outlineMode === "rail" ? { kind: "rail", target: outlineTarget } : { kind: "inline" }}
+      outline={effectiveOutlineMode === "rail" ? { kind: "rail", target: outlineTarget } : { kind: "inline" }}
       docFooterLeading={docFooterLeading}
     />
   ) : session.kind === "error" ? (
@@ -131,7 +140,7 @@ export function DocumentPage({
     </div>
   );
 
-  const showRail = outlineMode === "rail";
+  const showRail = effectiveOutlineMode === "rail";
 
   return (
     <div className={PAGE_SHELL_CLASS}>

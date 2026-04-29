@@ -7,12 +7,14 @@ import {
   DOC_PAGE_MAIN_CLASS,
   DOC_PAGE_RAIL_CLASS,
   DOC_PAGE_RAIL_INNER_CLASS,
+  OUTLINE_RAIL_MEDIA_QUERY,
   PAGE_CONTENT_COLUMN_CLASS,
   PAGE_SHELL_CLASS,
   PAGE_STAGE_CLASS,
   PAGE_STAGE_TRACKS_CLASS,
   PAGE_STAGE_WITH_TRACKS_CLASS,
 } from "@/client/components/ui/page-layout";
+import { useMediaQuery } from "@/client/hooks/use-media-query";
 
 const OUTLINE_RAIL_ROWS = [
   { indent: 0, width: "w-4/5" },
@@ -113,6 +115,11 @@ export function PageLoadingSkeleton({
   kind = "doc",
   documentLayout = "rail",
 }: PageLoadingSkeletonProps) {
+  // Mirror DocumentPage: the rail layout is only realized in CSS at min-[1440px],
+  // so collapse to inline when the viewport can't host the side rail.
+  const railViewport = useMediaQuery(OUTLINE_RAIL_MEDIA_QUERY);
+  const effectiveDocumentLayout: DocumentSkeletonLayout = documentLayout === "rail" && railViewport ? "rail" : "inline";
+
   if (kind === "canvas") {
     return (
       <div className={PAGE_SHELL_CLASS} aria-busy="true">
@@ -146,7 +153,7 @@ export function PageLoadingSkeleton({
   }
 
   if (kind === "unknown") {
-    const reserveTracks = canvasLayout === "stage" || documentLayout === "rail";
+    const reserveTracks = canvasLayout === "stage" || effectiveDocumentLayout === "rail";
     if (reserveTracks) {
       return (
         <div className={PAGE_SHELL_CLASS} aria-busy="true">
@@ -183,7 +190,7 @@ export function PageLoadingSkeleton({
     );
   }
 
-  if (documentLayout === "inline") {
+  if (effectiveDocumentLayout === "inline") {
     return (
       <div className={PAGE_SHELL_CLASS} aria-busy="true">
         <div className={PAGE_STAGE_CLASS}>

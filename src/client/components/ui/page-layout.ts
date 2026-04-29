@@ -9,5 +9,8 @@ export const CANVAS_PAGE_BODY_STAGE_CLASS = "mt-4 w-full";
 export const DOC_PAGE_MAIN_CLASS = "min-w-0";
 export const DOC_PAGE_RAIL_CLASS = "mt-8 w-full min-w-0 min-[1440px]:mt-0 min-[1440px]:pt-[5.5rem]";
 export const DOC_PAGE_RAIL_INNER_CLASS = "min-[1440px]:sticky min-[1440px]:top-8";
+// Must mirror the literal `min-[1440px]:` used in the rail class strings above.
+// JS gating that depends on the rail layout being realized should read this constant.
+export const OUTLINE_RAIL_MEDIA_QUERY = "(min-width: 1440px)";
 export type CanvasStageLayout = "centered" | "stage";
 export type DocumentOutlineMode = "rail" | "inline";
