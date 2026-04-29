@@ -1,3 +1,4 @@
+import { PageChrome } from "@/client/components/ui/page-chrome";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import type { PageKind } from "@/shared/types";
 import {
@@ -27,27 +28,31 @@ const OUTLINE_RAIL_ROWS = [
 type LoadingSkeletonKind = PageKind | "unknown";
 type DocumentSkeletonLayout = "rail" | "inline";
 
+function ChromeBreadcrumbSkeleton() {
+  return (
+    <>
+      <div className="hidden items-center gap-2 md:flex">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-3 w-3" />
+        <Skeleton className="h-3 w-24" />
+      </div>
+      <div className="flex items-center gap-2 md:hidden">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-3 w-3" />
+        <Skeleton className="h-3 w-3" />
+      </div>
+    </>
+  );
+}
+
 function PageChromeSkeleton() {
   return (
     <>
-      <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
-        <Skeleton className="h-48 w-full rounded-b-lg" />
-      </div>
-      <div className="mb-6 min-h-6">
-        <div className="hidden items-center gap-2 md:flex">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-3" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-        <div className="flex items-center gap-2 md:hidden">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-3 w-3" />
-          <Skeleton className="h-3 w-3" />
-        </div>
-      </div>
-      <div className="mb-4 pl-7">
-        <Skeleton className="h-9 w-11 rounded-md" />
-      </div>
+      <PageChrome
+        cover={<Skeleton className="h-48 w-full rounded-b-lg" />}
+        breadcrumb={<ChromeBreadcrumbSkeleton />}
+        icon={<Skeleton className="h-9 w-11 rounded-md" />}
+      />
       <div className="mb-6 pl-4 sm:pl-7">
         <Skeleton className="h-10 w-2/3 sm:h-12" />
       </div>

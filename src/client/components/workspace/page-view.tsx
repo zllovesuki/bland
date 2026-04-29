@@ -14,7 +14,8 @@ import { PageByline } from "@/client/components/ui/page-byline";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
-import { type CanvasStageLayout, PAGE_CONTENT_COLUMN_CLASS } from "@/client/components/ui/page-layout";
+import { type CanvasStageLayout } from "@/client/components/ui/page-layout";
+import { PageChrome, PageEmojiIcon } from "@/client/components/ui/page-chrome";
 import { AvatarStack } from "@/client/components/presence/avatar-stack";
 import { SyncStatusDot } from "@/client/components/presence/sync-status";
 import { IconPicker } from "@/client/components/icon-picker";
@@ -24,7 +25,6 @@ import { SummarizeSheet } from "@/client/components/workspace/summarize-sheet";
 import { useSyncStatus, type SyncStatus } from "@/client/hooks/use-sync";
 import { useOnline } from "@/client/hooks/use-online";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
-import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { CanonicalActivePageBoundary } from "@/client/components/active-page/canonical";
 import {
@@ -244,98 +244,82 @@ function WorkspacePageChrome({
   headerActions,
 }: WorkspacePageChromeProps) {
   const canEditMetadata = !!workspace && isActionVisible(pageAffordance.editPageMetadata);
+  const editDisabled = !isActionEnabled(pageAffordance.editPageMetadata);
+  const editDisabledTitle =
+    pageAffordance.editPageMetadata.kind === "disabled" ? pageAffordance.editPageMetadata.reason : undefined;
+
+  const breadcrumb =
+    pageAffordance.breadcrumbMode === "restricted" ? (
+      <PageBreadcrumbs
+        mode="shared-in-workspace"
+        currentTitle={page.title}
+        currentIcon={page.icon}
+        workspaceSlug={workspaceSlug}
+        workspaceName={workspace?.name}
+        ancestors={ancestors}
+      />
+    ) : (
+      <PageBreadcrumbs
+        mode="workspace"
+        currentTitle={page.title}
+        currentIcon={page.icon}
+        currentParentId={currentPageMeta?.parent_id ?? null}
+        workspaceSlug={workspaceSlug}
+        workspaceName={workspace?.name}
+        pages={pages}
+      />
+    );
 
   return (
-    <>
-      <div className={PAGE_CONTENT_COLUMN_CLASS}>
-        {page.coverUrl && (
-          <div className="group/cover relative -mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
-            <PageCover coverUrl={page.coverUrl} />
-            {canEditMetadata && workspace ? (
-              <div className="absolute right-2 top-2">
-                <CoverPicker
-                  currentCover={page.coverUrl}
-                  onSelect={onCoverChange}
-                  workspaceId={workspace.id}
-                  pageId={page.id}
-                  disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
-                  title={
-                    pageAffordance.editPageMetadata.kind === "disabled"
-                      ? pageAffordance.editPageMetadata.reason
-                      : undefined
-                  }
-                />
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        <div className="mb-6 flex min-h-6 items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {pageAffordance.breadcrumbMode === "restricted" ? (
-              <PageBreadcrumbs
-                mode="shared-in-workspace"
-                currentTitle={page.title}
-                currentIcon={page.icon}
-                workspaceSlug={workspaceSlug}
-                workspaceName={workspace?.name}
-                ancestors={ancestors}
-              />
-            ) : (
-              <PageBreadcrumbs
-                mode="workspace"
-                currentTitle={page.title}
-                currentIcon={page.icon}
-                currentParentId={currentPageMeta?.parent_id ?? null}
-                workspaceSlug={workspaceSlug}
-                workspaceName={workspace?.name}
-                pages={pages}
-              />
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {headerActions}
-            <AvatarStack
-              awareness={syncProvider?.awareness ?? null}
-              localClientId={syncProvider?.awareness.clientID ?? null}
+    <PageChrome
+      cover={page.coverUrl ? <PageCover coverUrl={page.coverUrl} /> : null}
+      coverOverlay={
+        canEditMetadata && workspace && page.coverUrl ? (
+          <CoverPicker
+            currentCover={page.coverUrl}
+            onSelect={onCoverChange}
+            workspaceId={workspace.id}
+            pageId={page.id}
+            disabled={editDisabled}
+            title={editDisabledTitle}
+          />
+        ) : null
+      }
+      breadcrumb={breadcrumb}
+      breadcrumbActions={
+        <>
+          {headerActions}
+          <AvatarStack
+            awareness={syncProvider?.awareness ?? null}
+            localClientId={syncProvider?.awareness.clientID ?? null}
+          />
+          <SyncStatusDot status={status} />
+        </>
+      }
+      icon={
+        canEditMetadata && workspace ? (
+          <>
+            <IconPicker
+              currentIcon={page.icon}
+              onSelect={onIconChange}
+              disabled={editDisabled}
+              title={editDisabledTitle}
             />
-            <SyncStatusDot status={status} />
-          </div>
-        </div>
-
-        <div className="mb-4 flex min-h-9 items-center gap-3 pl-7">
-          {canEditMetadata && workspace ? (
-            <>
-              <IconPicker
-                currentIcon={page.icon}
-                onSelect={onIconChange}
-                disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
-                title={
-                  pageAffordance.editPageMetadata.kind === "disabled"
-                    ? pageAffordance.editPageMetadata.reason
-                    : undefined
-                }
+            {!page.coverUrl ? (
+              <CoverPicker
+                currentCover={null}
+                onSelect={onCoverChange}
+                workspaceId={workspace.id}
+                pageId={page.id}
+                disabled={editDisabled}
+                title={editDisabledTitle}
               />
-              {!page.coverUrl && (
-                <CoverPicker
-                  currentCover={null}
-                  onSelect={onCoverChange}
-                  workspaceId={workspace.id}
-                  pageId={page.id}
-                  disabled={!isActionEnabled(pageAffordance.editPageMetadata)}
-                  title={
-                    pageAffordance.editPageMetadata.kind === "disabled"
-                      ? pageAffordance.editPageMetadata.reason
-                      : undefined
-                  }
-                />
-              )}
-            </>
-          ) : (
-            page.icon && <EmojiIcon emoji={page.icon} size={28} />
-          )}
-        </div>
-      </div>
-    </>
+            ) : null}
+          </>
+        ) : page.icon ? (
+          <PageEmojiIcon emoji={page.icon} />
+        ) : null
+      }
+    />
   );
 }

@@ -3,12 +3,11 @@ import { ChevronRight } from "lucide-react";
 import { DocumentPage } from "@/client/components/editor/document-page";
 import { CanvasPage } from "@/client/components/canvas/canvas-page";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
-import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { PageBreadcrumbs } from "@/client/components/ui/page-breadcrumbs";
+import { PageChrome, PageEmojiIcon } from "@/client/components/ui/page-chrome";
 import { PageCover } from "@/client/components/ui/page-cover";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageLoadingSkeleton } from "@/client/components/ui/page-loading-skeleton";
-import { PAGE_CONTENT_COLUMN_CLASS } from "@/client/components/ui/page-layout";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useOnline } from "@/client/hooks/use-online";
@@ -125,37 +124,29 @@ interface SharedPageChromeProps {
 }
 
 function SharedPageChrome({ presentation, showBreadcrumbSlot }: SharedPageChromeProps) {
+  const breadcrumb = showBreadcrumbSlot ? (
+    presentation.isAncestorTrailLoading ? (
+      <SharedBreadcrumbSkeleton />
+    ) : (
+      <PageBreadcrumbs
+        mode="shared"
+        ancestors={presentation.ancestors}
+        currentTitle={presentation.displayTitle}
+        currentIcon={presentation.displayIcon}
+        onNavigate={presentation.navigate}
+      />
+    )
+  ) : null;
+
   return (
-    <>
-      <div className={PAGE_CONTENT_COLUMN_CLASS}>
-        {presentation.displayCoverUrl && (
-          <div className="-mx-4 -mt-10 mb-6 sm:-mx-8 lg:mx-0">
-            <PageCover coverUrl={presentation.displayCoverUrl} shareToken={presentation.token} />
-          </div>
-        )}
-
-        {showBreadcrumbSlot && (
-          <div className="mb-6 flex min-h-6 min-w-0 items-center">
-            {presentation.isAncestorTrailLoading ? (
-              <SharedBreadcrumbSkeleton />
-            ) : (
-              <PageBreadcrumbs
-                mode="shared"
-                ancestors={presentation.ancestors}
-                currentTitle={presentation.displayTitle}
-                currentIcon={presentation.displayIcon}
-                onNavigate={presentation.navigate}
-              />
-            )}
-          </div>
-        )}
-
-        {presentation.displayIcon && (
-          <div className="mb-4 pl-7">
-            <EmojiIcon emoji={presentation.displayIcon} size={28} />
-          </div>
-        )}
-      </div>
-    </>
+    <PageChrome
+      cover={
+        presentation.displayCoverUrl ? (
+          <PageCover coverUrl={presentation.displayCoverUrl} shareToken={presentation.token} />
+        ) : null
+      }
+      breadcrumb={breadcrumb}
+      icon={presentation.displayIcon ? <PageEmojiIcon emoji={presentation.displayIcon} /> : null}
+    />
   );
 }
