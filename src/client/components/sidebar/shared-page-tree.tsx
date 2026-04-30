@@ -94,23 +94,28 @@ export function SharedPageTree({
   rootPage,
   shareToken,
   activePageId,
+  autoExpandPathIds,
   onNavigate,
 }: {
   workspaceId: string;
   rootPage: ShareRootPage;
   shareToken: string;
   activePageId: string;
+  autoExpandPathIds: string[];
   onNavigate: (pageId: string) => void;
 }) {
   const [nodes, setNodes] = useState<Map<string, TreeNodeData>>(() => new Map());
   const [rootChildren, setRootChildren] = useState<string[] | null>(null);
   const nodesRef = useRef(nodes);
+  const lastAutoExpandPathKeyRef = useRef<string | null>(null);
   nodesRef.current = nodes;
+  const autoExpandPathKey = autoExpandPathIds.join("\u0000");
 
   // Reset tree state when the root page changes (e.g. navigating to a different shared link)
   useEffect(() => {
     setNodes(new Map());
     setRootChildren(null);
+    lastAutoExpandPathKeyRef.current = null;
   }, [rootPage.id, shareToken]);
 
   const loadChildren = useCallback(
@@ -148,6 +153,66 @@ export function SharedPageTree({
       setRootChildren(children.map((c) => c.id));
     });
   }, [rootChildren, rootPage.id, loadChildren]);
+
+  useEffect(() => {
+    const loadedRootChildren = rootChildren;
+    if (loadedRootChildren === null) return;
+    const initialVisibleChildIds: string[] = loadedRootChildren;
+    if (lastAutoExpandPathKeyRef.current === autoExpandPathKey) return;
+    if (!autoExpandPathKey) {
+      lastAutoExpandPathKeyRef.current = autoExpandPathKey;
+      return;
+    }
+
+    let cancelled = false;
+    const pathIds = autoExpandPathIds;
+
+    async function expandActivePath() {
+      let visibleChildIds = initialVisibleChildIds;
+
+      for (const pageId of pathIds) {
+        if (cancelled) return;
+        if (!visibleChildIds.includes(pageId)) return;
+
+        setNodes((prev) => {
+          const next = new Map(prev);
+          const node = next.get(pageId);
+          if (node) {
+            node.expanded = true;
+          }
+          return next;
+        });
+
+        const node = nodesRef.current.get(pageId);
+        if (!node || node.children === null) {
+          const children = await loadChildren(pageId);
+          if (cancelled) return;
+          setNodes((prev) => {
+            const next = new Map(prev);
+            const n = next.get(pageId);
+            if (n) {
+              n.children = children.map((child) => next.get(child.id)!);
+              n.expanded = true;
+            }
+            return next;
+          });
+          visibleChildIds = children.map((child) => child.id);
+        } else {
+          visibleChildIds = node.children.map((child) => child.page.id);
+        }
+      }
+    }
+
+    void expandActivePath().finally(() => {
+      if (!cancelled) {
+        lastAutoExpandPathKeyRef.current = autoExpandPathKey;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoExpandPathIds, autoExpandPathKey, loadChildren, rootChildren]);
 
   const handleToggle = useCallback(
     async (pageId: string) => {

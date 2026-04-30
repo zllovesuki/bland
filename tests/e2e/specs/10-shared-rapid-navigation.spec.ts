@@ -67,6 +67,14 @@ function isSharedPageMetadataRequest(url: string, workspaceId: string, pageId: s
   );
 }
 
+function isSharedPageAncestorsRequest(url: string, workspaceId: string, pageId: string, shareToken: string): boolean {
+  const parsed = new URL(url);
+  return (
+    parsed.pathname === `/api/v1/workspaces/${workspaceId}/pages/${pageId}/ancestors` &&
+    parsed.searchParams.get("share") === shareToken
+  );
+}
+
 async function setupSharedNavigationFixture(
   page: PlaywrightPage,
   accessToken: string,
@@ -131,6 +139,88 @@ test.describe("rapid page navigation - shared view", () => {
     await expectSharedUrl(anonPage, share.token);
     await expect(sharedTitle).toHaveValue(ROOT_TITLE, { timeout: 10_000 });
     await expect(sharedEditor).toBeVisible({ timeout: 15_000 });
+    expect(pageErrors).toEqual([]);
+
+    await anonContext.close();
+  });
+
+  test("direct nested shared load expands the active sidebar branch", async ({
+    authenticatedPage: { page, accessToken },
+    browser,
+  }) => {
+    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken);
+    const [parent] = children;
+    const grandchild = await createChildPage(
+      page,
+      accessToken,
+      root.workspaceId,
+      parent.id,
+      "Nested Auto Expand Target",
+    );
+    const leaf = await createChildPage(page, accessToken, root.workspaceId, grandchild.id, "Nested Auto Expand Leaf");
+
+    const anonContext = await browser.newContext();
+    const anonPage = await anonContext.newPage();
+
+    const pageErrors: string[] = [];
+    anonPage.on("pageerror", (err) => pageErrors.push(err.message));
+    const ancestorRequests: string[] = [];
+    anonPage.on("request", (request) => {
+      if (isSharedPageAncestorsRequest(request.url(), root.workspaceId, grandchild.id, share.token)) {
+        ancestorRequests.push(request.url());
+      }
+    });
+
+    await anonPage.goto(`/s/${share.token}?page=${grandchild.id}`);
+
+    const sharedEditor = anonPage.locator(".tiptap");
+    const sharedTitle = sharedTitleField(anonPage);
+    await sharedEditor.waitFor({ timeout: 30_000 });
+    await expectSharedUrl(anonPage, share.token, grandchild.id);
+    await expect(sharedTitle).toHaveValue(grandchild.title, { timeout: 10_000 });
+
+    const sidebarButton = (title: string) => anonPage.locator("nav button").filter({ hasText: title }).first();
+    await expect(sidebarButton(parent.title)).toBeVisible({ timeout: 15_000 });
+    await expect(sidebarButton(grandchild.title)).toBeVisible({ timeout: 15_000 });
+    await expect(sidebarButton(leaf.title)).toBeVisible({ timeout: 15_000 });
+    expect(ancestorRequests).toHaveLength(1);
+    expect(pageErrors).toEqual([]);
+
+    await anonContext.close();
+  });
+
+  test("shared sidebar preserves expanded branches across navigation", async ({
+    authenticatedPage: { page, accessToken },
+    browser,
+  }) => {
+    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken);
+    const [parent, sibling] = children;
+    const nested = await createChildPage(page, accessToken, root.workspaceId, parent.id, "Persistent Sidebar Nested");
+
+    const anonContext = await browser.newContext();
+    const anonPage = await anonContext.newPage();
+
+    const pageErrors: string[] = [];
+    anonPage.on("pageerror", (err) => pageErrors.push(err.message));
+
+    await anonPage.goto(`/s/${share.token}`);
+
+    const sharedEditor = anonPage.locator(".tiptap");
+    const sharedTitle = sharedTitleField(anonPage);
+    await sharedEditor.waitFor({ timeout: 30_000 });
+    await expectSharedUrl(anonPage, share.token);
+
+    const sidebarButton = (title: string) => anonPage.locator("nav button").filter({ hasText: title }).first();
+    const parentButton = sidebarButton(parent.title);
+    await expect(parentButton).toBeVisible({ timeout: 15_000 });
+
+    await parentButton.locator("xpath=..").getByRole("button", { name: "Expand" }).click();
+    await expect(sidebarButton(nested.title)).toBeVisible({ timeout: 15_000 });
+
+    await sidebarButton(sibling.title).click();
+    await expectSharedUrl(anonPage, share.token, sibling.id);
+    await expect(sharedTitle).toHaveValue(sibling.title, { timeout: 10_000 });
+    await expect(sidebarButton(nested.title)).toBeVisible({ timeout: 15_000 });
     expect(pageErrors).toEqual([]);
 
     await anonContext.close();

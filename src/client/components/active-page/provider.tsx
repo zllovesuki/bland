@@ -4,6 +4,8 @@ import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
 import { docCache } from "@/client/lib/doc-cache-registry";
 import { getPageLoadTarget } from "@/client/lib/page-load-target";
+import { queryClient } from "@/client/lib/query-client";
+import { pageAncestorsQueryOptions } from "@/client/lib/queries/page-ancestors";
 import { createRequestGuard } from "@/client/lib/request-guard";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { useAuthStore } from "@/client/stores/auth-store";
@@ -244,7 +246,7 @@ export function ActivePageProvider({
     async function load() {
       const ancestorsPromise =
         pageLoadTarget === "live" && shouldLoadRestrictedAncestors && workspaceId
-          ? api.pages.ancestors(workspaceId, pageId, shareToken ?? undefined)
+          ? queryClient.fetchQuery(pageAncestorsQueryOptions(workspaceId, pageId, shareToken))
           : null;
 
       if (initialSnapshot && initialSnapshot.snapshot.id === pageId) {

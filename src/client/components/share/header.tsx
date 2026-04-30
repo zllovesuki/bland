@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Pilcrow, Eye, Menu } from "lucide-react";
-import { useSharedPagePresentation } from "@/client/components/share/use-share-view";
+import { useReadyShareView } from "@/client/components/share/use-share-view";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import { useOnline } from "@/client/hooks/use-online";
 import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
@@ -10,13 +10,13 @@ interface ShareHeaderProps {
 }
 
 export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
-  const presentation = useSharedPagePresentation();
+  const share = useReadyShareView();
   const online = useOnline();
   const visible = useScrollVisibility("main-content");
   const pageAffordance = deriveSharePageAffordance({
-    pageKind: presentation.page?.kind ?? presentation.rootPage.kind,
-    pageAccess: presentation.isViewOnly ? "view" : "edit",
-    workspaceId: presentation.workspaceId,
+    pageKind: share.rootPage.kind,
+    pageAccess: share.rootPage.permission,
+    workspaceId: share.workspaceId,
     online,
   });
 

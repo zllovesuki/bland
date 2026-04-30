@@ -59,16 +59,18 @@ function ShareReadyShell() {
   const { open: mobileDrawerOpen, close: closeMobileDrawer, toggle: toggleMobileDrawer } = useMobileDrawer();
 
   return (
-    <SharedActivePageBoundary>
+    <>
       <ShareHeader onToggleMobileSidebar={toggleMobileDrawer} />
       <div className="flex flex-1 overflow-hidden">
         <ShareSidebar mobileOpen={mobileDrawerOpen} onMobileClose={closeMobileDrawer} />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none">
-          <Outlet />
+          <SharedActivePageBoundary>
+            <Outlet />
+          </SharedActivePageBoundary>
         </main>
       </div>
       <Footer expanded={true} />
-    </SharedActivePageBoundary>
+    </>
   );
 }
 
