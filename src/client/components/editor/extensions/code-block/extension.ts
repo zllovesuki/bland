@@ -7,10 +7,10 @@ import { CodeBlockView } from "./view";
 import { createLazyHighlightPlugin } from "./lazy-highlight";
 import { resolveLanguage } from "./shared";
 
-function createCodeBlockDoubleClickPlugin(codeBlockName: string) {
+function createCodeBlockTripleClickPlugin(codeBlockName: string) {
   return new Plugin({
     props: {
-      handleDoubleClick(view, pos, event) {
+      handleTripleClick(view, pos, event) {
         if (event.button !== 0) return false;
 
         const $pos = view.state.doc.resolve(pos);
@@ -40,7 +40,7 @@ export const HighlightedCodeBlock = CodeBlock.extend({
   addProseMirrorPlugins() {
     return [
       ...(this.parent?.() ?? []),
-      createCodeBlockDoubleClickPlugin(this.name),
+      createCodeBlockTripleClickPlugin(this.name),
       createLazyHighlightPlugin(this.name, this.options.defaultLanguage),
     ];
   },
