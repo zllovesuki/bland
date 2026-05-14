@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { STORAGE_KEYS } from "@/client/lib/constants";
 import { Header } from "@/client/components/header";
@@ -12,21 +12,14 @@ const NARROW_SHELL_ROW_CLASS = `${NARROW_SHELL_CONTENT_CLASS} border-l border-zi
 
 export function StandaloneLayout() {
   const hasLocalSession = useAuthStore(selectHasLocalSession);
-  const [expanded, setExpanded] = useState(
-    () => hasLocalSession && readStorageString(STORAGE_KEYS.LAYOUT) === "expanded",
-  );
-
-  useEffect(() => {
-    setExpanded(hasLocalSession && readStorageString(STORAGE_KEYS.LAYOUT) === "expanded");
-  }, [hasLocalSession]);
+  const [storedLayout, setStoredLayout] = useState(() => readStorageString(STORAGE_KEYS.LAYOUT));
+  const expanded = hasLocalSession && storedLayout === "expanded";
 
   const toggleLayout = useCallback(() => {
-    setExpanded((prev) => {
-      const next = !prev;
-      writeStorageString(STORAGE_KEYS.LAYOUT, next ? "expanded" : "default");
-      return next;
-    });
-  }, []);
+    const next = expanded ? "default" : "expanded";
+    writeStorageString(STORAGE_KEYS.LAYOUT, next);
+    setStoredLayout(next);
+  }, [expanded]);
   return (
     <div className="flex h-screen flex-col">
       <a

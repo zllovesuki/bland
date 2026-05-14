@@ -1,16 +1,16 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { autoUpdate, flip, offset, shift, useFloating } from "@floating-ui/react";
 import { createPortal } from "react-dom";
 
 type Align = "left" | "right";
 
 interface DropdownPortalProps {
-  triggerRef: React.RefObject<HTMLElement | null>;
+  triggerRef: RefObject<HTMLElement | null>;
   align?: Align;
   width?: number;
   zIndex?: number;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
   onClose?: () => void;
 }
 
@@ -24,7 +24,6 @@ export function DropdownPortal({
   onClose,
 }: DropdownPortalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const referenceEl = triggerRef.current;
   const placement = align === "right" ? "bottom-end" : "bottom-start";
   const { refs, floatingStyles } = useFloating({
     open: true,
@@ -33,11 +32,16 @@ export function DropdownPortal({
     middleware: [offset(4), flip({ padding: 8 }), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
+  const panelAnimationStyle: CSSProperties = {
+    animation: "scale-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1) both",
+    transformOrigin: align === "right" ? "top right" : "top left",
+  };
 
   useLayoutEffect(() => {
+    const referenceEl = triggerRef.current;
     if (!referenceEl) return;
     refs.setReference(referenceEl);
-  }, [referenceEl, refs]);
+  }, [refs, triggerRef]);
 
   useEffect(() => {
     if (!onClose) return;
@@ -69,10 +73,14 @@ export function DropdownPortal({
         refs.setFloating(node);
         panelRef.current = node;
       }}
-      className={`animate-fade-in ${align === "right" ? "origin-top-right" : "origin-top-left"} rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
       style={{ ...floatingStyles, width, zIndex }}
     >
-      {children}
+      <div
+        className={`w-full rounded-md border border-zinc-700 bg-zinc-800 shadow-lg ${className ?? ""}`}
+        style={panelAnimationStyle}
+      >
+        {children}
+      </div>
     </div>,
     document.body,
   );

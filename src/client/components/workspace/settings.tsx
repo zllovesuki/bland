@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { confirm } from "@/client/components/confirm";
+import { confirm } from "@/client/components/confirm-store";
 import {
   ArrowLeft,
   Save,
@@ -26,7 +26,7 @@ import { workspaceLifecycleCommands } from "@/client/stores/db/workspace-lifecyc
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";

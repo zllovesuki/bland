@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 import { STORAGE_KEYS } from "@/client/lib/constants";
@@ -137,8 +137,7 @@ function WorkspaceLayoutInner() {
     }
   }, [route, isMemberOnlyRoute, navigate]);
 
-  let mainContent: React.ReactNode = null;
-
+  let mainContent: ReactNode;
   if (memberOnlyRouteBlocked) {
     // Member-only route without confirmed member access. The redirect effect
     // above will swap us onto "/"; during that one render, show nothing.

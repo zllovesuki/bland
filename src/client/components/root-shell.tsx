@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, useLocation, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Outlet, useRouter } from "@tanstack/react-router";
 import { ConfirmContainer } from "./confirm";
 import { ToastContainer } from "./toast";
 import { ShortcutHelp } from "./ui/shortcut-help";
@@ -7,17 +7,17 @@ import { MobileDrawerContext, type MobileDrawerState } from "../hooks/use-mobile
 import { useSessionRehydration } from "@/client/hooks/use-session-rehydration";
 
 export function RootShell() {
-  const location = useLocation();
+  const router = useRouter();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [routeAnnouncement, setRouteAnnouncement] = useState("");
-  const prevPathRef = useRef(location.pathname);
-  const isResolving = useRouterState({ select: (s) => s.isLoading });
 
   useSessionRehydration();
 
-  const toggleDrawer = useCallback(() => setMobileDrawerOpen((o) => !o), []);
-  const closeDrawer = useCallback(() => setMobileDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => setMobileDrawerOpen((open) => !open), []);
+  const closeDrawer = useCallback(() => {
+    setMobileDrawerOpen(false);
+  }, []);
 
   // Shortcut help: `?` key toggles modal
   useEffect(() => {
@@ -34,20 +34,23 @@ export function RootShell() {
     return () => document.removeEventListener("keydown", handleShortcutHelp);
   }, []);
 
-  // Route change: close drawer, focus main-content, announce route.
-  // Preserves the sequencing from the original AppShell: drawer closes on
-  // pathname change; focus and announcement wait for router loading to settle.
+  // Route change: close drawer immediately; focus and announce after route
+  // resolution so the main content and document title are current.
   useEffect(() => {
-    if (location.pathname !== prevPathRef.current) {
-      prevPathRef.current = location.pathname;
-      setMobileDrawerOpen(false);
-      if (!isResolving) {
-        const main = document.getElementById("main-content");
-        if (main) main.focus({ preventScroll: true });
-        setRouteAnnouncement(document.title);
-      }
-    }
-  }, [location.pathname, isResolving]);
+    const unsubscribeBeforeNavigate = router.subscribe("onBeforeNavigate", (event) => {
+      if (event.pathChanged) setMobileDrawerOpen(false);
+    });
+    const unsubscribeResolved = router.subscribe("onResolved", (event) => {
+      if (!event.pathChanged) return;
+      const main = document.getElementById("main-content");
+      if (main) main.focus({ preventScroll: true });
+      setRouteAnnouncement(document.title);
+    });
+    return () => {
+      unsubscribeBeforeNavigate();
+      unsubscribeResolved();
+    };
+  }, [router]);
 
   const drawerState = useMemo<MobileDrawerState>(
     () => ({ open: mobileDrawerOpen, toggle: toggleDrawer, close: closeDrawer }),

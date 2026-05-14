@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { serwist } from "@serwist/vite";
@@ -66,6 +67,9 @@ function excalidrawFontsPlugin(): Plugin {
 export default defineConfig({
   plugins: [
     react(),
+    babel({
+      presets: [reactCompilerPreset()],
+    }),
     tailwindcss(),
     excalidrawFontsPlugin(),
     cloudflare({

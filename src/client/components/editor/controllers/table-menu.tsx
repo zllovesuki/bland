@@ -59,8 +59,12 @@ export function TableMenu() {
 
   const { openMenu } = state;
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [hasTrigger, setHasTrigger] = useState(false);
+  const [triggerState, setTriggerState] = useState<{ selector: string | null; hasTrigger: boolean }>({
+    selector: null,
+    hasTrigger: false,
+  });
   const selector = useMemo(() => tableHandleSelector(openMenu), [openMenu]);
+  const hasTrigger = selector !== null && triggerState.selector === selector && triggerState.hasTrigger;
 
   const resolveTriggerEl = useCallback(() => {
     if (!selector) return null;
@@ -78,39 +82,34 @@ export function TableMenu() {
   );
 
   useEffect(() => {
-    if (!selector) {
-      setHasTrigger(false);
-      return;
-    }
+    if (!selector) return;
     let raf = 0;
     const find = () => {
       if (resolveTriggerEl()) {
-        setHasTrigger(true);
+        setTriggerState({ selector, hasTrigger: true });
       } else {
         raf = requestAnimationFrame(find);
       }
     };
-    find();
+    raf = requestAnimationFrame(find);
     return () => {
       if (raf) cancelAnimationFrame(raf);
     };
   }, [resolveTriggerEl, selector]);
 
-  const sections = useMemo<TableMenuSection[]>(() => {
-    if (!openMenu) return [];
-    if (openMenu.kind === "row") {
-      return buildRowMenuSections({ editor, openMenu, onDone: close });
-    }
-    if (openMenu.kind === "col") {
-      return buildColumnMenuSections({ editor, openMenu, onDone: close });
-    }
-    return buildTableMenuSections({
+  let sections: TableMenuSection[] = [];
+  if (openMenu?.kind === "row") {
+    sections = buildRowMenuSections({ editor, openMenu, onDone: close });
+  } else if (openMenu?.kind === "col") {
+    sections = buildColumnMenuSections({ editor, openMenu, onDone: close });
+  } else if (openMenu) {
+    sections = buildTableMenuSections({
       editor,
       openMenu,
       canResetWidths: state.canResetWidths,
       onDone: close,
     });
-  }, [close, editor, openMenu, state.canResetWidths, state.colCount, state.rowCount]);
+  }
 
   const virtualReference = useMemo<VirtualElement | null>(() => {
     if (!selector) return null;

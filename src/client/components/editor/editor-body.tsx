@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Tiptap, useEditor } from "@tiptap/react";
 import type * as Y from "yjs";
@@ -18,6 +18,7 @@ import { EditorMetrics } from "./editor-metrics";
 import { EditorOutline } from "./editor-outline";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { PageMentionContext, usePageMentions } from "@/client/components/page-mention/context";
+import { getInsertablePageMentionCandidates } from "@/client/components/page-mention/candidates";
 import "./styles/content.css";
 import "./styles/table.css";
 import "./styles/details.css";
@@ -53,24 +54,30 @@ export const EditorBody = memo(function EditorBody({
 }: EditorBodyProps) {
   const { userId, resolveIdentity } = useCollabIdentity();
   const resolveIdentityRef = useRef(resolveIdentity);
-  resolveIdentityRef.current = resolveIdentity;
+  useLayoutEffect(() => {
+    resolveIdentityRef.current = resolveIdentity;
+  }, [resolveIdentity]);
   const getResolveIdentity = useCallback<ResolveIdentity>(
     (lookupUserId, clientId) => resolveIdentityRef.current(lookupUserId, clientId),
     [],
   );
   const pageMentions = usePageMentions();
   const affordanceRef = useRef(affordance);
-  affordanceRef.current = affordance;
+  useLayoutEffect(() => {
+    affordanceRef.current = affordance;
+  }, [affordance]);
   const runtimeRef = useRef<EditorRuntimeSnapshot>({
     workspaceId,
     pageId,
     shareToken,
   });
-  runtimeRef.current = {
-    workspaceId,
-    pageId,
-    shareToken,
-  };
+  useLayoutEffect(() => {
+    runtimeRef.current = {
+      workspaceId,
+      pageId,
+      shareToken,
+    };
+  }, [pageId, shareToken, workspaceId]);
 
   const getRuntime = useCallback(() => runtimeRef.current, []);
   const getAffordance = useCallback(() => affordanceRef.current, []);
@@ -90,7 +97,11 @@ export const EditorBody = memo(function EditorBody({
         resolveIdentity: getResolveIdentity,
         getRuntime,
         getAffordance,
-        getPageMentionCandidates: (excludePageId) => pageMentions.getInsertablePages(excludePageId),
+        getPageMentionCandidates: (excludePageId) => {
+          const runtime = getRuntime();
+          if (runtime.shareToken) return [];
+          return getInsertablePageMentionCandidates(runtime.workspaceId, excludePageId);
+        },
       }),
       editable: affordance.documentEditable,
       enableContentCheck: true,
@@ -142,7 +153,7 @@ export const EditorBody = memo(function EditorBody({
         },
       },
     },
-    [fragment, getAffordance, pageId, pageMentions, provider],
+    [fragment, getAffordance, getResolveIdentity, getRuntime, provider],
   );
 
   useEffect(() => {

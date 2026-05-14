@@ -17,7 +17,7 @@ describe("loadTurnstileScript", () => {
   it("copies the Worker bootstrap nonce onto the appended script element", async () => {
     window.__BLAND_CSP_NONCE__ = "nonce-test";
 
-    const { loadTurnstileScript } = await import("@/client/components/auth/turnstile-widget");
+    const { loadTurnstileScript } = await import("@/client/components/auth/turnstile-script");
 
     const loadPromise = loadTurnstileScript();
 

@@ -1,19 +1,24 @@
 import type { Editor } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 
+type RendererProps = Record<string, unknown>;
+
 export interface MountedEditorRenderer<Handle, Props> {
   destroy(): void;
   readonly ref: Handle | null;
   updateProps(next: Partial<Props>): void;
 }
 
-export function mountEditorRenderer<Handle, Props extends Record<string, any>>(
+export function mountEditorRenderer<Handle, Props extends object>(
   editor: Editor,
   component: React.ComponentType<Props>,
   props: Props,
 ): MountedEditorRenderer<Handle, Props> {
   let destroyed = false;
-  const renderer = new ReactRenderer<Handle, Props>(component, { editor, props });
+  const renderer = new ReactRenderer<Handle, RendererProps>(component as React.ComponentType<RendererProps>, {
+    editor,
+    props: props as unknown as RendererProps,
+  });
   document.body.appendChild(renderer.element);
 
   function destroy() {
@@ -33,7 +38,7 @@ export function mountEditorRenderer<Handle, Props extends Record<string, any>>(
     },
     updateProps(next) {
       if (destroyed) return;
-      renderer.updateProps(next);
+      renderer.updateProps(next as RendererProps);
     },
   };
 }

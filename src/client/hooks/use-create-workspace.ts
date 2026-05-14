@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/client/lib/api";
 import { directoryCommands } from "@/client/stores/db/workspace-directory";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 
 export function useCreateWorkspace() {
   const [isCreating, setIsCreating] = useState(false);

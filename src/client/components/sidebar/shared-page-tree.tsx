@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useRef } from "react";
 import { ChevronRight, FileText } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api } from "@/client/lib/api";
@@ -16,6 +16,58 @@ interface TreeNodeData {
   page: Page;
   children: TreeNodeData[] | null; // null = not loaded
   expanded: boolean;
+}
+
+interface TreeState {
+  pagesById: Map<string, Page>;
+  childrenByParentId: Map<string, string[]>;
+  expandedIds: Set<string>;
+}
+
+type TreeAction =
+  | { type: "children-loaded"; parentId: string; children: Page[] }
+  | { type: "expand"; pageId: string }
+  | { type: "toggle"; pageId: string };
+
+function createTreeState(): TreeState {
+  return {
+    pagesById: new Map(),
+    childrenByParentId: new Map(),
+    expandedIds: new Set(),
+  };
+}
+
+function treeReducer(state: TreeState, action: TreeAction): TreeState {
+  switch (action.type) {
+    case "children-loaded": {
+      const pagesById = new Map(state.pagesById);
+      const childrenByParentId = new Map(state.childrenByParentId);
+      for (const child of action.children) {
+        pagesById.set(child.id, child);
+      }
+      childrenByParentId.set(
+        action.parentId,
+        action.children.map((child) => child.id),
+      );
+      return { ...state, pagesById, childrenByParentId };
+    }
+    case "expand": {
+      if (state.expandedIds.has(action.pageId)) return state;
+      const expandedIds = new Set(state.expandedIds);
+      expandedIds.add(action.pageId);
+      return { ...state, expandedIds };
+    }
+    case "toggle": {
+      const expandedIds = new Set(state.expandedIds);
+      if (expandedIds.has(action.pageId)) expandedIds.delete(action.pageId);
+      else expandedIds.add(action.pageId);
+      return { ...state, expandedIds };
+    }
+  }
+}
+
+function isTreeNode(node: TreeNodeData | null): node is TreeNodeData {
+  return node !== null;
 }
 
 function TreeNode({
@@ -104,60 +156,81 @@ export function SharedPageTree({
   autoExpandPathIds: string[];
   onNavigate: (pageId: string) => void;
 }) {
-  const [nodes, setNodes] = useState<Map<string, TreeNodeData>>(() => new Map());
-  const [rootChildren, setRootChildren] = useState<string[] | null>(null);
-  const nodesRef = useRef(nodes);
-  const lastAutoExpandPathKeyRef = useRef<string | null>(null);
-  nodesRef.current = nodes;
-  const autoExpandPathKey = autoExpandPathIds.join("\u0000");
+  return (
+    <SharedPageTreeForScope
+      key={`${workspaceId}:${shareToken}:${rootPage.id}`}
+      workspaceId={workspaceId}
+      rootPage={rootPage}
+      shareToken={shareToken}
+      activePageId={activePageId}
+      autoExpandPathIds={autoExpandPathIds}
+      onNavigate={onNavigate}
+    />
+  );
+}
 
-  // Reset tree state when the root page changes (e.g. navigating to a different shared link)
-  useEffect(() => {
-    setNodes(new Map());
-    setRootChildren(null);
-    lastAutoExpandPathKeyRef.current = null;
-  }, [rootPage.id, shareToken]);
+function SharedPageTreeForScope({
+  workspaceId,
+  rootPage,
+  shareToken,
+  activePageId,
+  autoExpandPathIds,
+  onNavigate,
+}: {
+  workspaceId: string;
+  rootPage: ShareRootPage;
+  shareToken: string;
+  activePageId: string;
+  autoExpandPathIds: string[];
+  onNavigate: (pageId: string) => void;
+}) {
+  const [treeState, dispatch] = useReducer(treeReducer, undefined, createTreeState);
+  const lastAutoExpandPathKeyRef = useRef<string | null>(null);
+  const autoExpandPathKey = autoExpandPathIds.join("\u0000");
+  const rootChildIds = treeState.childrenByParentId.get(rootPage.id) ?? null;
+
+  const nodesById = useMemo(() => {
+    const map = new Map<string, TreeNodeData>();
+    function toNode(pageId: string): TreeNodeData | null {
+      const page = treeState.pagesById.get(pageId);
+      if (!page) return null;
+      const childIds = treeState.childrenByParentId.get(page.id) ?? null;
+      let children: TreeNodeData[] | null = null;
+      if (childIds) {
+        children = childIds.map(toNode).filter(isTreeNode);
+      }
+      const expanded = treeState.expandedIds.has(page.id);
+      const node = { page, children, expanded };
+      map.set(page.id, node);
+      return node;
+    }
+    for (const childId of rootChildIds ?? []) {
+      toNode(childId);
+    }
+    return map;
+  }, [rootChildIds, treeState]);
 
   const loadChildren = useCallback(
     async (parentId: string) => {
       try {
         const children = await api.pages.children(workspaceId, parentId, shareToken);
-        setNodes((prev) => {
-          const next = new Map(prev);
-          for (const child of children) {
-            const existing = next.get(child.id);
-            if (existing) {
-              existing.page = child;
-            } else {
-              next.set(child.id, { page: child, children: null, expanded: false });
-            }
-          }
-          // Update parent's children list
-          const parent = next.get(parentId);
-          if (parent) {
-            parent.children = children.map((c) => next.get(c.id)!);
-          }
-          return next;
-        });
+        dispatch({ type: "children-loaded", parentId, children });
         return children;
       } catch {
         return [];
       }
     },
-    [workspaceId, shareToken],
+    [shareToken, workspaceId],
   );
 
-  useEffect(() => {
-    if (rootChildren !== null) return;
-    loadChildren(rootPage.id).then((children) => {
-      setRootChildren(children.map((c) => c.id));
-    });
-  }, [rootChildren, rootPage.id, loadChildren]);
+  const getLoadedChildIds = useEffectEvent((parentId: string) => treeState.childrenByParentId.get(parentId) ?? null);
 
   useEffect(() => {
-    const loadedRootChildren = rootChildren;
-    if (loadedRootChildren === null) return;
-    const initialVisibleChildIds: string[] = loadedRootChildren;
+    void loadChildren(rootPage.id);
+  }, [loadChildren, rootPage.id]);
+
+  useEffect(() => {
+    if (rootChildIds === null) return;
     if (lastAutoExpandPathKeyRef.current === autoExpandPathKey) return;
     if (!autoExpandPathKey) {
       lastAutoExpandPathKeyRef.current = autoExpandPathKey;
@@ -165,41 +238,23 @@ export function SharedPageTree({
     }
 
     let cancelled = false;
-    const pathIds = autoExpandPathIds;
 
     async function expandActivePath() {
-      let visibleChildIds = initialVisibleChildIds;
+      let visibleChildIds: readonly string[] = rootChildIds ?? [];
 
-      for (const pageId of pathIds) {
+      for (const pageId of autoExpandPathIds) {
         if (cancelled) return;
         if (!visibleChildIds.includes(pageId)) return;
 
-        setNodes((prev) => {
-          const next = new Map(prev);
-          const node = next.get(pageId);
-          if (node) {
-            node.expanded = true;
-          }
-          return next;
-        });
+        dispatch({ type: "expand", pageId });
 
-        const node = nodesRef.current.get(pageId);
-        if (!node || node.children === null) {
+        let childIds = getLoadedChildIds(pageId);
+        if (!childIds) {
           const children = await loadChildren(pageId);
           if (cancelled) return;
-          setNodes((prev) => {
-            const next = new Map(prev);
-            const n = next.get(pageId);
-            if (n) {
-              n.children = children.map((child) => next.get(child.id)!);
-              n.expanded = true;
-            }
-            return next;
-          });
-          visibleChildIds = children.map((child) => child.id);
-        } else {
-          visibleChildIds = node.children.map((child) => child.page.id);
+          childIds = children.map((child) => child.id);
         }
+        visibleChildIds = childIds;
       }
     }
 
@@ -212,34 +267,17 @@ export function SharedPageTree({
     return () => {
       cancelled = true;
     };
-  }, [autoExpandPathIds, autoExpandPathKey, loadChildren, rootChildren]);
+  }, [autoExpandPathIds, autoExpandPathKey, loadChildren, rootChildIds]);
 
   const handleToggle = useCallback(
-    async (pageId: string) => {
-      setNodes((prev) => {
-        const next = new Map(prev);
-        const node = next.get(pageId);
-        if (node) {
-          node.expanded = !node.expanded;
-        }
-        return next;
-      });
-
-      const node = nodesRef.current.get(pageId);
-      if (node && node.children === null) {
-        const children = await loadChildren(pageId);
-        setNodes((prev) => {
-          const next = new Map(prev);
-          const n = next.get(pageId);
-          if (n) {
-            n.children = children.map((c) => next.get(c.id)!);
-            n.expanded = true;
-          }
-          return next;
-        });
+    (pageId: string) => {
+      const childrenLoaded = treeState.childrenByParentId.has(pageId);
+      dispatch({ type: "toggle", pageId });
+      if (!childrenLoaded) {
+        void loadChildren(pageId);
       }
     },
-    [loadChildren],
+    [loadChildren, treeState.childrenByParentId],
   );
 
   return (
@@ -258,7 +296,7 @@ export function SharedPageTree({
         </span>
         <span className="truncate">{rootPage.title || DEFAULT_PAGE_TITLE}</span>
       </button>
-      {rootChildren === null ? (
+      {rootChildIds === null ? (
         <div className="space-y-1 px-2 pt-1">
           <div className="flex h-8 items-center gap-1">
             <Skeleton className="h-5 w-5 shrink-0 rounded" />
@@ -270,8 +308,8 @@ export function SharedPageTree({
           </div>
         </div>
       ) : (
-        rootChildren.map((id) => {
-          const node = nodes.get(id);
+        rootChildIds.map((id) => {
+          const node = nodesById.get(id);
           if (!node) return null;
           return (
             <TreeNode

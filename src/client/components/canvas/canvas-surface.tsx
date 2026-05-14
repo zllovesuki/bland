@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "@excalidraw/excalidraw/index.css";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -59,7 +59,7 @@ export function CanvasSurface({
   const { userId, resolveIdentity } = useCollabIdentity();
   const { ydoc, yElements, yAppState, yFileRefs, provider } = session;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
-  const [readyApi, setReadyApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [loadedApi, setLoadedApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(() => new Map());
   const [expanded, setExpanded] = useState(false);
   const bindingRef = useRef<ExcalidrawBinding | null>(null);
@@ -78,7 +78,9 @@ export function CanvasSurface({
     userId,
     resolveIdentity,
   });
-  depsRef.current = { workspaceId, shareToken, pageId, canInsertImages, userId, resolveIdentity };
+  useLayoutEffect(() => {
+    depsRef.current = { workspaceId, shareToken, pageId, canInsertImages, userId, resolveIdentity };
+  }, [canInsertImages, pageId, resolveIdentity, shareToken, userId, workspaceId]);
 
   // Escape collapses the expanded overlay. Listener is gated on `expanded`
   // so we don't leak a global keydown handler in the default state.
@@ -92,35 +94,30 @@ export function CanvasSurface({
   }, [expanded]);
 
   useEffect(() => {
-    if (!api) {
-      setReadyApi(null);
-      return;
-    }
-    if (!api.getAppState().isLoading) {
-      setReadyApi(api);
-      return;
-    }
+    if (!api) return;
+
     // Excalidraw flips `isLoading` false after initial asset/font load.
     // Poll lightly on a 50ms timeout — per-frame rAF is wasted work
     // because isLoading doesn't change per frame.
-    setReadyApi((current) => (current === api ? current : null));
-
     let cancelled = false;
     let timer: number | null = null;
     const check = () => {
       if (cancelled) return;
       if (!api.getAppState().isLoading) {
-        setReadyApi(api);
+        setLoadedApi(api);
         return;
       }
+      setLoadedApi((current) => (current === api ? null : current));
       timer = window.setTimeout(check, 50);
     };
-    timer = window.setTimeout(check, 50);
+    timer = window.setTimeout(check, 0);
     return () => {
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
     };
   }, [api]);
+
+  const readyApi = loadedApi === api ? loadedApi : null;
 
   useEffect(() => {
     if (!readyApi) return;

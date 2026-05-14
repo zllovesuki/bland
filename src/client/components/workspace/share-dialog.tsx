@@ -8,7 +8,7 @@ import { pageSharesQueryKey, pageSharesQueryOptions } from "@/client/lib/queries
 import { sharedInboxQueryKey } from "@/client/lib/queries/shared-inbox";
 import { useWorkspaceMembers, useWorkspaceRole } from "@/client/components/workspace/use-workspace-view";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { confirm } from "@/client/components/confirm";
+import { confirm } from "@/client/components/confirm-store";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { deriveShareDialogAffordance, deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";

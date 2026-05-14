@@ -1,7 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { PageMentionProvider } from "./provider";
-import type { PageMentionCandidate } from "./types";
 import { useCanonicalPageContext } from "@/client/components/workspace/use-canonical-page-context";
 import { useActivePageState } from "@/client/components/active-page/use-active-page";
 import { useOnline } from "@/client/hooks/use-online";
@@ -35,22 +34,6 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
     [pagesById],
   );
 
-  const getInsertablePages = useCallback(
-    (excludePageId: string | undefined): PageMentionCandidate[] => {
-      const items: PageMentionCandidate[] = [];
-      for (const page of pages) {
-        if (page.id === excludePageId) continue;
-        items.push({
-          pageId: page.id,
-          title: page.title || "Untitled",
-          icon: page.icon,
-        });
-      }
-      return items;
-    },
-    [pages],
-  );
-
   const handleNavigate = useCallback(
     (pageId: string) => {
       navigate({
@@ -68,7 +51,6 @@ export function CanonicalPageMentionSurface({ children }: { children: ReactNode 
       cacheMode={cacheMode}
       networkEnabled={online}
       lookupCachedPage={lookupCachedPage}
-      getInsertablePages={getInsertablePages}
       navigate={handleNavigate}
     >
       {children}

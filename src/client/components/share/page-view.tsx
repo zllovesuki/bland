@@ -90,6 +90,7 @@ export function SharePageView() {
   if (pageAffordance.kind === "doc") {
     return (
       <DocumentPage
+        key={`${page.id}:${presentation.token}`}
         pageId={page.id}
         initialTitle={page.title}
         onTitleChange={handleTitleChange}

@@ -33,7 +33,7 @@ import {
   useActivePageSync,
 } from "@/client/components/active-page/use-active-page";
 import { useCanonicalPageActions } from "@/client/components/workspace/use-canonical-page-actions";
-import { useWorkspaceLayoutMode } from "@/client/components/workspace/layout-mode-context";
+import { useWorkspaceLayoutMode } from "@/client/components/workspace/layout-mode";
 import type { Page, PageAncestor, Workspace } from "@/shared/types";
 
 export function PageView() {
@@ -176,6 +176,7 @@ function PageViewContent() {
     <>
       {pageAffordance.kind === "doc" ? (
         <DocumentPage
+          key={page.id}
           pageId={page.id}
           initialTitle={page.title}
           onTitleChange={handleTitleChange}

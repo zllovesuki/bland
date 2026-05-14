@@ -50,6 +50,15 @@ function escapeSql(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+function commandErrorMessage(err: unknown): string {
+  if (err && typeof err === "object") {
+    const error = err as { stderr?: unknown; message?: unknown };
+    if (typeof error.stderr === "string" && error.stderr.trim()) return error.stderr;
+    if (typeof error.message === "string") return error.message;
+  }
+  return String(err);
+}
+
 async function promptPassword(): Promise<string> {
   process.stderr.write("Password: ");
   process.stdin.setRawMode?.(true);
@@ -173,8 +182,8 @@ async function main() {
       console.error(`Refusing to seed: ${count} user(s) already exist.`);
       process.exit(1);
     }
-  } catch (err: any) {
-    console.error("Preflight check failed:", err.stderr || err.message);
+  } catch (err) {
+    console.error("Preflight check failed:", commandErrorMessage(err));
     process.exit(1);
   }
 
@@ -205,8 +214,8 @@ async function main() {
     );
     if (stdout.trim()) console.log(stdout.trim());
     if (stderr.trim()) console.error(stderr.trim());
-  } catch (err: any) {
-    console.error("Failed to seed:", err.stderr || err.message);
+  } catch (err) {
+    console.error("Failed to seed:", commandErrorMessage(err));
     process.exit(1);
   }
 

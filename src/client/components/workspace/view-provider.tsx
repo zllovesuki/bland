@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
 import { createRequestGuard } from "@/client/lib/request-guard";
@@ -101,8 +101,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   const online = useOnline();
   const previousNetworkStateRef = useRef({ online, sessionMode });
 
-  const routeRef = useRef(route);
-  routeRef.current = route;
+  const readRoute = useEffectEvent(() => route);
 
   // Last-visited writes are gated on membership-axis access (accessMode
   // "member"). Shared-surface visits do not pollute the root-gateway redirect
@@ -130,7 +129,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
   }, []);
 
   useEffect(() => {
-    const currentRoute = routeRef.current;
+    const currentRoute = readRoute();
     const regainedLiveSession =
       online &&
       sessionMode === SESSION_MODES.AUTHENTICATED &&
@@ -157,7 +156,7 @@ export function WorkspaceViewProvider({ workspaceSlug, pageId, children }: Works
       // the cache before fallback branches declare a terminal error.
       await waitForWorkspaceLocalHydration();
       if (!request.isCurrent()) return;
-      if (!isWorkspaceReady(routeRef.current)) {
+      if (!isWorkspaceReady(readRoute())) {
         setRoute(seedFromCache(workspaceSlug, pageId));
       }
 

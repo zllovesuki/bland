@@ -1,11 +1,9 @@
 import { createContext, use, useEffect, useSyncExternalStore } from "react";
 import type { MentionEntry, PageMentionResolver } from "./resolver";
-import type { PageMentionCandidate } from "./types";
 
 export interface PageMentionContextValue {
   resolver: PageMentionResolver | null;
   navigate: (pageId: string) => void;
-  getInsertablePages: (excludePageId: string | undefined) => PageMentionCandidate[];
 }
 
 const EMPTY_ENTRY: MentionEntry = { status: "pending", source: null, accessible: false, title: null, icon: null };
@@ -13,7 +11,6 @@ const EMPTY_ENTRY: MentionEntry = { status: "pending", source: null, accessible:
 export const PageMentionContext = createContext<PageMentionContextValue>({
   resolver: null,
   navigate: () => {},
-  getInsertablePages: () => [],
 });
 
 export function usePageMentions(): PageMentionContextValue {

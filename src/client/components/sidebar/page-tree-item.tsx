@@ -23,7 +23,7 @@ import { useAuthStore } from "@/client/stores/auth-store";
 import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
-import { confirm } from "@/client/components/confirm";
+import { confirm } from "@/client/components/confirm-store";
 import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { deriveSidebarRowAffordance } from "@/client/lib/affordance/sidebar";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
@@ -36,7 +36,7 @@ import {
   type MoveResult,
   type PageTreeIndex,
 } from "@/client/lib/page-tree-model";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 const SidebarMoveDialog = lazy(() =>
   import("./sidebar-move-dialog").then((mod) => ({ default: mod.SidebarMoveDialog })),
 );

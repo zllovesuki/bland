@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, useState, useEffect, useMemo } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
@@ -20,14 +20,14 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
   const dragRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
-  const [loadStatus, setLoadStatus] = useState<"loading" | "loaded" | "errored">("loading");
+  const resolvedSrc = resolveShareUrl(typeof src === "string" ? src : "", shareToken);
+  const [loadState, setLoadState] = useState<{ src: string; status: "loading" | "loaded" | "errored" }>(() => ({
+    src: resolvedSrc,
+    status: "loading",
+  }));
   const editable = editor.isEditable;
 
-  const resolvedSrc = resolveShareUrl(typeof src === "string" ? src : "", shareToken);
-
-  useEffect(() => {
-    setLoadStatus("loading");
-  }, [resolvedSrc]);
+  const loadStatus = loadState.src === resolvedSrc ? loadState.status : "loading";
 
   const finishDrag = useCallback(() => {
     abortRef.current?.abort();
@@ -107,7 +107,7 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
         ? "tiptap-image-node--align-right"
         : "tiptap-image-node--align-left";
 
-  const uploadCtx = { workspaceId, pageId, shareToken };
+  const uploadCtx = useMemo(() => ({ workspaceId, pageId, shareToken }), [pageId, shareToken, workspaceId]);
   const openImagePanel = useCallback(() => {
     if (!editor.isEditable || !canInsertImages) return;
     const pos = getPos();
@@ -116,7 +116,7 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
       uploadContext: uploadCtx,
       target: createImageNodeTarget(editor, pos),
     });
-  }, [canInsertImages, editor, getPos, pageId, shareToken, workspaceId]);
+  }, [canInsertImages, editor, getPos, uploadCtx]);
 
   const aspectRatio =
     typeof naturalWidth === "number" && typeof naturalHeight === "number" && naturalWidth > 0 && naturalHeight > 0
@@ -195,8 +195,8 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
           draggable={false}
           data-drag-handle={editable && !isLoading && !isErrored ? "" : undefined}
           style={displayWidth && !isLoading ? { width: "100%" } : undefined}
-          onLoad={() => setLoadStatus("loaded")}
-          onError={() => setLoadStatus("errored")}
+          onLoad={() => setLoadState({ src: resolvedSrc, status: "loaded" })}
+          onError={() => setLoadState({ src: resolvedSrc, status: "errored" })}
         />
         {isLoading && <Skeleton className="tiptap-image-load-skeleton" />}
         {isErrored && (

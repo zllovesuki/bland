@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, type Ref } from "react";
+import { useId, useImperativeHandle, useRef, type Ref } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { useMenuNavigation } from "../menu/navigation";
@@ -20,7 +20,7 @@ export interface SlashMenuPanelHandle {
 
 export function SlashMenuPanel({ items, command, clientRect, contextElement, onClose, ref }: SlashMenuPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const listboxIdRef = useRef(`slash-menu-${Math.random().toString(36).slice(2, 10)}`);
+  const listboxId = useId();
   const handleSelect = (item: ResolvedSlashMenuItem) => {
     if (item.blockedReason) return;
     command(item);
@@ -70,7 +70,7 @@ export function SlashMenuPanel({ items, command, clientRect, contextElement, onC
         onMouseDownCapture={(e) => preserveEditorSelectionOnMouseDown(e)}
       >
         {groups.map((group) => {
-          const labelId = `${listboxIdRef.current}-group-${group.name}`;
+          const labelId = `${listboxId}-group-${group.name}`;
           return (
             <div key={group.name} role="group" aria-labelledby={labelId}>
               <div id={labelId} className="tiptap-slash-menu-label">
@@ -82,7 +82,7 @@ export function SlashMenuPanel({ items, command, clientRect, contextElement, onC
                 return (
                   <button
                     key={index}
-                    id={`${listboxIdRef.current}-option-${index}`}
+                    id={`${listboxId}-option-${index}`}
                     type="button"
                     role="option"
                     data-menu-index={index}

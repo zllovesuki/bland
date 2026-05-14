@@ -28,9 +28,9 @@ export interface WorkspaceReplicaRow {
   workspaceRole: WorkspaceRole | null;
 }
 
-export interface WorkspacePageRow extends Page {}
+export type WorkspacePageRow = Page;
 
-export interface WorkspaceMemberRow extends WorkspaceMember {}
+export type WorkspaceMemberRow = WorkspaceMember;
 
 export interface PageAccessRow {
   pageId: string;

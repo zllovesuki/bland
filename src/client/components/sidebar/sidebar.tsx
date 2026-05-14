@@ -21,7 +21,7 @@ import { searchShortcutLabel } from "./search-shortcut";
 import { useOnline } from "@/client/hooks/use-online";
 import { deriveSidebarBaseAffordance, type SidebarBaseAffordance } from "@/client/lib/affordance/sidebar";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { MobileDrawer } from "@/client/components/ui/mobile-drawer";
 
@@ -92,16 +92,14 @@ export function Sidebar({ collapsed, onCollapsedChange, mobileOpen, onMobileClos
 
 function useSidebarSearch(online: boolean) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const onlineRef = useRef(online);
-  onlineRef.current = online;
 
   const openSearch = useCallback(() => {
-    if (!onlineRef.current) {
+    if (!online) {
       toast.info("Search requires a connection");
       return;
     }
     setSearchOpen(true);
-  }, []);
+  }, [online]);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
@@ -111,7 +109,7 @@ function useSidebarSearch(online: boolean) {
     const handleKeydown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "k") {
         event.preventDefault();
-        if (!onlineRef.current) {
+        if (!online) {
           toast.info("Search requires a connection");
           return;
         }
@@ -120,7 +118,7 @@ function useSidebarSearch(online: boolean) {
     };
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
-  }, []);
+  }, [online]);
 
   return { searchOpen, openSearch, closeSearch };
 }

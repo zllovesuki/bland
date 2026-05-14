@@ -8,7 +8,7 @@ import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRuntime } from "../editor-runtime-context";
 import { primeTopLevelBlockDragState } from "../lib/block-drag-state";
 import { prepareBlockDragPreview } from "../lib/block-drag-preview";
-import { usePageMentions } from "@/client/components/page-mention/context";
+import { getInsertablePageMentionCandidates } from "@/client/components/page-mention/candidates";
 import {
   canMoveTopLevelBlock,
   deleteTopLevelBlock,
@@ -33,7 +33,6 @@ export function DragHandle() {
   const groupRef = useRef<HTMLDivElement>(null);
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const affordance = useEditorAffordance();
-  const pageMentions = usePageMentions();
   const [menuBid, setMenuBid] = useState<string | null>(null);
   const getRuntime = useCallback(
     () => ({
@@ -49,9 +48,13 @@ export function DragHandle() {
       createInsertPaletteItems({
         getRuntime,
         getAffordance,
-        getPageMentionCandidates: (excludePageId) => pageMentions.getInsertablePages(excludePageId),
+        getPageMentionCandidates: (excludePageId) => {
+          const runtime = getRuntime();
+          if (runtime.shareToken) return [];
+          return getInsertablePageMentionCandidates(runtime.workspaceId, excludePageId);
+        },
       }),
-    [getAffordance, getRuntime, pageMentions],
+    [getAffordance, getRuntime],
   );
 
   const onNodeChange = useCallback(({ node, pos }: { node: PMNode | null; pos: number }) => {
@@ -168,7 +171,7 @@ export function DragHandle() {
   useEffect(() => {
     if (!editor || menuBid === null) return;
     if (getCurrentTopLevelBlock(editor, menuBid)) return;
-    closeMenu();
+    queueMicrotask(closeMenu);
   }, [closeMenu, editor, menuBid]);
 
   const toggleMenu = useCallback(() => {

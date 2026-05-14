@@ -7,34 +7,35 @@ interface EmojiIconProps {
 }
 
 export function EmojiIcon({ emoji, size = 20 }: EmojiIconProps) {
-  const [assetUrl, setAssetUrl] = useState<string | null>(() => getEmojiAssetUrlSync(emoji));
-  const [failed, setFailed] = useState(false);
+  const cachedAssetUrl = getEmojiAssetUrlSync(emoji);
+  const [assetState, setAssetState] = useState(() => ({
+    emoji,
+    assetUrl: cachedAssetUrl,
+    failed: false,
+  }));
+  const currentAsset = assetState.emoji === emoji ? assetState : { emoji, assetUrl: cachedAssetUrl, failed: false };
   const style = { width: size, height: size };
 
   useEffect(() => {
+    if (currentAsset.assetUrl !== null) return;
     let cancelled = false;
-    setFailed(false);
-    const cached = getEmojiAssetUrlSync(emoji);
-    setAssetUrl(cached);
-    if (cached === null) {
-      loadEmojiAssetUrl(emoji).then((url) => {
-        if (!cancelled) setAssetUrl(url);
-      });
-    }
+    loadEmojiAssetUrl(emoji).then((url) => {
+      if (!cancelled) setAssetState({ emoji, assetUrl: url, failed: false });
+    });
     return () => {
       cancelled = true;
     };
-  }, [emoji]);
+  }, [currentAsset.assetUrl, emoji]);
 
-  if (assetUrl && !failed) {
+  if (currentAsset.assetUrl && !currentAsset.failed) {
     return (
       <img
-        src={assetUrl}
+        src={currentAsset.assetUrl}
         alt=""
         aria-hidden
         draggable={false}
         decoding="async"
-        onError={() => setFailed(true)}
+        onError={() => setAssetState({ emoji, assetUrl: currentAsset.assetUrl, failed: true })}
         className="inline-block shrink-0 select-none align-text-bottom"
         style={style}
       />

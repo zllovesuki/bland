@@ -255,14 +255,15 @@ export function getSlashMenuItems(opts: SlashMenuItemsOpts): SlashMenuItem[] {
   );
 
   if (opts.pageMention) {
-    const { openPicker } = opts.pageMention;
+    const pageMentionConfig = opts.pageMention;
+    const { openPicker } = pageMentionConfig;
     items.push({
       title: "Link page",
       group: "Insert",
       icon: FileText,
       aliases: ["mention", "page", "reference"],
       isAvailable: ({ editor }) =>
-        (!!opts.pageMention?.isAvailable ? opts.pageMention.isAvailable({ editor }) : true) &&
+        (pageMentionConfig.isAvailable ? pageMentionConfig.isAvailable({ editor }) : true) &&
         canInsertPageMentionAtRange(editor),
       command: ({ editor, range }) => {
         openPicker({ editor, range });

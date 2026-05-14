@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, FileText, Search } from "lucide-react";
 import { Dialog } from "@/client/components/ui/dialog";
 import { Button } from "@/client/components/ui/button";
@@ -75,15 +75,6 @@ export function SidebarMoveDialog({
   const [relation, setRelation] = useState<MoveRelation | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [manualExpand, setManualExpand] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setTarget(null);
-    setRelation(null);
-    setSubmitting(false);
-    setManualExpand({});
-  }, [open, page.id]);
 
   const byId = useMemo(() => providedIndex?.byId ?? buildPageMap(allPages), [providedIndex, allPages]);
   const tree = useMemo(() => buildTree(allPages), [allPages]);

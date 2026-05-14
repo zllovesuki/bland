@@ -11,7 +11,7 @@ export const TableWidthNormalization = Extension.create({
         appendTransaction(transactions, _oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
 
-          let nextTr = newState.tr;
+          const nextTr = newState.tr;
           let mutated = false;
 
           newState.doc.descendants((node, pos) => {

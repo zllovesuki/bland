@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, type CSSProperties } from "react";
-import { useTiptap, useTiptapState } from "@tiptap/react";
+import { useTiptap, useTiptapState, type Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
 import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
 import { FloatingPortal } from "@floating-ui/react";
@@ -21,6 +21,22 @@ interface ImageState {
   align: string;
 }
 
+interface ImageInsetState {
+  key: string | null;
+  value: boolean;
+}
+
+interface ImageFloatingState {
+  key: string | null;
+  styles: CSSProperties;
+}
+
+interface ImageAltEditState {
+  key: string | null;
+  editing: boolean;
+  text: string;
+}
+
 const IMAGE_TOOLBAR_MIN_INSET_WIDTH = 236;
 const IMAGE_TOOLBAR_MIN_INSET_HEIGHT = 88;
 
@@ -37,18 +53,34 @@ function hiddenToolbarStyles(): CSSProperties {
   };
 }
 
+function sameToolbarStyles(a: CSSProperties, b: CSSProperties) {
+  return a.left === b.left && a.top === b.top && a.position === b.position && a.visibility === b.visibility;
+}
+
+function sameFloatingState(a: ImageFloatingState, b: ImageFloatingState) {
+  return a.key === b.key && sameToolbarStyles(a.styles, b.styles);
+}
+
+function resolveImageReference(editor: Editor, pos: number) {
+  const dom = editor.view.nodeDOM(pos);
+  if (!(dom instanceof HTMLElement)) return null;
+  const container = dom.querySelector(".tiptap-image-container") ?? dom;
+  return container instanceof HTMLElement ? container : null;
+}
+
 export function ImageToolbar() {
   const { editor } = useTiptap();
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const affordance = useEditorAffordance();
-  const [editingAlt, setEditingAlt] = useState(false);
-  const [altText, setAltText] = useState("");
-  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
-  const [useInsetPosition, setUseInsetPosition] = useState(false);
+  const [altEditState, setAltEditState] = useState<ImageAltEditState>({ key: null, editing: false, text: "" });
+  const [insetState, setInsetState] = useState<ImageInsetState>({ key: null, value: false });
   const [floatingElement, setFloatingElement] = useState<HTMLDivElement | null>(null);
-  const [floatingStyles, setFloatingStyles] = useState<CSSProperties>(() => hiddenToolbarStyles());
+  const [floatingState, setFloatingState] = useState<ImageFloatingState>(() => ({
+    key: null,
+    styles: hiddenToolbarStyles(),
+  }));
   const forcedPosRef = useRef<number | null>(null);
-  const lastStylesRef = useRef<CSSProperties>(hiddenToolbarStyles());
+  const lastFloatingStateRef = useRef<ImageFloatingState>({ key: null, styles: hiddenToolbarStyles() });
 
   const imageState = useTiptapState((ctx): ImageState | null => {
     const { selection } = ctx.editor.state;
@@ -77,6 +109,12 @@ export function ImageToolbar() {
     };
   });
 
+  const imageKey = imageState ? `${imageState.pos}:${imageState.src}` : null;
+  const imagePos = imageState?.pos ?? null;
+  const floatingStyles = floatingState.key === imageKey ? floatingState.styles : hiddenToolbarStyles();
+  const useInsetPosition = insetState.key === imageKey ? insetState.value : false;
+  const editingAlt = imageKey !== null && altEditState.key === imageKey && altEditState.editing;
+  const altText = altEditState.key === imageKey ? altEditState.text : "";
   const open = imageState !== null;
 
   const placement = useInsetPosition ? "top-end" : "top";
@@ -85,37 +123,35 @@ export function ImageToolbar() {
     [useInsetPosition],
   );
 
-  useLayoutEffect(() => {
-    if (!imageState) {
-      setEditingAlt(false);
-      setReferenceEl(null);
-      setUseInsetPosition(false);
-      forcedPosRef.current = null;
-      return;
-    }
+  const commitFloatingState = useCallback((next: ImageFloatingState) => {
+    if (sameFloatingState(lastFloatingStateRef.current, next)) return;
+    lastFloatingStateRef.current = next;
+    setFloatingState(next);
+  }, []);
 
-    const dom = editor.view.nodeDOM(imageState.pos);
-    if (dom instanceof HTMLElement) {
-      const container = dom.querySelector(".tiptap-image-container") ?? dom;
-      setReferenceEl(container instanceof HTMLElement ? container : null);
-      return;
-    }
+  const hideToolbar = useCallback(() => {
+    commitFloatingState({ key: null, styles: hiddenToolbarStyles() });
+  }, [commitFloatingState]);
 
-    setReferenceEl(null);
-  }, [imageState?.pos, editor]);
-
-  useEffect(() => {
-    if (!open || !referenceEl || !floatingElement) {
-      const nextHiddenStyles = hiddenToolbarStyles();
-      if (
-        lastStylesRef.current.left !== nextHiddenStyles.left ||
-        lastStylesRef.current.top !== nextHiddenStyles.top ||
-        lastStylesRef.current.position !== nextHiddenStyles.position ||
-        lastStylesRef.current.visibility !== nextHiddenStyles.visibility
-      ) {
-        lastStylesRef.current = nextHiddenStyles;
-        setFloatingStyles(nextHiddenStyles);
+  const setFloatingNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) {
+        hideToolbar();
       }
+      setFloatingElement(node);
+    },
+    [hideToolbar],
+  );
+
+  useLayoutEffect(() => {
+    if (!open || imagePos === null || !imageKey || !floatingElement) {
+      hideToolbar();
+      return;
+    }
+
+    const initialReference = resolveImageReference(editor, imagePos);
+    if (!initialReference) {
+      hideToolbar();
       return;
     }
 
@@ -126,6 +162,12 @@ export function ImageToolbar() {
     // of useFloating's reference lifecycle; otherwise it can render at (0, 0)
     // even though the image selection is correct.
     const updatePosition = async () => {
+      const referenceEl = resolveImageReference(editor, imagePos);
+      if (!referenceEl) {
+        if (active) hideToolbar();
+        return;
+      }
+
       const next = await computePosition(referenceEl, floatingElement, {
         placement,
         strategy: "fixed",
@@ -134,40 +176,42 @@ export function ImageToolbar() {
 
       if (!active) return;
 
-      const nextStyles: CSSProperties = {
-        position: "fixed",
-        left: next.x,
-        top: next.y,
-      };
-
-      if (
-        lastStylesRef.current.left === nextStyles.left &&
-        lastStylesRef.current.top === nextStyles.top &&
-        lastStylesRef.current.position === nextStyles.position &&
-        lastStylesRef.current.visibility === nextStyles.visibility
-      ) {
-        return;
-      }
-
-      lastStylesRef.current = nextStyles;
-      setFloatingStyles(nextStyles);
+      commitFloatingState({
+        key: imageKey,
+        styles: {
+          position: "fixed",
+          left: next.x,
+          top: next.y,
+        },
+      });
     };
 
-    const cleanup = autoUpdateDom(referenceEl, floatingElement, updatePosition);
+    const cleanup = autoUpdateDom(initialReference, floatingElement, updatePosition);
     void updatePosition();
 
     return () => {
       active = false;
       cleanup();
     };
-  }, [floatingElement, middleware, open, placement, referenceEl]);
+  }, [commitFloatingState, editor, floatingElement, hideToolbar, imageKey, imagePos, middleware, open, placement]);
 
   useEffect(() => {
+    if (!imageKey || imagePos === null) return;
+
+    const referenceEl = resolveImageReference(editor, imagePos);
     if (!referenceEl) return;
 
     let rafId: number | null = null;
-    const updatePlacement = () =>
-      setUseInsetPosition(canInsetImageToolbar(referenceEl.getBoundingClientRect(), editingAlt));
+    const updatePlacement = () => {
+      const currentReference = resolveImageReference(editor, imagePos);
+      if (!currentReference) return;
+      const nextInsetPosition = canInsetImageToolbar(currentReference.getBoundingClientRect(), editingAlt);
+      setInsetState((current) =>
+        current.key === imageKey && current.value === nextInsetPosition
+          ? current
+          : { key: imageKey, value: nextInsetPosition },
+      );
+    };
     const schedule = () => {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
@@ -183,11 +227,7 @@ export function ImageToolbar() {
       if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
     };
-  }, [editingAlt, referenceEl]);
-
-  useEffect(() => {
-    if (!imageState) setEditingAlt(false);
-  }, [imageState]);
+  }, [editor, editingAlt, imageKey, imagePos]);
 
   const updateImageAttr = useCallback(
     (attrs: Record<string, unknown>) => {
@@ -203,46 +243,50 @@ export function ImageToolbar() {
   }, [editor, imageState]);
 
   const handleAltEdit = () => {
-    if (!imageState) return;
+    if (!imageState || !imageKey) return;
     forcedPosRef.current = imageState.pos;
-    setAltText(imageState.alt);
-    setEditingAlt(true);
+    setAltEditState({ key: imageKey, editing: true, text: imageState.alt });
   };
 
   const handleAltSave = () => {
     updateImageAttr({ alt: altText || null });
     forcedPosRef.current = null;
-    setEditingAlt(false);
+    setAltEditState((current) => (current.key === imageKey ? { ...current, editing: false } : current));
   };
 
   const handleAltCancel = () => {
     forcedPosRef.current = null;
-    setEditingAlt(false);
+    setAltEditState((current) => (current.key === imageKey ? { ...current, editing: false } : current));
   };
 
-  const uploadCtx = { workspaceId, pageId, shareToken };
+  const handleAltInput = (text: string) => {
+    if (!imageKey) return;
+    setAltEditState((current) =>
+      current.key === imageKey ? { ...current, text } : { key: imageKey, editing: true, text },
+    );
+  };
 
-  // Resolve the selected image container before rendering the toolbar. If we
-  // render with an unresolved anchor, floating-ui falls back to (0, 0) and the
-  // toolbar looks like it disappeared even though selection is correct.
-  if (!editor || !affordance.documentEditable || !open || !referenceEl) return null;
+  const uploadCtx = useMemo(() => ({ workspaceId, pageId, shareToken }), [pageId, shareToken, workspaceId]);
+
+  if (!editor || !affordance.documentEditable || !open) return null;
+  const isEditingAlt = editingAlt && imageState !== null;
 
   return (
     <FloatingPortal>
       <div
-        ref={setFloatingElement}
+        ref={setFloatingNode}
         style={{ ...floatingStyles, zIndex: 50 }}
         className="tiptap-toolbar tiptap-image-toolbar"
         onMouseDownCapture={(e) => {
           if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
         }}
       >
-        {editingAlt ? (
+        {isEditingAlt ? (
           <div className="flex items-center gap-1">
             <input
               type="text"
               value={altText}
-              onChange={(e) => setAltText(e.target.value)}
+              onChange={(e) => handleAltInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAltSave();
                 if (e.key === "Escape") handleAltCancel();

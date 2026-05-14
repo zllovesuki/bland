@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   autoUpdate as autoUpdateDom,
   computePosition,
@@ -91,6 +100,17 @@ function hiddenFloatingStyles(strategy: Strategy): CSSProperties {
   };
 }
 
+function applyFloatingStyles(element: HTMLElement, styles: CSSProperties) {
+  element.style.position = String(styles.position ?? "fixed");
+  element.style.left = typeof styles.left === "number" ? `${styles.left}px` : String(styles.left ?? 0);
+  element.style.top = typeof styles.top === "number" ? `${styles.top}px` : String(styles.top ?? 0);
+  if (styles.visibility) {
+    element.style.visibility = String(styles.visibility);
+  } else {
+    element.style.removeProperty("visibility");
+  }
+}
+
 export function useEditorPopover({
   anchorRef,
   deferOutsidePress = false,
@@ -132,7 +152,7 @@ export function useEditorPopover({
 
   useLayoutEffect(() => {
     refs.setReference(anchorRef.current);
-  }, [anchorRef, anchorRef.current, refs]);
+  }, [anchorRef, refs]);
 
   const dismiss = useDismiss(context, {
     enabled: !!onClose,
@@ -163,43 +183,50 @@ export function useEditorRectPopover({
 }: UseEditorRectPopoverOptions) {
   const dismissArmedRef = useDismissArmedRef(deferOutsidePress, open);
   const [floatingElement, setFloatingElement] = useState<HTMLElement | null>(null);
-  const [floatingStyles, setFloatingStyles] = useState<CSSProperties>(() => hiddenFloatingStyles(strategy));
-  const getAnchorRectRef = useRef(getAnchorRect);
-  const contextElementRef = useRef(contextElement);
+  const readAnchorRect = useEffectEvent(() => getAnchorRect());
+  const readContextElement = useEffectEvent(() => getContextElement(contextElement));
   const lastAnchorRectRef = useRef<DOMRect | null>(null);
   const lastStylesRef = useRef(hiddenFloatingStyles(strategy));
 
-  getAnchorRectRef.current = getAnchorRect;
-  contextElementRef.current = contextElement;
-
-  const reference = useMemo(
-    () => ({
-      getBoundingClientRect: () => lastAnchorRectRef.current ?? new DOMRect(),
-      get contextElement() {
-        return getContextElement(contextElementRef.current) ?? undefined;
-      },
-    }),
-    [],
+  const floatingStyles = useMemo<CSSProperties>(() => ({ position: strategy }), [strategy]);
+  const setFloating = useCallback(
+    (node: HTMLElement | null) => {
+      if (!node) {
+        lastAnchorRectRef.current = null;
+        lastStylesRef.current = hiddenFloatingStyles(strategy);
+      } else {
+        applyFloatingStyles(node, hiddenFloatingStyles(strategy));
+      }
+      setFloatingElement(node);
+    },
+    [strategy],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nextHiddenStyles = hiddenFloatingStyles(strategy);
     lastStylesRef.current = nextHiddenStyles;
-    setFloatingStyles(nextHiddenStyles);
     lastAnchorRectRef.current = null;
-  }, [open, strategy]);
+    if (floatingElement) {
+      applyFloatingStyles(floatingElement, nextHiddenStyles);
+    }
+    if (!open || !floatingElement) {
+      return;
+    }
 
-  useEffect(() => {
-    if (!open || !floatingElement) return;
-
-    let active = true;
+    const controller = new AbortController();
+    const reference = {
+      getBoundingClientRect: () => lastAnchorRectRef.current ?? new DOMRect(),
+      get contextElement() {
+        return readContextElement() ?? undefined;
+      },
+    };
 
     // Keep caret- and selection-driven popovers on computePosition. Tiptap's
     // clientRect()/coordsAtPos anchors can be null or late for a frame, and
     // forcing them through useFloating's reference lifecycle caused two regressions:
     // a React update loop in TableMenu and suggestion menus rendered at (0, 0).
     const updatePosition = async () => {
-      const nextRect = getAnchorRectRef.current();
+      const nextRect = readAnchorRect();
       if (nextRect) {
         lastAnchorRectRef.current = nextRect;
       }
@@ -213,13 +240,13 @@ export function useEditorRectPopover({
           lastStylesRef.current.visibility !== nextHiddenStyles.visibility
         ) {
           lastStylesRef.current = nextHiddenStyles;
-          setFloatingStyles(nextHiddenStyles);
+          applyFloatingStyles(floatingElement, nextHiddenStyles);
         }
         return;
       }
 
       if (!maxHeight) {
-        floatingElement.style.maxHeight = "";
+        floatingElement.style.removeProperty("max-height");
       }
 
       const next = await computePosition(reference, floatingElement, {
@@ -242,7 +269,7 @@ export function useEditorRectPopover({
         ],
       });
 
-      if (!active) return;
+      if (controller.signal.aborted) return;
 
       const nextStyles: CSSProperties = {
         position: strategy,
@@ -260,7 +287,7 @@ export function useEditorRectPopover({
       }
 
       lastStylesRef.current = nextStyles;
-      setFloatingStyles(nextStyles);
+      applyFloatingStyles(floatingElement, nextStyles);
     };
 
     const cleanup = autoUpdateDom(reference, floatingElement, updatePosition, {
@@ -270,10 +297,10 @@ export function useEditorRectPopover({
     void updatePosition();
 
     return () => {
-      active = false;
+      controller.abort();
       cleanup();
     };
-  }, [floatingElement, maxHeight, offset, open, padding, placement, reference, strategy]);
+  }, [floatingElement, maxHeight, offset, open, padding, placement, strategy]);
 
   useEffect(() => {
     if (!open || !onClose) return;
@@ -303,7 +330,7 @@ export function useEditorRectPopover({
 
   return {
     floatingStyles,
-    setFloating: setFloatingElement,
+    setFloating,
   };
 }
 

@@ -2,7 +2,7 @@ import type { Editor, Range } from "@tiptap/core";
 import { streamGenerate, AiStreamError } from "@/client/lib/ai/api";
 import { extractDocumentTitle, extractGenerateContext } from "@/client/lib/ai/context";
 import { parseAiBlocksFromText, isSingleInlineParagraph, getInlineTextFromParagraph } from "@/client/lib/ai/blocks";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import {
   appendAiGenerateChunk,
   beginAiGenerate,

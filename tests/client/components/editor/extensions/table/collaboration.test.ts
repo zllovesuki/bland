@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getSchema } from "@tiptap/core";
+import type { Editor } from "@tiptap/react";
 import { TableKit } from "@tiptap/extension-table";
 import { StarterKit } from "@tiptap/starter-kit";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
@@ -143,7 +144,7 @@ describe("table collaboration helpers", () => {
     };
 
     const action = buildRowMenuSections({
-      editor: editor as any,
+      editor: editor as unknown as Editor,
       openMenu: openMenu!,
       onDone,
     })
@@ -181,7 +182,7 @@ describe("table collaboration helpers", () => {
     };
 
     const action = buildColumnMenuSections({
-      editor: editor as any,
+      editor: editor as unknown as Editor,
       openMenu: openMenu!,
       onDone,
     })

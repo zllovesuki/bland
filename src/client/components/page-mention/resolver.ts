@@ -19,8 +19,12 @@ type Listener = () => void;
 interface ResolverOpts {
   workspaceId: string;
   shareToken: string | undefined;
-  getCacheMode: () => PageMentionCacheMode;
-  getNetworkEnabled: () => boolean;
+  environment?: PageMentionResolverEnvironment;
+}
+
+export interface PageMentionResolverEnvironment {
+  cacheMode: PageMentionCacheMode;
+  networkEnabled: boolean;
   lookupCachedPage?: (pageId: string) => PageMentionCachedPage | null;
 }
 
@@ -28,11 +32,15 @@ export interface PageMentionResolver {
   get(pageId: string | null): MentionEntry;
   request(pageId: string | null): void;
   subscribe(pageId: string | null, listener: Listener): () => void;
-  syncCacheMode(): void;
+  setEnvironment(environment: PageMentionResolverEnvironment): void;
   dispose(): void;
 }
 
 const PENDING: MentionEntry = { status: "pending", source: null, accessible: false, title: null, icon: null };
+const DEFAULT_ENVIRONMENT: PageMentionResolverEnvironment = {
+  cacheMode: "live",
+  networkEnabled: true,
+};
 
 export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolver {
   const entries = new Map<string, MentionEntry>();
@@ -43,13 +51,14 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
   let isFlushing = false;
   let epoch = 0;
   let disposed = false;
+  let environment = opts.environment ?? DEFAULT_ENVIRONMENT;
 
   function canUseCache() {
-    return opts.getCacheMode() === "cache";
+    return environment.cacheMode === "cache";
   }
 
   function canResolveNetwork() {
-    return opts.getNetworkEnabled();
+    return environment.networkEnabled;
   }
 
   function notify(pageId: string) {
@@ -67,7 +76,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
   function getCachedEntry(pageId: string): MentionEntry | null {
     if (!canUseCache()) return null;
 
-    const cached = opts.lookupCachedPage?.(pageId);
+    const cached = environment.lookupCachedPage?.(pageId);
     if (!cached) return null;
 
     return {
@@ -176,7 +185,7 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
     }
   }
 
-  function syncCacheMode() {
+  function syncEnvironment() {
     if (disposed) return;
 
     let shouldFlush = false;
@@ -194,14 +203,9 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
         ) {
           setEntry(pageId, cachedEntry);
         }
-        if (canResolveNetwork()) {
-          shouldFlush = true;
-          pendingQueue.add(pageId);
-        }
-        continue;
       }
 
-      if (entry.source === "cache" && canResolveNetwork()) {
+      if (canResolveNetwork() && !inflight.has(pageId)) {
         shouldFlush = true;
         pendingQueue.add(pageId);
       }
@@ -250,7 +254,11 @@ export function createPageMentionResolver(opts: ResolverOpts): PageMentionResolv
         if (set && set.size === 0) listeners.delete(pageId);
       };
     },
-    syncCacheMode,
+    setEnvironment(nextEnvironment) {
+      if (disposed) return;
+      environment = nextEnvironment;
+      syncEnvironment();
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

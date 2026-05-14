@@ -49,7 +49,7 @@ export function EmptyWorkspaceView() {
       try {
         liveWorkspaces = await api.workspaces.list();
       } catch {
-        liveWorkspaces = null;
+        // Cached workspace and inbox state still decide the root route when live listing is unavailable.
       }
 
       if (cancelled) return;

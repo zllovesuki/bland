@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, type Ref } from "react";
+import { useId, useImperativeHandle, useRef, type Ref } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import type { EmojiItem } from "@tiptap/extension-emoji";
 import { useMenuNavigation } from "../menu/navigation";
@@ -26,7 +26,7 @@ export function EmojiSuggestionPanel({
   ref,
 }: EmojiSuggestionPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const listboxIdRef = useRef(`emoji-suggestion-${Math.random().toString(36).slice(2, 10)}`);
+  const listboxId = useId();
   const navigation = useMenuNavigation({
     items,
     listRef: panelRef,
@@ -56,10 +56,10 @@ export function EmojiSuggestionPanel({
         style={{ ...floatingStyles, zIndex: 80 }}
         onMouseDownCapture={(event) => preserveEditorSelectionOnMouseDown(event)}
       >
-        <div className="tiptap-slash-menu-label" id={`${listboxIdRef.current}-label`}>
+        <div className="tiptap-slash-menu-label" id={`${listboxId}-label`}>
           Emoji
         </div>
-        <div id={listboxIdRef.current} role="listbox" aria-labelledby={`${listboxIdRef.current}-label`}>
+        <div id={listboxId} role="listbox" aria-labelledby={`${listboxId}-label`}>
           {items.length === 0 ? (
             <div className="tiptap-slash-menu-item" role="option" aria-disabled aria-selected="false">
               <span className="tiptap-emoji-suggestion-glyph">🙂</span>
@@ -69,7 +69,7 @@ export function EmojiSuggestionPanel({
             items.map((item, index) => (
               <button
                 key={`${item.name}-${index}`}
-                id={`${listboxIdRef.current}-option-${index}`}
+                id={`${listboxId}-option-${index}`}
                 type="button"
                 role="option"
                 data-menu-index={index}

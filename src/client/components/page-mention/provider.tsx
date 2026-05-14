@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { PageMentionContext } from "./context";
-import { createPageMentionResolver } from "./resolver";
-import type { PageMentionCacheMode, PageMentionCachedPage, PageMentionCandidate } from "./types";
+import { createPageMentionResolver, type PageMentionResolver, type PageMentionResolverEnvironment } from "./resolver";
+import type { PageMentionCacheMode, PageMentionCachedPage } from "./types";
 
 interface PageMentionProviderProps {
   children: ReactNode;
@@ -11,8 +11,43 @@ interface PageMentionProviderProps {
   cacheMode: PageMentionCacheMode;
   networkEnabled: boolean;
   lookupCachedPage?: (pageId: string) => PageMentionCachedPage | null;
-  getInsertablePages?: (excludePageId: string | undefined) => PageMentionCandidate[];
   navigate: (pageId: string) => void;
+}
+
+type ResolverSlotListener = () => void;
+
+function createResolverSlot() {
+  let current: PageMentionResolver | null = null;
+  const listeners = new Set<ResolverSlotListener>();
+
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+
+  return {
+    subscribe(listener: ResolverSlotListener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    getSnapshot() {
+      return current;
+    },
+    getServerSnapshot() {
+      return null;
+    },
+    set(next: PageMentionResolver | null) {
+      if (current === next) return;
+      current = next;
+      notify();
+    },
+    clear(expected: PageMentionResolver) {
+      if (current !== expected) return;
+      current = null;
+      notify();
+    },
+  };
 }
 
 export function PageMentionProvider({
@@ -23,53 +58,47 @@ export function PageMentionProvider({
   cacheMode,
   networkEnabled,
   lookupCachedPage,
-  getInsertablePages,
   navigate,
 }: PageMentionProviderProps) {
-  const cacheModeRef = useRef(cacheMode);
-  const networkEnabledRef = useRef(networkEnabled);
-  const lookupCachedPageRef = useRef(lookupCachedPage);
-  const getInsertablePagesRef = useRef(getInsertablePages);
-  cacheModeRef.current = cacheMode;
-  networkEnabledRef.current = networkEnabled;
-  lookupCachedPageRef.current = lookupCachedPage;
-  getInsertablePagesRef.current = getInsertablePages;
-
-  const [resolver, setResolver] = useState<ReturnType<typeof createPageMentionResolver> | null>(null);
+  const environment = useMemo<PageMentionResolverEnvironment>(
+    () => ({
+      cacheMode,
+      networkEnabled,
+      lookupCachedPage,
+    }),
+    [cacheMode, lookupCachedPage, networkEnabled],
+  );
+  const readEnvironment = useEffectEvent(() => environment);
+  const [resolverSlot] = useState(createResolverSlot);
+  const resolver = useSyncExternalStore(
+    resolverSlot.subscribe,
+    resolverSlot.getSnapshot,
+    resolverSlot.getServerSnapshot,
+  );
 
   useEffect(() => {
     if (!workspaceId || !scopeKey) {
-      setResolver(null);
+      resolverSlot.set(null);
       return;
     }
 
     const nextResolver = createPageMentionResolver({
       workspaceId,
       shareToken,
-      getCacheMode: () => cacheModeRef.current,
-      getNetworkEnabled: () => networkEnabledRef.current,
-      lookupCachedPage: (pageId) => lookupCachedPageRef.current?.(pageId) ?? null,
+      environment: readEnvironment(),
     });
-    nextResolver.syncCacheMode();
-    setResolver(nextResolver);
-
+    resolverSlot.set(nextResolver);
     return () => {
+      resolverSlot.clear(nextResolver);
       nextResolver.dispose();
     };
-  }, [scopeKey, shareToken, workspaceId]);
+  }, [resolverSlot, scopeKey, shareToken, workspaceId]);
 
   useEffect(() => {
-    resolver?.syncCacheMode();
-  }, [resolver, cacheMode, networkEnabled]);
+    resolver?.setEnvironment(environment);
+  }, [environment, resolver]);
 
-  const value = useMemo(
-    () => ({
-      resolver,
-      navigate,
-      getInsertablePages: (excludePageId: string | undefined) => getInsertablePagesRef.current?.(excludePageId) ?? [],
-    }),
-    [navigate, resolver],
-  );
+  const value = useMemo(() => ({ resolver, navigate }), [navigate, resolver]);
 
   return <PageMentionContext.Provider value={value}>{children}</PageMentionContext.Provider>;
 }

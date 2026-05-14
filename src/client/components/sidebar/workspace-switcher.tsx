@@ -9,7 +9,7 @@ import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { api } from "@/client/lib/api";
 import { slugify } from "@/lib/slugify";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 export function WorkspaceSwitcher() {

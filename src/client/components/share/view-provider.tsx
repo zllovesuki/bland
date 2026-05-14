@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { api, toApiError } from "@/client/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
-import { createRequestGuard } from "@/client/lib/request-guard";
+import { shareResolveQueryOptions } from "@/client/lib/queries/share-resolve";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { reportClientError } from "@/client/lib/report-client-error";
 import { ShareViewContext, type ShareViewState, type ShareViewStatus } from "./use-share-view";
@@ -19,71 +20,47 @@ export function ShareViewProvider({ token, activePage, children }: ShareViewProv
   const navigate = useNavigate();
   const sessionMode = useAuthStore((s) => s.sessionMode);
   const userId = useAuthStore((s) => s.user?.id ?? null);
-
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [viewer, setViewer] = useState<ResolvedViewerContext | null>(null);
-  const [rootPage, setRootPage] = useState<ShareRootPage | null>(null);
-  const [status, setStatus] = useState<ShareViewStatus>("loading");
-  const [error, setError] = useState<string | null>(null);
-
-  const tokenEpochRef = useRef(0);
-  const activeRef = useRef(true);
-
-  useEffect(() => {
-    activeRef.current = true;
-    return () => {
-      activeRef.current = false;
-    };
-  }, []);
+  const shareQuery = useQuery(shareResolveQueryOptions(token, sessionMode, userId));
 
   // Layer 1: Token resolution. Owns share-link identity only; page data lives
   // in the page surface below. Dependencies are scoped to token/session/user
   // so subpage navigation (`activePage`) keeps the mounted surface alive.
   useEffect(() => {
-    const request = createRequestGuard(tokenEpochRef, activeRef);
-    setStatus("loading");
-    setError(null);
-    // Clear resolved info so sibling consumers collapse to their own loading
-    // state during auth/user re-resolution instead of leaving the previous
-    // share tree visible and clickable.
-    setWorkspaceId(null);
-    setViewer(null);
-    setRootPage(null);
-
-    api.shares
-      .resolve(token)
-      .then((data) => {
-        if (!request.isCurrent()) return;
-        setWorkspaceId(data.workspace_id);
-        setViewer(data.viewer);
-        setRootPage({
-          id: data.page_id,
-          kind: data.kind,
-          title: data.title,
-          icon: data.icon,
-          cover_url: data.cover_url,
-          permission: data.permission,
-        });
-        setStatus("ready");
-      })
-      .catch((err) => {
-        if (!request.isCurrent()) return;
-        const failureKind = classifyFailure(err, { online: navigator.onLine });
-        if (failureKind !== "network") {
-          reportClientError({
-            source: "shared-page.resolve",
-            error: err,
-            context: { sessionMode, failureKind },
-          });
-        }
-        setError(failureKind === "network" ? "This shared page requires a connection." : toApiError(err).message);
-        setStatus("error");
+    if (!shareQuery.error) return;
+    const failureKind = classifyFailure(shareQuery.error, { online: navigator.onLine });
+    if (failureKind !== "network") {
+      reportClientError({
+        source: "shared-page.resolve",
+        error: shareQuery.error,
+        context: { sessionMode, failureKind },
       });
+    }
+  }, [sessionMode, shareQuery.error]);
 
-    return () => {
-      request.cancel();
-    };
-  }, [sessionMode, token, userId]);
+  const resolvedShare = shareQuery.data ?? null;
+  const status: ShareViewStatus = shareQuery.isError ? "error" : resolvedShare ? "ready" : "loading";
+  const error =
+    shareQuery.error && classifyFailure(shareQuery.error, { online: navigator.onLine }) === "network"
+      ? "This shared page requires a connection."
+      : shareQuery.error
+        ? toApiError(shareQuery.error).message
+        : null;
+  const workspaceId = resolvedShare?.workspace_id ?? null;
+  const viewer: ResolvedViewerContext | null = resolvedShare?.viewer ?? null;
+  const rootPage = useMemo<ShareRootPage | null>(
+    () =>
+      resolvedShare
+        ? {
+            id: resolvedShare.page_id,
+            kind: resolvedShare.kind,
+            title: resolvedShare.title,
+            icon: resolvedShare.icon,
+            cover_url: resolvedShare.cover_url,
+            permission: resolvedShare.permission,
+          }
+        : null,
+    [resolvedShare],
+  );
 
   const rootPageId = rootPage?.id ?? null;
   const activePageId = rootPageId ? (activePage ?? rootPageId) : null;

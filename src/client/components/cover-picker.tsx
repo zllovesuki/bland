@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Image, X, Upload } from "lucide-react";
 import { uploadFile } from "@/client/lib/uploads";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { Dialog } from "@/client/components/ui/dialog";
 import { UPLOAD_MIME_SET } from "@/shared/constants";
 

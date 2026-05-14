@@ -6,7 +6,7 @@ import { api } from "@/client/lib/api";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
 import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useOnline } from "@/client/hooks/use-online";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 
 export function useCreatePage() {
   const [isCreating, setIsCreating] = useState(false);

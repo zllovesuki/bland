@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useMemo, useRef, useImperativeHandle, type Ref } from "react";
+import { useState, useId, useLayoutEffect, useMemo, useRef, useImperativeHandle, type Ref } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import { FileText } from "lucide-react";
 import { useMenuNavigation } from "../menu/navigation";
@@ -44,7 +44,7 @@ export function PageMentionPickerPanel({
   const [query, setQuery] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listboxIdRef = useRef(`page-mention-picker-${Math.random().toString(36).slice(2, 10)}`);
+  const listboxId = useId();
 
   const visibleItems = useMemo(() => {
     if (filterMode === "external" || query.length === 0) {
@@ -144,10 +144,10 @@ export function PageMentionPickerPanel({
               placeholder="Link to page..."
               className="tiptap-page-mention-picker-input"
               autoFocus
-              aria-controls={listboxIdRef.current}
+              aria-controls={listboxId}
               aria-activedescendant={
                 visibleItems.length > 0 && navigation.selectedIndex >= 0
-                  ? `${listboxIdRef.current}-option-${navigation.selectedIndex}`
+                  ? `${listboxId}-option-${navigation.selectedIndex}`
                   : undefined
               }
               aria-expanded="true"
@@ -158,7 +158,7 @@ export function PageMentionPickerPanel({
           </div>
         )}
         <div className="tiptap-slash-menu-label">{filterMode === "internal" ? "Pages" : "Link to page"}</div>
-        <div id={listboxIdRef.current} role="listbox" aria-label="Page mentions">
+        <div id={listboxId} role="listbox" aria-label="Page mentions">
           {visibleItems.length === 0 ? (
             <div className="tiptap-slash-menu-item" aria-disabled role="option">
               <FileText size={18} className="shrink-0 text-zinc-400" />
@@ -168,7 +168,7 @@ export function PageMentionPickerPanel({
             visibleItems.map((item, index) => (
               <button
                 key={item.pageId}
-                id={`${listboxIdRef.current}-option-${index}`}
+                id={`${listboxId}-option-${index}`}
                 type="button"
                 data-menu-index={index}
                 className="tiptap-slash-menu-item"

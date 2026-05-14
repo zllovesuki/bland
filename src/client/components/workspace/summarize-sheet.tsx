@@ -190,7 +190,11 @@ function ChatComposer({
   );
 }
 
-export function SummarizeSheet({ workspaceId, pageId, canSummarize, canAsk, open, onClose }: SummarizeSheetProps) {
+export function SummarizeSheet(props: SummarizeSheetProps) {
+  return <SummarizeSheetForPage key={`${props.workspaceId}:${props.pageId}`} {...props} />;
+}
+
+function SummarizeSheetForPage({ workspaceId, pageId, canSummarize, canAsk, open, onClose }: SummarizeSheetProps) {
   const [summary, setSummary] = useState<SummaryState>({ status: "idle", text: "", error: null });
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -199,16 +203,6 @@ export function SummarizeSheet({ workspaceId, pageId, canSummarize, canAsk, open
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const lastFetchKey = useRef<string>("");
-
-  // Reset sheet state when the target page changes. Closing the sheet should NOT wipe
-  // cached summary, chat history, or a half-typed question.
-  useEffect(() => {
-    setSummary({ status: "idle", text: "", error: null });
-    setMessages([]);
-    setInput("");
-    setSummaryRequestToken(0);
-    lastFetchKey.current = "";
-  }, [pageId, workspaceId]);
 
   // Fetch the summary the first time the sheet is opened for this (workspace, page),
   // or whenever the user asks to retry. Dedupe so reopening the sheet on the same

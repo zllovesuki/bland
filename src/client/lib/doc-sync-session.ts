@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import YProvider from "y-partyserver/provider";
@@ -91,11 +91,9 @@ export interface DocSyncSessionOptions<TRuntime> {
   cacheKey: string;
   /** Reporting label for snapshot fetch failures. */
   errorSource: string;
-  /** Projects the doc-specific Y roots from the Y.Doc. Read via a ref, so
-   *  callers don't need to memoize. */
+  /** Projects the doc-specific Y roots from the Y.Doc. */
   roots: (ydoc: Y.Doc) => TRuntime;
-  /** Returns true when `runtime` has body content worth mounting against.
-   *  Also read via a ref. */
+  /** Returns true when `runtime` has body content worth mounting against. */
   hasBody: (runtime: TRuntime) => boolean;
 }
 
@@ -140,46 +138,46 @@ export function useDocSyncSession<TRuntime extends object>({
   const online = useOnline();
   const isAuthed = useAuthStore((s) => !!s.accessToken);
   const wantsConnection = online && (!!shareToken || isAuthed);
+  const sessionKey = `${cacheKey}:${shareToken ?? ""}`;
 
-  const [title, setTitle] = useState(initialTitle);
-  const [runtime, setRuntime] = useState<({ ydoc: Y.Doc; provider: YProvider } & TRuntime) | null>(null);
-  const [hasCachedBody, setHasCachedBody] = useState(false);
-  const [bootstrapStatus, setBootstrapStatus] = useState<DocSyncBootstrapStatus>("pending");
+  const [titleState, setTitleState] = useState(() => ({ key: sessionKey, title: initialTitle }));
+  const [runtimeState, setRuntimeState] = useState<{
+    key: string;
+    runtime: { ydoc: Y.Doc; provider: YProvider } & TRuntime;
+  } | null>(null);
+  const [hasCachedBodyState, setHasCachedBodyState] = useState(() => ({ key: sessionKey, value: false }));
+  const [bootstrapState, setBootstrapState] = useState<{ key: string; status: DocSyncBootstrapStatus }>(() => ({
+    key: sessionKey,
+    status: "pending",
+  }));
 
-  const initialTitleRef = useRef(initialTitle);
-  initialTitleRef.current = initialTitle;
-  const onTitleChangeRef = useRef(onTitleChange);
-  onTitleChangeRef.current = onTitleChange;
-  const onProviderRef = useRef(onProvider);
-  onProviderRef.current = onProvider;
-  const wantsConnectionRef = useRef(wantsConnection);
-  wantsConnectionRef.current = wantsConnection;
-  const onlineRef = useRef(online);
-  onlineRef.current = online;
-  const rootsRef = useRef(roots);
-  rootsRef.current = roots;
-  const hasBodyRef = useRef(hasBody);
-  hasBodyRef.current = hasBody;
+  const title = titleState.key === sessionKey ? titleState.title : initialTitle;
+  const runtime = enabled && runtimeState?.key === sessionKey ? runtimeState.runtime : null;
+  const hasCachedBody = enabled && hasCachedBodyState.key === sessionKey ? hasCachedBodyState.value : false;
+  const bootstrapStatus = enabled && bootstrapState.key === sessionKey ? bootstrapState.status : "pending";
+
+  const readInitialTitle = useEffectEvent(() => initialTitle);
+  const emitTitleChange = useEffectEvent((nextTitle: string) => {
+    onTitleChange?.(nextTitle);
+  });
+  const emitProvider = useEffectEvent((provider: YProvider | null) => {
+    onProvider?.(provider);
+  });
+  const readWantsConnection = useEffectEvent(() => wantsConnection);
+  const readOnline = useEffectEvent(() => online);
+  const projectRoots = useEffectEvent((ydoc: Y.Doc) => roots(ydoc));
+  const runtimeHasBody = useEffectEvent((runtime: TRuntime) => hasBody(runtime));
   const lastRefreshAttemptedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    setTitle(initialTitleRef.current);
-    setRuntime(null);
-    setHasCachedBody(false);
-    setBootstrapStatus("pending");
-  }, [pageId, shareToken]);
-
-  useEffect(() => {
     if (!enabled) {
-      setRuntime(null);
-      setHasCachedBody(false);
-      setBootstrapStatus("pending");
       return;
     }
 
+    const currentSessionKey = sessionKey;
     const ydoc = new Y.Doc();
     const idb = new IndexeddbPersistence(cacheKey, ydoc);
-    const projected = rootsRef.current(ydoc);
+    const projected = projectRoots(ydoc);
     const titleText = ydoc.getText(YJS_PAGE_TITLE);
     const wsProvider = new YProvider(window.location.host, pageId, ydoc, {
       party: "doc-sync",
@@ -194,8 +192,8 @@ export function useDocSyncSession<TRuntime extends object>({
     const titleObserver = () => {
       if (!mounted) return;
       const nextTitle = titleText.toString();
-      setTitle(nextTitle);
-      onTitleChangeRef.current?.(nextTitle);
+      setTitleState({ key: currentSessionKey, title: nextTitle });
+      emitTitleChange(nextTitle);
     };
     titleText.observe(titleObserver);
 
@@ -206,7 +204,7 @@ export function useDocSyncSession<TRuntime extends object>({
         window.clearTimeout(seedTitleTimeout);
         seedTitleTimeout = null;
       }
-      const seed = initialTitleRef.current;
+      const seed = readInitialTitle();
       if (titleText.length === 0 && seed) {
         titleText.insert(0, seed);
       }
@@ -222,8 +220,8 @@ export function useDocSyncSession<TRuntime extends object>({
     const handleConnectionClose = () => {
       if (!mounted) return;
       const decision = decideDocSyncRefresh({
-        isOnline: onlineRef.current,
-        isProviderActive: wantsConnectionRef.current,
+        isOnline: readOnline(),
+        isProviderActive: readWantsConnection(),
         hasShareToken: !!shareToken,
         currentAccessToken: useAuthStore.getState().accessToken,
         lastRefreshAttemptedFor: lastRefreshAttemptedFor.current,
@@ -238,20 +236,20 @@ export function useDocSyncSession<TRuntime extends object>({
 
     const handleIdbSync = () => {
       if (!mounted) return;
-      const bodyReady = hasBodyRef.current(projected);
+      const bodyReady = runtimeHasBody(projected);
 
       if (titleText.length > 0) {
         const nextTitle = titleText.toString();
-        setTitle(nextTitle);
-        onTitleChangeRef.current?.(nextTitle);
+        setTitleState({ key: currentSessionKey, title: nextTitle });
+        emitTitleChange(nextTitle);
         docCache.mark(pageId);
       }
 
-      setHasCachedBody(bodyReady);
-      onProviderRef.current?.(wsProvider);
-      setRuntime({ ...projected, ydoc, provider: wsProvider });
+      setHasCachedBodyState({ key: currentSessionKey, value: bodyReady });
+      emitProvider(wsProvider);
+      setRuntimeState({ key: currentSessionKey, runtime: { ...projected, ydoc, provider: wsProvider } });
 
-      if (!wantsConnectionRef.current) {
+      if (!readWantsConnection()) {
         seedTitleTimeout = window.setTimeout(maybeSeedTitle, 2000);
       }
     };
@@ -269,12 +267,12 @@ export function useDocSyncSession<TRuntime extends object>({
       if (seedTitleTimeout !== null) window.clearTimeout(seedTitleTimeout);
       wsProvider.off("sync", handleProviderSync);
       wsProvider.off("connection-close", handleConnectionClose);
-      onProviderRef.current?.(null);
+      emitProvider(null);
       wsProvider.destroy();
       idb.destroy();
       ydoc.destroy();
     };
-  }, [enabled, pageId, shareToken, cacheKey]);
+  }, [enabled, pageId, shareToken, cacheKey, sessionKey]);
 
   const phase = deriveDocSyncPhase({
     hasLocalBodyState: hasCachedBody,
@@ -298,7 +296,7 @@ export function useDocSyncSession<TRuntime extends object>({
           Y.applyUpdate(runtime.ydoc, new Uint8Array(result.snapshot));
           docCache.mark(pageId);
         }
-        setBootstrapStatus("resolved");
+        setBootstrapState({ key: sessionKey, status: "resolved" });
       })
       .catch((error) => {
         if (controller.signal.aborted || cancelled) return;
@@ -311,14 +309,14 @@ export function useDocSyncSession<TRuntime extends object>({
             hasShareToken: !!shareToken,
           },
         });
-        setBootstrapStatus("error");
+        setBootstrapState({ key: sessionKey, status: "error" });
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [runtime, snapshotWorkspaceId, pageId, shareToken, errorSource]);
+  }, [runtime, snapshotWorkspaceId, pageId, shareToken, errorSource, sessionKey]);
 
   useEffect(() => {
     if (!runtime) return;
@@ -328,7 +326,7 @@ export function useDocSyncSession<TRuntime extends object>({
   const onTitleInput = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       const nextTitle = event.target.value;
-      setTitle(nextTitle);
+      setTitleState({ key: sessionKey, title: nextTitle });
       if (!runtime) return;
 
       const titleText = runtime.ydoc.getText(YJS_PAGE_TITLE);
@@ -337,12 +335,12 @@ export function useDocSyncSession<TRuntime extends object>({
         titleText.insert(0, nextTitle);
       });
     },
-    [runtime],
+    [runtime, sessionKey],
   );
 
   const retrySnapshot = useCallback(() => {
-    setBootstrapStatus("pending");
-  }, []);
+    setBootstrapState({ key: sessionKey, status: "pending" });
+  }, [sessionKey]);
 
   if (phase.error) {
     return {

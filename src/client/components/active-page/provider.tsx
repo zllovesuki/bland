@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import type YProvider from "y-partyserver/provider";
 import { api, toApiError } from "@/client/lib/api";
 import { classifyFailure } from "@/client/lib/classify-failure";
@@ -186,16 +186,15 @@ export function ActivePageProvider({
   const [syncProvider, setSyncProvider] = useState<YProvider | null>(null);
   const epochRef = useRef(0);
   const activeRef = useRef(true);
-  const cachedPageRef = useRef(cachedPageMeta);
-  const cachedAccessRef = useRef(cachedAccess);
-  const onlineRef = useRef(online);
-  const onLivePageLoadedRef = useRef(onLivePageLoaded);
-  const onEvictRef = useRef(onEvict);
-  cachedPageRef.current = cachedPageMeta;
-  cachedAccessRef.current = cachedAccess;
-  onlineRef.current = online;
-  onLivePageLoadedRef.current = onLivePageLoaded;
-  onEvictRef.current = onEvict;
+  const readCachedPage = useEffectEvent(() => cachedPageMeta);
+  const readCachedAccess = useEffectEvent(() => cachedAccess);
+  const readOnline = useEffectEvent(() => online);
+  const emitLivePageLoaded = useEffectEvent((page: Page, access: ActivePageAccess) => {
+    onLivePageLoaded?.(page, access);
+  });
+  const emitEvict = useEffectEvent((targetPageId: string) => {
+    onEvict?.(targetPageId);
+  });
 
   useEffect(() => {
     activeRef.current = true;
@@ -260,16 +259,11 @@ export function ActivePageProvider({
       setState((prev) => (prev.kind === "ready" && prev.snapshot.id === pageId ? prev : { kind: "loading" }));
 
       if (pageLoadTarget === "cached-page") {
-        const cached = cachedPageRef.current;
+        const cached = readCachedPage();
         if (cached) {
+          const cachedAccessMode = accessFromCachedPage(readCachedAccess());
           setState((prev) =>
-            buildReadyState(
-              snapshotFromPage(cached),
-              "cache",
-              accessFromCachedPage(cachedAccessRef.current),
-              prev,
-              shouldLoadRestrictedAncestors,
-            ),
+            buildReadyState(snapshotFromPage(cached), "cache", cachedAccessMode, prev, shouldLoadRestrictedAncestors),
           );
           await syncRestrictedAncestors(pageId, ancestorsPromise);
         } else {
@@ -315,7 +309,7 @@ export function ActivePageProvider({
         if (!request.isCurrent()) return;
 
         const liveAccess = accessFromLivePage(data);
-        onLivePageLoadedRef.current?.(data.page, liveAccess);
+        emitLivePageLoaded(data.page, liveAccess);
 
         setState((prev) =>
           buildReadyState(snapshotFromPage(data.page), "live", liveAccess, prev, shouldLoadRestrictedAncestors),
@@ -324,13 +318,13 @@ export function ActivePageProvider({
       } catch (err) {
         if (!request.isCurrent()) return;
 
-        const currentOnline = onlineRef.current;
+        const currentOnline = readOnline();
         const failureKind = classifyFailure(err, { online: currentOnline });
         const sessionMode = useAuthStore.getState().sessionMode;
         const action = getPageLoadFailureAction(failureKind, currentOnline, sessionMode, surface);
 
         if (action === "evict") {
-          onEvictRef.current?.(pageId);
+          emitEvict(pageId);
           docCache.remove(pageId);
           setState({
             kind: "unavailable",
@@ -341,14 +335,15 @@ export function ActivePageProvider({
         }
 
         if (action === "cache-fallback") {
-          const cached = cachedPageRef.current;
+          const cached = readCachedPage();
           if (cached) {
             if (docCache.has(pageId)) {
+              const cachedAccessMode = accessFromCachedPage(readCachedAccess());
               setState((prev) =>
                 buildReadyState(
                   snapshotFromPage(cached),
                   "cache",
-                  accessFromCachedPage(cachedAccessRef.current),
+                  cachedAccessMode,
                   prev,
                   shouldLoadRestrictedAncestors,
                 ),

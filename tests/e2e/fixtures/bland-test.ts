@@ -30,6 +30,7 @@ interface BlandFixtures {
 }
 
 export const test = base.extend<BlandFixtures>({
+  // eslint-disable-next-line no-empty-pattern -- Playwright fixture callbacks require object destructuring here.
   e2eContext: async ({}, use: (ctx: E2eContextFile) => Promise<void>) => {
     const contextPath = process.env[E2E_CONTEXT_PATH_ENV]!;
     const raw = await readFile(contextPath, "utf8");

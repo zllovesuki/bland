@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateImageUrl } from "@/client/components/editor/controllers/image/insert-popover";
+import { validateImageUrl } from "@/client/components/editor/controllers/image/validate-image-url";
 
 describe("validateImageUrl", () => {
   it("rejects insecure http image embeds before any network checks", async () => {

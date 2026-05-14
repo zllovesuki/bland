@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import type { HeadingOutlineItem } from "./heading-outline";
 
@@ -23,15 +23,13 @@ export function useViewportActiveHeading(
   headings: HeadingOutlineItem[],
 ): number | null {
   const [activePos, setActivePos] = useState<number | null>(null);
-  const headingsRef = useRef(headings);
-  headingsRef.current = headings;
+  const readHeadings = useEffectEvent(() => headings);
 
   const positionsKey = useMemo(() => headings.map((h) => `${h.pos}:${h.level}`).join(","), [headings]);
 
   useEffect(() => {
     if (!editor) return;
-    if (headingsRef.current.length === 0) {
-      setActivePos((prev) => (prev === null ? prev : null));
+    if (readHeadings().length === 0) {
       return;
     }
     const scrollEl = findScrollContainer(editor.view.dom.parentElement);
@@ -41,7 +39,7 @@ export function useViewportActiveHeading(
 
     const recompute = () => {
       rafId = null;
-      const current = headingsRef.current;
+      const current = readHeadings();
       if (current.length === 0) {
         setActivePos((prev) => (prev === null ? prev : null));
         return;
@@ -119,5 +117,5 @@ export function useViewportActiveHeading(
     };
   }, [editor, positionsKey]);
 
-  return activePos;
+  return headings.length === 0 ? null : activePos;
 }

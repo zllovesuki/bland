@@ -333,6 +333,8 @@ export const printLogTails = async (ctx: E2eContext): Promise<void> => {
       if (tail.length > 0) {
         console.error(`Last ${label} log lines:\n${tail}`);
       }
-    } catch {}
+    } catch {
+      // Logs are optional when startup fails before the server opens files.
+    }
   }
 };

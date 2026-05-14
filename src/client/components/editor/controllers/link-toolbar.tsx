@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useTiptap } from "@tiptap/react";
 import {
   useFloating,
@@ -31,20 +31,19 @@ export function LinkToolbar() {
   const [editHref, setEditHref] = useState("");
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkRef = useRef(link);
-  const hoverHandleClose = useRef(safePolygon({ buffer: 2, requireIntent: false })).current;
-  linkRef.current = link;
+  useLayoutEffect(() => {
+    linkRef.current = link;
+  }, [link]);
+  const hoverHandleClose = useMemo(() => safePolygon({ buffer: 2, requireIntent: false }), []);
 
   const open = link !== null;
-
-  useEffect(() => {
-    if (!link) setEditing(false);
-  }, [link]);
 
   const { context, refs } = useFloating({
     open,
     onOpenChange(nextOpen) {
       if (!nextOpen && linkRef.current?.mode === "hover") {
         setLink(null);
+        setEditing(false);
       }
     },
     placement: "top-start",
@@ -78,7 +77,10 @@ export function LinkToolbar() {
 
       const { from, to } = editor.state.selection;
       if (from !== to) {
-        if (linkRef.current?.mode === "cursor") setLink(null);
+        if (linkRef.current?.mode === "cursor") {
+          setLink(null);
+          setEditing(false);
+        }
         return;
       }
 
@@ -89,12 +91,14 @@ export function LinkToolbar() {
         const anchor = el?.closest("a");
         if (anchor instanceof HTMLAnchorElement) {
           setLink({ href: linkMark.href, element: anchor, mode: "cursor" });
+          setEditing(false);
           return;
         }
       }
 
       if (linkRef.current?.mode === "cursor") {
         setLink(null);
+        setEditing(false);
       }
     };
 
@@ -121,6 +125,7 @@ export function LinkToolbar() {
         const href = anchor.getAttribute("href");
         if (href) {
           setLink({ href, element: anchor, mode: "hover" });
+          setEditing(false);
         }
       }, 250);
     };

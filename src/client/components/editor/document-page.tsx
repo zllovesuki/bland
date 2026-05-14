@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import type YProvider from "y-partyserver/provider";
 import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageTitleSection } from "@/client/components/ui/page-title-section";
@@ -17,7 +17,7 @@ import {
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { reportClientError } from "@/client/lib/report-client-error";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { EditorBody } from "./editor-body";
 import { useEditorSession } from "./use-editor-session";
 
@@ -63,11 +63,6 @@ export function DocumentPage({
 
   const [schemaError, setSchemaError] = useState<Error | null>(null);
   const schemaErrorReportedRef = useRef(false);
-
-  useEffect(() => {
-    setSchemaError(null);
-    schemaErrorReportedRef.current = false;
-  }, [pageId, shareToken]);
 
   const handleSchemaError = useCallback(
     (error: Error) => {

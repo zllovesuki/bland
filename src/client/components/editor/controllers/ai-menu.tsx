@@ -3,13 +3,13 @@ import { preserveEditorSelectionOnMouseDown, useEditorRectPopover } from "./menu
 import type { AiRewriteAction } from "@/shared/types";
 import "../styles/ai-menu.css";
 
-export interface AiRewriteOption {
+interface AiRewriteOption {
   action: AiRewriteAction;
   label: string;
   description: string;
 }
 
-export const AI_REWRITE_OPTIONS: AiRewriteOption[] = [
+const AI_REWRITE_OPTIONS: AiRewriteOption[] = [
   { action: "proofread", label: "Proofread", description: "Fix grammar and spelling" },
   { action: "formal", label: "Formal", description: "More professional tone" },
   { action: "casual", label: "Casual", description: "More conversational tone" },

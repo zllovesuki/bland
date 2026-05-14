@@ -29,6 +29,27 @@ interface UseMenuNavigationOptions<T> {
   columns?: number;
 }
 
+interface MenuSelectionState<T> {
+  items: T[];
+  initialIndex: number;
+  index: number;
+}
+
+function createMenuSelectionState<T>(items: T[], initialIndex: number): MenuSelectionState<T> {
+  return {
+    items,
+    initialIndex,
+    index: getInitialMenuIndex(items.length, initialIndex),
+  };
+}
+
+function resolveSelectedIndex<T>(state: MenuSelectionState<T>, items: T[], initialIndex: number): number {
+  if (state.items !== items || state.initialIndex !== initialIndex) {
+    return getInitialMenuIndex(items.length, initialIndex);
+  }
+  return getInitialMenuIndex(items.length, state.index);
+}
+
 export function useMenuNavigation<T>({
   items,
   initialIndex = 0,
@@ -36,11 +57,19 @@ export function useMenuNavigation<T>({
   onSelect,
   columns,
 }: UseMenuNavigationOptions<T>) {
-  const [selectedIndex, setSelectedIndex] = useState(() => getInitialMenuIndex(items.length, initialIndex));
+  const [selectedIndexState, setSelectedIndexState] = useState(() => createMenuSelectionState(items, initialIndex));
+  const selectedIndex = resolveSelectedIndex(selectedIndexState, items, initialIndex);
 
-  useEffect(() => {
-    setSelectedIndex(getInitialMenuIndex(items.length, initialIndex));
-  }, [initialIndex, items]);
+  const setSelectedIndex = useCallback(
+    (index: number) => {
+      setSelectedIndexState({
+        items,
+        initialIndex,
+        index: getInitialMenuIndex(items.length, index),
+      });
+    },
+    [initialIndex, items],
+  );
 
   useEffect(() => {
     if (selectedIndex < 0) return;
@@ -57,25 +86,41 @@ export function useMenuNavigation<T>({
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setSelectedIndex((index) => moveMenuIndexByStep(index, items.length, -vertical));
+        setSelectedIndexState((state) => ({
+          items,
+          initialIndex,
+          index: moveMenuIndexByStep(resolveSelectedIndex(state, items, initialIndex), items.length, -vertical),
+        }));
         return true;
       }
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setSelectedIndex((index) => moveMenuIndexByStep(index, items.length, vertical));
+        setSelectedIndexState((state) => ({
+          items,
+          initialIndex,
+          index: moveMenuIndexByStep(resolveSelectedIndex(state, items, initialIndex), items.length, vertical),
+        }));
         return true;
       }
 
       if (gridColumns > 0 && event.key === "ArrowLeft") {
         event.preventDefault();
-        setSelectedIndex((index) => moveMenuIndex(index, items.length, -1));
+        setSelectedIndexState((state) => ({
+          items,
+          initialIndex,
+          index: moveMenuIndex(resolveSelectedIndex(state, items, initialIndex), items.length, -1),
+        }));
         return true;
       }
 
       if (gridColumns > 0 && event.key === "ArrowRight") {
         event.preventDefault();
-        setSelectedIndex((index) => moveMenuIndex(index, items.length, 1));
+        setSelectedIndexState((state) => ({
+          items,
+          initialIndex,
+          index: moveMenuIndex(resolveSelectedIndex(state, items, initialIndex), items.length, 1),
+        }));
         return true;
       }
 
@@ -100,7 +145,7 @@ export function useMenuNavigation<T>({
 
       return false;
     },
-    [columns, items, onSelect, selectedIndex],
+    [columns, initialIndex, items, onSelect, selectedIndex, setSelectedIndex],
   );
 
   return {

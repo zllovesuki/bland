@@ -250,7 +250,7 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
 
   const membership = await checkMembership(db, user.id, workspaceId);
   const workspaceRole: ResolvedWorkspaceRole = membership?.role ?? "none";
-  let pageAccess: PageAccessLevel = "none";
+  let pageAccess: PageAccessLevel;
 
   if (membership && canEdit(membership.role)) {
     pageAccess = "edit";

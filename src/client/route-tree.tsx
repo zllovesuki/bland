@@ -1,25 +1,10 @@
 import { createRootRoute, createRoute, redirect, lazyRouteComponent } from "@tanstack/react-router";
-import { AlertCircle } from "lucide-react";
-import { Button } from "@/client/components/ui/button";
 import { RootShell } from "@/client/components/root-shell";
 import { StandaloneLayout } from "@/client/components/layouts/standalone-layout";
 import { ShareLayout } from "@/client/components/share/layout";
 import { WorkspaceLayout } from "@/client/components/workspace/layout";
+import { RouteErrorFallback } from "@/client/components/route-error-fallback";
 import { useAuthStore, selectHasLocalSession, selectIsAuthenticated } from "@/client/stores/auth-store";
-
-function RouteErrorFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <AlertCircle className="mx-auto mb-3 h-8 w-8 text-red-400" />
-        <p className="mb-3 text-sm text-zinc-400">Something went wrong.</p>
-        <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
-          Reload
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 const rootRoute = createRootRoute({
   component: RootShell,

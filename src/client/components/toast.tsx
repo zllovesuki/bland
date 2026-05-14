@@ -1,41 +1,5 @@
 import { useSyncExternalStore } from "react";
-
-type ToastVariant = "success" | "error" | "info";
-
-interface Toast {
-  id: number;
-  message: string;
-  variant: ToastVariant;
-  exiting?: boolean;
-}
-
-let nextId = 0;
-let toasts: Toast[] = [];
-const listeners = new Set<() => void>();
-
-function emit() {
-  for (const l of listeners) l();
-}
-
-function add(message: string, variant: ToastVariant) {
-  const id = ++nextId;
-  toasts = [{ id, message, variant }, ...toasts].slice(0, 3);
-  emit();
-  setTimeout(() => {
-    toasts = toasts.map((t) => (t.id === id ? { ...t, exiting: true } : t));
-    emit();
-  }, 3800);
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== id);
-    emit();
-  }, 4000);
-}
-
-export const toast = {
-  success: (message: string) => add(message, "success"),
-  error: (message: string) => add(message, "error"),
-  info: (message: string) => add(message, "info"),
-};
+import { getToastSnapshot, subscribeToast, type ToastVariant } from "./toast-store";
 
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
   success: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
@@ -44,13 +8,7 @@ const VARIANT_CLASSES: Record<ToastVariant, string> = {
 };
 
 export function ToastContainer() {
-  const current = useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
-    () => toasts,
-  );
+  const current = useSyncExternalStore(subscribeToast, getToastSnapshot);
 
   return (
     <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2" role="status" aria-live="polite">

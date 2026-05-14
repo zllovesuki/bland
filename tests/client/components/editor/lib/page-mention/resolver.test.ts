@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvePageMentionsResponse } from "@/shared/types";
 import type { PageMentionCacheMode } from "@/client/components/page-mention/types";
+import type { PageMentionResolverEnvironment } from "@/client/components/page-mention/resolver";
 
 let createPageMentionResolver: typeof import("@/client/components/page-mention/resolver").createPageMentionResolver;
 
@@ -50,23 +51,26 @@ function createResolver(
     lookupCachedPage: (pageId: string) => { title: string; icon: string | null } | null;
   }> = {},
 ) {
-  let cacheMode = opts.cacheMode ?? "live";
-  let networkEnabled = opts.networkEnabled ?? true;
+  let environment: PageMentionResolverEnvironment = {
+    cacheMode: opts.cacheMode ?? "live",
+    networkEnabled: opts.networkEnabled ?? true,
+    lookupCachedPage: opts.lookupCachedPage,
+  };
   const resolver = createPageMentionResolver({
     workspaceId: opts.workspaceId ?? "ws-1",
     shareToken: opts.shareToken,
-    getCacheMode: () => cacheMode,
-    getNetworkEnabled: () => networkEnabled,
-    lookupCachedPage: opts.lookupCachedPage,
+    environment,
   });
 
   return {
     resolver,
     setCacheMode(next: PageMentionCacheMode) {
-      cacheMode = next;
+      environment = { ...environment, cacheMode: next };
+      resolver.setEnvironment(environment);
     },
     setNetworkEnabled(next: boolean) {
-      networkEnabled = next;
+      environment = { ...environment, networkEnabled: next };
+      resolver.setEnvironment(environment);
     },
   };
 }
@@ -273,7 +277,6 @@ describe("page mention resolver", () => {
     });
 
     setNetworkEnabled(true);
-    resolver.syncCacheMode();
     await flushAsyncWork();
 
     expect(resolveMock).toHaveBeenCalledTimes(1);
@@ -413,7 +416,6 @@ describe("page mention resolver", () => {
     });
 
     setCacheMode("live");
-    resolver.syncCacheMode();
     await flushAsyncWork();
 
     expect(resolveMock).toHaveBeenCalledTimes(2);

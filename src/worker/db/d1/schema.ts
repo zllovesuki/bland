@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, primaryKey, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -78,8 +78,7 @@ export const pages = sqliteTable(
     workspace_id: text("workspace_id")
       .notNull()
       .references(() => workspaces.id),
-    // Self-referential FK requires `any` return — Drizzle limitation for circular table refs
-    parent_id: text("parent_id").references((): any => pages.id, {
+    parent_id: text("parent_id").references((): AnySQLiteColumn => pages.id, {
       onDelete: "set null",
     }),
     kind: text("kind", { enum: ["doc", "canvas"] })

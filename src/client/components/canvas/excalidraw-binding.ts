@@ -13,7 +13,7 @@ import type {
   SocketId,
 } from "@excalidraw/excalidraw/types";
 import { fetchUploadAsDataURL, uploadFile } from "@/client/lib/uploads";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { friendlyName } from "@/client/lib/friendly-name";
 import { localWinsVersionTiebreak } from "./tiebreak";

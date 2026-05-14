@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search, FileText, Loader2 } from "lucide-react";
@@ -8,6 +8,11 @@ import type { SearchResult } from "@/shared/types";
 import { DEFAULT_PAGE_TITLE } from "@/shared/constants";
 
 export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return <SearchDialogContent onClose={onClose} />;
+}
+
+function SearchDialogContent({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const workspace = useCurrentWorkspace();
   const [query, setQuery] = useState("");
@@ -17,27 +22,21 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const searchQuery = useQuery(searchQueryOptions(workspace?.id ?? null, debouncedQuery));
-  const results: SearchResult[] = searchQuery.data ?? [];
+  const results: SearchResult[] = useMemo(() => searchQuery.data ?? [], [searchQuery.data]);
   const isSearching = searchQuery.isFetching;
   const hasError = searchQuery.isError;
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setDebouncedQuery("");
-      setSelectedIndex(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    } else if (debounceRef.current) {
+    requestAnimationFrame(() => inputRef.current?.focus());
+    return () => {
+      if (!debounceRef.current) return;
       clearTimeout(debounceRef.current);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [searchQuery.data]);
+    };
+  }, []);
 
   const handleInput = useCallback((value: string) => {
     setQuery(value);
+    setSelectedIndex(0);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebouncedQuery(value), 200);
   }, []);
@@ -71,8 +70,6 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
     },
     [results, selectedIndex, selectResult, onClose],
   );
-
-  if (!open) return null;
 
   return (
     <div

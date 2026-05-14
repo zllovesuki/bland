@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
 import { CanonicalPageMentionSurface } from "@/client/components/page-mention/canonical-surface";
 import { usePageAccessMode } from "@/client/stores/workspace-replica";
@@ -61,15 +61,12 @@ function CanonicalMetadataListener() {
   const { workspace } = useCanonicalPageContext();
   const workspaceId = workspace?.id ?? null;
 
-  const patchPageRef = useRef(patchPage);
-  patchPageRef.current = patchPage;
-
   useEffect(() => {
     if (!syncProvider || !workspaceId) return;
     const handler = (message: string) => {
       const msg = parseDocMessage(message);
       if (msg?.type === "page-metadata-updated") {
-        patchPageRef.current({ icon: msg.icon, coverUrl: msg.cover_url });
+        patchPage({ icon: msg.icon, coverUrl: msg.cover_url });
         void replicaCommands.patchPage(workspaceId, msg.pageId, {
           icon: msg.icon,
           cover_url: msg.cover_url,
@@ -78,6 +75,6 @@ function CanonicalMetadataListener() {
     };
     syncProvider.on("custom-message", handler);
     return () => syncProvider.off("custom-message", handler);
-  }, [syncProvider, workspaceId]);
+  }, [patchPage, syncProvider, workspaceId]);
   return null;
 }

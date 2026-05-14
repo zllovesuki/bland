@@ -1,7 +1,7 @@
 import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { uploadFile } from "@/client/lib/uploads";
-import { toast } from "@/client/components/toast";
+import { toast } from "@/client/components/toast-store";
 import { MAX_UPLOAD_SIZE } from "@/shared/constants";
 import type { EditorRuntimeSnapshot } from "../editor-runtime-context";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
