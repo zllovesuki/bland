@@ -19,13 +19,13 @@ import { EditorOutline } from "./editor-outline";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { PageMentionContext, usePageMentions } from "@/client/components/page-mention/context";
 import { getInsertablePageMentionCandidates } from "@/client/components/page-mention/candidates";
-import "./styles/content.css";
-import "./styles/table.css";
-import "./styles/details.css";
-import "./styles/callout.css";
-import "./styles/emoji.css";
+import "@/styles/editor/content.css";
+import "@/styles/editor/table.css";
+import "@/styles/editor/details.css";
+import "@/styles/editor/callout.css";
+import "@/styles/editor/emoji.css";
 import "./styles/menu.css";
-import "./styles/page-mention.css";
+import "@/styles/editor/page-mention.css";
 
 export type EditorOutlinePlacement = { kind: "inline" } | { kind: "rail"; target: HTMLDivElement | null };
 
@@ -116,7 +116,7 @@ export const EditorBody = memo(function EditorBody({
       },
       editorProps: {
         attributes: {
-          class: "tiptap",
+          class: "tiptap tiptap-document-lead tiptap-editor-surface tiptap-page-body",
         },
         // ProseMirror's built-in commands (splitBlock, deleteNode, typing, etc.)
         // call tr.scrollIntoView() which feeds into scrollRectIntoView — an
@@ -175,8 +175,7 @@ export const EditorBody = memo(function EditorBody({
 
   if (!editor) return null;
 
-  const outlineContent =
-    outline.kind === "rail" ? <EditorOutline className="tiptap-outline--rail" /> : <EditorOutline />;
+  const outlineContent = outline.kind === "rail" ? <EditorOutline variant="rail" /> : <EditorOutline />;
 
   return (
     <EditorRuntimeContext.Provider value={runtimeValue}>

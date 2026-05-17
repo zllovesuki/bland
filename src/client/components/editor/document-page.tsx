@@ -4,16 +4,12 @@ import { PageErrorState } from "@/client/components/ui/page-error-state";
 import { PageTitleSection } from "@/client/components/ui/page-title-section";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import {
-  DOC_PAGE_MAIN_CLASS,
-  DOC_PAGE_RAIL_CLASS,
-  DOC_PAGE_RAIL_INNER_CLASS,
+  DocumentFrame,
   type DocumentOutlineMode,
   OUTLINE_RAIL_MEDIA_QUERY,
   PAGE_CONTENT_COLUMN_CLASS,
   PAGE_SHELL_CLASS,
-  PAGE_STAGE_CLASS,
-  PAGE_STAGE_WITH_TRACKS_CLASS,
-} from "@/client/components/ui/page-layout";
+} from "@/shared/editor/components/document-layout";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { reportClientError } from "@/client/lib/report-client-error";
@@ -139,18 +135,17 @@ export function DocumentPage({
 
   return (
     <div className={PAGE_SHELL_CLASS}>
-      <div className={showRail ? PAGE_STAGE_WITH_TRACKS_CLASS : PAGE_STAGE_CLASS}>
-        <div className={showRail ? DOC_PAGE_MAIN_CLASS : "min-w-0"}>
-          {chrome}
-          <PageTitleSection {...titleProps} />
-          <div className={PAGE_CONTENT_COLUMN_CLASS}>{body}</div>
-        </div>
-        {showRail ? (
-          <aside className={DOC_PAGE_RAIL_CLASS} aria-label="Document outline">
-            <div ref={setOutlineTarget} className={DOC_PAGE_RAIL_INNER_CLASS} />
-          </aside>
-        ) : null}
-      </div>
+      <DocumentFrame
+        main={
+          <>
+            {chrome}
+            <PageTitleSection {...titleProps} />
+            <div className={PAGE_CONTENT_COLUMN_CLASS}>{body}</div>
+          </>
+        }
+        rail={showRail ? <></> : undefined}
+        railRef={setOutlineTarget}
+      />
     </div>
   );
 }

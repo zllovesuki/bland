@@ -3,12 +3,13 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { ImageElement } from "@/shared/editor/components/image";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import { showImageInsertPanel } from "../../controllers/image/insert-panel";
 import { prepareBlockDragPreview } from "../../lib/block-drag-preview";
 import { createImageNodeTarget, getLocalImagePreview, resolveShareUrl } from "../../lib/media-actions";
-import "../../styles/image-node.css";
+import "@/styles/editor/image-node.css";
 
 const FALLBACK_ASPECT_RATIO = 16 / 9;
 
@@ -186,8 +187,7 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
   return (
     <NodeViewWrapper className={`tiptap-image-node ${alignClass}`}>
       <div className={containerClass} style={containerStyle}>
-        <img
-          className="tiptap-image"
+        <ImageElement
           ref={imgRef}
           src={resolvedSrc}
           alt={alt ?? undefined}

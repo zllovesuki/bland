@@ -1,21 +1,10 @@
 import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { AlertTriangle, Info, Lightbulb, type LucideIcon } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { CalloutKindContent, getCalloutKindMeta } from "@/shared/editor/components/callout";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { CALLOUT_KINDS, normalizeCalloutKind, type CalloutKind } from "./kinds";
-
-interface CalloutKindMeta {
-  label: string;
-  Icon: LucideIcon;
-}
-
-const KIND_META: Record<CalloutKind, CalloutKindMeta> = {
-  info: { label: "Info", Icon: Info },
-  tip: { label: "Tip", Icon: Lightbulb },
-  warning: { label: "Warning", Icon: AlertTriangle },
-};
 
 export function CalloutView({ node, updateAttributes }: NodeViewProps) {
   const { documentEditable } = useEditorAffordance();
@@ -23,7 +12,7 @@ export function CalloutView({ node, updateAttributes }: NodeViewProps) {
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const kind = normalizeCalloutKind(node.attrs.kind);
-  const { Icon, label } = KIND_META[kind];
+  const { label } = getCalloutKindMeta(kind);
 
   const { floatingStyles, getFloatingProps, refs } = useEditorPopover({
     open,
@@ -58,8 +47,7 @@ export function CalloutView({ node, updateAttributes }: NodeViewProps) {
         aria-label={documentEditable ? `Callout kind: ${label}. Click to change.` : `Callout: ${label}`}
         disabled={!documentEditable}
       >
-        <Icon size={14} aria-hidden />
-        <span>{label}</span>
+        <CalloutKindContent kind={kind} />
       </button>
 
       {documentEditable && open && (
@@ -77,7 +65,7 @@ export function CalloutView({ node, updateAttributes }: NodeViewProps) {
             })}
           >
             {CALLOUT_KINDS.map((candidate) => {
-              const meta = KIND_META[candidate];
+              const meta = getCalloutKindMeta(candidate);
               const active = candidate === kind;
               return (
                 <button

@@ -1,6 +1,7 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { FileText, Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { PageMentionContent } from "@/shared/editor/components/page-mention";
 import { getPageMentionViewState } from "../../lib/page-mention/view-state";
 import { usePageMentionEntry, usePageMentionNavigate } from "@/client/components/page-mention/context";
 
@@ -17,8 +18,7 @@ export function PageMentionView({ node }: NodeViewProps) {
         aria-disabled="true"
         contentEditable={false}
       >
-        <Lock size={12} className="shrink-0" />
-        <span className="tiptap-page-mention-label">Restricted</span>
+        <PageMentionContent label="Restricted" restricted />
       </NodeViewWrapper>
     );
   }
@@ -49,8 +49,7 @@ export function PageMentionView({ node }: NodeViewProps) {
         data-page-id={pageId}
         contentEditable={false}
       >
-        <Lock size={12} className="shrink-0" />
-        <span className="tiptap-page-mention-label">{viewState.label}</span>
+        <PageMentionContent label={viewState.label} restricted />
       </NodeViewWrapper>
     );
   }
@@ -65,10 +64,7 @@ export function PageMentionView({ node }: NodeViewProps) {
         aria-label={viewState.ariaLabel}
         contentEditable={false}
       >
-        <span className="tiptap-page-mention-icon" aria-hidden="true">
-          <Loader2 size={12} className="animate-spin" />
-        </span>
-        <span className="tiptap-page-mention-label">{viewState.label}</span>
+        <PageMentionContent icon={<Loader2 size={12} className="animate-spin" />} label={viewState.label} />
       </NodeViewWrapper>
     );
   }
@@ -86,10 +82,7 @@ export function PageMentionView({ node }: NodeViewProps) {
       aria-disabled={canNavigate ? undefined : "true"}
       contentEditable={false}
     >
-      <span className="tiptap-page-mention-icon" aria-hidden="true">
-        {viewState.icon ? viewState.icon : <FileText size={12} />}
-      </span>
-      <span className="tiptap-page-mention-label">{viewState.label}</span>
+      <PageMentionContent icon={viewState.icon} label={viewState.label} />
     </NodeViewWrapper>
   );
 }

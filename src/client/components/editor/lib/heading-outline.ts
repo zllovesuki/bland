@@ -1,9 +1,7 @@
 import type { Editor } from "@tiptap/react";
+import { normalizeOutlineText, readOutlineLevel, type OutlineItem } from "@/shared/editor/components/outline-model";
 
-export interface HeadingOutlineItem {
-  id: string;
-  text: string;
-  level: number;
+export interface HeadingOutlineItem extends OutlineItem {
   pos: number;
 }
 
@@ -14,13 +12,13 @@ export function collectHeadings(editor: Editor | null | undefined): HeadingOutli
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name !== "heading") return;
 
-    const text = node.textContent.replace(/\s+/g, " ").trim();
+    const text = normalizeOutlineText(node.textContent);
     if (!text) return;
 
     headings.push({
       id: `${pos}`,
       text,
-      level: Number(node.attrs.level) || 1,
+      level: readOutlineLevel(node.attrs.level),
       pos,
     });
   });

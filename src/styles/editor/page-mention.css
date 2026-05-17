@@ -1,4 +1,5 @@
-.tiptap-page-mention {
+.tiptap-page-mention,
+.tiptap a.tiptap-page-mention {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -14,6 +15,16 @@
   transition: background-color 120ms ease;
   vertical-align: baseline;
   white-space: nowrap;
+}
+
+/* The page-mention static renderer emits an anchor for accessible links. The
+   `.tiptap a` chain in `content.css` (color: accent + underline) has higher
+   specificity than a single-class chip rule, so we double up here to make
+   sure the chip styling wins regardless of variant. */
+.tiptap a.tiptap-page-mention:hover {
+  background-color: color-mix(in srgb, var(--color-zinc-500) 30%, transparent);
+  color: var(--color-zinc-100);
+  text-decoration: none;
 }
 
 .tiptap-page-mention:hover {

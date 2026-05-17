@@ -46,6 +46,7 @@
   border-radius: 0.65rem;
   font: inherit;
   text-align: left;
+  text-decoration: none;
   color: var(--color-zinc-400);
   cursor: pointer;
   transition:

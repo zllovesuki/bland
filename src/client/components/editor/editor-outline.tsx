@@ -1,5 +1,5 @@
 import { useTiptap, useTiptapState } from "@tiptap/react";
-import { ChevronRight, FileText } from "lucide-react";
+import { OutlinePresentation, type OutlinePresentationVariant } from "@/shared/editor/components/outline";
 import {
   collectHeadings,
   jumpToHeading,
@@ -8,10 +8,10 @@ import {
   type HeadingOutlineItem,
 } from "./lib/heading-outline";
 import { useViewportActiveHeading } from "./lib/use-viewport-active-heading";
-import "./styles/outline.css";
+import "@/styles/editor/outline.css";
 
 interface EditorOutlineProps {
-  className?: string;
+  variant?: OutlinePresentationVariant;
   title?: string;
 }
 
@@ -25,7 +25,7 @@ function headingsEqual(a: HeadingOutlineItem[], b: HeadingOutlineItem[] | null) 
   return true;
 }
 
-export function EditorOutline({ className, title = "On this page" }: EditorOutlineProps) {
+export function EditorOutline({ variant = "card", title = "On this page" }: EditorOutlineProps) {
   const { editor } = useTiptap();
   const headings = useTiptapState(({ editor: currentEditor }) => collectHeadings(currentEditor), headingsEqual);
   const selectionPos = useTiptapState(({ editor: currentEditor }) => currentEditor?.state.selection.from ?? 0);
@@ -43,41 +43,17 @@ export function EditorOutline({ className, title = "On this page" }: EditorOutli
   const activePos = isFocused ? (cursorHeading ?? selectionFallback ?? viewportActive) : viewportActive;
 
   return (
-    <nav className={["tiptap-outline", className].filter(Boolean).join(" ")} aria-label={title}>
-      <div className="tiptap-outline__header">
-        <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-        <span>{title}</span>
-      </div>
-      <ul className="tiptap-outline__list">
-        {headings.map((heading) => {
-          const active = heading.pos === activePos;
-          return (
-            <li key={heading.id} className="tiptap-outline__item">
-              <button
-                type="button"
-                className="tiptap-outline__button"
-                data-active={active ? "true" : "false"}
-                aria-current={active ? "location" : undefined}
-                title={heading.text}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  jumpToHeading(editor, heading.pos);
-                }}
-                style={{
-                  // Keep the CSS padding (0.5rem) as the base so the chevron
-                  // always has breathing room from the highlight's left edge,
-                  // even for top-level headings (where the indent addition
-                  // would otherwise be 0).
-                  paddingInlineStart: `calc(0.5rem + ${Math.max(0, heading.level - 1) * 0.875}rem)`,
-                }}
-              >
-                <ChevronRight className="tiptap-outline__chevron h-3 w-3 shrink-0" />
-                <span className="tiptap-outline__text">{heading.text}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <OutlinePresentation
+      items={headings}
+      activeId={activePos === null ? null : `${activePos}`}
+      mode="button"
+      variant={variant}
+      title={title}
+      onItemMouseDown={(item, event) => {
+        event.preventDefault();
+        const pos = Number.parseInt(item.id, 10);
+        if (Number.isFinite(pos)) jumpToHeading(editor, pos);
+      }}
+    />
   );
 }

@@ -34,7 +34,7 @@
     color 0.1s;
 }
 
-.tiptap .tiptap-callout-kind-btn:hover:not(:disabled) {
+.tiptap .tiptap-callout-kind-btn:hover:not(:disabled):not([data-read-only]) {
   background: var(--color-zinc-700);
   border-color: var(--color-zinc-600);
 }
@@ -46,7 +46,8 @@
 
 /* Read-only: drop the pill chrome so the kind label reads as an inline tag,
    not a clickable control. Icon + label keep their kind tint. */
-.tiptap .tiptap-callout-kind-btn:disabled {
+.tiptap .tiptap-callout-kind-btn:disabled,
+.tiptap .tiptap-callout-kind-btn[data-read-only] {
   cursor: default;
   background: transparent;
   border-color: transparent;

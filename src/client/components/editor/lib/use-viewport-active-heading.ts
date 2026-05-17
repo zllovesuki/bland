@@ -1,12 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { resolveViewportActiveOutlineHeading } from "@/shared/editor/components/outline-model";
 import type { HeadingOutlineItem } from "./heading-outline";
-
-const ACTIVATION_ZONE_FRACTION = 0.4;
-const ACTIVATION_ZONE_MAX_PX = 480;
-// Minimum heading visibility required before a below-activation heading can
-// claim active. Prevents twitchy flips when a heading is peeking by a pixel.
-const MIN_VISIBLE_BELOW_PX = 16;
 
 function findScrollContainer(el: HTMLElement | null): HTMLElement | null {
   let cur: HTMLElement | null = el;
@@ -46,45 +41,25 @@ export function useViewportActiveHeading(
       }
       const containerRect = scrollEl.getBoundingClientRect();
       const containerTop = containerRect.top;
-      const containerBottom = containerTop + scrollEl.clientHeight;
-      const activationBottom =
-        containerTop + Math.min(scrollEl.clientHeight * ACTIVATION_ZONE_FRACTION, ACTIVATION_ZONE_MAX_PX);
-      const visibleBelowCutoff = containerBottom - MIN_VISIBLE_BELOW_PX;
-
-      // Priority chain:
-      // 1. A heading still crossing the top edge (we're reading just below it).
-      // 2. First heading inside the activation zone (top 40%, ≤480px).
-      // 3. First heading sufficiently visible below the activation zone — handles
-      //    the case where we've fully scrolled past the previous section and the
-      //    next heading is the only anchor on screen.
-      // 4. Last heading that scrolled past the top (long-section fallback).
-      let intersectingTop: number | null = null;
-      let firstInActivation: number | null = null;
-      let firstVisibleBelow: number | null = null;
-      let lastAboveTop: number | null = null;
-
-      for (const heading of current) {
-        const node = editor.view.nodeDOM(heading.pos);
-        if (!(node instanceof HTMLElement)) continue;
-        // Skip collapsed/hidden headings (e.g. inside a closed details block).
-        if (node.offsetParent === null) continue;
-        const rect = node.getBoundingClientRect();
-        if (rect.bottom <= containerTop) {
-          lastAboveTop = heading.pos;
-        } else if (rect.top < containerTop) {
-          intersectingTop = heading.pos;
-          lastAboveTop = heading.pos;
-        } else if (rect.top <= activationBottom) {
-          if (firstInActivation === null) firstInActivation = heading.pos;
-        } else if (rect.top <= visibleBelowCutoff) {
-          firstVisibleBelow = heading.pos;
-          break;
-        } else {
-          break;
-        }
-      }
-
-      const next = intersectingTop ?? firstInActivation ?? firstVisibleBelow ?? lastAboveTop;
+      const next = resolveViewportActiveOutlineHeading(
+        current
+          .map((heading) => {
+            const node = editor.view.nodeDOM(heading.pos);
+            if (!(node instanceof HTMLElement)) return null;
+            const rect = node.getBoundingClientRect();
+            return {
+              id: heading.pos,
+              top: rect.top,
+              bottom: rect.bottom,
+              // Skip collapsed/hidden headings (e.g. inside a closed details block).
+              hidden: node.offsetParent === null,
+            };
+          })
+          .filter(
+            (heading): heading is { id: number; top: number; bottom: number; hidden: boolean } => heading !== null,
+          ),
+        { top: containerTop, height: scrollEl.clientHeight },
+      );
       setActivePos((prev) => (prev === next ? prev : next));
     };
 

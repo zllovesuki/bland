@@ -171,7 +171,7 @@ function loadHighlightRuntime(): Promise<CodeBlockHighlighter> {
   }
 
   if (!highlightRuntimePromise) {
-    highlightRuntimePromise = import("./highlight-runtime").then((mod) => {
+    highlightRuntimePromise = import("@/shared/editor/components/code-highlight").then((mod) => {
       highlightRuntime = mod.codeBlockLowlight as unknown as CodeBlockHighlighter;
       return highlightRuntime;
     });

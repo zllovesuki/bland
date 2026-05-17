@@ -74,6 +74,24 @@
   border-color: var(--color-zinc-700);
 }
 
+.tiptap-code-block-copy-btn [data-copy-icon-default],
+.tiptap-code-block-copy-btn [data-copy-icon-copied] {
+  display: inline-flex;
+}
+
+.tiptap-code-block-copy-btn [data-copy-icon-copied],
+.tiptap-code-block-copy-btn[data-copied="true"] [data-copy-icon-default] {
+  display: none;
+}
+
+.tiptap-code-block-copy-btn[data-copied="true"] {
+  color: #4ade80;
+}
+
+.tiptap-code-block-copy-btn[data-copied="true"] [data-copy-icon-copied] {
+  display: inline-flex;
+}
+
 .tiptap-code-block-pre {
   font-family: var(--font-mono);
   font-size: 0.875rem;

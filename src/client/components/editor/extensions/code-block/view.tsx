@@ -3,11 +3,12 @@ import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { Check, Copy } from "lucide-react";
+import { CODE_LANGUAGES, resolveLanguage } from "@/shared/editor/schema/code-block";
+import { getCodeLanguageLabel } from "@/shared/editor/components/code-block";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
 import { useEditorAffordance } from "../../editor-affordance-context";
-import { useCopyFeedback } from "@/client/hooks/use-copy-feedback";
-import { CODE_LANGUAGES, resolveLanguage } from "./shared";
-import "../../styles/code-block.css";
+import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
+import "@/styles/editor/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const { documentEditable } = useEditorAffordance();
@@ -20,7 +21,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const isCopied = copiedId === copyId;
 
   const language = resolveLanguage(node.attrs.language);
-  const displayName = CODE_LANGUAGES[language]?.name ?? "Plain Text";
+  const displayName = getCodeLanguageLabel(language);
   const { floatingStyles, getFloatingProps, refs } = useEditorPopover({
     open,
     onClose: () => setOpen(false),
@@ -57,33 +58,37 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
     return () => window.cancelAnimationFrame(frameId);
   }, [language, open]);
 
+  const controls = (
+    <div className="tiptap-code-block-controls" contentEditable={false}>
+      <button
+        type="button"
+        className="tiptap-code-block-copy-btn"
+        onClick={() => copy(copyId, node.textContent)}
+        onMouseDown={(e) => e.preventDefault()}
+        aria-label={isCopied ? "Code copied" : "Copy code"}
+        title={isCopied ? "Code copied" : "Copy code"}
+      >
+        {isCopied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        ref={btnRef}
+        type="button"
+        className="tiptap-code-block-lang-btn"
+        onClick={() => documentEditable && setOpen((p) => !p)}
+        onMouseDown={(e) => e.preventDefault()}
+        aria-label={documentEditable ? `Language: ${displayName}. Click to change.` : `Language: ${displayName}`}
+        aria-expanded={documentEditable ? open : undefined}
+        aria-haspopup={documentEditable ? "menu" : undefined}
+        disabled={!documentEditable}
+      >
+        {displayName}
+      </button>
+    </div>
+  );
+
   return (
-    <NodeViewWrapper className="tiptap-code-block-wrapper">
-      <div className="tiptap-code-block-controls" contentEditable={false}>
-        <button
-          type="button"
-          className="tiptap-code-block-copy-btn"
-          onClick={() => copy(copyId, node.textContent)}
-          onMouseDown={(e) => e.preventDefault()}
-          aria-label={isCopied ? "Code copied" : "Copy code"}
-          title={isCopied ? "Code copied" : "Copy code"}
-        >
-          {isCopied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          ref={btnRef}
-          type="button"
-          className="tiptap-code-block-lang-btn"
-          onClick={() => documentEditable && setOpen((p) => !p)}
-          onMouseDown={(e) => e.preventDefault()}
-          aria-label={documentEditable ? `Language: ${displayName}. Click to change.` : `Language: ${displayName}`}
-          aria-expanded={documentEditable ? open : undefined}
-          aria-haspopup={documentEditable ? "menu" : undefined}
-          disabled={!documentEditable}
-        >
-          {displayName}
-        </button>
-      </div>
+    <NodeViewWrapper className="tiptap-code-block-wrapper" data-language={language}>
+      {controls}
 
       {open && (
         <FloatingPortal>

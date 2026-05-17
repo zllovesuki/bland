@@ -5,7 +5,10 @@ interface PageTitleSectionProps extends PageTitleProps {
   className?: string;
 }
 
-export function PageTitleSection({ className = PAGE_CONTENT_COLUMN_CLASS, ...props }: PageTitleSectionProps) {
+export function PageTitleSection({
+  className = `${PAGE_CONTENT_COLUMN_CLASS} mb-1.5`,
+  ...props
+}: PageTitleSectionProps) {
   return (
     <div className={className}>
       <PageTitle {...props} />

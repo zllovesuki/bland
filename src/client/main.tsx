@@ -19,7 +19,7 @@ import {
 } from "./stores/bootstrap";
 import { registerServiceWorker } from "./lib/pwa";
 import { installManifestGate } from "./lib/install-gate";
-import "./styles/app.css";
+import "@/styles/app.css";
 
 const router = createRouter({
   routeTree,
