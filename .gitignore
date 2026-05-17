@@ -3,6 +3,7 @@ dist/
 .wrangler/
 .prompts/
 .dev.vars
+worker-configuration.d.ts
 playwright-report/
 test-results/
 src/client/lib/emoji/generated/
