@@ -26,7 +26,7 @@ vi.mock("@/client/lib/uploads", () => ({
   uploadFile: uploadFileMock,
 }));
 
-vi.mock("@/client/components/toast", () => ({
+vi.mock("@/client/components/toast-store", () => ({
   toast: toastMocks,
 }));
 
