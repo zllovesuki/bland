@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { createDb } from "@/worker/db/d1/client";
+import { createSessionDb } from "@/worker/db/d1/client";
 import { pages } from "@/worker/db/d1/schema";
 import { createLogger } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
@@ -15,7 +15,7 @@ export type SearchIndexResult = { kind: "ok" } | { kind: "retry"; delaySeconds: 
 
 export async function handleSearchIndexMessage(msg: IndexPageMessage, env: Env): Promise<SearchIndexResult> {
   const { pageId } = msg;
-  const db = createDb(env.DB);
+  const { db } = createSessionDb(env.DB, "first-primary");
 
   // Load page metadata from D1 (workspace_id for routing, archived_at for removal, kind for extraction)
   const page = await db

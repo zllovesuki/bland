@@ -4,7 +4,7 @@ import * as Y from "yjs";
 import { eq } from "drizzle-orm";
 import { drizzle, type DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import { migrate } from "drizzle-orm/durable-sqlite/migrator";
-import { createDb } from "@/worker/db/d1/client";
+import { createSessionDb } from "@/worker/db/d1/client";
 import { pages } from "@/worker/db/d1/schema";
 import * as docSyncSchema from "@/worker/db/docsync-do/schema";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
@@ -93,7 +93,7 @@ export class DocSync extends YServer<Env> {
   }
 
   private get d1Db() {
-    return createDb(this.env.DB);
+    return createSessionDb(this.env.DB, "first-primary").db;
   }
 
   onClose(connection: Connection, code: number, reason: string, wasClean: boolean) {

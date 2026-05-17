@@ -1,7 +1,7 @@
 import { routePartykitRequest } from "partyserver";
 import { eq } from "drizzle-orm";
 import { app } from "@/worker/router";
-import { createDb } from "@/worker/db/d1/client";
+import { createSessionDb } from "@/worker/db/d1/client";
 import { pages, users } from "@/worker/db/d1/schema";
 import { handleHttpRequest } from "@/worker/lib/http-entry";
 import { isWriterRole, resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
@@ -39,7 +39,7 @@ async function handlePartyRequest(request: Request, env: Env) {
         return new Response("Authentication required", { status: 401 });
       }
 
-      const db = createDb(env.DB);
+      const { db } = createSessionDb(env.DB, "first-primary");
 
       // Load page first — needed for both auth paths
       const page = await db

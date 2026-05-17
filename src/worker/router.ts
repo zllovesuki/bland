@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { ZodError } from "zod";
 
-import { createDb } from "@/worker/db/d1/client";
+import { createSessionDb, selectHttpSessionConstraint } from "@/worker/db/d1/client";
 import type { AppContext } from "@/worker/app-context";
 import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
@@ -42,21 +42,12 @@ app.use("*", async (c, next) => {
   c.res = applyBaselineSecurityHeaders(c.res);
 });
 
-function selectSessionConstraint(method: string, _path: string): string | undefined {
-  // Mutating requests go to primary
-  if (method === "POST" || method === "PATCH" || method === "PUT" || method === "DELETE") {
-    return "first-primary";
-  }
-  return undefined; // replica OK for GETs without bookmark
-}
 
 app.use("*", async (c, next) => {
-  const bookmark = c.req.header(D1_BOOKMARK_HEADER)?.trim();
-  const constraint = selectSessionConstraint(c.req.method, c.req.path) || bookmark;
+  const bookmark = c.req.header(D1_BOOKMARK_HEADER);
+  const constraint = selectHttpSessionConstraint(c.req.method, bookmark);
 
-  // D1 Sessions API: keep typed session ref for getBookmark() (cf. anvil/db/d1/sessions.ts)
-  const session = constraint ? c.env.DB.withSession(constraint) : null;
-  const db = createDb((session ?? c.env.DB) as D1Database);
+  const { db, session } = createSessionDb(c.env.DB, constraint);
   c.set("db", db);
   c.set("user", null);
   c.set("jwtPayload", null);
@@ -64,7 +55,7 @@ app.use("*", async (c, next) => {
   await next();
 
   // Return the bookmark for client to use on next request
-  const latestBookmark = session?.getBookmark() ?? null;
+  const latestBookmark = session.getBookmark();
   if (latestBookmark) {
     c.header(D1_BOOKMARK_HEADER, latestBookmark);
   }
