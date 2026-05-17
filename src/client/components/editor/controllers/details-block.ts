@@ -1,8 +1,6 @@
 import type { Editor, JSONContent, Range } from "@tiptap/core";
 import { TextSelection, type Transaction } from "@tiptap/pm/state";
-
-export const DEFAULT_DETAILS_SUMMARY = "Details";
-export const DETAILS_SUMMARY_PLACEHOLDER = "Summary";
+export { DEFAULT_DETAILS_SUMMARY, DETAILS_SUMMARY_PLACEHOLDER } from "@/shared/editor/schema";
 
 export interface DetailsBlockAttrs {
   summary?: string;

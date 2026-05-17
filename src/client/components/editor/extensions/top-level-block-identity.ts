@@ -1,7 +1,6 @@
-import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { TOP_LEVEL_MOVABLE_NODE_TYPES, generateBlockBid, getTopLevelBlocks } from "../lib/top-level-blocks";
+import { SharedTopLevelBlockAttributes, generateBlockBid, getTopLevelBlocks } from "@/shared/editor/schema";
 
 const topLevelBlockIdentityKey = new PluginKey("topLevelBlockIdentity");
 const TOP_LEVEL_DOC_ID_META = "topLevelBlockIdentity";
@@ -54,29 +53,8 @@ function dispatchInitialNormalization(view: EditorView) {
   });
 }
 
-export const TopLevelBlockIdentity = Extension.create({
+export const TopLevelBlockIdentity = SharedTopLevelBlockAttributes.extend({
   name: "topLevelBlockIdentity",
-
-  addGlobalAttributes() {
-    return [
-      {
-        types: [...TOP_LEVEL_MOVABLE_NODE_TYPES],
-        attributes: {
-          bid: {
-            default: null,
-            parseHTML: (element) => {
-              const raw = (element as HTMLElement).getAttribute("data-bid");
-              return raw && raw.length > 0 ? raw : null;
-            },
-            renderHTML: (attributes: { bid?: string | null }) => {
-              if (!attributes.bid) return {};
-              return { "data-bid": attributes.bid };
-            },
-          },
-        },
-      },
-    ];
-  },
 
   addProseMirrorPlugins() {
     return [

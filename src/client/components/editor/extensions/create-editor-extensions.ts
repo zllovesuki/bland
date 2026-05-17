@@ -11,6 +11,7 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { FileHandler } from "@tiptap/extension-file-handler";
 import type * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
+import { countCharacters, countWords } from "@/shared/editor/schema";
 import type { ResolveIdentity } from "@/client/lib/presence-identity";
 import { createCollaborationCaret } from "./collaboration-caret";
 import { ShareAwareImage } from "./image/node";
@@ -41,17 +42,6 @@ interface CreateEditorExtensionsOpts {
   getRuntime: () => EditorRuntimeSnapshot;
   getAffordance: () => EditorAffordance;
   getPageMentionCandidates: (excludePageId: string | undefined) => PageMentionCandidate[];
-}
-
-const WORD_SPLIT = /\s+/;
-
-function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed === "" ? 0 : trimmed.split(WORD_SPLIT).length;
-}
-
-function countCharacters(text: string): number {
-  return Array.from(text).length;
 }
 
 export function createEditorExtensions(opts: CreateEditorExtensionsOpts): AnyExtension[] {

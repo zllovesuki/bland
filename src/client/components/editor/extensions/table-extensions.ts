@@ -1,10 +1,17 @@
 import type { AnyExtension } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
-import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
+import { TableView } from "@tiptap/extension-table";
 import { TableMap } from "@tiptap/pm/tables";
+import {
+  SharedTable,
+  SharedTableCell,
+  SharedTableHeader,
+  SharedTableRow,
+  SharedTableRowHeightAttribute,
+  TABLE_CELL_MIN_WIDTH,
+} from "@/shared/editor/schema";
 import { TableHandles } from "./table/overlay-extension";
 import { TableWidthNormalization } from "./table/normalization-extension";
-import { TABLE_CELL_MIN_WIDTH } from "./table/constants";
 import {
   applyExplicitColumnWidths,
   buildEvenWidths,
@@ -15,7 +22,21 @@ import {
   measureWrapperContentWidth,
 } from "./table/widths";
 
-const CollaborationSafeTable = Table.extend({
+const CollaborationSafeTable = SharedTable.extend({
+  addOptions() {
+    const parent = this.parent?.();
+    return {
+      HTMLAttributes: parent?.HTMLAttributes ?? {},
+      resizable: parent?.resizable ?? true,
+      renderWrapper: parent?.renderWrapper ?? true,
+      handleWidth: parent?.handleWidth ?? 5,
+      cellMinWidth: parent?.cellMinWidth ?? TABLE_CELL_MIN_WIDTH,
+      View: TableView,
+      lastColumnResizable: parent?.lastColumnResizable ?? true,
+      allowTableNodeSelection: parent?.allowTableNodeSelection ?? true,
+    };
+  },
+
   addNodeView() {
     const View = this.options.View;
     if (this.editor.isEditable || !View) return null;
@@ -45,33 +66,6 @@ declare module "@tiptap/core" {
     };
   }
 }
-
-const TableRowHeightAttribute = Extension.create({
-  name: "tableRowHeight",
-
-  addGlobalAttributes() {
-    return [
-      {
-        types: ["tableRow"],
-        attributes: {
-          height: {
-            default: null,
-            parseHTML: (element) => {
-              const raw = (element as HTMLElement).style?.height ?? "";
-              if (!raw.endsWith("px")) return null;
-              const value = parseFloat(raw);
-              return Number.isFinite(value) && value > 0 ? value : null;
-            },
-            renderHTML: (attributes: { height?: number | null }) => {
-              if (!attributes.height) return {};
-              return { style: `height: ${attributes.height}px` };
-            },
-          },
-        },
-      },
-    ];
-  },
-});
 
 const TableWidthCommands = Extension.create({
   name: "tableWidthCommands",
@@ -131,10 +125,10 @@ export function createTableExtensions(): AnyExtension[] {
       renderWrapper: true,
       View: TableView,
     }),
-    TableRow,
-    TableCell,
-    TableHeader,
-    TableRowHeightAttribute,
+    SharedTableRow,
+    SharedTableCell,
+    SharedTableHeader,
+    SharedTableRowHeightAttribute,
     TableWidthCommands,
     TableWidthNormalization,
     TableHandles,

@@ -1,11 +1,11 @@
 import { textblockTypeInputRule } from "@tiptap/core";
-import CodeBlock from "@tiptap/extension-code-block";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import { SharedCodeBlock } from "@/shared/editor/schema";
+import { resolveLanguage } from "@/shared/editor/schema/code-block";
 import { resolveCodeBlockLineRange } from "./selection";
 import { CodeBlockView } from "./view";
 import { createLazyHighlightPlugin } from "./lazy-highlight";
-import { resolveLanguage } from "./shared";
 
 function createCodeBlockTripleClickPlugin(codeBlockName: string) {
   return new Plugin({
@@ -32,7 +32,7 @@ function createCodeBlockTripleClickPlugin(codeBlockName: string) {
   });
 }
 
-export const HighlightedCodeBlock = CodeBlock.extend({
+export const HighlightedCodeBlock = SharedCodeBlock.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
   },

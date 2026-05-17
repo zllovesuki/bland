@@ -1,11 +1,8 @@
 import { Extension } from "@tiptap/core";
 import Details, { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { Plugin } from "@tiptap/pm/state";
-import {
-  applyMoveToDetailsContent,
-  DEFAULT_DETAILS_SUMMARY,
-  DETAILS_SUMMARY_PLACEHOLDER,
-} from "../controllers/details-block";
+import { DEFAULT_DETAILS_SUMMARY, DETAILS_SUMMARY_PLACEHOLDER } from "@/shared/editor/schema";
+import { applyMoveToDetailsContent } from "../controllers/details-block";
 
 const DetailsBlock = Details.configure({
   persist: true,

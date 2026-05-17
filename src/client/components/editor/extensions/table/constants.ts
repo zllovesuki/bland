@@ -1,4 +1,4 @@
-export const TABLE_CELL_MIN_WIDTH = 80;
+export { TABLE_CELL_MIN_WIDTH } from "@/shared/editor/schema";
 
 export const DRAG_THRESHOLD_PX = 4;
 const TABLE_HANDLE_SIZE_PX = 12;

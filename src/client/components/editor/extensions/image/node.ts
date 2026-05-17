@@ -1,6 +1,7 @@
 import { mergeAttributes } from "@tiptap/core";
-import { Image, type ImageOptions } from "@tiptap/extension-image";
+import type { ImageOptions } from "@tiptap/extension-image";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import { SharedImage } from "@/shared/editor/schema";
 import type { EditorRuntimeSnapshot } from "../../editor-runtime-context";
 import { resolveShareUrl } from "../../lib/media-actions";
 import { ImageNodeView } from "./node-view";
@@ -15,25 +16,16 @@ const EMPTY_RUNTIME: EditorRuntimeSnapshot = {
   shareToken: undefined,
 };
 
-export const ShareAwareImage = Image.extend<ShareAwareImageOptions>({
+export const ShareAwareImage = SharedImage.extend<ShareAwareImageOptions>({
   addOptions() {
     const parent = this.parent?.();
     return {
+      ...parent,
       inline: parent?.inline ?? false,
       allowBase64: parent?.allowBase64 ?? false,
       HTMLAttributes: parent?.HTMLAttributes ?? {},
       resize: parent?.resize ?? false,
       getRuntime: () => EMPTY_RUNTIME,
-    };
-  },
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      align: { default: "left" },
-      width: { default: null },
-      naturalWidth: { default: null },
-      naturalHeight: { default: null },
-      pendingInsertId: { default: null },
     };
   },
   renderHTML({ HTMLAttributes }) {
