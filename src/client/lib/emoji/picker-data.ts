@@ -1,6 +1,6 @@
 import { emojis as tiptapEmojis, type EmojiItem } from "@tiptap/extension-emoji";
+import { normalizeEmoji } from "@/shared/emoji/shared";
 import { EMOJI_GROUP_OVERRIDES } from "./generated/emoji-group-overrides";
-import { normalizeEmoji } from "./shared";
 
 export interface PickerEmojiItem extends EmojiItem {
   rawEmoji?: string;

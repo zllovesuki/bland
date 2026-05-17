@@ -1,6 +1,6 @@
 import type * as AssetLookup from "./asset-lookup";
 
-export { buildEmojiAssetUrl, normalizeEmoji } from "./shared";
+export { buildEmojiAssetUrl, normalizeEmoji } from "@/shared/emoji/shared";
 
 let assetLookup: typeof AssetLookup | null = null;
 let assetLookupPromise: Promise<typeof AssetLookup> | null = null;

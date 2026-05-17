@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useSta
 import type { CSSProperties } from "react";
 import "@/client/styles/emoji-picker.css";
 import { PICKER_EMOJI_ITEMS, PICKER_GROUP_ORDER, type PickerEmojiItem } from "@/client/lib/emoji/picker-data";
-import { normalizeEmoji } from "@/client/lib/emoji/shared";
+import { normalizeEmoji } from "@/shared/emoji/shared";
 import { readRecentEmojis, writeRecentEmoji } from "@/client/lib/emoji/recents";
 import { useMenuNavigation } from "@/client/components/editor/controllers/menu/navigation";
 import { EmojiIcon } from "./emoji-icon";
