@@ -35,17 +35,19 @@ Developers on teams who want a place to put down their notes. They live in dark 
 
 ### Accessibility
 
-**Primary constraint**: The creator has astigmatism. This directly affects the dark mode design:
+**Primary constraint**: The creator has astigmatism. This directly shapes the dark-mode design:
 
-- Pure dark backgrounds (#09090b) with thin light text cause **halation** — light text blooms and blurs against very dark backgrounds for people with astigmatism.
+- Pure dark backgrounds with thin light text cause **halation** — light text blooms and blurs against very dark surfaces for people with astigmatism.
 - But full light mode is "too brutal" — the high brightness is fatiguing.
-- **Design response**: Favor a **lifted dark** palette. Backgrounds should sit closer to zinc-850/zinc-800 territory rather than near-black. Body text should use slightly heavier weights (medium/450-500 rather than regular/400) to counteract halation. Avoid thin, high-contrast text on very dark surfaces. Slightly reduce the contrast ratio between text and background — aim for comfortable readability, not maximum contrast.
-- Line-height should be generous (1.7+ for body text) to give letters room to breathe.
-- Consider subtle warm tinting in the neutrals to reduce the clinical edge of pure zinc grays.
+- **Design response**: Favor a **lifted dark** palette over near-black. Use slightly heavier body text weights to counteract halation. Avoid thin, high-contrast text on very dark surfaces. Aim for comfortable readability, not maximum contrast.
+- Body text should have generous line-height — letters need room to breathe.
+- Neutrals should carry subtle warm tinting to reduce the clinical edge of cool gray.
 
-**Sidebar darkness is intentional**: The sidebar uses zinc-900 (#1b181a), darker than the canvas (#221f21). This inverts the `frontend-spec.md` surface hierarchy by design — the darker sidebar creates an IDE-like chrome frame that recedes visually, keeping focus on the editor canvas. It can be collapsed if distracting.
+**Sidebar darkness is intentional**: The sidebar is darker than the canvas, inverting the typical surface hierarchy by design. The darker sidebar creates an IDE-like chrome frame that recedes visually, keeping focus on the editor canvas. It can be collapsed if distracting.
 
 **Standard**: Follow WCAG AA as a baseline, but prioritize _comfortable_ readability for astigmatic users over raw contrast ratios. Sometimes AA-passing contrast on near-black backgrounds is technically compliant but physically uncomfortable.
+
+_Specific token values (canvas hex, surface stack, body weight, line-height, transition durations) live in `DESIGN.md`._
 
 ### Design Principles
 
@@ -55,6 +57,6 @@ Developers on teams who want a place to put down their notes. They live in dark 
 
 3. **Personality lives in the details.** bland's character comes through in micro-copy, transition timing, and typographic choices — not in flashy gradients or decorative elements. The wit is dry, not loud.
 
-4. **Developer-native, not developer-generic.** Developers have taste. Respect that with precise typography, intentional color, and interactions that feel snappy (75ms, not 300ms). But don't lean on monospace-everything-dark-mode-neon as a lazy shorthand for "dev tool."
+4. **Developer-native, not developer-generic.** Developers have taste. Respect that with precise typography, intentional color, and interactions that feel snappy. But don't lean on monospace-everything-dark-mode-neon as a lazy shorthand for "dev tool."
 
 5. **The name is the bit.** bland is self-aware. It can wink at the user occasionally — in empty states, loading copy, error messages — without being annoying about it. The humor is a spice, not the main course.

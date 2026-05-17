@@ -28,7 +28,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - `bland` is live in production. The live source tree, runtime bindings, `wrangler.jsonc`, shared contracts, and active schemas are authoritative.
 - Start with the live code. Historical docs are secondary unless the task explicitly asks for them.
 - `docs/frontend-spec.md` is the active frontend reference for shared `devbin.tools` patterns. Open it only when the task touches client UI, UX consistency, or shared product chrome.
-- `.impeccable.md` is the design context for visual tone, typography, and user-facing copy. Open it only for UI, UX, or copy work.
+- `PRODUCT.md` is the design context for visual tone, typography, and user-facing copy. Open it only for UI, UX, or copy work.
 - `docs/bland-production-spec.md` is historical context only. Do not treat it as source of truth or a normal update target.
 - The live editor is the custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Older BlockNote references are stale unless explicitly called out as historical or planned.
 

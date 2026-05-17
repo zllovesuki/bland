@@ -35,7 +35,7 @@
  * while its dropdown MainMenu defaults to 14px / weight 400 — visibly
  * different sizes. Normalize both to 14px / 450 (matches bland's sidebar
  * menu language and the astigmatism-comfort "heavier weights" guidance
- * in .impeccable.md). */
+ * in PRODUCT.md). */
 .bland-canvas .excalidraw .context-menu-item,
 .bland-canvas .excalidraw .dropdown-menu-item-base {
   font-size: 14px;
@@ -91,7 +91,7 @@
   --sidebar-shadow: 0 0 0 1px var(--color-zinc-800);
 
   /* Text — lifted off pure white per the astigmatism guidance in
-   * .impeccable.md. Keep the contrast comfortable, not maximal. */
+   * PRODUCT.md. Keep the contrast comfortable, not maximal. */
   --text-primary-color: var(--color-zinc-100);
 
   /* Icons on chrome — same lifted tone as text. */
