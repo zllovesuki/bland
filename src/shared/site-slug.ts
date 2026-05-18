@@ -1,0 +1,67 @@
+import { z } from "zod";
+
+export const SITE_RESERVED_SLUGS = new Set([
+  "www",
+  "api",
+  "app",
+  "admin",
+  "assets",
+  "static",
+  "cdn",
+  "cdn-cgi",
+  "files",
+  "uploads",
+  "media",
+  "img",
+  "images",
+  "mail",
+  "smtp",
+  "mx",
+  "email",
+  "support",
+  "help",
+  "docs",
+  "blog",
+  "status",
+  "security",
+  "legal",
+  "billing",
+  "dashboard",
+  "login",
+  "auth",
+  "sso",
+  "oauth",
+  "account",
+  "accounts",
+  "signup",
+  "signin",
+  "me",
+  "invite",
+  "share",
+  "s",
+  "site",
+  "sites",
+  "embed",
+  "oembed",
+  "link",
+  "bland",
+  "dev",
+  "staging",
+  "preview",
+  "test",
+  "root",
+  "origin",
+  "worker",
+  "workers",
+  "r2",
+]);
+
+export const sitesSlug = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(
+    /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
+    "Slug must be lowercase alphanumeric with hyphens, cannot start or end with a hyphen",
+  )
+  .refine((s) => !SITE_RESERVED_SLUGS.has(s), "This slug is reserved");

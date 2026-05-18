@@ -1,6 +1,17 @@
 import { ulid } from "ulid";
+import { and, eq } from "drizzle-orm";
 import { hashPassword } from "@/worker/lib/auth";
-import { invites, memberships, pageShares, pages, uploads, users, workspaces } from "@/worker/db/d1/schema";
+import {
+  invites,
+  memberships,
+  pageShares,
+  pages,
+  publishedPages,
+  uploads,
+  users,
+  workspaces,
+  workspaceSites,
+} from "@/worker/db/d1/schema";
 import { getDb } from "@tests/worker/helpers/db";
 import { TEST_TIMESTAMP } from "@tests/worker/helpers/fixtures";
 
@@ -164,6 +175,58 @@ export async function seedPageShare(opts: SeedPageShareOptions): Promise<typeof 
   };
   await getDb().insert(pageShares).values(row);
   return row;
+}
+
+export interface SeedWorkspaceSiteOptions {
+  workspace_id: string;
+  slug?: string;
+  home_page_id?: string | null;
+  published?: boolean;
+  published_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function seedWorkspaceSite(opts: SeedWorkspaceSiteOptions): Promise<typeof workspaceSites.$inferSelect> {
+  const createdAt = opts.created_at ?? TEST_TIMESTAMP;
+  const publishedAt =
+    typeof opts.published_at === "undefined" ? (opts.published === false ? null : createdAt) : opts.published_at;
+  const row: typeof workspaceSites.$inferSelect = {
+    workspace_id: opts.workspace_id,
+    slug: opts.slug ?? "acme",
+    home_page_id: opts.home_page_id ?? null,
+    published_at: publishedAt,
+    created_at: createdAt,
+    updated_at: opts.updated_at ?? createdAt,
+  };
+
+  await getDb().insert(workspaceSites).values(row);
+  return row;
+}
+
+export interface SeedPublishedPageOptions {
+  workspace_id: string;
+  page_id: string;
+  published_by: string;
+  published_at?: string;
+}
+
+export async function seedPublishedPage(opts: SeedPublishedPageOptions): Promise<typeof publishedPages.$inferSelect> {
+  const row: typeof publishedPages.$inferSelect = {
+    workspace_id: opts.workspace_id,
+    page_id: opts.page_id,
+    published_by: opts.published_by,
+    published_at: opts.published_at ?? TEST_TIMESTAMP,
+  };
+
+  await getDb().insert(publishedPages).values(row).onConflictDoNothing();
+  return row;
+}
+
+export async function deletePublishedPage(workspaceId: string, pageId: string): Promise<void> {
+  await getDb()
+    .delete(publishedPages)
+    .where(and(eq(publishedPages.workspace_id, workspaceId), eq(publishedPages.page_id, pageId)));
 }
 
 export interface SeedInviteOptions {

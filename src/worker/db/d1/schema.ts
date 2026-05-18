@@ -133,6 +133,45 @@ export const pageShares = sqliteTable(
   ],
 );
 
+export const workspaceSites = sqliteTable("workspace_sites", {
+  workspace_id: text("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull().unique(),
+  home_page_id: text("home_page_id").references((): AnySQLiteColumn => pages.id, {
+    onDelete: "set null",
+  }),
+  published_at: text("published_at"),
+  created_at: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updated_at: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const publishedPages = sqliteTable(
+  "published_pages",
+  {
+    workspace_id: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    page_id: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    published_by: text("published_by")
+      .notNull()
+      .references(() => users.id),
+    published_at: text("published_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspace_id, table.page_id] }),
+    index("idx_published_pages_page").on(table.page_id),
+  ],
+);
+
 export const uploads = sqliteTable("uploads", {
   id: text("id").primaryKey(),
   workspace_id: text("workspace_id")

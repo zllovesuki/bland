@@ -13,6 +13,8 @@ export async function resetD1Tables(): Promise<void> {
   const db = getDb();
   await db.run(sql`DELETE FROM uploads`);
   await db.run(sql`DELETE FROM page_shares`);
+  await db.run(sql`DELETE FROM published_pages`);
+  await db.run(sql`DELETE FROM workspace_sites`);
   await db.run(sql`UPDATE pages SET parent_id = NULL`);
   await db.run(sql`DELETE FROM pages`);
   await db.run(sql`DELETE FROM invites`);

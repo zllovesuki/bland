@@ -26,6 +26,7 @@ export function cloudflareWorkerPlugin() {
         BLAND_AI_OPENAI_SUMMARIZE_MODEL: "",
         BLAND_AI_WORKERS_CHAT_MODEL: "",
         BLAND_AI_WORKERS_SUMMARIZE_MODEL: "",
+        PUBLISHED_SITE_DOMAIN: "sites.test",
       },
     },
   });

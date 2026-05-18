@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ALLOWED_UPLOAD_TYPES, MAX_PAGE_MENTION_BATCH, MAX_UPLOAD_SIZE } from "@/shared/constants";
 import { AiUsage } from "@/shared/ai";
+import { sitesSlug } from "@/shared/site-slug";
+import { pageId } from "@/shared/page-id";
 
 export const WorkspaceRole = z.enum(["owner", "admin", "member", "guest"]);
 export type WorkspaceRole = z.infer<typeof WorkspaceRole>;
@@ -175,6 +177,65 @@ const workspaceSlug = z
     "Slug must be lowercase alphanumeric with hyphens, cannot start or end with a hyphen",
   )
   .refine((s) => !RESERVED_SLUGS.has(s), "This slug is reserved");
+
+export const WorkspaceSite = z.object({
+  workspace_id: z.string(),
+  slug: z.string(),
+  home_page_id: z.string().nullable(),
+  published_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type WorkspaceSite = z.infer<typeof WorkspaceSite>;
+
+export const PublishedPage = z.object({
+  workspace_id: z.string(),
+  page_id: z.string(),
+  published_by: z.string(),
+  published_at: z.string(),
+});
+export type PublishedPage = z.infer<typeof PublishedPage>;
+
+export const PublishedPageWithMeta = PublishedPage.extend({
+  title: z.string(),
+  icon: z.string().nullable(),
+  kind: PageKind,
+});
+export type PublishedPageWithMeta = z.infer<typeof PublishedPageWithMeta>;
+
+export const WorkspaceSiteResponse = z.object({
+  site: WorkspaceSite.nullable(),
+  base_domain: z.string().nullable(),
+});
+export type WorkspaceSiteResponse = z.infer<typeof WorkspaceSiteResponse>;
+
+export const WorkspaceSiteUpdateRequest = z.object({
+  slug: sitesSlug.optional(),
+  home_page_id: pageId.nullable().optional(),
+  published: z.boolean().optional(),
+});
+export type WorkspaceSiteUpdateRequest = z.infer<typeof WorkspaceSiteUpdateRequest>;
+
+export const SiteSlugAvailability = z.object({
+  available: z.boolean(),
+  reason: z.string().optional(),
+});
+export type SiteSlugAvailability = z.infer<typeof SiteSlugAvailability>;
+
+export const SitePageStatus = z.object({
+  published: z.boolean(),
+  is_explicit_root: z.boolean(),
+  inherited_from: z
+    .object({
+      id: z.string(),
+      title: z.string(),
+      icon: z.string().nullable(),
+    })
+    .nullable(),
+  public_url: z.string().nullable(),
+  canvas: z.boolean(),
+});
+export type SitePageStatus = z.infer<typeof SitePageStatus>;
 
 export const CreateWorkspaceRequest = z.object({
   name: z.string().min(1).max(100),
