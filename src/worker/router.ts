@@ -15,6 +15,7 @@ import { aiRouter } from "@/worker/routes/ai";
 import { uploadsRouter, uploadServingRouter } from "@/worker/routes/uploads";
 import { searchRouter } from "@/worker/routes/search";
 import { sharesRouter, shareLinkRouter } from "@/worker/routes/shares";
+import { sitesRouter } from "@/worker/routes/sites";
 import { health } from "@/worker/routes/health";
 import { isLocalRequestUrl } from "@/worker/http";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
@@ -41,7 +42,6 @@ app.use("*", async (c, next) => {
   await next();
   c.res = applyBaselineSecurityHeaders(c.res);
 });
-
 
 app.use("*", async (c, next) => {
   const bookmark = c.req.header(D1_BOOKMARK_HEADER);
@@ -90,6 +90,7 @@ app.route("/api/v1", shareLinkRouter);
 app.route("/api/v1", pageContextRouter);
 app.route("/api/v1", pageMentionsRouter);
 app.route("/api/v1", aiRouter);
+app.route("/api/v1", sitesRouter);
 app.route("/uploads", uploadServingRouter);
 
 app.notFound((c) => {

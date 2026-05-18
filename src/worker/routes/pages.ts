@@ -16,6 +16,7 @@ import {
 } from "@/worker/lib/permissions";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
+import { bumpPublicSiteRevision } from "@/worker/lib/site-invalidation";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
 import { MAX_TREE_DEPTH } from "@/shared/constants";
 import {
@@ -331,6 +332,9 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   }
 
   await db.update(pages).set(updateValues).where(eq(pages.id, pageId));
+  if (updates.icon !== undefined || (updates.parent_id !== undefined && updates.parent_id !== existing.parent_id)) {
+    await bumpPublicSiteRevision(db, workspaceId);
+  }
   log.debug("page_updated", { pageId, workspaceId, fields: Object.keys(updateValues) });
 
   const updated = await db.select().from(pages).where(eq(pages.id, pageId)).get();
@@ -374,6 +378,7 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
       .set({ parent_id: null, updated_at: now })
       .where(and(eq(pages.parent_id, pageId), eq(pages.workspace_id, workspaceId))),
   ]);
+  await bumpPublicSiteRevision(db, workspaceId, now);
   log.info("page_archived", { pageId, workspaceId, userId: user.id });
 
   // Remove from search index (consumer handles archived pages)

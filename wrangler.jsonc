@@ -11,6 +11,7 @@
 	"vars": {
 		"LOG_LEVEL": "info",
 		"ALLOWED_ORIGINS": "https://bland.tools,https://docs.limic.dev",
+		"PUBLISHED_SITE_DOMAIN": "bland.site",
 	},
 	"assets": {
 		"binding": "ASSETS",
@@ -47,6 +48,10 @@
 		{
 			"binding": "R2",
 			"bucket_name": "bland-uploads",
+		},
+		{
+			"binding": "SITES",
+			"bucket_name": "bland-sites",
 		},
 	],
 	"queues": {

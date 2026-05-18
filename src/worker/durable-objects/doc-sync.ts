@@ -9,6 +9,7 @@ import { pages } from "@/worker/db/d1/schema";
 import * as docSyncSchema from "@/worker/db/docsync-do/schema";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { DEFAULT_PAGE_TITLE } from "@/worker/lib/constants";
+import { recordDocSyncPageSave } from "@/worker/lib/site-invalidation";
 import { YJS_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
 import type { PageKind } from "@/shared/types";
@@ -230,12 +231,12 @@ export class DocSync extends YServer<Env> {
       dl.error("snapshot_save_failed", errorContext(e));
     }
 
-    // Sync title to D1 (metadata stays authoritative in D1)
+    // Mirror DocSync save metadata into D1 for page lists and public Sites freshness.
     const title = this.document.getText(YJS_PAGE_TITLE).toString() || DEFAULT_PAGE_TITLE;
     try {
-      await this.d1Db.update(pages).set({ title, updated_at: now }).where(eq(pages.id, this.name));
+      await recordDocSyncPageSave(this.d1Db, this.name, title, now);
     } catch (e) {
-      dl.error("title_sync_failed", errorContext(e));
+      dl.error("page_save_sync_failed", errorContext(e));
     }
 
     // FTS indexing must not break snapshot persistence (spec S7)

@@ -3,12 +3,23 @@ import { eq, and, exists } from "drizzle-orm";
 import { ulid } from "ulid";
 
 import type { AppContext } from "@/worker/app-context";
-import { workspaces, memberships, users, pages, invites, pageShares, uploads } from "@/worker/db/d1/schema";
+import {
+  workspaces,
+  memberships,
+  users,
+  pages,
+  invites,
+  pageShares,
+  uploads,
+  workspaceSites,
+  publishedPages,
+} from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
+import { bumpPublicSiteRevision } from "@/worker/lib/site-invalidation";
 import { CreateWorkspaceRequest, UpdateWorkspaceRequest, UpdateMemberRoleRequest } from "@/shared/types";
 import { canChangeMemberRole, canRemoveMember } from "@/shared/entitlements";
 
@@ -124,6 +135,9 @@ workspacesRouter.patch("/workspaces/:id", requireAuth, rateLimit("RL_API"), asyn
   if (data.icon !== undefined) updateValues.icon = data.icon;
 
   await db.update(workspaces).set(updateValues).where(eq(workspaces.id, workspaceId));
+  if (data.name !== undefined || data.icon !== undefined) {
+    await bumpPublicSiteRevision(db, workspaceId);
+  }
   log.info("workspace_updated", { workspaceId, fields: Object.keys(updateValues) });
 
   const updated = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).get();
@@ -160,6 +174,8 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
   const batchOps = [
     db.delete(uploads).where(eq(uploads.workspace_id, workspaceId)),
     ...pageIds.flatMap((pid) => [db.delete(pageShares).where(eq(pageShares.page_id, pid))]),
+    db.delete(publishedPages).where(eq(publishedPages.workspace_id, workspaceId)),
+    db.delete(workspaceSites).where(eq(workspaceSites.workspace_id, workspaceId)),
     db.delete(pages).where(eq(pages.workspace_id, workspaceId)),
     db.delete(memberships).where(eq(memberships.workspace_id, workspaceId)),
     db.delete(invites).where(eq(invites.workspace_id, workspaceId)),
