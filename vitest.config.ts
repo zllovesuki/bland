@@ -52,7 +52,9 @@ export default defineConfig(() => {
           resolve: { alias: aliases },
           test: {
             name: "worker-runtime",
+            isolate: false,
             fileParallelism: false,
+            sequence: { groupOrder: 1 },
             include: ["tests/worker/**/*.workers.test.ts"],
             setupFiles: ["./tests/setup/worker.ts"],
           },
