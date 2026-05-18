@@ -21,6 +21,11 @@ import type {
   PageSnapshotResponse,
   PageRouteBootstrapResponse,
   ResolvePageMentionsResponse,
+  PublishedPageWithMeta,
+  SitePageStatus,
+  SiteSlugAvailability,
+  WorkspaceSiteResponse,
+  WorkspaceSiteUpdateRequest,
 } from "@/shared/types";
 
 const API_BASE = "/api/v1";
@@ -366,6 +371,29 @@ export const api = {
       });
       return res.user;
     },
+  },
+
+  site: {
+    get: (workspaceId: string) => apiFetch<WorkspaceSiteResponse>(`/workspaces/${workspaceId}/site`),
+    update: (workspaceId: string, body: WorkspaceSiteUpdateRequest) =>
+      apiFetch<WorkspaceSiteResponse>(`/workspaces/${workspaceId}/site`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    slugAvailability: (workspaceId: string, slug: string) =>
+      apiFetch<SiteSlugAvailability>(
+        `/workspaces/${workspaceId}/site/slug-availability?slug=${encodeURIComponent(slug)}`,
+      ),
+    listRoots: async (workspaceId: string) => {
+      const res = await apiFetch<{ published_roots: PublishedPageWithMeta[] }>(`/workspaces/${workspaceId}/site/pages`);
+      return res.published_roots;
+    },
+    addRoot: (workspaceId: string, pageId: string) =>
+      apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/site/pages/${pageId}`, { method: "POST" }),
+    removeRoot: (workspaceId: string, pageId: string) =>
+      apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/site/pages/${pageId}`, { method: "DELETE" }),
+    pageStatus: (workspaceId: string, pageId: string) =>
+      apiFetch<SitePageStatus>(`/workspaces/${workspaceId}/site/pages/${pageId}/status`),
   },
 
   invites: {

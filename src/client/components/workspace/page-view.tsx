@@ -149,6 +149,8 @@ function PageViewContent() {
       {!isSharedMode && workspace && isActionVisible(pageAffordance.shareDialog) && (
         <ShareDialog
           pageId={page.id}
+          workspaceId={effectiveWorkspaceId}
+          pageKind={page.kind}
           disabled={!isActionEnabled(pageAffordance.shareDialog)}
           title={pageAffordance.shareDialog.kind === "disabled" ? pageAffordance.shareDialog.reason : undefined}
         />
