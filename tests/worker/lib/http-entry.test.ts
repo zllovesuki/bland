@@ -10,7 +10,7 @@ function createResponse(label: string) {
 describe("isDirectAssetRequest", () => {
   it("matches non-html static asset paths", () => {
     expect(isDirectAssetRequest("/favicon.svg")).toBe(true);
-    expect(isDirectAssetRequest("/assets/app-123.js")).toBe(true);
+    expect(isDirectAssetRequest("/app-assets/app-123.js")).toBe(true);
     expect(isDirectAssetRequest("/manifest.webmanifest")).toBe(true);
   });
 

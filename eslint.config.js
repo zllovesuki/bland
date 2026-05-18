@@ -46,11 +46,17 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/client/**/*.{ts,tsx}"],
+    files: [
+      "src/client/**/*.{ts,tsx}",
+      "src/sites/client/**/*.{ts,tsx}",
+      "src/sites/islands/**/*.{ts,tsx}",
+      "src/lib/hooks/**/*.{ts,tsx}",
+    ],
     ...reactHooks.configs.flat["recommended-latest"],
   },
   {
-    files: ["src/client/**/*.tsx"],
+    files: ["src/client/**/*.tsx", "src/sites/islands/**/*.tsx"],
+    ignores: ["src/sites/islands/island-host.tsx"],
     ...reactRefresh.configs.vite,
   },
 );

@@ -25,6 +25,23 @@ export default defineConfig(() => {
         defineProject({
           resolve: { alias: aliases },
           test: {
+            name: "sites",
+            include: ["tests/sites/**/*.test.ts", "tests/sites/**/*.test.tsx"],
+            exclude: ["tests/sites/**/*.dom.test.ts", "tests/sites/**/*.dom.test.tsx"],
+          },
+        }),
+        defineProject({
+          resolve: { alias: aliases },
+          test: {
+            name: "sites-dom",
+            include: ["tests/sites/**/*.dom.test.ts", "tests/sites/**/*.dom.test.tsx"],
+            environment: "jsdom",
+            environmentOptions: { jsdom: { url: "http://127.0.0.1/" } },
+          },
+        }),
+        defineProject({
+          resolve: { alias: aliases },
+          test: {
             name: "client",
             include: ["tests/client/**/*.test.ts", "tests/client/**/*.test.tsx"],
             exclude: ["tests/client/**/*.dom.test.ts", "tests/client/**/*.dom.test.tsx"],

@@ -109,17 +109,54 @@ export default defineConfig({
     },
   },
   build: {
+    assetsDir: "app-assets",
     assetsInlineLimit: (filePath) => (fontAssetPattern.test(filePath) ? false : undefined),
     chunkSizeWarningLimit: 1000,
+    manifest: "manifest.json",
     rollupOptions: {
+      input: {
+        index: path.resolve(__dirname, "index.html"),
+      },
       output: {
-        manualChunks: (id) => {
-          if (!id.includes("node_modules")) return;
-          if (/[\\/]prosemirror-|[\\/]@tiptap[\\/]pm[\\/]/.test(id)) return "vendor-prosemirror";
-          if (/[\\/]@tiptap[\\/]/.test(id)) return "vendor-tiptap";
-          if (/[\\/](yjs|y-protocols|y-indexeddb|y-partyserver|partysocket|lib0)[\\/]/.test(id)) return "vendor-yjs";
-          if (/[\\/]@sentry[\\/]/.test(id)) return "vendor-sentry";
-          if (/[\\/]@excalidraw[\\/]/.test(id)) return "vendor-excalidraw";
+        codeSplitting: {
+          groups: [
+            {
+              name: "vendor-react",
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler|use-sync-external-store)[\\/]/,
+              priority: 100,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-prosemirror",
+              test: /[\\/]prosemirror-|[\\/]@tiptap[\\/]pm[\\/]/,
+              priority: 40,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-tiptap",
+              test: /[\\/]@tiptap[\\/]/,
+              priority: 30,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-yjs",
+              test: /[\\/](yjs|y-protocols|y-indexeddb|y-partyserver|partysocket|lib0)[\\/]/,
+              priority: 30,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-sentry",
+              test: /[\\/]@sentry[\\/]/,
+              priority: 20,
+              entriesAware: true,
+            },
+            {
+              name: "vendor-excalidraw",
+              test: /[\\/]@excalidraw[\\/]/,
+              priority: 20,
+              entriesAware: true,
+            },
+          ],
         },
       },
     },

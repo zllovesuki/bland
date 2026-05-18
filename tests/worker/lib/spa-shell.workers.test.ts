@@ -39,8 +39,8 @@ describe("renderSpaShell", () => {
     expect(new Set(nonceMatches).size).toBe(1);
     expect(nonceMatches.length).toBeGreaterThanOrEqual(3);
     expect(response.headers.get("Content-Security-Policy")).toContain(`'nonce-${nonceMatches[0]}'`);
-    expect(response.headers.get("Link")).toContain("</assets/index-test.js>; rel=preload; as=script; crossorigin");
-    expect(response.headers.get("Link")).toContain("</assets/index-test.css>; rel=preload; as=style; crossorigin");
+    expect(response.headers.get("Link")).toContain("</app-assets/index-test.js>; rel=preload; as=script; crossorigin");
+    expect(response.headers.get("Link")).toContain("</app-assets/index-test.css>; rel=preload; as=style; crossorigin");
     expect(response.headers.get("X-Frame-Options")).toBe("DENY");
     expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
   });

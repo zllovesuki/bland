@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "./theme.css";
+@import "./editor/content.css";
+@import "./editor/callout.css";
+@import "./editor/code-block.css";
+@import "./editor/image-node.css";
+@import "./editor/emoji.css";
+@import "./editor/page-mention.css";
+@import "./editor/details.css";
+@import "./editor/table.css";
+@import "./editor/outline.css";
+
+html {
+  scroll-behavior: smooth;
+}
+
+.site-shell .tiptap :is(h1, h2, h3, h4, h5, h6)[id] {
+  scroll-margin-top: 5rem;
+}
+
+.site-shell .tiptap ul[data-type="taskList"] > li > label input[type="checkbox"]:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

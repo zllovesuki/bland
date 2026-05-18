@@ -1,0 +1,27 @@
+{
+  "src/sites/entries/browser.ts": {
+    "file": "site-assets/sites-entry-test.js",
+    "name": "sites",
+    "src": "src/sites/entries/browser.ts",
+    "isEntry": true,
+    "imports": ["_outline-model-test.js"]
+  },
+  "_outline-model-test.js": {
+    "file": "site-assets/outline-model-test.js",
+    "name": "outline-model"
+  },
+  "src/styles/sites.css": {
+    "file": "site-assets/sites-test.css",
+    "name": "sitesStyles",
+    "src": "src/styles/sites.css",
+    "isEntry": true,
+    "assets": ["site-assets/test-font.woff2"]
+  },
+  "src/styles/fonts.css": {
+    "file": "site-assets/fonts-test.css",
+    "name": "sitesFonts",
+    "src": "src/styles/fonts.css",
+    "isEntry": true,
+    "assets": ["site-assets/test-font.woff2"]
+  }
+}
