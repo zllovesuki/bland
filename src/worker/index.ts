@@ -4,6 +4,7 @@ import { app } from "@/worker/router";
 import { createSessionDb } from "@/worker/db/d1/client";
 import { pages, users } from "@/worker/db/d1/schema";
 import { handleHttpRequest } from "@/worker/lib/http-entry";
+import { sitesApp } from "@/worker/sites/router";
 import { isWriterRole, resolvePageAccessLevels, resolvePrincipal } from "@/worker/lib/permissions";
 import { verifyAccessToken } from "@/worker/lib/auth";
 import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
@@ -120,6 +121,7 @@ export default {
     return handleHttpRequest(request, env, ctx, {
       handlePartyRequest,
       handleAppRequest: (nextRequest, nextEnv, nextCtx) => app.fetch(nextRequest, nextEnv, nextCtx),
+      handleSiteRequest: (nextRequest, nextEnv, nextCtx) => sitesApp.fetch(nextRequest, nextEnv, nextCtx),
       handleAssetRequest: async (nextRequest, nextEnv) =>
         applyBaselineSecurityHeaders(await nextEnv.ASSETS.fetch(nextRequest)),
       handleShellRequest: renderSpaShell,

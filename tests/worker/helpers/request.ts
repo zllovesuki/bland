@@ -17,6 +17,9 @@ export interface ApiRequestOptions {
   bookmark?: string;
   cookie?: string;
   search?: Record<string, string>;
+  // Set to "manual" to observe 3xx responses directly. workerd's default
+  // Worker dispatch follows redirects internally.
+  redirect?: RequestRedirect;
 }
 
 /**
@@ -60,8 +63,10 @@ export async function apiRequest(path: string, opts: ApiRequestOptions = {}): Pr
   }
 
   const method = opts.method ?? (body ? "POST" : "GET");
+  const init: RequestInit = { method, headers, body };
+  if (opts.redirect) init.redirect = opts.redirect;
 
-  return exports.default.fetch(new Request(url.toString(), { method, headers, body }));
+  return exports.default.fetch(new Request(url.toString(), init));
 }
 
 export async function expectJson<T>(res: Response): Promise<T> {

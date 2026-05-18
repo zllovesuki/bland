@@ -91,3 +91,44 @@ export function applyDocumentSecurityHeaders(
   next.headers.set("X-Frame-Options", "DENY");
   return next;
 }
+
+// Strict CSP for the public Sites surface. Scripts are same-origin plus
+// Cloudflare Web Analytics only; no inline scripts, eval, or broad third-party
+// connect/script origins. Emoji fallback images come from jsdelivr (per the
+// Tiptap emoji extension); the rest of img-src stays narrow.
+const EMOJI_FALLBACK_ORIGIN = "https://cdn.jsdelivr.net";
+const SITES_CSP_PROD = [
+  "default-src 'self'",
+  `script-src 'self' ${CLOUDFLARE_ANALYTICS_ORIGIN}`,
+  `connect-src 'self' ${CLOUDFLARE_ANALYTICS_CONNECT_ORIGIN}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: ${EMOJI_FALLBACK_ORIGIN}`,
+  "font-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join("; ");
+
+// Localhost-only relaxation. Vite's HMR client injects inline scripts and
+// requires `unsafe-eval` plus a WebSocket connection. `applySitesSecurityHeaders`
+// picks this variant only when the request URL passes `isLocalRequestUrl`, so
+// deployed Sites responses (non-localhost host) always get the prod CSP above.
+const SITES_CSP_DEV = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "connect-src 'self' http: https: ws: wss:",
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${EMOJI_FALLBACK_ORIGIN}`,
+  "font-src 'self' data:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join("; ");
+
+export function applySitesSecurityHeaders(response: Response, requestUrl?: string): Response {
+  const next = applyBaselineSecurityHeaders(response);
+  const csp = requestUrl && isLocalRequestUrl(requestUrl) ? SITES_CSP_DEV : SITES_CSP_PROD;
+  next.headers.set("Content-Security-Policy", csp);
+  next.headers.set("X-Frame-Options", "DENY");
+  return next;
+}

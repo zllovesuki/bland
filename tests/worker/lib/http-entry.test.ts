@@ -26,18 +26,21 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockImplementation(() => Promise.resolve(createResponse("app")));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const apiResponse = await handleHttpRequest(new Request("https://bland.tools/api/v1/workspaces"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
     const uploadResponse = await handleHttpRequest(new Request("https://bland.tools/uploads/file-1"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
 
     expect(await apiResponse.text()).toBe("app");
@@ -52,12 +55,14 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockResolvedValue(createResponse("app"));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const response = await handleHttpRequest(new Request("https://bland.tools/favicon.svg"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
 
     expect(await response.text()).toBe("asset");
@@ -71,12 +76,14 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockResolvedValue(createResponse("app"));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const response = await handleHttpRequest(new Request("https://bland.tools/acme/page-1"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
 
     expect(await response.text()).toBe("shell");
@@ -90,12 +97,13 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockResolvedValue(createResponse("app"));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const response = await handleHttpRequest(
       new Request("https://bland.tools/acme/page-1", { method: "HEAD" }),
       {},
       ctx,
-      { handlePartyRequest, handleAppRequest, handleAssetRequest, handleShellRequest },
+      { handlePartyRequest, handleAppRequest, handleAssetRequest, handleShellRequest, handleSiteRequest },
     );
 
     expect(await response.text()).toBe("asset");
@@ -108,12 +116,14 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockResolvedValue(createResponse("app"));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const response = await handleHttpRequest(new Request("https://bland.tools/parties/page-1"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
 
     expect(await response.text()).toBe("party");
@@ -126,12 +136,14 @@ describe("handleHttpRequest", () => {
     const handleAppRequest = vi.fn().mockResolvedValue(createResponse("app"));
     const handleAssetRequest = vi.fn().mockResolvedValue(createResponse("asset"));
     const handleShellRequest = vi.fn().mockResolvedValue(createResponse("shell"));
+    const handleSiteRequest = vi.fn().mockResolvedValue(createResponse("site"));
 
     const response = await handleHttpRequest(new Request("https://bland.tools/parties/page-1"), {}, ctx, {
       handlePartyRequest,
       handleAppRequest,
       handleAssetRequest,
       handleShellRequest,
+      handleSiteRequest,
     });
 
     expect(await response.text()).toBe("app");

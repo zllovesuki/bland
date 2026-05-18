@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyDocumentSecurityHeaders, buildDocumentCsp } from "@/worker/lib/security-headers";
+import {
+  applyDocumentSecurityHeaders,
+  applySitesSecurityHeaders,
+  buildDocumentCsp,
+} from "@/worker/lib/security-headers";
 
 describe("document security headers", () => {
   it("includes the Sentry origin in connect-src when a DSN is configured", () => {
@@ -60,5 +64,15 @@ describe("document security headers", () => {
     expect(response.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(await response.text()).toBe("<html></html>");
+  });
+
+  it("allows same-origin scripts and Cloudflare Insights on Sites responses", () => {
+    const response = applySitesSecurityHeaders(new Response("<html></html>"));
+    const csp = response.headers.get("Content-Security-Policy");
+
+    expect(csp).toContain("script-src 'self' https://static.cloudflareinsights.com");
+    expect(csp).toContain("connect-src 'self' https://cloudflareinsights.com");
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).not.toContain("'unsafe-eval'");
   });
 });
