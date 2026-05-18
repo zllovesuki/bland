@@ -29,8 +29,10 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Start with the live code. Historical docs are secondary unless the task explicitly asks for them.
 - `docs/frontend-spec.md` is the active frontend reference for shared `devbin.tools` patterns. Open it only when the task touches client UI, UX consistency, or shared product chrome.
 - `PRODUCT.md` is the design context for visual tone, typography, and user-facing copy. Open it only for UI, UX, or copy work.
+- `docs/bland-sites-architecture.md` is historical Bland Sites planning context. Do not treat it as source of truth or a normal update target.
 - `docs/bland-production-spec.md` is historical context only. Do not treat it as source of truth or a normal update target.
 - The live editor is the custom Tiptap/ProseMirror implementation under `src/client/components/editor/`. Older BlockNote references are stale unless explicitly called out as historical or planned.
+- The editor schema contract lives in `src/shared/editor/schema/`. It must stay Worker-safe and free of React, CSS, DOM, upload, collaboration, suggestion, slash-command, and other client behavior.
 
 ## Investigation Before Mutation
 
@@ -73,17 +75,18 @@ If a larger abstraction is merely optional, present it as an option instead of m
 
 ## Architecture And Invariants
 
-- Core architecture is stable: React SPA + Cloudflare Worker API + D1 + Durable Objects for doc sync and search indexing + R2 for uploads + Queues for derived search indexing.
-- D1 is authoritative for users, workspaces, memberships, page tree metadata including `pages.title`, invites, shares, and upload metadata.
+- Core architecture is stable: React SPA + Cloudflare Worker API + D1 + Durable Objects for doc sync and search indexing + R2 for uploads and derived Sites artifacts + Queues for derived search indexing.
+- D1 is authoritative for users, workspaces, memberships, page tree metadata including `pages.title`, invites, shares, upload metadata, `workspace_sites`, and `published_pages`.
 - DocSync Durable Object local SQLite is authoritative for persisted Yjs document content. Live collaborative document state belongs in the per-document Durable Object; presence and cursor state are ephemeral and must not be persisted.
 - WorkspaceIndexer Durable Object local SQLite is authoritative for the derived FTS index. Search is a rebuildable projection.
-- R2 stores blobs only. Access control must remain D1-backed.
+- The uploads `R2` bucket stores blobs only. The `SITES` bucket stores derived public render artifacts only. Access control and public reachability must remain D1-backed.
 - The Worker orchestrates cross-runtime calls. Keep boundaries to a single hop from the Worker and do not add DO -> DO calls.
 - Durable Object RPCs should return tagged unions for expected outcomes and reserve `throw` for truly unrecoverable failures. Use `blockConcurrencyWhile` only in constructors for setup or migration, never in RPC methods. Do not rely on `this.ctx.id.name`.
 - Cold uncached editor hydration must bootstrap body content from the Worker-owned page snapshot route before mounting a writable editor against live DocSync.
+- Bland Sites host dispatch must run before app/API/assets, and public page or asset serving must resolve D1 publication state before reading Cache API or R2. Site rendering uses the Worker-safe editor schema and `src/sites/server/static-renderer/`, never client editor modules.
 - Preserve D1 bookmark propagation in `src/worker/router.ts` and `src/client/lib/api.ts`. Mutating requests should continue to prefer primary D1 reads.
 - Refresh tokens live in the `bland_refresh` cookie. Access tokens stay in client state.
-- Auth, invites, refresh cookies, Turnstile, uploads, and share links are security-sensitive. Keep them fail-closed and do not weaken cookie flags, origin checks, or rate limits. The local Turnstile bypass in `src/worker/middleware/turnstile.ts` is intentional and must not be extended beyond local environments. Do not log secrets, bearer tokens, refresh cookies, or password material.
+- Auth, invites, refresh cookies, Turnstile, uploads, share links, and site publishing are security-sensitive. Keep them fail-closed and do not weaken cookie flags, origin checks, publication checks, or rate limits. The local Turnstile bypass in `src/worker/middleware/turnstile.ts` is intentional and must not be extended beyond local environments. Do not log secrets, bearer tokens, refresh cookies, or password material.
 - AI features (`rewrite`, `generate`, `summarize`, `ask-page`) are member-only. The shared surface entitlements in `src/shared/entitlements/page-ai.ts` deny every AI capability by default; do not loosen this without an intentional access-model design. AI suggestions stay transient on the client and must not be persisted as Yjs marks or server-side artifacts.
 
 ## Change Guidance
@@ -101,6 +104,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - Treat `useEffect` dependency arrays as correctness-critical.
 - Keep network calls centralized in `src/client/lib/api.ts`.
 - Extend the shared editor under `src/client/components/editor/` instead of creating parallel editor shells. Treat editor work as cross-cutting and verify extension registry, slash or insert entry points, controller/runtime plumbing, affordances, and selection semantics still compose correctly.
+- When changing editor nodes, marks, attrs, parse/render HTML, or document JSON shape, update the matching surfaces in the same diff: `src/shared/editor/schema/`, the client adapters under `src/client/components/editor/extensions/`, pure presentation components in `src/shared/editor/components/`, Bland Sites static mappings in `src/sites/server/static-renderer/`, and focused schema/static rendering tests. Keep client-only behavior in client adapters; keep static rendering explicit so internal attrs are not leaked.
 - Keep `src/client/components/editor/editor-runtime-context.ts` operational only, and keep `src/client/components/editor/editor-affordance-context.ts` authoritative for UI editing affordances.
 - Keep the authenticated workspace surface and the share surface aligned through shared primitives rather than parallel rewrites.
 - When changing collaboration or route-loading behavior, verify both member and share flows and update focused regression coverage, including `tests/e2e/specs/08-rapid-page-navigation.spec.ts`, `tests/e2e/specs/10-shared-rapid-navigation.spec.ts`, and `tests/e2e/specs/12-canonical-page-cold-deep-link.spec.ts` when applicable.
@@ -108,6 +112,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 ### Worker
 
 - Register HTTP behavior in the owning module under `src/worker/routes/` and keep top-level wiring in `src/worker/router.ts`.
+- For Sites, keep canonical-host management in `src/worker/routes/sites.ts`, public-host serving in `src/worker/sites/`, and published-set logic in `src/worker/lib/published-pages.ts`.
 - Keep page-access resolution and viewer-surface context in `src/worker/lib/permissions.ts`. Reuse `resolvePrincipal`, `resolvePageAccessLevels`, and `toResolvedViewerContext` from routes and WebSocket auth instead of re-encoding share walks or member-vs-share branching inline.
 - Validate requests at the boundary with `zod` or shared schemas.
 - Put reusable worker logic in helpers or middleware instead of bloating route handlers.
@@ -128,6 +133,7 @@ If a larger abstraction is merely optional, present it as an option instead of m
 - The Cloudflare Worker runtime test harness is slow. Prefer `npm run test:worker-unit` for pure worker logic, and run `npm run test:worker-runtime` with focused `.workers.test.ts` coverage only when the behavior depends on Cloudflare runtime bindings, D1, Durable Objects, assets, or Worker request handling. Use `npm run test:worker` only when both Worker projects are warranted.
 - Use `npm run test:client` and `npm run test:client-dom` for focused client Vitest validation.
 - Keep Cloudflare runtime Vitest bindings centralized in `tests/vitest/cloudflare.ts`. Update that helper instead of duplicating Miniflare bindings in `vitest.config.ts`.
+- For Sites changes, prefer focused coverage in `tests/sites/`, `tests/worker/sites/`, `tests/worker/routes/sites.workers.test.ts`, and `tests/e2e/specs/27-sites-publish.spec.ts` as applicable.
 - Run E2E with `npm run test:e2e`. The Playwright harness in `tests/e2e/` applies local D1 migrations, seeds the test user, and starts its own isolated dev server.
 - Run a focused E2E spec with `npx playwright test -c tests/e2e/playwright.config.ts tests/e2e/specs/<spec>.spec.ts`.
 - Do not start `npm run dev` just to run E2E unless the task explicitly requires manual debugging outside the harness.
@@ -150,10 +156,10 @@ Known gaps that are intentionally deferred. Do not fix these unless the task exp
 ## Entrypoints
 
 - Project runtime: `package.json`, `wrangler.jsonc`
-- Shared contracts: `src/shared/entitlements/`, `src/shared/types.ts`, `src/shared/doc-messages.ts`, `src/shared/ai.ts`
+- Shared contracts: `src/shared/entitlements/`, `src/shared/types.ts`, `src/shared/doc-messages.ts`, `src/shared/ai.ts`, `src/shared/editor/schema/`, `src/shared/site-slug.ts`
 - Client shell and routing: `src/client/route-tree.tsx`, `src/client/components/root-shell.tsx`
-- Client workspace surfaces: `src/client/components/workspace/`, `src/client/components/active-page/`, `src/client/components/page-mention/`, `src/client/components/share/`
-- Editor and client state: `src/client/components/editor/`, `src/client/lib/affordance/`, `src/client/stores/workspace-store.ts`, `src/client/lib/api.ts`, `src/client/lib/*-model.ts`, `src/client/lib/ai/`
-- Worker entrypoints and permissions: `src/worker/index.ts`, `src/worker/router.ts`, `src/worker/routes/`, `src/worker/lib/permissions.ts`, `src/worker/lib/ai/`
+- Client workspace surfaces: `src/client/components/workspace/`, `src/client/components/active-page/`, `src/client/components/page-mention/`, `src/client/components/share/`, `src/client/components/workspace/share-dialog/`
+- Editor, rendering, and client state: `src/client/components/editor/`, `src/shared/editor/components/`, `src/sites/server/static-renderer/`, `src/client/lib/affordance/`, `src/client/lib/queries/`, `src/client/stores/workspace-store.ts`, `src/client/lib/api.ts`, `src/client/lib/*-model.ts`, `src/client/lib/ai/`
+- Worker entrypoints and permissions: `src/worker/index.ts`, `src/worker/router.ts`, `src/worker/routes/`, `src/worker/sites/`, `src/worker/lib/{host-match,http-entry,permissions,published-pages,site-public-url}.ts`, `src/worker/lib/ai/`
 - Data and runtime backends: `src/worker/db/*/schema.ts`, `src/worker/durable-objects/`, `src/worker/queues/search-indexer.ts`
 - Test configuration: `vitest.config.ts`, `tests/vitest/cloudflare.ts`, `tests/setup/worker.ts`, `tests/e2e/playwright.config.ts`
