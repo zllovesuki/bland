@@ -3,14 +3,13 @@ import { renderToReadableStream } from "react-dom/server";
 import type { Db } from "@/worker/db/d1/client";
 import type { ResolvedPublishedPage, ResolvedSite } from "@/worker/lib/published-pages";
 import { buildSitePagePath } from "@/worker/lib/site-public-url";
-import {
-  renderBlandSitesDocumentToReactElement,
-  type SitesPageMentionRenderInfo,
-} from "@/sites/server/static-renderer";
+import { renderBlandSitesDocumentToReactElement } from "@/sites/server/static-renderer";
 import { collectSitesOutline } from "@/sites/server/static-renderer/outline";
 import { preWalkSitesJson } from "@/sites/server/json-prewalk";
 import { extractSiteDescription } from "@/sites/server/excerpt";
 import { SitePageDocument } from "@/sites/server/document";
+import { runWithSitesReactRenderContext, type SitesReactRenderContext } from "@/sites/server/react-render-context";
+import type { SitesPageMentionRenderInfo } from "@/sites/server/types";
 import type { PreparedSitePageRender } from "@/worker/sites/prepare-page-render";
 
 const UPLOAD_PATH = /^\/uploads\/([A-Za-z0-9_-]+)$/;
@@ -32,35 +31,35 @@ export async function renderSitePageDocumentStream(
   const description = extractSiteDescription(renderContent);
 
   const outline = collectSitesOutline(renderContent);
-  const bodyContent = renderBlandSitesDocumentToReactElement(renderContent, {
-    resolvePageMention: (pageId) => buildMentionRenderInfo(pageId, prepared.mentions),
+  const context: SitesReactRenderContext = {
+    kind: "page",
+    assets: prepared.assets,
     headingAnchorIds: outline.headingAnchorIds,
-  });
-
-  const documentNode = (
-    <SitePageDocument
-      title={page.title || "Untitled"}
-      icon={page.icon}
-      coverUrl={rewriteSiteCoverUrl(page.cover_url, page.id)}
-      bodyContent={bodyContent}
-      outline={outline.items}
-      metrics={prepared.pmJson.metrics}
-      description={description}
-      site={{
+    resolvePageMention: (pageId) => buildMentionRenderInfo(pageId, prepared.mentions),
+    page: {
+      title: page.title || "Untitled",
+      icon: page.icon,
+      coverUrl: rewriteSiteCoverUrl(page.cover_url, page.id),
+      outline: outline.items,
+      metrics: prepared.pmJson.metrics,
+      description,
+      canonicalUrl: prepared.canonicalUrl,
+      site: {
         workspaceName: site.workspace_name,
         workspaceIcon: site.workspace_icon,
         currentIsHome: prepared.currentIsHome,
         homeHref: "/",
-      }}
-      canonicalUrl={prepared.canonicalUrl}
-      assets={prepared.assets}
-    />
-  );
+      },
+    },
+  };
 
-  return renderToReadableStream(
-    documentNode,
-    prepared.assets.scriptSrc ? { bootstrapModules: [prepared.assets.scriptSrc] } : undefined,
-  );
+  return runWithSitesReactRenderContext(context, () => {
+    const bodyContent = renderBlandSitesDocumentToReactElement(renderContent);
+    return renderToReadableStream(
+      <SitePageDocument>{bodyContent}</SitePageDocument>,
+      prepared.assets.scriptSrc ? { bootstrapModules: [prepared.assets.scriptSrc] } : undefined,
+    );
+  });
 }
 
 function buildMentionRenderInfo(

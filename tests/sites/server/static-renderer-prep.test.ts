@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
+import { runWithSitesReactRenderContext } from "@/sites/server/react-render-context";
 import { renderBlandSitesDocumentToReactElement } from "@/sites/server/static-renderer";
+import { createTestSitesPageRenderContext } from "./render-context";
 
 const CONTENT = {
   type: "doc",
@@ -46,10 +48,15 @@ const CONTENT = {
 };
 
 function renderElement() {
-  return renderBlandSitesDocumentToReactElement(CONTENT, {
-    resolvePageMention: (pageId) =>
-      pageId === "page-roadmap" ? { label: "Roadmap", href: "/sites/roadmap", ariaLabel: "Roadmap page" } : null,
-  });
+  return runWithSitesReactRenderContext(
+    createTestSitesPageRenderContext({
+      resolvePageMention: (pageId) =>
+        pageId === "page-roadmap"
+          ? { label: "Roadmap", href: "/sites/roadmap", ariaLabel: "Roadmap page" }
+          : { label: "Restricted", href: null, kind: "restricted" },
+    }),
+    () => renderBlandSitesDocumentToReactElement(CONTENT),
+  );
 }
 
 describe("Bland Sites static renderer prep", () => {

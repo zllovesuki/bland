@@ -4,19 +4,15 @@ import { renderToReactElement } from "@tiptap/static-renderer/pm/react";
 import type { ReactNode } from "react";
 import { createHeadlessEditorExtensions } from "@/shared/editor/schema";
 import { createBlandSitesStaticNodeMappings } from "./node-mappings";
-import type { RenderBlandSitesDocumentOptions } from "./types";
 
-export function renderBlandSitesDocumentToReactElement(
-  content: ProseMirrorNode | JSONContent,
-  options: RenderBlandSitesDocumentOptions = {},
-): ReactNode {
+export function renderBlandSitesDocumentToReactElement(content: ProseMirrorNode | JSONContent): ReactNode {
   return renderToReactElement({
     content,
     extensions: createHeadlessEditorExtensions(),
     options: {
-      nodeMapping: createBlandSitesStaticNodeMappings(options),
+      nodeMapping: createBlandSitesStaticNodeMappings(),
     },
   });
 }
 
-export type { RenderBlandSitesDocumentOptions, SitesPageMentionRenderInfo } from "./types";
+export type { SitesPageMentionRenderInfo } from "@/sites/server/types";

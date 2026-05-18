@@ -1,28 +1,21 @@
-import { renderToReadableStream } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { SitePageDocument } from "@/sites/server/document";
+import { runWithSitesReactRenderContext } from "@/sites/server/react-render-context";
+import { createTestSitesPageRenderContext } from "./render-context";
 
 async function renderSiteDocumentHtml(): Promise<string> {
-  const scriptSrc = "/site-assets/sites-entry-test.js";
-  const stream = await renderToReadableStream(
-    <SitePageDocument
-      title="Hello Sites"
-      icon="😀"
-      coverUrl={null}
-      bodyContent={<p>Body</p>}
-      metrics={{ words: 1, characters: 4 }}
-      description="Body excerpt for search snippets"
-      site={{ workspaceName: "bland", workspaceIcon: "🚀", currentIsHome: true, homeHref: "/" }}
-      canonicalUrl="https://acme.sites.test/"
-      assets={{
-        stylesheetHref: "/site-assets/sites-test.css",
-        fontStylesheetHref: "/site-assets/fonts-test.css",
-        scriptSrc,
-        modulePreloadHrefs: ["/site-assets/sites-import-test.js"],
-      }}
-    />,
-    { bootstrapModules: [scriptSrc] },
+  const context = createTestSitesPageRenderContext();
+  const stream = await runWithSitesReactRenderContext(context, () =>
+    renderToReadableStream(
+      <SitePageDocument>
+        <p>Body</p>
+      </SitePageDocument>,
+      {
+        bootstrapModules: context.assets.scriptSrc ? [context.assets.scriptSrc] : undefined,
+      },
+    ),
   );
   return new Response(stream).text();
 }
@@ -56,5 +49,46 @@ describe("SitePageDocument", () => {
     expect(html.indexOf('src="/site-assets/sites-entry-test.js"')).toBeGreaterThan(
       html.lastIndexOf('rel="stylesheet" href="/site-assets/fonts-test.css"'),
     );
+  });
+
+  it("throws a clear error when rendered outside the Sites React context", () => {
+    expect(() =>
+      renderToStaticMarkup(
+        <SitePageDocument>
+          <p>Body</p>
+        </SitePageDocument>,
+      ),
+    ).toThrow("Sites React render context is required");
+  });
+
+  it("keeps page document title and assets isolated across concurrent ALS streams", async () => {
+    async function renderIsolated(title: string, stylesheetHref: string) {
+      const context = createTestSitesPageRenderContext({
+        assets: { stylesheetHref, scriptSrc: null },
+        page: { title, canonicalUrl: `https://acme.sites.test/${title.toLowerCase().replaceAll(" ", "-")}` },
+      });
+      const stream = await runWithSitesReactRenderContext(context, () =>
+        renderToReadableStream(
+          <SitePageDocument>
+            <p>{title}</p>
+          </SitePageDocument>,
+        ),
+      );
+      return new Response(stream).text();
+    }
+
+    const [first, second] = await Promise.all([
+      renderIsolated("First Page", "/site-assets/first.css"),
+      renderIsolated("Second Page", "/site-assets/second.css"),
+    ]);
+
+    expect(first).toContain("<title>First Page</title>");
+    expect(first).toContain('href="/site-assets/first.css"');
+    expect(first).not.toContain("Second Page");
+    expect(first).not.toContain("/site-assets/second.css");
+    expect(second).toContain("<title>Second Page</title>");
+    expect(second).toContain('href="/site-assets/second.css"');
+    expect(second).not.toContain("First Page");
+    expect(second).not.toContain("/site-assets/first.css");
   });
 });

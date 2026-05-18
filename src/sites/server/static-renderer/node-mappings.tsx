@@ -5,31 +5,40 @@ import { CalloutPresentation } from "@/shared/editor/components/callout";
 import { highlightCodeToSegments } from "@/shared/editor/components/code-highlight";
 import { CodeBlockPresentation, getCodeLanguageLabel } from "@/shared/editor/components/code-block";
 import { PageMentionPresentation } from "@/shared/editor/components/page-mention";
-import { readOutlineLevel } from "@/shared/editor/components/outline-model";
+import { readOutlineLevel, type OutlineLevel } from "@/shared/editor/components/outline-model";
 import { SiteIsland } from "@/sites/islands/island-host";
 import { CopyCodeButton } from "@/sites/islands/copy-code-button";
 import { SitesImage } from "@/sites/islands/sites-image";
 import type { SitesImageProps } from "@/sites/shared/island-schemas";
+import { readOptionalSitesReactRenderContext } from "@/sites/server/react-render-context";
 import { readOptionalString, readPositiveNumber } from "./attrs";
-import type { RenderBlandSitesDocumentOptions, StaticNodeMappingProps } from "./types";
+import type { StaticNodeMappingProps } from "./types";
 
-const PARAGRAPH_TEXT_ALIGNS = new Set(["left", "center", "right", "justify"]);
-type HeadingTag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+type HeadingTag = `h${OutlineLevel}`;
+type ParagraphTextAlign = "left" | "center" | "right" | "justify";
 
-export function createBlandSitesStaticNodeMappings(options: RenderBlandSitesDocumentOptions = {}) {
+const HEADING_TAGS: Record<OutlineLevel, HeadingTag> = {
+  1: "h1",
+  2: "h2",
+  3: "h3",
+  4: "h4",
+  5: "h5",
+  6: "h6",
+};
+
+export function createBlandSitesStaticNodeMappings() {
+  const renderContext = readOptionalSitesReactRenderContext();
+  const pageContext = renderContext?.kind === "page" ? renderContext : null;
   let headingIndex = 0;
 
   return {
     heading: ({ node, children }: StaticNodeMappingProps) => {
       const level = readOutlineLevel(node.attrs.level);
-      const Tag = `h${level}` as HeadingTag;
+      const Tag = readHeadingTag(level);
       const bid = readOptionalString(node.attrs.bid);
-      const anchorId = options.headingAnchorIds?.[headingIndex++] ?? undefined;
-      const textAlign =
-        typeof node.attrs.textAlign === "string" && PARAGRAPH_TEXT_ALIGNS.has(node.attrs.textAlign)
-          ? (node.attrs.textAlign as string)
-          : null;
-      const style = textAlign ? { textAlign: textAlign as "left" | "center" | "right" | "justify" } : undefined;
+      const anchorId = pageContext ? readHeadingAnchorId(pageContext.headingAnchorIds, headingIndex++) : undefined;
+      const textAlign = readParagraphTextAlign(node.attrs.textAlign);
+      const style = textAlign ? { textAlign } : undefined;
       return (
         <Tag id={anchorId} data-bid={bid ?? undefined} style={style}>
           {children}
@@ -38,11 +47,8 @@ export function createBlandSitesStaticNodeMappings(options: RenderBlandSitesDocu
     },
     paragraph: ({ node, children }: StaticNodeMappingProps) => {
       const bid = readOptionalString(node.attrs.bid);
-      const textAlign =
-        typeof node.attrs.textAlign === "string" && PARAGRAPH_TEXT_ALIGNS.has(node.attrs.textAlign)
-          ? (node.attrs.textAlign as string)
-          : null;
-      const style = textAlign ? { textAlign: textAlign as "left" | "center" | "right" | "justify" } : undefined;
+      const textAlign = readParagraphTextAlign(node.attrs.textAlign);
+      const style = textAlign ? { textAlign } : undefined;
       return (
         <p data-bid={bid ?? undefined} style={style}>
           {node.childCount === 0 ? <br /> : children}
@@ -120,7 +126,7 @@ export function createBlandSitesStaticNodeMappings(options: RenderBlandSitesDocu
     },
     pageMention: ({ node }: StaticNodeMappingProps) => {
       const pageId = readOptionalString(node.attrs.pageId);
-      const mention = pageId ? options.resolvePageMention?.(pageId) : null;
+      const mention = pageId && pageContext ? pageContext.resolvePageMention(pageId) : null;
       return (
         <PageMentionPresentation
           pageId={pageId}
@@ -158,6 +164,27 @@ export function createBlandSitesStaticNodeMappings(options: RenderBlandSitesDocu
       );
     },
   };
+}
+
+function readHeadingTag(level: OutlineLevel): HeadingTag {
+  return HEADING_TAGS[level];
+}
+
+function readHeadingAnchorId(anchorIds: readonly (string | null)[], index: number): string | undefined {
+  const anchorId = anchorIds[index];
+  return typeof anchorId === "string" ? anchorId : undefined;
+}
+
+function readParagraphTextAlign(value: unknown): ParagraphTextAlign | null {
+  switch (value) {
+    case "left":
+    case "center":
+    case "right":
+    case "justify":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function readImageProps(node: StaticNodeMappingProps["node"]): SitesImageProps | null {

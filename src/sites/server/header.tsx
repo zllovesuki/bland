@@ -1,12 +1,6 @@
 import { Pilcrow } from "lucide-react";
+import { readSitesHeaderRenderState } from "./react-render-context";
 import { SiteIconMark } from "./icons";
-
-export interface SiteHeaderProps {
-  workspaceName: string;
-  workspaceIcon: string | null;
-  homeHref: string;
-  currentIsHome: boolean;
-}
 
 function WorkspaceMark({ icon }: { icon: string | null }) {
   if (icon) {
@@ -29,7 +23,7 @@ function WorkspaceMark({ icon }: { icon: string | null }) {
   );
 }
 
-function WorkspaceIdentity({ workspaceName, workspaceIcon }: Pick<SiteHeaderProps, "workspaceName" | "workspaceIcon">) {
+function WorkspaceIdentity({ workspaceName, workspaceIcon }: { workspaceName: string; workspaceIcon: string | null }) {
   return (
     <>
       <WorkspaceMark icon={workspaceIcon} />
@@ -38,7 +32,11 @@ function WorkspaceIdentity({ workspaceName, workspaceIcon }: Pick<SiteHeaderProp
   );
 }
 
-export function SiteHeader({ workspaceName, workspaceIcon, homeHref, currentIsHome }: SiteHeaderProps) {
+export function SiteHeader() {
+  const header = readSitesHeaderRenderState();
+  if (!header) return null;
+
+  const { workspaceName, workspaceIcon, homeHref, currentIsHome } = header;
   const identity = <WorkspaceIdentity workspaceName={workspaceName} workspaceIcon={workspaceIcon} />;
 
   return (

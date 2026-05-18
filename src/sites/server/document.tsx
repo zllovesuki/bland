@@ -1,55 +1,26 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactNode } from "react";
 
-import type { EditorTextMetrics } from "@/shared/editor/schema/metrics";
 import {
   DOC_PAGE_BALANCED_INLINE_OUTLINE_BEFORE_CLASS,
   DocumentFrame,
   PAGE_SHELL_CLASS,
 } from "@/shared/editor/components/document-layout";
 import { EditorMetricsPresentation } from "@/shared/editor/components/metrics";
-import { OutlinePresentation, type OutlineItem } from "@/shared/editor/components/outline";
+import { OutlinePresentation } from "@/shared/editor/components/outline";
 import { SiteIsland } from "@/sites/islands/island-host";
 import { SiteOutlineController } from "@/sites/islands/site-outline-controller";
 import { SiteFooter } from "./footer";
 import { SiteHeader } from "./header";
 import { SiteIconMark } from "./icons";
-
-export interface SiteIdentity {
-  workspaceName: string;
-  workspaceIcon: string | null;
-  currentIsHome: boolean;
-  homeHref: string;
-}
-
-export interface SiteDocumentAssets {
-  stylesheetHref: string;
-  fontStylesheetHref: string;
-  scriptSrc: string | null;
-  modulePreloadHrefs: string[];
-}
-
-export interface SitePageDocumentProps {
-  title: string;
-  icon: string | null;
-  coverUrl: string | null;
-  bodyContent: ReactNode;
-  outline?: OutlineItem[];
-  metrics: EditorTextMetrics;
-  description?: string | null;
-  site: SiteIdentity;
-  canonicalUrl: string;
-  assets: SiteDocumentAssets;
-}
-
-export interface NotFoundDocumentProps {
-  site: { workspaceName: string; workspaceIcon: string | null; homeHref: string } | null;
-  assets: SiteDocumentAssets;
-}
-
-export interface ApexDocumentProps {
-  assets: SiteDocumentAssets;
-}
+import {
+  createSitesApexRenderContext,
+  createSitesNotFoundRenderContext,
+  readSitesDocumentAssets,
+  readSitesHeaderRenderState,
+  readSitesPageRenderState,
+  runWithSitesReactRenderContext,
+} from "./react-render-context";
+import type { ApexDocumentProps, NotFoundDocumentProps, SitePageDocumentProps } from "./types";
 
 function isGradient(cover: string): boolean {
   return cover.startsWith("linear-gradient(");
@@ -73,7 +44,6 @@ function SiteHead({
   ogUrl,
   ogType,
   description,
-  assets,
   includeModulePreloads = true,
 }: {
   title: string;
@@ -82,9 +52,10 @@ function SiteHead({
   ogUrl?: string;
   ogType?: "article" | "website";
   description?: string | null;
-  assets: SiteDocumentAssets;
   includeModulePreloads?: boolean;
 }) {
+  const assets = readSitesDocumentAssets();
+
   return (
     <head>
       <meta charSet="utf-8" />
@@ -111,22 +82,15 @@ function SiteHead({
   );
 }
 
-function SiteDeferredStyles({ assets }: { assets: SiteDocumentAssets }) {
+function SiteDeferredStyles() {
+  const assets = readSitesDocumentAssets();
   return <link rel="stylesheet" href={assets.fontStylesheetHref} />;
 }
 
-export function SitePageDocument({
-  title,
-  icon,
-  coverUrl,
-  bodyContent,
-  outline = [],
-  metrics,
-  description,
-  site,
-  canonicalUrl,
-  assets,
-}: SitePageDocumentProps) {
+export function SitePageDocument({ children }: SitePageDocumentProps) {
+  const {
+    page: { title, icon, coverUrl, outline, metrics, description, canonicalUrl },
+  } = readSitesPageRenderState();
   const coverStyle = coverUrl
     ? { backgroundImage: isGradient(coverUrl) ? coverUrl : `url(${JSON.stringify(coverUrl)})` }
     : null;
@@ -141,15 +105,9 @@ export function SitePageDocument({
         ogUrl={canonicalUrl}
         ogType="article"
         description={description}
-        assets={assets}
       />
       <body className="site-shell flex min-h-screen flex-col bg-canvas font-sans font-[450] text-zinc-100 antialiased">
-        <SiteHeader
-          workspaceName={site.workspaceName}
-          workspaceIcon={site.workspaceIcon}
-          homeHref={site.homeHref}
-          currentIsHome={site.currentIsHome}
-        />
+        <SiteHeader />
         <main id="main-content" className={`site-main flex-1 ${PAGE_SHELL_CLASS}`}>
           <DocumentFrame
             main={
@@ -179,7 +137,7 @@ export function SitePageDocument({
                       <OutlinePresentation items={outline} mode="link" variant="card" />
                     </div>
                   ) : null}
-                  <div className="tiptap tiptap-page-body">{bodyContent}</div>
+                  <div className="tiptap tiptap-page-body">{children}</div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
                   <EditorMetricsPresentation metrics={metrics} />
@@ -197,13 +155,17 @@ export function SitePageDocument({
           />
         </main>
         <SiteFooter />
-        <SiteDeferredStyles assets={assets} />
+        <SiteDeferredStyles />
       </body>
     </html>
   );
 }
 
-export function NotFoundDocument({ site, assets }: NotFoundDocumentProps) {
+export function NotFoundDocument() {
+  const header = readSitesHeaderRenderState();
+  const site = header
+    ? { workspaceName: header.workspaceName, workspaceIcon: header.workspaceIcon, homeHref: header.homeHref }
+    : null;
   const heading = site ? "Nothing here to read." : "Nothing here.";
   const sub = site ? "This page is not published, or never was." : "This URL doesn't point to a bland site.";
   const ctaLabel = site ? `Back to ${site.workspaceName}` : "Visit bland.tools";
@@ -212,16 +174,9 @@ export function NotFoundDocument({ site, assets }: NotFoundDocumentProps) {
 
   return (
     <html lang="en" className="dark scheme-dark">
-      <SiteHead title={docTitle} assets={assets} includeModulePreloads={false} />
+      <SiteHead title={docTitle} includeModulePreloads={false} />
       <body className="site-not-found flex min-h-screen flex-col bg-canvas font-sans font-[450] text-zinc-100 antialiased">
-        {site ? (
-          <SiteHeader
-            workspaceName={site.workspaceName}
-            workspaceIcon={site.workspaceIcon}
-            homeHref={site.homeHref}
-            currentIsHome={false}
-          />
-        ) : null}
+        {site ? <SiteHeader /> : null}
         <main className="flex flex-1 items-center justify-center px-4 py-16">
           <div className="max-w-md text-center">
             <p className="site-not-found-mark font-display text-7xl font-bold tracking-tighter text-zinc-700">404</p>
@@ -235,16 +190,16 @@ export function NotFoundDocument({ site, assets }: NotFoundDocumentProps) {
             </a>
           </div>
         </main>
-        <SiteDeferredStyles assets={assets} />
+        <SiteDeferredStyles />
       </body>
     </html>
   );
 }
 
-export function ApexDocument({ assets }: ApexDocumentProps) {
+export function ApexDocument() {
   return (
     <html lang="en" className="dark scheme-dark">
-      <SiteHead title="bland" assets={assets} includeModulePreloads={false} />
+      <SiteHead title="bland" includeModulePreloads={false} />
       <body className="site-apex flex min-h-screen items-center justify-center bg-canvas font-sans text-[1.75rem] tracking-[-0.02em] antialiased">
         <a
           href="https://bland.tools"
@@ -254,18 +209,24 @@ export function ApexDocument({ assets }: ApexDocumentProps) {
         >
           bland.
         </a>
-        <SiteDeferredStyles assets={assets} />
+        <SiteDeferredStyles />
       </body>
     </html>
   );
 }
 
 export function renderSiteNotFoundDocumentHtml(props: NotFoundDocumentProps): string {
-  return `<!doctype html>${renderToStaticMarkup(<NotFoundDocument {...props} />)}`;
+  return runWithSitesReactRenderContext(
+    createSitesNotFoundRenderContext(props),
+    () => `<!doctype html>${renderToStaticMarkup(<NotFoundDocument />)}`,
+  );
 }
 
 export function renderApexDocumentHtml(props: ApexDocumentProps): string {
-  return `<!doctype html>${renderToStaticMarkup(<ApexDocument {...props} />)}`;
+  return runWithSitesReactRenderContext(
+    createSitesApexRenderContext(props),
+    () => `<!doctype html>${renderToStaticMarkup(<ApexDocument />)}`,
+  );
 }
 
 export function renderRobotsTxt(): string {

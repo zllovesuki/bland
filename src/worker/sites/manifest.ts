@@ -5,7 +5,7 @@ import {
   SITES_STYLES_ENTRY,
   SITES_STYLES_SOURCE,
 } from "@/sites/entrypoints";
-import type { SiteDocumentAssets } from "@/sites/server/document";
+import type { SiteDocumentAssets } from "@/sites/server/types";
 
 interface ViteManifestEntry {
   file: string;

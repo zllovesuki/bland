@@ -1,11 +1,20 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { runWithSitesReactRenderContext } from "@/sites/server/react-render-context";
 import { renderBlandSitesDocumentToReactElement } from "@/sites/server/static-renderer";
 import { collectSitesOutline } from "@/sites/server/static-renderer/outline";
+import { createTestSitesPageRenderContext, type TestSitesPageRenderContext } from "./render-context";
 
 function render(content: Parameters<typeof renderBlandSitesDocumentToReactElement>[0]): string {
   return renderToStaticMarkup(renderBlandSitesDocumentToReactElement(content));
+}
+
+function renderWithSitesContext(
+  content: Parameters<typeof renderBlandSitesDocumentToReactElement>[0],
+  context: TestSitesPageRenderContext,
+): string {
+  return runWithSitesReactRenderContext(context, () => render(content));
 }
 
 describe("renderBlandSitesDocumentToReactElement", () => {
@@ -30,8 +39,9 @@ describe("renderBlandSitesDocumentToReactElement", () => {
       ],
     };
     const outline = collectSitesOutline(content);
-    const html = renderToStaticMarkup(
-      renderBlandSitesDocumentToReactElement(content, { headingAnchorIds: outline.headingAnchorIds }),
+    const html = renderWithSitesContext(
+      content,
+      createTestSitesPageRenderContext({ headingAnchorIds: outline.headingAnchorIds }),
     );
 
     expect(outline.items).toEqual([
@@ -90,8 +100,9 @@ describe("renderBlandSitesDocumentToReactElement", () => {
       ],
     };
     const outline = collectSitesOutline(content);
-    const html = renderToStaticMarkup(
-      renderBlandSitesDocumentToReactElement(content, { headingAnchorIds: outline.headingAnchorIds }),
+    const html = renderWithSitesContext(
+      content,
+      createTestSitesPageRenderContext({ headingAnchorIds: outline.headingAnchorIds }),
     );
 
     expect(outline.items).toEqual([
@@ -324,34 +335,76 @@ describe("renderBlandSitesDocumentToReactElement", () => {
   });
 
   it("emits an accessible <a> mention when the resolver returns an href", () => {
-    const html = renderToStaticMarkup(
-      renderBlandSitesDocumentToReactElement(
-        {
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [
-                {
-                  type: "pageMention",
-                  attrs: { pageId: "01ABC" },
-                },
-              ],
-            },
-          ],
-        },
-        {
-          resolvePageMention: () => ({
-            label: "Welcome",
-            href: "/welcome-01ABC",
-            kind: "accessible",
-          }),
-        },
-      ),
+    const html = renderWithSitesContext(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "pageMention",
+                attrs: { pageId: "01ABC" },
+              },
+            ],
+          },
+        ],
+      },
+      createTestSitesPageRenderContext({
+        resolvePageMention: () => ({
+          label: "Welcome",
+          href: "/welcome-01ABC",
+          kind: "accessible",
+        }),
+      }),
     );
     expect(html).toContain('<a class="tiptap-page-mention" data-page-id="01ABC"');
     expect(html).toContain('href="/welcome-01ABC"');
     expect(html).toContain(">Welcome<");
+  });
+
+  it("keeps heading anchors and page mentions isolated across concurrent ALS renders", async () => {
+    const content = {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 1 },
+          content: [{ type: "text", text: "Title" }],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "pageMention", attrs: { pageId: "PAGE" } }],
+        },
+      ],
+    };
+
+    async function renderIsolated(anchorId: string, label: string) {
+      return runWithSitesReactRenderContext(
+        createTestSitesPageRenderContext({
+          headingAnchorIds: [anchorId],
+          resolvePageMention: () => ({ label, href: `/${label.toLowerCase()}`, kind: "accessible" }),
+        }),
+        async () => {
+          await Promise.resolve();
+          return render(content);
+        },
+      );
+    }
+
+    const [first, second] = await Promise.all([
+      renderIsolated("first-heading", "First"),
+      renderIsolated("second-heading", "Second"),
+    ]);
+
+    expect(first).toContain('<h1 id="first-heading">Title</h1>');
+    expect(first).toContain(">First<");
+    expect(first).not.toContain("second-heading");
+    expect(first).not.toContain(">Second<");
+    expect(second).toContain('<h1 id="second-heading">Title</h1>');
+    expect(second).toContain(">Second<");
+    expect(second).not.toContain("first-heading");
+    expect(second).not.toContain(">First<");
   });
 });
 

@@ -26,7 +26,7 @@ import { prepareSitePageRender } from "@/worker/sites/prepare-page-render";
 import { renderSitePageDocumentStream } from "@/worker/sites/render-page-stream";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
 import { renderApexDocumentHtml, renderRobotsTxt, renderSiteNotFoundDocumentHtml } from "@/sites/server/document";
-import type { SiteDocumentAssets } from "@/sites/server/document";
+import type { SiteDocumentAssets } from "@/sites/server/types";
 
 const PAGE_ID_LENGTH = 26;
 const PAGE_SEGMENT_ROUTE =
