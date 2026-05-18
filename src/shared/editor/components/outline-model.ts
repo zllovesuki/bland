@@ -1,7 +1,9 @@
+export type OutlineLevel = 1 | 2 | 3 | 4 | 5 | 6;
+
 export interface OutlineItem {
   id: string;
   text: string;
-  level: number;
+  level: OutlineLevel;
   href?: string;
 }
 
@@ -25,9 +27,19 @@ export function normalizeOutlineText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
-export function readOutlineLevel(value: unknown): number {
+export function readOutlineLevel(value: unknown): OutlineLevel {
   const level = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
-  return Number.isInteger(level) && level >= 1 && level <= 6 ? level : 1;
+  switch (level) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+      return level;
+    default:
+      return 1;
+  }
 }
 
 export function createUniqueOutlineAnchorId(text: string, used: Set<string>): string {
