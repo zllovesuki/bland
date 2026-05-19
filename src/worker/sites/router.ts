@@ -15,6 +15,7 @@ import { applySitesSecurityHeaders } from "@/worker/lib/security-headers";
 import { serveSiteAsset } from "@/worker/sites/assets";
 import {
   buildSiteCacheKey,
+  buildSiteCacheTags,
   buildSiteHtmlEtag,
   createSiteHtmlRevision,
   getSitesCache,
@@ -41,9 +42,16 @@ const INTERNAL_HTML_CACHE_CONTROL = "public, max-age=300, must-revalidate";
 
 type MatchedSiteHost = Extract<SiteHostMatch, { kind: "apex" | "subdomain" }>;
 
+interface HtmlCacheState {
+  cache: Promise<Cache>;
+  key: Request;
+  checked: boolean;
+}
+
 type SitesVariables = {
   db: Db;
   siteHost: MatchedSiteHost;
+  htmlCache?: HtmlCacheState;
 };
 
 type SitesContext = { Bindings: Env; Variables: SitesVariables };
@@ -95,6 +103,9 @@ sitesApp.get("/", async (c) => {
     return c.html(renderApexDocumentHtml({ assets }), 200, HTML_HEADERS);
   }
 
+  const cached = await serveHtmlCacheHit(c);
+  if (cached) return cached;
+
   const resolved = await resolveCurrentSitePage(c, null);
   if (!resolved) return siteNotFound(c);
   if (!resolved.page) return siteNotFound(c, resolved.site);
@@ -121,6 +132,9 @@ sitesApp.get(ASSET_ROUTE, async (c) => {
 sitesApp.get(PAGE_SEGMENT_ROUTE, async (c) => {
   const match = c.get("siteHost");
   if (match.kind === "apex") return siteNotFound(c);
+
+  const cached = await serveHtmlCacheHit(c);
+  if (cached) return cached;
 
   const pageSegment = c.req.param("pageSegment");
   const pageId = pageSegment.slice(-PAGE_ID_LENGTH).toUpperCase();
@@ -195,13 +209,17 @@ async function serveCachedOrRender(
     return c.body(null, 304, headers);
   }
 
-  const cache = await getSitesCache();
-  const cacheKey = buildSiteCacheKey(request, revision);
+  const cacheState = htmlCacheState(c);
 
-  const cached = await timeSite(c, "cache_read", () => cache.match(cacheKey));
-  if (cached?.body) {
-    markSite(c, "cache_write", "skipped_hit");
-    return c.body(cached.body, 200, headers);
+  if (!cacheState.checked) {
+    const cache = await cacheState.cache;
+    const cached = await timeSite(c, "cache_read", () => cache.match(cacheState.key));
+    cacheState.checked = true;
+    if (cached?.body) {
+      markSite(c, "cache_write", "skipped_hit");
+      if (c.req.method === "HEAD") return c.body(null, 200, headers);
+      return c.body(cached.body, 200, headers);
+    }
   }
 
   const pmJson = await loadPagePmJson({ env: c.env, page, timings: (name, operation) => timeSite(c, name, operation) });
@@ -225,11 +243,47 @@ async function serveCachedOrRender(
   );
   const [responseStream, cacheStream] = stream.tee();
 
-  const cacheResponse = new Response(cacheStream, { status: 200, headers: buildInternalCacheHeaders(headers) });
+  const cacheResponse = new Response(cacheStream, {
+    status: 200,
+    headers: internalHtmlHeaders(headers, site, page),
+  });
   markSite(c, "cache_write", "scheduled");
-  c.executionCtx.waitUntil(cache.put(cacheKey, cacheResponse));
+  const cache = await cacheState.cache;
+  c.executionCtx.waitUntil(cache.put(cacheState.key, cacheResponse));
 
   return c.body(responseStream, 200, headers);
+}
+
+async function serveHtmlCacheHit(c: Context<SitesContext>): Promise<Response | null> {
+  const cacheState = htmlCacheState(c);
+  const cache = await cacheState.cache;
+  const cached = await timeSite(c, "cache_read", () => cache.match(cacheState.key));
+  cacheState.checked = true;
+  if (!cached) return null;
+  if (!cached.body) return null;
+
+  const headers = cachedHtmlHeaders(cached);
+  if (siteHtmlEtagMatches(c.req.header("If-None-Match") ?? null, headers.etag ?? "")) {
+    markSite(c, "cache_read", "skipped_304");
+    return c.body(null, 304, headers);
+  }
+
+  markSite(c, "cache_write", "skipped_hit");
+  if (c.req.method === "HEAD") return c.body(null, 200, headers);
+  return c.body(cached.body, 200, headers);
+}
+
+function htmlCacheState(c: Context<SitesContext>): HtmlCacheState {
+  const existing = c.get("htmlCache");
+  if (existing) return existing;
+
+  const state: HtmlCacheState = {
+    cache: getSitesCache(),
+    key: buildSiteCacheKey(c.req.raw),
+    checked: false,
+  };
+  c.set("htmlCache", state);
+  return state;
 }
 
 function buildHtmlHeaders(site: ResolvedSite, page: ResolvedPublishedPage, revision: string) {
@@ -240,10 +294,18 @@ function buildHtmlHeaders(site: ResolvedSite, page: ResolvedPublishedPage, revis
   };
 }
 
-function buildInternalCacheHeaders(headers: HeadersInit): HeadersInit {
+function internalHtmlHeaders(headers: HeadersInit, site: ResolvedSite, page: ResolvedPublishedPage): HeadersInit {
   const next = new Headers(headers);
   next.set("Cache-Control", INTERNAL_HTML_CACHE_CONTROL);
+  next.set("Cache-Tag", buildSiteCacheTags(site, page));
   return next;
+}
+
+function cachedHtmlHeaders(cached: Response): Record<string, string> {
+  const headers = new Headers(cached.headers);
+  headers.set("Cache-Control", HTML_HEADERS["Cache-Control"]);
+  headers.delete("Cache-Tag");
+  return Object.fromEntries(headers.entries());
 }
 
 async function resolveRequiredSitesDocumentAssets(c: Context<SitesContext>): Promise<SiteDocumentAssets | null> {

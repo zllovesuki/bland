@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSiteHtmlEtag,
   buildSiteCacheKey,
+  buildSiteCacheTags,
   createSiteHtmlRevision,
   createRenderDependencyHash,
   getSitesRendererVersion,
@@ -18,18 +19,21 @@ const ENVELOPE: SitePmJsonEnvelope = {
 };
 
 describe("Sites cache helpers", () => {
-  it("drops visitor query params and keys by HTML revision", () => {
-    const key = buildSiteCacheKey(
-      new Request("https://acme.sites.test/docs?utm_source=newsletter&fbclid=ignored"),
-      "revision-abc",
-    );
+  it("drops visitor query params and keys by normalized request path", () => {
+    const key = buildSiteCacheKey(new Request("https://acme.sites.test/docs?utm_source=newsletter&fbclid=ignored"));
 
     const url = new URL(key.url);
     expect(url.origin).toBe("https://acme.sites.test");
     expect(url.pathname).toBe("/docs");
     expect(url.searchParams.get("utm_source")).toBeNull();
     expect(url.searchParams.get("fbclid")).toBeNull();
-    expect(url.searchParams.get("rev")).toBe("revision-abc");
+    expect(key.method).toBe("GET");
+  });
+
+  it("builds cache tags for later purge support", () => {
+    expect(buildSiteCacheTags({ workspace_id: "ws1" }, { id: "page1", published_root_id: "root1" })).toBe(
+      "sites-html,site:ws1,page:page1,root:root1",
+    );
   });
 
   it("uses the configured Worker version metadata binding", () => {

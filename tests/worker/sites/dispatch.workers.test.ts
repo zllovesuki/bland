@@ -16,7 +16,7 @@ import {
   seedWorkspaceSite,
 } from "@tests/worker/helpers/seeds";
 import { seedDocSyncSnapshot, buildYjsDocBytes } from "@tests/worker/helpers/do";
-import { buildSiteR2ObjectKey, writeSiteR2 } from "@/worker/sites/cache";
+import { buildSiteCacheKey, buildSiteR2ObjectKey, getSitesCache, writeSiteR2 } from "@/worker/sites/cache";
 import { buildSitePagePath } from "@/worker/lib/site-public-url";
 
 const SUBDOMAIN_ORIGIN = "https://acme.sites.test";
@@ -31,6 +31,15 @@ async function clearSitesHtmlBucket(): Promise<void> {
   await Promise.all(listing.objects.map((object) => env.SITES.delete(object.key)));
 }
 
+async function deleteHtmlCache(path: string, origin = SUBDOMAIN_ORIGIN): Promise<void> {
+  const cache = await getSitesCache();
+  await cache.delete(buildSiteCacheKey(new Request(new URL(path, origin).toString())));
+}
+
+async function clearRootHtmlCache(): Promise<void> {
+  await deleteHtmlCache("/");
+}
+
 async function waitForSitesCacheHit(path: string): Promise<Response> {
   let last: Response | null = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -39,6 +48,10 @@ async function waitForSitesCacheHit(path: string): Promise<Response> {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   return last ?? apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+}
+
+function timingCount(response: Response, name: string): number {
+  return response.headers.get("server-timing")?.match(new RegExp(`\\b${name}\\b`, "g"))?.length ?? 0;
 }
 
 function publicPagePath(title: string, pageId: string): string {
@@ -88,6 +101,7 @@ function buildMentionDocBytes(pageId: string): Uint8Array {
 describe("Sites host dispatch", () => {
   beforeEach(async () => {
     await resetD1Tables();
+    await clearRootHtmlCache();
   });
 
   it("serves the apex placeholder at /", async () => {
@@ -153,6 +167,7 @@ describe("Sites page resolution", () => {
   beforeEach(async () => {
     await resetD1Tables();
     await clearSitesHtmlBucket();
+    await clearRootHtmlCache();
   });
 
   it("renders a published doc page with title, .tiptap wrapper, stylesheet link, and canonical", async () => {
@@ -381,22 +396,34 @@ describe("Sites page resolution", () => {
     expect(await res.text()).not.toContain("Elsewhere");
   });
 
-  it("D1 runs before cache: unpublishing 404s the next request despite a prior cache hit", async () => {
+  it("serves bounded stale HTML after unpublish until the request cache entry expires", async () => {
     const owner = await seedUser();
     const ws = await seedWorkspace({ owner_id: owner.id });
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Ephemeral" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
 
-    const first = await apiRequest(publicPagePath("Ephemeral", page.id), { origin: SUBDOMAIN_ORIGIN });
+    const path = publicPagePath("Ephemeral", page.id);
+    const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
     expect(first.status).toBe(200);
 
-    // Unpublish without bumping pages.updated_at, so any cache entry keyed by
-    // the existing `?v=` would still match. Resolver-first guarantees 404.
+    const cached = await waitForSitesCacheHit(path);
+    expect(cached.status).toBe(200);
+    expect(cached.headers.get("server-timing")).not.toContain("site_page_lookup");
+
+    // Option B deliberately allows request-keyed HTML to remain public until
+    // the 300-second internal Cache API TTL expires.
     await deletePublishedPage(ws.id, page.id);
 
-    const second = await apiRequest(publicPagePath("Ephemeral", page.id), { origin: SUBDOMAIN_ORIGIN });
-    expect(second.status).toBe(404);
+    const stale = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(stale.status).toBe(200);
+    expect(stale.headers.get("server-timing")).not.toContain("site_page_lookup");
+    expect(await stale.text()).toContain("<title>Ephemeral</title>");
+
+    await deleteHtmlCache(path);
+
+    const fresh = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(fresh.status).toBe(404);
   });
 
   it("renders inherited subpages under a published ancestor", async () => {
@@ -490,8 +517,10 @@ describe("Sites page resolution", () => {
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
     await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Repeat Cache", "First cached body"));
 
-    const first = await apiRequest(publicPagePath("Repeat Cache", page.id), { origin: SUBDOMAIN_ORIGIN });
+    const path = publicPagePath("Repeat Cache", page.id);
+    const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
     expect(first.status).toBe(200);
+    expect(timingCount(first, "cache_read")).toBe(1);
     expect(await first.text()).toContain("First cached body");
 
     await writeSiteR2(env, ws.id, page.id, {
@@ -503,14 +532,22 @@ describe("Sites page resolution", () => {
       updatedAt: page.updated_at,
     });
 
-    const second = await waitForSitesCacheHit(publicPagePath("Repeat Cache", page.id));
+    const second = await waitForSitesCacheHit(path);
     expect(second.status).toBe(200);
+    expect(second.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
+    expect(second.headers.get("cache-tag")).toBeNull();
     expect(second.headers.get("server-timing")).toContain('cache_write;desc="skipped_hit"');
+    expect(second.headers.get("server-timing")).not.toContain("site_page_lookup");
     expect(second.headers.get("server-timing")).not.toContain("r2_document");
     expect(second.headers.get("server-timing")).not.toContain("render_stream");
     const secondHtml = await second.text();
     expect(secondHtml).toContain("First cached body");
     expect(secondHtml).not.toContain("SECOND R2 BODY");
+
+    const cache = await getSitesCache();
+    const stored = await cache.match(buildSiteCacheKey(new Request(new URL(path, SUBDOMAIN_ORIGIN).toString())));
+    expect(stored?.headers.get("cache-control")).toBe("public, max-age=300, must-revalidate");
+    expect(stored?.headers.get("cache-tag")).toBe(`sites-html,site:${ws.id},page:${page.id},root:${page.id}`);
   });
 
   it("returns 304 for a matching Sites HTML ETag before cache or document work", async () => {
@@ -520,12 +557,16 @@ describe("Sites page resolution", () => {
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
 
-    const first = await apiRequest(publicPagePath("Tagged", page.id), { origin: SUBDOMAIN_ORIGIN });
+    const path = publicPagePath("Tagged", page.id);
+    const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
     expect(first.status).toBe(200);
     const etag = first.headers.get("etag");
     expect(etag).toMatch(/^"sites-html:/);
 
-    const second = await apiRequest(publicPagePath("Tagged", page.id), {
+    const cached = await waitForSitesCacheHit(path);
+    expect(cached.status).toBe(200);
+
+    const second = await apiRequest(path, {
       origin: SUBDOMAIN_ORIGIN,
       headers: { "If-None-Match": etag ?? "" },
     });
@@ -535,6 +576,7 @@ describe("Sites page resolution", () => {
     expect(second.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
     expect(second.headers.get("content-security-policy")).toContain("default-src 'self'");
     expect(second.headers.get("server-timing")).toContain('cache_read;desc="skipped_304"');
+    expect(second.headers.get("server-timing")).not.toContain("site_page_lookup");
     expect(second.headers.get("server-timing")).not.toContain("r2_document");
     expect(second.headers.get("server-timing")).not.toContain("render_stream");
     expect(await second.text()).toBe("");
@@ -598,24 +640,37 @@ describe("Sites page resolution", () => {
     expect(html).not.toContain("STALE LEGACY BODY");
   });
 
-  it("evicts the cache when workspace chrome changes without a page edit", async () => {
+  it("serves cached workspace chrome until the request cache entry expires", async () => {
     const owner = await seedUser();
     const ws = await seedWorkspace({ owner_id: owner.id, name: "Old Co" });
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Renamed" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
 
-    const first = await apiRequest(publicPagePath("Renamed", page.id), { origin: SUBDOMAIN_ORIGIN });
+    const path = publicPagePath("Renamed", page.id);
+    const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
     expect(first.status).toBe(200);
     const firstHtml = await first.text();
     expect(firstHtml).toContain("Old Co");
 
+    const cached = await waitForSitesCacheHit(path);
+    expect(cached.status).toBe(200);
+
     await getDb().update(workspaces).set({ name: "New Co" }).where(eq(workspaces.id, ws.id));
 
-    const second = await apiRequest(publicPagePath("Renamed", page.id), { origin: SUBDOMAIN_ORIGIN });
-    expect(second.status).toBe(200);
-    const secondHtml = await second.text();
-    expect(secondHtml).toContain("New Co");
-    expect(secondHtml).not.toContain("Old Co");
+    const stale = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(stale.status).toBe(200);
+    expect(stale.headers.get("server-timing")).not.toContain("site_page_lookup");
+    const staleHtml = await stale.text();
+    expect(staleHtml).toContain("Old Co");
+    expect(staleHtml).not.toContain("New Co");
+
+    await deleteHtmlCache(path);
+
+    const fresh = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(fresh.status).toBe(200);
+    const freshHtml = await fresh.text();
+    expect(freshHtml).toContain("New Co");
+    expect(freshHtml).not.toContain("Old Co");
   });
 });

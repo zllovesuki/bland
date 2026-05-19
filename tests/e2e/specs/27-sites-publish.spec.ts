@@ -80,7 +80,7 @@ async function retitlePage(page: PlaywrightPage, workspaceSlug: string, pageId: 
 }
 
 test.describe("sites - publish flow", () => {
-  test("owner publishes a page, visits subdomain, retitles, then unpublishes to 404", async ({
+  test("owner publishes pages and cached public HTML can remain stale until TTL", async ({
     authenticatedPage: { page, accessToken },
     e2eContext,
     browser,
@@ -115,13 +115,23 @@ test.describe("sites - publish flow", () => {
       await expect(anonPage.locator("h1.site-title")).toHaveText("Sub Page");
       await expect(anonPage.locator(".tiptap")).toContainText("Sub page body content here.");
 
-      // Retitle the subpage; the public URL slug-canonicalizes via 308.
+      // Retitle the subpage. Previously cached public HTML is allowed to stay
+      // stale until the internal Sites cache TTL expires.
       await retitlePage(page, workspace.workspaceSlug, subpage.pageId, "Renamed Page");
-      const renamedRes = await anonPage.request.get(subUrl, { maxRedirects: 0 });
-      expect(renamedRes.status()).toBe(308);
-      expect(renamedRes.headers()["location"]).toContain(`/renamed-page-${subpagePublicId}`);
+      const staleRenamedRes = await anonPage.request.get(subUrl, { maxRedirects: 0 });
+      expect(staleRenamedRes.status()).toBe(200);
+      const staleRenamedHtml = await staleRenamedRes.text();
+      expect(staleRenamedHtml).toContain("Sub Page");
+      expect(staleRenamedHtml).toContain("Sub page body content here.");
 
-      // Unpublishing the subpage makes the canonical URL 404.
+      const uncachedRenamedRes = await anonPage.request.get(
+        `${siteOrigin(e2eContext.baseUrl, slug)}/stale-sub-page-${subpagePublicId}`,
+        { maxRedirects: 0 },
+      );
+      expect(uncachedRenamedRes.status()).toBe(308);
+      expect(uncachedRenamedRes.headers()["location"]).toContain(`/renamed-page-${subpagePublicId}`);
+
+      // Unpublishing the subpage makes an uncached canonical URL 404.
       await unpublishPage(page.request, accessToken, workspace.workspaceId, subpage.pageId);
       const goneRes = await anonPage.request.get(
         `${siteOrigin(e2eContext.baseUrl, slug)}/renamed-page-${subpagePublicId}`,
@@ -132,9 +142,14 @@ test.describe("sites - publish flow", () => {
       const stillHome = await anonPage.request.get(homeUrl);
       expect(stillHome.status()).toBe(200);
 
-      // Disabling the site (unpublishing the workspace) takes the home offline.
+      // Disabling the site can still leave previously cached HTML visible, but
+      // uncached public URLs fail closed.
       await patchSite(page.request, accessToken, workspace.workspaceId, { published: false });
-      const offline = await anonPage.request.get(homeUrl);
+      const staleHome = await anonPage.request.get(homeUrl);
+      expect(staleHome.status()).toBe(200);
+      const offline = await anonPage.request.get(
+        `${siteOrigin(e2eContext.baseUrl, slug)}/uncached-${home.pageId.toLowerCase()}`,
+      );
       expect(offline.status()).toBe(404);
     } finally {
       await anonContext.close();

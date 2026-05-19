@@ -6,6 +6,7 @@ import {
 import type { ResolvedPublishedPage, ResolvedSite } from "@/worker/lib/published-pages";
 
 const SITES_CACHE_NAME = "sites:v1";
+const SITES_HTML_CACHE_TAG = "sites-html";
 
 export type { SitePmJsonEnvelope };
 
@@ -15,14 +16,21 @@ export async function getSitesCache(): Promise<Cache> {
 
 /**
  * Cache API key. Carries the visitor's host and path, drops visitor query
- * params, and appends the pre-render HTML revision. Visitors never see this
- * URL.
+ * params, and normalizes the method. Visitors never see this URL.
  */
-export function buildSiteCacheKey(request: Request, revision: string): Request {
+export function buildSiteCacheKey(request: Request): Request {
   const original = new URL(request.url);
   const normalized = new URL(`${original.protocol}//${original.host}${original.pathname}`);
-  normalized.searchParams.set("rev", revision);
   return new Request(normalized.toString(), { method: "GET" });
+}
+
+export function buildSiteCacheTags(
+  site: Pick<ResolvedSite, "workspace_id">,
+  page: Pick<ResolvedPublishedPage, "id" | "published_root_id">,
+): string {
+  return [SITES_HTML_CACHE_TAG, `site:${site.workspace_id}`, `page:${page.id}`, `root:${page.published_root_id}`].join(
+    ",",
+  );
 }
 
 export function getSitesRendererVersion(env: Pick<Env, "CF_VERSION_METADATA">): string {

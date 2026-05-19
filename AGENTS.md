@@ -228,9 +228,11 @@ making it the default.
   unexpected errors.
 - Sites host dispatch must run before `/api`, `/uploads`, assets, and SPA shell
   routing. Public site hosts own every path under that host.
-- Public page and asset serving must resolve D1 publication state before Cache
-  API or R2 reads. Stale cache is acceptable only when D1 still says content is
-  published and reachable.
+- Public Sites HTML may serve request-keyed Cache API hits before D1 and can be
+  stale for the bounded internal TTL documented in
+  `docs/sites-cache-performance-research.md`. Do not cache redirects or 404s.
+- Public Sites assets remain D1-first: gate by the requested page, upload
+  ownership, site publication, and published-set reachability before R2 reads.
 - Sites rendering uses the Worker-safe editor schema and Sites static renderer,
   never client editor modules.
 - Sites mention rendering must pre-resolve mentions for the current published
