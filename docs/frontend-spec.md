@@ -1,6 +1,6 @@
 # Frontend Specification
 
-Canonical standard for: **anvil**, **flamemail**, **git-on-cloudflare**
+Canonical standard for: **anvil**, **flamemail**, **git-on-cloudflare**, **tres**, **tessera**
 
 This document defines the shared frontend conventions that all projects **must** follow.
 Per-project deviations are called out explicitly; everything else is universal.
@@ -9,20 +9,24 @@ Per-project deviations are called out explicitly; everything else is universal.
 
 ## 1. Core Stack
 
-| Layer         | Choice                   | Version                       |
-| ------------- | ------------------------ | ----------------------------- |
-| UI Framework  | React                    | `^19.x`                       |
-| Build Tool    | Vite                     | `^7.x`                        |
-| CSS Framework | Tailwind CSS             | `v4.x` (CSS-native config)    |
-| Icons         | lucide-react             | `^0.542+`                     |
-| Language      | TypeScript (strict mode) | `^5.9+`                       |
-| Deploy Target | Cloudflare Workers       | via `@cloudflare/vite-plugin` |
+| Layer         | Choice                   | Version                           |
+| ------------- | ------------------------ | --------------------------------- |
+| UI Framework  | React                    | `^19.x`                           |
+| Compiler      | React Compiler           | via `babel-plugin-react-compiler` |
+| Server State  | TanStack Query           | `^5.x` when server state exists   |
+| Build Tool    | Vite                     | `^8.x`                            |
+| CSS Framework | Tailwind CSS             | `v4.x` (CSS-native config)        |
+| Icons         | lucide-react             | `^0.542+`                         |
+| Language      | TypeScript (strict mode) | `^6.x`                            |
+| Deploy Target | Cloudflare Workers       | via `@cloudflare/vite-plugin`     |
 
 ### Vite Plugins (always present)
 
 1. `@tailwindcss/vite` -- Tailwind CSS v4 native integration (**no** PostCSS config)
 2. `@vitejs/plugin-react` -- React JSX transform + Fast Refresh
 3. `@cloudflare/vite-plugin` -- Cloudflare Workers build + dev
+
+React Compiler is a baseline application convention. Vite apps using `@vitejs/plugin-react` add `@rolldown/plugin-babel` and `babel-plugin-react-compiler`, then wire the compiler through `reactCompilerPreset()` from `@vitejs/plugin-react`. Keep the actual plugin array in each project's config where plugin ordering and Worker settings are visible. Routing is app-specific.
 
 ### Path Alias
 
@@ -45,16 +49,23 @@ resolve: {
 ```json
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "paths": { "@/*": ["./src/*"] }
   }
 }
 ```
@@ -62,6 +73,27 @@ resolve: {
 - Bundler module resolution (Vite-compatible)
 - `react-jsx` automatic runtime (no `import React` needed)
 - `noEmit` -- Vite handles transpilation; TypeScript is type-checking only
+- `verbatimModuleSyntax` -- import/export type syntax is preserved; pairs with `isolatedModules`
+- `noUnusedLocals` / `noUnusedParameters` -- catch dead code at type-check time
+- Projects with Worker code in the same `tsc` pass should add `"WebWorker"` to `lib` (the example above is client-only)
+
+### React Compiler Compatibility
+
+All React code must stay compatible with React Compiler:
+
+- Keep component render functions pure; no render-time mutation of refs, module state, props, or external objects.
+- Derive values during render instead of mirroring props or server data into local state with `useEffect`.
+- Keep `useRef` for imperative handles, DOM nodes, timers, sockets, streams, and other values that do not drive render output.
+- Before changing an Effect, classify why each line runs: user interactions belong in event handlers, synchronization belongs in Effects, and only the non-reactive part of an Effect belongs in an Effect Event.
+- Use `useEffectEvent` for effect-owned subscriptions, event listeners, timers, external widget callbacks, analytics, cleanup callbacks, and event streams that need the latest callback or state without stale closures.
+- Keep genuinely reactive values in Effect dependency arrays. Use Effect Events only for logic that should read the latest values without re-running Effect setup.
+- Pass values that define the event from the Effect into the Effect Event as arguments, especially across delays.
+- Do not pass Effect Events to children or unrelated hooks, call them from render or regular UI event handlers, include them in dependency arrays, or use them to hide missing dependencies.
+- Prefer simple component extraction over hand-written `useMemo` / `useCallback`; add memoization only when it protects expensive work or stable identity across a real boundary.
+- Enable `eslint-plugin-react-hooks` recommended-latest coverage in app repos so compiler compatibility warnings are visible before build.
+- Do not disable compiler or hooks lint rules by default. A narrow disable is allowed only for a proven false positive or unsupported integration boundary, and the reason must be documented next to the disable.
+
+Compiler-enabled projects validate in layers: run the lint script with `eslint-plugin-react-hooks` recommended-latest enabled, run TypeScript typecheck, then run the production build to verify the compiler integration path.
 
 ---
 
@@ -72,10 +104,10 @@ resolve: {
 ```
 src/
   client/
-    main.tsx                  # React entry: createRoot
-    app.tsx                   # Route definitions only (react-router-dom Routes)
+    main.tsx                  # React entry: createRoot + providers
+    app.tsx                   # App composition: providers + project router
     components/
-      app-shell.tsx           # Header + <Outlet /> + Footer + ToastContainer
+      app-shell.tsx           # Header + routed content + Footer + ToastContainer
       header.tsx              # Standalone Header component
       footer.tsx              # Standalone Footer component
       toast.tsx               # Toast system (module-level singleton + ToastContainer)
@@ -382,16 +414,25 @@ Hover states inside elevated surfaces use `zinc-700` (`#423f42`). Resting intera
 
 Every project defines its accent as `accent-*` via `@theme`. **Never** use project-specific names (e.g., ~~`flame-*`~~) or raw Tailwind color names (e.g., ~~`indigo-*`~~) for the accent. This ensures that shell components, buttons, nav links, and all accent-referencing classes are identical across projects.
 
-| Project           | Accent-500 (primary) | Hue Family    |
-| ----------------- | -------------------- | ------------- |
-| anvil             | `#3b82f6`            | Blue          |
-| bland             | `#9d6ee8`            | Warm amethyst |
-| flamemail         | `#f97316`            | Orange        |
-| git-on-cloudflare | `#6366f1`            | Indigo        |
+| Project           | Accent-500 (primary) | Hue Family     | Hue (HSL) |
+| ----------------- | -------------------- | -------------- | --------- |
+| anvil             | `#3392ee`            | Blue           | ~210°     |
+| bland             | `#9d6ee8`            | Warm amethyst  | ~263°     |
+| ccccocc           | `#c96f7a`            | Muted rose     | ~352°     |
+| flamemail         | `#f97316`            | Orange         | ~25°      |
+| git-on-cloudflare | `#6366f1`            | Indigo         | ~239°     |
+| mdump             | `#14b8a6`            | Teal           | ~173°     |
+| sieve             | `#9bc11d`            | Lime           | ~74°      |
+| tessera           | `#c89738`            | Burnished gold | ~40°      |
+| tres              | `#15a558`            | Forest green   | ~148°     |
 
 The accent palette follows a 50-900 scale identical in structure to Tailwind's built-in color scales.
 
-**Choosing accent colors**: Avoid stock Tailwind palette values (especially `violet-500` / `#8b5cf6`) — they are the most recognizable AI-generated color choice. Pick a custom hue that is clearly distinct from any Tailwind default. If using violet/purple, shift the hue warmer (toward 270-278) and reduce saturation from Tailwind's 90% to ~70-75% for a more sophisticated, less electric feel.
+**Choosing accent colors for a new project**: this table is the source of truth for what hues are already in use across the suite. Pick a hue family at least ~30° away from every entry above so the new project reads as visually distinct alongside its siblings (the open ranges as of this writing: yellow-green ~105-118° and magenta ~293-323°). Then:
+
+- Avoid stock Tailwind palette values (especially `violet-500` / `#8b5cf6`) — they are the most recognizable AI-generated color choice. Pick a custom hue that is clearly distinct from any Tailwind default.
+- If using violet/purple, shift the hue warmer (toward 270-278) and reduce saturation from Tailwind's 90% to ~70-75% for a more sophisticated, less electric feel.
+- Once chosen, add a row to this table in the same PR so the next project doesn't collide.
 
 ### Accent Color Application Pattern
 
@@ -439,7 +480,7 @@ The limic ecosystem uses `Hanken Grotesk` and `JetBrains Mono` as the shared bas
 
 However, to give each app its distinctive aesthetic, **you are heavily encouraged to pair a bold, characterful Display font** for primary headings (`<h1>`, `<h2>`, hero text) alongside the refined `Hanken Grotesk` body font. Consider unconventional choices that elevate the visual interest (e.g., striking serifs, geometric displays, or brutalist grotesques).
 
-Loaded via Google Fonts `<link>` tags with `preconnect`:
+Required fonts:
 
 | Font                  | Weights                   | Usage                                      |
 | --------------------- | ------------------------- | ------------------------------------------ |
@@ -448,6 +489,16 @@ Loaded via Google Fonts `<link>` tags with `preconnect`:
 | **[Project Display]** | _as needed_               | High-impact headings (Display, H1, Heroes) |
 
 Load body fonts with variable font range syntax (e.g., `wght@400..700`) instead of discrete weights. This enables `font-weight: 450` for body text — slightly heavier than regular (400) to counteract halation on dark backgrounds. The 450 weight is set on `<body>` and cascades everywhere that doesn't specify an explicit weight.
+
+### Loader
+
+Default to Google Fonts via `<link>` tags with `preconnect`, as shown below. Self-host via the `@fontsource/*` packages (e.g. `@fontsource/hanken-grotesk`, `@fontsource/jetbrains-mono`) when any of the following apply:
+
+- **PWA / offline-first**: fonts must be available without a network round-trip.
+- **Security / threat model**: avoiding third-party CDN dependency for tighter CSP, no `Referer` leak to `fonts.googleapis.com` — required for auth providers, identity flows, and anything handling credentials.
+- **Operational**: any app whose deployment story requires zero third-party hot-paths.
+
+When self-hosting, install per-font packages and import them at the top of `client/styles/app.css` (before `@import "tailwindcss"`). The same family names in `--font-sans` / `--font-mono` will resolve to the bundled assets.
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -567,7 +618,7 @@ Skeleton: bg-gradient-to-r from-zinc-800/0 via-zinc-700/40 to-zinc-800/0 bg-[len
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{project name}</title>
-    <!-- Google Fonts -->
+    <!-- Fonts: see Section 5 (Google Fonts <link> or @fontsource) -->
   </head>
   <body class="bg-canvas text-zinc-100">
     <div id="root"></div>
@@ -587,7 +638,7 @@ Every project has an `app-shell.tsx` that renders:
   <Header />
   <main>
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <div className="animate-slide-up">{/* SPA: <Outlet /> | SSR: {children} */}</div>
+      <div className="animate-slide-up">{/* routed page content */}</div>
     </div>
   </main>
   <Footer />
@@ -595,7 +646,7 @@ Every project has an `app-shell.tsx` that renders:
 </div>
 ```
 
-- **SPA projects** use `<Outlet />` from `react-router-dom` for nested routes.
+- **SPA projects** render the active route content selected by that project's router.
 - **SSR projects** accept `{children}` as a prop.
 - The `<Header />` and `<Footer />` are **always** standalone files, never inlined.
 
@@ -635,7 +686,7 @@ Every project's header brand follows the same structure. The icon is a lucide-re
 
 ### Footer (`footer.tsx`)
 
-- **Spacing**: `mt-12 border-t border-zinc-800/60`
+- **Spacing**: `border-t border-zinc-800/60`
 - **Content**: two items only
   1. "Made with [heart] on Cloudflare" — the entire phrase wrapped in a single `<a>` linking to `https://limic.dev` (no separate Cloudflare-corporate link, no plain-text variant)
   2. Source code link → the project's repository on `git.limic.dev`
@@ -675,7 +726,7 @@ Every project must have a `components/ui/` directory with at least these compone
 Variants: `primary`, `secondary`, `danger`, `ghost`. Sizes: `sm`, `md`.
 
 ```
-Primary:   bg-accent-600 text-white hover:bg-accent-500 active:scale-[0.98] transition-all
+Primary:   bg-accent-600 text-white hover:bg-accent-500 active:scale-[0.98] transition-[background-color,transform]
 Secondary: border border-zinc-700/60 bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60 active:scale-[0.98] transition-transform
 Danger:    border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 active:scale-[0.98] transition-transform
 Ghost:     text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100 active:scale-[0.97] transition-transform
@@ -742,14 +793,13 @@ The `ring-offset-canvas` matches the page background, creating a gap between the
 
 Two rendering approaches are supported. The rendering model is a **per-project architectural choice** -- they share the same visual design and component structure regardless.
 
-### Client-Side SPA (anvil, flamemail)
+### Client-Side SPA (anvil, flamemail, etc)
 
-- `react-router-dom` for client-side routing
 - Static `index.html` with `<div id="root">`
 - `ReactDOM.createRoot` in `main.tsx`
-- `BrowserRouter` wraps the app
-- Routes defined in `app.tsx` using `<Routes>` / `<Route>`
-- `app-shell.tsx` uses `<Outlet />` for nested route rendering
+- Router choice is app-specific and should match the project's route complexity, search-param needs, and data-loading model
+- `app.tsx` owns app composition: providers, router setup, and route registration
+- `app-shell.tsx` wraps the active route content with shared chrome
 
 ### Server-Side Rendering + Islands (git-on-cloudflare)
 
@@ -770,49 +820,48 @@ Two rendering approaches are supported. The rendering model is a **per-project a
 ```tsx
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 import { App } from "@/client/app";
 import "@/client/styles/app.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <App />
   </StrictMode>,
 );
 ```
 
-Context providers (auth, toast, etc.) wrap inside `<StrictMode>` as needed.
+Context providers (query client, auth, toast, etc.) wrap inside `<StrictMode>` as needed.
 
 ### `app.tsx`
 
-Contains **only** route definitions. No layout, no state, no component logic.
+Contains **only** app composition: providers, router setup, and route registration. Keep page logic in `pages/`, route files, or feature components.
 
 ```tsx
-import { Route, Routes } from "react-router-dom";
 import { AppShell } from "@/client/components/app-shell";
-import { HomePage, AboutPage, NotFoundPage } from "@/client/pages";
+import { HomePage } from "@/client/pages";
 
-export const App = () => (
-  <Routes>
-    <Route element={<AppShell />}>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Route>
-  </Routes>
-);
+export function App() {
+  return (
+    <AppShell>
+      <HomePage />
+    </AppShell>
+  );
+}
 ```
 
 ---
 
 ## 11. State Management
 
-- **No external state libraries** -- all projects use React built-in primitives:
-  - `useState`, `useCallback`, `useRef`, `useEffect`
-- Custom hooks encapsulate domain logic (e.g., `useInbox`, `useWebSocket`, `useCountdown`)
-- Local state preferred; global state only via module-level singletons (toast) or context
+- React built-in primitives are the default for UI state:
+  - `useState`, `useCallback`, `useRef`, `useEffect`, `useTransition`, `useDeferredValue`
+- TanStack Query is the standard for server state when a project fetches, caches, refreshes, paginates, or mutates data from an API.
+- Prefer `queryOptions` helpers and hierarchical query keys for shared list/detail/run/webhook data.
+- Query functions must accept and pass through the provided `AbortSignal` to `fetch` for automatic cancellation.
+- Use `useMutation` for writes and invalidate or update the exact related query keys on success.
+- Use `useInfiniteQuery` for cursor pagination and `refetchInterval` for polling that exists only to keep server state fresh.
+- Do not move real UI state into TanStack Query: draft form values, open/closed state, active menus, toasts, theme preference, and in-progress stream append buffers stay local.
+- Custom hooks encapsulate domain logic (e.g., `useInbox`, `useWebSocket`, `useCountdown`, `useDomainScan`)
 - `localStorage` for session persistence and theme preference
 
 ---
@@ -821,8 +870,49 @@ export const App = () => (
 
 ### Formatting
 
-- **Prettier** for code formatting (`.prettierrc` + `.prettierignore`)
-- Scripts: `format` (write) and `format:check` (CI check)
+**Prettier** (`^3.x`) is the canonical formatter. Every project ships a `.prettierrc` and `.prettierignore` at the repo root.
+
+`.prettierrc`:
+
+```json
+{
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "printWidth": 120,
+  "tabWidth": 2,
+  "useTabs": false,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "jsxSingleQuote": false,
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "wrangler.jsonc",
+      "options": { "useTabs": true }
+    }
+  ]
+}
+```
+
+`.prettierignore` covers build outputs and generated files. The universal entries are:
+
+```
+dist/
+node_modules/
+.wrangler/
+```
+
+Add per-project entries for any other generated artifacts — e.g. `worker-configuration.d.ts` (from `wrangler types`), database migration directories, generated schema files.
+
+Scripts in `package.json`:
+
+```json
+"format": "prettier --write .",
+"format:check": "prettier --check ."
+```
+
+`format:check` is the CI gate. `format` is the local fix-it.
 
 ### Build Output
 
@@ -875,7 +965,7 @@ Landmarks (`<header>`, `<nav>`, `<main>`, `<footer>`, `<aside>`) must be present
 
 ### Color Contrast
 
-Contrast ratios are calculated against the lifted `canvas` background (`#1f1f22`), not `zinc-950`:
+Contrast ratios are calculated against the lifted `canvas` background (`#221f21`), not `zinc-950`:
 
 | Element                                 | Ratio on canvas | Standard                        |
 | --------------------------------------- | --------------- | ------------------------------- |
@@ -901,7 +991,7 @@ Approximately 33% of people have some degree of astigmatism. On near-black backg
 
 The limic.dev design system addresses this with three measures:
 
-1. **Lifted backgrounds**: `canvas` at `#1f1f22` instead of `zinc-950` (`#09090b`). The reduced contrast between text and background eliminates halation while maintaining a dark aesthetic.
+1. **Lifted backgrounds**: `canvas` at `#221f21` instead of `zinc-950` (`#09090b`). The reduced contrast between text and background eliminates halation while maintaining a dark aesthetic.
 2. **Heavier body weight**: `font-weight: 450` instead of 400. Thicker strokes resist the blooming effect.
 3. **Generous line-height**: 1.7+ for body text in content areas (e.g., editors, long-form reading surfaces).
 
