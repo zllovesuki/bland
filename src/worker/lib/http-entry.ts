@@ -15,7 +15,6 @@ export function isDirectAssetRequest(pathname: string): boolean {
 }
 
 export function isViteDevRuntimeAssetRequest(request: Request): boolean {
-  if (!import.meta.env.DEV) return false;
   if (request.method !== "GET" && request.method !== "HEAD") return false;
 
   const { pathname } = new URL(request.url);
@@ -30,7 +29,7 @@ export async function handleHttpRequest<TEnv extends Pick<Env, "PUBLISHED_SITE_D
 ): Promise<Response> {
   const url = new URL(request.url);
 
-  if (isViteDevRuntimeAssetRequest(request)) {
+  if (import.meta.env.DEV && isViteDevRuntimeAssetRequest(request)) {
     return deps.handleAssetRequest(request, env);
   }
 

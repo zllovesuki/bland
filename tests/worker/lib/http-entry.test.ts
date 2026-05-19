@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleHttpRequest, isDirectAssetRequest } from "@/worker/lib/http-entry";
+import { handleHttpRequest, isDirectAssetRequest, isViteDevRuntimeAssetRequest } from "@/worker/lib/http-entry";
 
 const ctx = {} as ExecutionContext;
 
@@ -17,6 +17,33 @@ describe("isDirectAssetRequest", () => {
   it("excludes html documents and route-like paths", () => {
     expect(isDirectAssetRequest("/index.html")).toBe(false);
     expect(isDirectAssetRequest("/workspace/page")).toBe(false);
+  });
+});
+
+describe("isViteDevRuntimeAssetRequest", () => {
+  it("matches Vite runtime source requests", () => {
+    expect(isViteDevRuntimeAssetRequest(new Request("http://localhost:5173/@vite/client"))).toBe(true);
+    expect(
+      isViteDevRuntimeAssetRequest(
+        new Request("http://acme.bland.localhost:5173/src/client/sites/entrypoints/browser.ts"),
+      ),
+    ).toBe(true);
+    expect(
+      isViteDevRuntimeAssetRequest(new Request("http://acme.bland.localhost:5173/node_modules/react/index.js")),
+    ).toBe(true);
+  });
+
+  it("does not route non-read requests through the asset handler", () => {
+    expect(
+      isViteDevRuntimeAssetRequest(
+        new Request("http://localhost:5173/src/client/sites/entrypoints/browser.ts", { method: "POST" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores ordinary document and asset paths", () => {
+    expect(isViteDevRuntimeAssetRequest(new Request("http://localhost:5173/workspace/page"))).toBe(false);
+    expect(isViteDevRuntimeAssetRequest(new Request("http://localhost:5173/favicon.svg"))).toBe(false);
   });
 });
 
