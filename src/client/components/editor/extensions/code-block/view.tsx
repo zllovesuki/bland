@@ -96,10 +96,10 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
             ref={(node) => {
               refs.setFloating(node);
             }}
-            className="animate-fade-in origin-top-right tiptap-menu-surface"
+            className="tiptap-menu-surface"
             role="menu"
             aria-label="Code block language"
-            style={{ ...floatingStyles, width: 160, zIndex: 50 }}
+            style={{ ...floatingStyles, width: 160, zIndex: 50, animation: "var(--animate-menu)" }}
             {...getFloatingProps({
               onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
             })}

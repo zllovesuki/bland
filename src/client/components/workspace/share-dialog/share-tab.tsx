@@ -1,5 +1,8 @@
+import { useRef } from "react";
 import { Check, ChevronDown, Copy, Link2, Loader2, Trash2, Users } from "lucide-react";
 
+import { Button } from "@/client/components/ui/button";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
 import { deriveShareDialogRowAffordance } from "@/client/lib/affordance/share-dialog";
 import type { PageShare } from "@/shared/types";
@@ -38,6 +41,7 @@ export function SharePeopleSection() {
     setPeopleInput,
     setPeoplePermission,
     openSuggestions,
+    dismissSuggestions,
     selectMember,
     submitPeopleShare,
   } = useSharePeople();
@@ -58,6 +62,8 @@ export function SharePeopleSection() {
       : submitGuardedByMemberMatch
         ? "Members only"
         : undefined;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsOpen = showSuggestions && filteredSuggestions.length > 0 && peopleInput.trim().length > 0;
 
   return (
     <div className="mb-3">
@@ -65,8 +71,9 @@ export function SharePeopleSection() {
         <Users className="h-3 w-3" />
         People
       </p>
-      <div className="relative mb-2 flex items-center gap-1.5">
+      <div className="mb-2 flex items-center gap-1.5">
         <input
+          ref={inputRef}
           type="text"
           placeholder={placeholder}
           aria-label={ariaLabel}
@@ -84,31 +91,40 @@ export function SharePeopleSection() {
           className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-800 py-1.5 pl-2 text-sm text-zinc-300 outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/30"
         />
         <PermissionSelect value={peoplePermission} onChange={setPeoplePermission} />
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => void submitPeopleShare()}
           disabled={submitDisabled}
           title={submitTitle}
-          className="shrink-0 rounded-md border border-zinc-700 px-2 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-50"
+          className="shrink-0"
+          loading={creating}
         >
-          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Share"}
-        </button>
-        {showSuggestions && filteredSuggestions.length > 0 && peopleInput.trim() && (
-          <div className="animate-scale-fade origin-top-left absolute left-0 top-full z-10 mt-1 max-h-32 w-full overflow-y-auto rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
-            {filteredSuggestions.map((member) => (
-              <button
-                key={member.user_id}
-                onClick={() => selectMember(member)}
-                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
-              >
-                <span className="truncate">{memberName(member)}</span>
-                {member.user?.email && member.user.name && (
-                  <span className="truncate text-zinc-500">{member.user.email}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+          Share
+        </Button>
       </div>
+      {suggestionsOpen && (
+        <DropdownPortal
+          triggerRef={inputRef}
+          align="left"
+          widthMode="match-trigger"
+          onClose={dismissSuggestions}
+          className="max-h-32 overflow-y-auto py-1"
+        >
+          {filteredSuggestions.map((member) => (
+            <button
+              key={member.user_id}
+              onClick={() => selectMember(member)}
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
+            >
+              <span className="truncate">{memberName(member)}</span>
+              {member.user?.email && member.user.name && (
+                <span className="truncate text-zinc-500">{member.user.email}</span>
+              )}
+            </button>
+          ))}
+        </DropdownPortal>
+      )}
       {userShares.length > 0 ? (
         <div className="space-y-1">
           {userShares.map((share) => (
@@ -214,15 +230,17 @@ function ShareUserRow({
         <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">{share.permission}</span>
       </div>
       {isActionVisible(rowAffordance.revoke) && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
           onClick={onDelete}
           disabled={!isActionEnabled(rowAffordance.revoke)}
           title={rowAffordance.revoke.kind === "disabled" ? rowAffordance.revoke.reason : undefined}
-          className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400 disabled:opacity-50"
           aria-label="Remove share"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+          icon={<Trash2 className="h-3.5 w-3.5" />}
+          className="hover:text-red-400"
+        />
       )}
     </div>
   );
@@ -261,28 +279,33 @@ function ShareLinkRow({
       </div>
       <div className="flex items-center gap-1">
         {isActionVisible(rowAffordance.copyLink) && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
             onClick={onCopy}
-            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-zinc-300"
             aria-label="Copy link"
-          >
-            {copiedId === share.id ? (
-              <Check className="h-3.5 w-3.5 text-green-400" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-          </button>
+            icon={
+              copiedId === share.id ? (
+                <Check className="h-3.5 w-3.5 text-green-400" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )
+            }
+          />
         )}
         {isActionVisible(rowAffordance.revoke) && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
             onClick={onDelete}
             disabled={!isActionEnabled(rowAffordance.revoke)}
             title={rowAffordance.revoke.kind === "disabled" ? rowAffordance.revoke.reason : undefined}
-            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-700 hover:text-red-400 disabled:opacity-50"
             aria-label="Remove link"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            className="hover:text-red-400"
+          />
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { SmilePlus, X } from "lucide-react";
-import { useClickOutside } from "@/client/hooks/use-click-outside";
+import { Button } from "@/client/components/ui/button";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
@@ -16,18 +17,14 @@ export function IconPicker({
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-  useClickOutside(
-    panelRef,
-    useCallback(() => setOpen(false), []),
-    open,
-  );
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="relative">
+    <>
       {currentIcon ? (
         <div className="group/icon flex items-center gap-0.5">
           <button
+            ref={triggerRef}
             onClick={() => setOpen((o) => !o)}
             disabled={disabled}
             title={title}
@@ -43,34 +40,42 @@ export function IconPicker({
             }}
             disabled={disabled}
             title={title}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-colors hover:bg-zinc-800 hover:text-zinc-300 group-hover/icon:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition hover:bg-zinc-700 hover:text-zinc-100 group-hover/icon:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Remove icon"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       ) : (
-        <button
+        <Button
+          ref={triggerRef}
+          variant="subtle"
+          size="xs"
           onClick={() => setOpen((o) => !o)}
           disabled={disabled}
           title={title}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+          icon={<SmilePlus className="h-4 w-4" />}
         >
-          <SmilePlus className="h-4 w-4" />
-          <span className="opacity-60 transition-opacity group-hover:opacity-100">Add icon</span>
-        </button>
+          Add icon
+        </Button>
       )}
 
       {open && !disabled && (
-        <div ref={panelRef} className="absolute left-0 top-full z-30 mt-1">
+        <DropdownPortal
+          triggerRef={triggerRef}
+          align="left"
+          width={360}
+          onClose={() => setOpen(false)}
+          className="border-0 bg-transparent shadow-none"
+        >
           <EmojiPicker
             onSelect={(emoji) => {
               onSelect(emoji);
               setOpen(false);
             }}
           />
-        </div>
+        </DropdownPortal>
       )}
-    </div>
+    </>
   );
 }

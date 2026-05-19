@@ -13,7 +13,7 @@
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 16px 32px -12px rgba(0, 0, 0, 0.55),
     0 4px 8px -4px rgba(0, 0, 0, 0.4);
-  animation: scale-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: var(--animate-menu);
   transform-origin: top center;
 }
 
@@ -23,7 +23,7 @@
   border-radius: 4px;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: border-color 0.1s;
+  transition: border-color 75ms;
 }
 
 .tiptap-color-swatch:hover {

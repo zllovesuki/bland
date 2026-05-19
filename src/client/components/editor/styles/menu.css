@@ -16,7 +16,7 @@
   max-height: 320px;
   min-width: 220px;
   overflow-y: auto;
-  animation: scale-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: var(--animate-menu);
   transform-origin: top left;
 }
 
@@ -45,8 +45,8 @@
   font-size: 0.875rem;
   text-align: left;
   transition:
-    background-color 0.1s,
-    color 0.1s;
+    background-color 75ms,
+    color 75ms;
 }
 
 .tiptap-menu-item:hover:not(:disabled),

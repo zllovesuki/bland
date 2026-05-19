@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/client/components/ui/avatar";
 import { Button } from "@/client/components/ui/button";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { useCurrentWorkspace, useWorkspaceMembers, useWorkspaceRole } from "./use-workspace-view";
 import { directoryCommands } from "@/client/stores/db/workspace-directory";
 import { replicaCommands } from "@/client/stores/db/workspace-replica";
@@ -27,7 +28,6 @@ import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
 import { toast } from "@/client/components/toast-store";
-import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
@@ -108,12 +108,7 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const iconPickerRef = useRef<HTMLDivElement>(null);
-  useClickOutside(
-    iconPickerRef,
-    useCallback(() => setIconPickerOpen(false), []),
-    iconPickerOpen,
-  );
+  const iconTriggerRef = useRef<HTMLButtonElement>(null);
 
   const hasChanges = name.trim() !== workspace.name || (icon.trim() || null) !== (workspace.icon ?? null);
 
@@ -147,9 +142,10 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
           <label htmlFor="ws-name" className="mb-1 block text-sm font-medium text-zinc-400">
             Name
           </label>
-          <div className="relative flex items-center gap-2" ref={iconPickerRef}>
+          <div className="flex items-center gap-2">
             <div className="group/wsicon flex shrink-0 items-center gap-0.5">
               <button
+                ref={iconTriggerRef}
                 onClick={() => setIconPickerOpen((o) => !o)}
                 className="flex h-[38px] w-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/50 text-lg transition-colors hover:border-zinc-600"
                 aria-label={icon ? "Change icon" : "Add icon"}
@@ -159,7 +155,7 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
               {icon && (
                 <button
                   onClick={() => setIcon("")}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-300 group-hover/wsicon:opacity-100"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 opacity-0 transition hover:bg-zinc-700 hover:text-zinc-100 group-hover/wsicon:opacity-100"
                   aria-label="Remove icon"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -175,14 +171,20 @@ function ProfileSection({ workspace }: { workspace: Workspace }) {
               placeholder="Workspace name"
             />
             {iconPickerOpen && (
-              <div className="absolute left-0 top-full z-30 mt-1">
+              <DropdownPortal
+                triggerRef={iconTriggerRef}
+                align="left"
+                width={360}
+                onClose={() => setIconPickerOpen(false)}
+                className="border-0 bg-transparent shadow-none"
+              >
                 <EmojiPicker
                   onSelect={(emoji) => {
                     setIcon(emoji);
                     setIconPickerOpen(false);
                   }}
                 />
-              </div>
+              </DropdownPortal>
             )}
           </div>
         </div>
@@ -211,20 +213,12 @@ interface MembersSectionProps {
 }
 
 function MembersSection({ workspace, members, currentUser, myRole }: MembersSectionProps) {
-  const [roleDropdownId, setRoleDropdownId] = useState<string | null>(null);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
-  const roleDropdownRef = useRef<HTMLDivElement>(null);
-  useClickOutside(
-    roleDropdownRef,
-    useCallback(() => setRoleDropdownId(null), []),
-    roleDropdownId !== null,
-  );
 
   const handleRoleChange = useCallback(
     async (userId: string, newRole: string) => {
-      setRoleDropdownId(null);
       setUpdatingRole(userId);
       setMemberError(null);
       try {
@@ -275,105 +269,151 @@ function MembersSection({ workspace, members, currentUser, myRole }: MembersSect
       </h2>
       {memberError && <p className="mb-3 text-sm text-red-400">{memberError}</p>}
       <div className="space-y-2">
-        {members.map((member, memberIndex) => {
-          const user = member.user;
-          const displayName = user?.name ?? "Unknown";
-          const displayEmail = user?.email ?? "";
-          const badge = ROLE_BADGE[member.role] ?? ROLE_BADGE.member;
-          const RoleIcon = ROLE_ICON[member.role] ?? UserIcon;
-          const isSelf = member.user_id === currentUser?.id;
-          const isMemberOwner = member.role === "owner";
-          // Row-level affordance mirrors worker policy. `allowedRoles` filters
-          // the dropdown so admins don't see options the worker will reject
-          // (e.g. promote-to-admin). `canRemove` hides the delete action for
-          // admin-vs-admin and owner-target cases.
-          const allowedRoles = ASSIGNABLE_ROLES.filter(
-            (option) => option !== member.role && canChangeMemberRole(myRole, member.role, option),
-          );
-          const canChangeRole = !isSelf && allowedRoles.length > 0;
-          const canRemove = !isSelf && !isMemberOwner && canRemoveMember(myRole, member.role, false);
-
-          return (
-            <div
-              key={member.user_id}
-              className="flex items-center justify-between rounded-lg border border-zinc-800 px-4 py-3 opacity-0 animate-slide-up"
-              style={{ animationDelay: `${Math.min(memberIndex, 7) * 60}ms` }}
-            >
-              <div className="flex items-center gap-3 overflow-hidden">
-                <Avatar
-                  name={displayName}
-                  avatarUrl={user?.avatar_url}
-                  className="h-8 w-8 border border-zinc-700 text-sm"
-                />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-200">
-                    {displayName}
-                    {isSelf && <span className="ml-1 text-xs text-zinc-500">(you)</span>}
-                  </p>
-                  {displayEmail && <p className="truncate text-xs text-zinc-400">{displayEmail}</p>}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                {canChangeRole ? (
-                  <div className="relative" ref={roleDropdownId === member.user_id ? roleDropdownRef : undefined}>
-                    <button
-                      onClick={() => setRoleDropdownId(roleDropdownId === member.user_id ? null : member.user_id)}
-                      disabled={updatingRole === member.user_id}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className} transition-opacity hover:opacity-80`}
-                    >
-                      {updatingRole === member.user_id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <>
-                          {badge.label}
-                          <ChevronDown className="h-3 w-3" />
-                        </>
-                      )}
-                    </button>
-                    {roleDropdownId === member.user_id && (
-                      <div className="animate-scale-fade origin-top-right absolute right-0 top-full z-10 mt-1 w-32 rounded-lg border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
-                        {allowedRoles.map((role) => (
-                          <button
-                            key={role}
-                            onClick={() => handleRoleChange(member.user_id, role)}
-                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-400 transition-colors hover:bg-zinc-700/50 hover:text-zinc-200"
-                          >
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
-                  >
-                    <RoleIcon className="h-3 w-3" />
-                    {badge.label}
-                  </span>
-                )}
-
-                {canRemove && (
-                  <button
-                    onClick={() => handleRemoveMember(member.user_id, displayName)}
-                    disabled={removingMember === member.user_id}
-                    className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
-                    aria-label={`Remove ${displayName}`}
-                  >
-                    {removingMember === member.user_id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {members.map((member, memberIndex) => (
+          <MemberRow
+            key={member.user_id}
+            member={member}
+            memberIndex={memberIndex}
+            currentUser={currentUser}
+            myRole={myRole}
+            updatingRole={updatingRole}
+            removingMember={removingMember}
+            onRoleChange={handleRoleChange}
+            onRemove={handleRemoveMember}
+          />
+        ))}
       </div>
     </section>
+  );
+}
+
+interface MemberRowProps {
+  member: WorkspaceMember;
+  memberIndex: number;
+  currentUser: User | null;
+  myRole: ResolvedWorkspaceRole;
+  updatingRole: string | null;
+  removingMember: string | null;
+  onRoleChange: (userId: string, newRole: string) => void;
+  onRemove: (userId: string, memberName: string) => void;
+}
+
+function MemberRow({
+  member,
+  memberIndex,
+  currentUser,
+  myRole,
+  updatingRole,
+  removingMember,
+  onRoleChange,
+  onRemove,
+}: MemberRowProps) {
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const user = member.user;
+  const displayName = user?.name ?? "Unknown";
+  const displayEmail = user?.email ?? "";
+  const badge = ROLE_BADGE[member.role] ?? ROLE_BADGE.member;
+  const RoleIcon = ROLE_ICON[member.role] ?? UserIcon;
+  const isSelf = member.user_id === currentUser?.id;
+  const isMemberOwner = member.role === "owner";
+  // Row-level affordance mirrors worker policy. `allowedRoles` filters
+  // the dropdown so admins don't see options the worker will reject
+  // (e.g. promote-to-admin). `canRemove` hides the delete action for
+  // admin-vs-admin and owner-target cases.
+  const allowedRoles = ASSIGNABLE_ROLES.filter(
+    (option) => option !== member.role && canChangeMemberRole(myRole, member.role, option),
+  );
+  const canChangeRole = !isSelf && allowedRoles.length > 0;
+  const canRemove = !isSelf && !isMemberOwner && canRemoveMember(myRole, member.role, false);
+
+  return (
+    <div
+      className="flex items-center justify-between rounded-lg border border-zinc-800 px-4 py-3 opacity-0 animate-slide-up"
+      style={{ animationDelay: `${Math.min(memberIndex, 7) * 60}ms` }}
+    >
+      <div className="flex items-center gap-3 overflow-hidden">
+        <Avatar name={displayName} avatarUrl={user?.avatar_url} className="h-8 w-8 border border-zinc-700 text-sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-zinc-200">
+            {displayName}
+            {isSelf && <span className="ml-1 text-xs text-zinc-500">(you)</span>}
+          </p>
+          {displayEmail && <p className="truncate text-xs text-zinc-400">{displayEmail}</p>}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {canChangeRole ? (
+          <>
+            <button
+              ref={triggerRef}
+              onClick={() => setRoleDropdownOpen((o) => !o)}
+              disabled={updatingRole === member.user_id}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className} transition-opacity hover:opacity-80`}
+            >
+              {updatingRole === member.user_id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  {badge.label}
+                  <ChevronDown className="h-3 w-3" />
+                </>
+              )}
+            </button>
+            {roleDropdownOpen && (
+              <DropdownPortal
+                triggerRef={triggerRef}
+                align="right"
+                width={128}
+                onClose={() => setRoleDropdownOpen(false)}
+                className="py-1"
+              >
+                {allowedRoles.map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => {
+                      setRoleDropdownOpen(false);
+                      onRoleChange(member.user_id, role);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-400 transition-colors hover:bg-zinc-700/50 hover:text-zinc-200"
+                  >
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </button>
+                ))}
+              </DropdownPortal>
+            )}
+          </>
+        ) : (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+          >
+            <RoleIcon className="h-3 w-3" />
+            {badge.label}
+          </span>
+        )}
+
+        {canRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            onClick={() => onRemove(member.user_id, displayName)}
+            disabled={removingMember === member.user_id}
+            aria-label={`Remove ${displayName}`}
+            icon={
+              removingMember === member.user_id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )
+            }
+            className="hover:text-red-400"
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -461,13 +501,15 @@ function InviteSection({ workspace, isAdminOrOwner }: { workspace: Workspace; is
         {inviteLink && (
           <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2">
             <p className="min-w-0 flex-1 truncate text-xs text-zinc-400">{inviteLink}</p>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
               onClick={copyInviteLink}
-              className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:text-zinc-200"
               aria-label="Copy invite link"
-            >
-              {inviteCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
-            </button>
+              icon={inviteCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+              className="shrink-0"
+            />
           </div>
         )}
       </div>

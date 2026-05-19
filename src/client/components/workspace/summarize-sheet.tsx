@@ -56,8 +56,8 @@ function SummarySection({ summary, onRetry }: { summary: SummaryState; onRetry: 
           title={retryLabel}
           className={
             isError
-              ? "inline-flex items-center gap-1.5 rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-300 transition-colors hover:border-red-400/60 hover:bg-red-500/15 hover:text-red-200 focus-visible:border-red-400/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-60"
-              : "inline-flex items-center rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-700/60 hover:text-zinc-200 focus-visible:bg-zinc-700/60 focus-visible:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
+              ? "inline-flex items-center gap-1.5 rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-300 transition-colors hover:border-red-400/60 hover:bg-red-500/15 hover:text-red-200 focus-visible:border-red-400/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+              : "inline-flex items-center rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-700/60 hover:text-zinc-200 focus-visible:bg-zinc-700/60 focus-visible:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
           }
           data-testid="summarize-sheet-retry"
         >
@@ -181,7 +181,7 @@ function ChatComposer({
         type="submit"
         disabled={sending || input.trim().length === 0}
         aria-label="Send question (Enter)"
-        className="flex w-11 shrink-0 items-center justify-center rounded bg-accent-500 text-white transition-colors hover:bg-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-11 shrink-0 items-center justify-center rounded bg-accent-500 text-white transition-colors hover:bg-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="summarize-sheet-send"
       >
         {sending ? <Loader2 size={16} className="animate-spin" /> : <CornerDownLeft size={16} />}

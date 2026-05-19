@@ -57,7 +57,7 @@ interface PageTreeItemProps {
 const EMPTY_CHILDREN: readonly never[] = [];
 
 const MENU_ITEM_CLASS =
-  "group flex min-h-8 w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] text-left transition-[background-color,color] focus-visible:outline-none disabled:opacity-40 disabled:hover:bg-transparent";
+  "group flex min-h-8 w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] text-left transition-[background-color,color] focus-visible:outline-none disabled:opacity-50 disabled:hover:bg-transparent";
 const MENU_NEUTRAL_ITEM_CLASS =
   "text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 focus-visible:bg-zinc-700 focus-visible:text-zinc-100 disabled:hover:text-zinc-300";
 const MENU_DANGER_ITEM_CLASS =

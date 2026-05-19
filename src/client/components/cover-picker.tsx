@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Image, X, Upload } from "lucide-react";
 import { uploadFile } from "@/client/lib/uploads";
 import { toast } from "@/client/components/toast-store";
+import { Button } from "@/client/components/ui/button";
 import { Dialog } from "@/client/components/ui/dialog";
 import { UPLOAD_MIME_SET } from "@/shared/constants";
 
@@ -64,20 +65,21 @@ export function CoverPicker({
           onClick={() => setOpen(true)}
           disabled={disabled}
           title={title}
-          className="rounded-md bg-zinc-800/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition-opacity hover:bg-zinc-800 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-zinc-800/80 px-2 py-1 text-sm text-zinc-300 opacity-0 transition hover:bg-zinc-700 hover:text-zinc-100 group-hover/cover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Change cover
         </button>
       ) : (
-        <button
+        <Button
+          variant="subtle"
+          size="xs"
           onClick={() => setOpen(true)}
           disabled={disabled}
           title={title}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+          icon={<Image className="h-4 w-4" />}
         >
-          <Image className="h-4 w-4" />
-          <span className="opacity-60 transition-opacity group-hover:opacity-100">Add cover</span>
-        </button>
+          Add cover
+        </Button>
       )}
 
       <Dialog
@@ -92,24 +94,26 @@ export function CoverPicker({
           </h2>
           <div className="flex items-center gap-2">
             {currentCover && (
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => {
                   onSelect(null);
                   setOpen(false);
                 }}
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+                icon={<X className="h-3 w-3" />}
               >
-                <X className="h-3 w-3" />
                 Remove
-              </button>
+              </Button>
             )}
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
               onClick={() => setOpen(false)}
               aria-label="Close"
-              className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-            >
-              <X className="h-4 w-4" />
-            </button>
+              icon={<X className="h-4 w-4" />}
+            />
           </div>
         </div>
 
@@ -123,7 +127,7 @@ export function CoverPicker({
                   onSelect(gradient);
                   setOpen(false);
                 }}
-                className={`h-12 rounded-md hover:ring-2 hover:ring-accent-500 ${
+                className={`h-12 rounded-md transition hover:ring-2 hover:ring-accent-500 ${
                   currentCover === gradient ? "ring-2 ring-accent-500" : ""
                 }`}
                 style={{ background: gradient }}

@@ -175,7 +175,7 @@ export function TableMenu() {
         role="menu"
         aria-orientation="vertical"
         className="tiptap-menu-surface tiptap-table-menu"
-        style={{ ...floatingStyles, zIndex: 60 }}
+        style={{ ...floatingStyles, zIndex: 60, animation: "var(--animate-menu)" }}
         {...getFloatingProps({
           onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
         })}

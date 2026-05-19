@@ -5,11 +5,11 @@ import { useCurrentWorkspace, useWorkspaceRole } from "@/client/components/works
 import { useMemberWorkspaces } from "@/client/stores/workspace-directory";
 import { directoryCommands } from "@/client/stores/db/workspace-directory";
 import { replicaCommands } from "@/client/stores/db/workspace-replica";
-import { useClickOutside } from "@/client/hooks/use-click-outside";
 import { useCreateWorkspace } from "@/client/hooks/use-create-workspace";
 import { api } from "@/client/lib/api";
 import { slugify } from "@/lib/slugify";
 import { toast } from "@/client/components/toast-store";
+import { DropdownPortal } from "@/client/components/ui/dropdown-portal";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 
 export function WorkspaceSwitcher() {
@@ -23,19 +23,15 @@ export function WorkspaceSwitcher() {
   const [createSlug, setCreateSlug] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [renameName, setRenameName] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const { createWorkspace, isCreating: creatingWs } = useCreateWorkspace();
 
-  useClickOutside(
-    dropdownRef,
-    useCallback(() => {
-      setDropdownOpen(false);
-      setShowCreateForm(false);
-      setRenaming(false);
-    }, []),
-    dropdownOpen,
-  );
+  const handleClose = useCallback(() => {
+    setDropdownOpen(false);
+    setShowCreateForm(false);
+    setRenaming(false);
+  }, []);
 
   const handleRename = useCallback(async () => {
     if (!currentWorkspace || !renameName.trim()) return;
@@ -52,9 +48,10 @@ export function WorkspaceSwitcher() {
   }, [currentWorkspace, renameName]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <>
       <div className="flex h-10 items-center border-b border-zinc-800/60 px-1.5">
         <button
+          ref={triggerRef}
           onClick={() => setDropdownOpen((o) => !o)}
           aria-expanded={dropdownOpen}
           className={`group flex h-8 min-w-0 flex-1 items-center justify-between rounded-md border px-3 pr-3 transition-[background-color,border-color,color] ${
@@ -80,7 +77,14 @@ export function WorkspaceSwitcher() {
       </div>
 
       {dropdownOpen && (
-        <div className="animate-scale-fade origin-top-left absolute left-0 right-0 top-10 z-20 overflow-hidden rounded-xl border border-zinc-700/80 bg-[color:oklch(0.29_0.008_18)] shadow-[0_20px_45px_rgba(0,0,0,0.38)]">
+        <DropdownPortal
+          triggerRef={triggerRef}
+          align="left"
+          widthMode="match-trigger"
+          zIndex={90}
+          onClose={handleClose}
+          className="overflow-hidden rounded-xl border-zinc-700/80 bg-[color:oklch(0.29_0.008_18)] shadow-[0_20px_45px_rgba(0,0,0,0.38)]"
+        >
           <div className="max-h-48 overflow-y-auto p-1">
             {workspaces.map((ws) => (
               <div key={ws.id} className="group relative">
@@ -210,8 +214,8 @@ export function WorkspaceSwitcher() {
               </button>
             )}
           </div>
-        </div>
+        </DropdownPortal>
       )}
-    </div>
+    </>
   );
 }

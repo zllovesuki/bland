@@ -14,6 +14,7 @@ import {
 import { ExternalLink, Pencil, Unlink, Check, X } from "lucide-react";
 import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRectPopover } from "./menu/popover";
+import { ToolbarButton } from "./toolbar-button";
 import "../styles/floating-controls.css";
 import "../styles/link-toolbar.css";
 
@@ -211,67 +212,27 @@ export function LinkToolbar() {
               className="tiptap-link-input"
               autoFocus
             />
-            <button
-              type="button"
-              title="Save"
-              aria-label="Save"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSave();
-              }}
-            >
+            <ToolbarButton title="Save" onActivate={handleSave}>
               <Check size={14} />
-            </button>
-            <button
-              type="button"
-              title="Cancel"
-              aria-label="Cancel"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setEditing(false);
-              }}
-            >
+            </ToolbarButton>
+            <ToolbarButton title="Cancel" onActivate={() => setEditing(false)}>
               <X size={14} />
-            </button>
+            </ToolbarButton>
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
             <span className="tiptap-link-url" title={link.href}>
               {link.href}
             </span>
-            <button
-              type="button"
-              title="Edit link"
-              aria-label="Edit link"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleEdit();
-              }}
-            >
+            <ToolbarButton title="Edit link" onActivate={handleEdit}>
               <Pencil size={14} />
-            </button>
-            <button
-              type="button"
-              title="Open link"
-              aria-label="Open link"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleOpen();
-              }}
-            >
+            </ToolbarButton>
+            <ToolbarButton title="Open link" onActivate={handleOpen}>
               <ExternalLink size={14} />
-            </button>
-            <button
-              type="button"
-              title="Remove link"
-              aria-label="Remove link"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleRemove();
-              }}
-            >
+            </ToolbarButton>
+            <ToolbarButton title="Remove link" onActivate={handleRemove}>
               <Unlink size={14} />
-            </button>
+            </ToolbarButton>
           </div>
         )}
       </div>

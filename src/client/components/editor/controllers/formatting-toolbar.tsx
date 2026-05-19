@@ -26,6 +26,7 @@ import { TEXT_COLORS, BG_COLORS } from "./colors";
 import { shouldShowFormattingToolbar } from "./formatting-toolbar-state";
 import { AiMenuPanel } from "./ai-menu";
 import { runRewrite } from "./ai-rewrite";
+import { ToolbarButton } from "./toolbar-button";
 import { getAiBusyReason } from "../lib/ai-busy";
 import { useEditorAffordance } from "../editor-affordance-context";
 import { useEditorRuntime } from "../editor-runtime-context";
@@ -125,224 +126,129 @@ export function FormattingToolbar() {
               placeholder="https://..."
               className="tiptap-link-input"
             />
-            <button
-              type="button"
-              title="Apply"
-              aria-label="Apply"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleLinkSubmit();
-              }}
-            >
+            <ToolbarButton title="Apply" onActivate={handleLinkSubmit}>
               <Check size={14} />
-            </button>
-            <button
-              type="button"
-              title="Cancel"
-              aria-label="Cancel"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleLinkCancel();
-              }}
-            >
+            </ToolbarButton>
+            <ToolbarButton title="Cancel" onActivate={handleLinkCancel}>
               <X size={14} />
-            </button>
+            </ToolbarButton>
           </div>
         ) : (
           <>
-            <button
-              type="button"
+            <ToolbarButton
               title="Bold"
-              aria-label="Bold"
-              className={editorState.isBold ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).toggleBold().run();
-              }}
+              active={editorState.isBold}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).toggleBold().run()}
             >
               <Bold size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Italic"
-              aria-label="Italic"
-              className={editorState.isItalic ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).toggleItalic().run();
-              }}
+              active={editorState.isItalic}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).toggleItalic().run()}
             >
               <Italic size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Underline"
-              aria-label="Underline"
-              className={editorState.isUnderline ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).toggleUnderline().run();
-              }}
+              active={editorState.isUnderline}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).toggleUnderline().run()}
             >
               <Underline size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Strikethrough"
-              aria-label="Strikethrough"
-              className={editorState.isStrike ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).toggleStrike().run();
-              }}
+              active={editorState.isStrike}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).toggleStrike().run()}
             >
               <Strikethrough size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Code"
-              aria-label="Code"
-              className={editorState.isCode ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).toggleCode().run();
-              }}
+              active={editorState.isCode}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).toggleCode().run()}
             >
               <Code size={16} />
-            </button>
-            <button
-              type="button"
-              title="Link"
-              aria-label="Link"
-              className={editorState.isLink ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleLinkToggle();
-              }}
-            >
+            </ToolbarButton>
+            <ToolbarButton title="Link" active={editorState.isLink} onActivate={handleLinkToggle}>
               <Link size={16} />
-            </button>
+            </ToolbarButton>
 
             <div className="tiptap-toolbar-sep" />
 
-            <button
+            <ToolbarButton
               ref={textColorRef}
-              type="button"
               title="Text color"
-              aria-label="Text color"
-              className={editorState.textColor ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setColorPanel(colorPanel === "text" ? null : "text");
-              }}
+              active={Boolean(editorState.textColor)}
+              onActivate={() => setColorPanel(colorPanel === "text" ? null : "text")}
             >
               <Baseline size={16} style={editorState.textColor ? { color: editorState.textColor } : undefined} />
-            </button>
-            <button
+            </ToolbarButton>
+            <ToolbarButton
               ref={highlightRef}
-              type="button"
               title="Highlight"
-              aria-label="Highlight"
-              className={editorState.bgColor ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setColorPanel(colorPanel === "highlight" ? null : "highlight");
-              }}
+              active={Boolean(editorState.bgColor)}
+              onActivate={() => setColorPanel(colorPanel === "highlight" ? null : "highlight")}
             >
               <Highlighter size={16} style={editorState.bgColor ? { color: editorState.bgColor } : undefined} />
-            </button>
+            </ToolbarButton>
 
             <div className="tiptap-toolbar-sep" />
 
-            <button
-              type="button"
+            <ToolbarButton
               title="Align left"
-              aria-label="Align left"
-              className={!editorState.isAlignCenter && !editorState.isAlignRight ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("left").run();
-              }}
+              active={!editorState.isAlignCenter && !editorState.isAlignRight}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("left").run()}
             >
               <AlignLeft size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Align center"
-              aria-label="Align center"
-              className={editorState.isAlignCenter ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("center").run();
-              }}
+              active={editorState.isAlignCenter}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("center").run()}
             >
               <AlignCenter size={16} />
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
               title="Align right"
-              aria-label="Align right"
-              className={editorState.isAlignRight ? "is-active" : undefined}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("right").run();
-              }}
+              active={editorState.isAlignRight}
+              onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).setTextAlign("right").run()}
             >
               <AlignRight size={16} />
-            </button>
+            </ToolbarButton>
 
             {affordance.canUseAiRewrite ? (
               <>
                 <div className="tiptap-toolbar-sep" />
-                <button
+                <ToolbarButton
                   ref={aiButtonRef}
-                  type="button"
                   title={editorState.aiBlockedReason ?? "AI actions"}
-                  aria-label="AI actions"
-                  aria-disabled={editorState.aiBlockedReason ? true : undefined}
                   disabled={Boolean(editorState.aiBlockedReason)}
-                  className={effectiveAiMenuOpen ? "is-active" : undefined}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (editorState.aiBlockedReason) return;
-                    setAiMenuOpen((prev) => !prev);
-                  }}
+                  active={effectiveAiMenuOpen}
+                  onActivate={() => setAiMenuOpen((prev) => !prev)}
                 >
                   <Sparkles size={16} />
-                </button>
+                </ToolbarButton>
               </>
             ) : null}
 
             {editorState.isCellSelection && (
               <>
                 <div className="tiptap-toolbar-sep" />
-                <button
-                  type="button"
+                <ToolbarButton
                   title="Merge cells"
-                  aria-label="Merge cells"
                   disabled={!editorState.canMerge}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    editor.chain().focus(null, { scrollIntoView: false }).mergeCells().run();
-                  }}
+                  onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).mergeCells().run()}
                 >
                   <Merge size={16} />
-                </button>
-                <button
-                  type="button"
+                </ToolbarButton>
+                <ToolbarButton
                   title="Split cell"
-                  aria-label="Split cell"
                   disabled={!editorState.canSplit}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    editor.chain().focus(null, { scrollIntoView: false }).splitCell().run();
-                  }}
+                  onActivate={() => editor.chain().focus(null, { scrollIntoView: false }).splitCell().run()}
                 >
                   <Split size={16} />
-                </button>
+                </ToolbarButton>
               </>
             )}
           </>

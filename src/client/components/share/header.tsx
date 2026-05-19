@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Pilcrow, Eye, Menu } from "lucide-react";
 import { useReadyShareView } from "@/client/components/share/use-share-view";
+import { Button } from "@/client/components/ui/button";
 import { deriveSharePageAffordance } from "@/client/lib/affordance/share-page";
 import { useOnline } from "@/client/hooks/use-online";
 import { useScrollVisibility } from "@/client/hooks/use-scroll-visibility";
@@ -27,13 +28,15 @@ export function ShareHeader({ onToggleMobileSidebar }: ShareHeaderProps) {
       }`}
     >
       <div className="flex items-center px-4 py-3 sm:px-6">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
           onClick={onToggleMobileSidebar}
-          className="mr-2 flex items-center justify-center rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:pointer-events-none disabled:opacity-40 md:hidden"
           aria-label="Toggle outline"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+          icon={<Menu className="h-5 w-5" />}
+          className="mr-2 md:hidden"
+        />
         <Link to="/" className="group flex items-center gap-3 transition-opacity hover:opacity-80">
           <span className="inline-grid h-9 w-9 place-items-center">
             <Pilcrow

@@ -37,7 +37,7 @@ export function AiMenuPanel({ triggerRef, onSelect, onClose }: AiMenuPanelProps)
       <div
         ref={setFloating}
         className="tiptap-menu-surface tiptap-ai-menu"
-        style={{ ...floatingStyles, zIndex: 60 }}
+        style={{ ...floatingStyles, zIndex: 60, animation: "var(--animate-menu)" }}
         onMouseDownCapture={(e) => preserveEditorSelectionOnMouseDown(e)}
         role="menu"
       >

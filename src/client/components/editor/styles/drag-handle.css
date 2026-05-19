@@ -74,7 +74,7 @@
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
-  animation: scale-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: var(--animate-menu);
   transform-origin: top left;
 }
 
@@ -94,8 +94,8 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background-color 0.1s,
-    color 0.1s;
+    background-color 75ms,
+    color 75ms;
 }
 
 .tiptap-block-menu-item:hover:not(:disabled),

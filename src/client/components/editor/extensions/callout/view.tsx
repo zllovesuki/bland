@@ -58,8 +58,8 @@ export function CalloutView({ node, updateAttributes }: NodeViewProps) {
             }}
             role="menu"
             aria-label="Callout kind"
-            className="animate-fade-in tiptap-menu-surface tiptap-callout-kind-menu"
-            style={{ ...floatingStyles, zIndex: 50 }}
+            className="tiptap-menu-surface tiptap-callout-kind-menu"
+            style={{ ...floatingStyles, zIndex: 50, animation: "var(--animate-menu)" }}
             {...getFloatingProps({
               onMouseDownCapture: (e) => preserveEditorSelectionOnMouseDown(e),
             })}

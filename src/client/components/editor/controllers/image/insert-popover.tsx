@@ -99,7 +99,7 @@ export function ImageInsertPopover({ editor, uploadContext, target, onClose }: I
           <button
             type="button"
             disabled={validatingEmbed || !uploadContext.workspaceId}
-            className="tiptap-slash-menu-item disabled:opacity-40"
+            className="tiptap-slash-menu-item disabled:opacity-50"
             onMouseDown={(e) => {
               e.preventDefault();
               handleUpload();
@@ -129,7 +129,7 @@ export function ImageInsertPopover({ editor, uploadContext, target, onClose }: I
                 e.preventDefault();
                 void handleEmbed();
               }}
-              className="tiptap-inline-action shrink-0 disabled:opacity-40"
+              className="tiptap-inline-action shrink-0 disabled:opacity-50"
             >
               <span>{validatingEmbed ? "Checking..." : "Embed"}</span>
             </button>
