@@ -1,7 +1,7 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { Loader2 } from "lucide-react";
-import { PageMentionContent } from "@/shared/editor/components/page-mention";
+import { PageMentionContent } from "@/shared/editor/presentation/page-mention";
 import { getPageMentionViewState } from "../../lib/page-mention/view-state";
 import { usePageMentionEntry, usePageMentionNavigate } from "@/client/components/page-mention/context";
 

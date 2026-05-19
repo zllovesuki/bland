@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { resolveViewportActiveOutlineHeading } from "@/shared/editor/components/outline-model";
+import { resolveViewportActiveOutlineHeading } from "@/shared/editor/model/outline";
 import type { HeadingOutlineItem } from "./heading-outline";
 
 function findScrollContainer(el: HTMLElement | null): HTMLElement | null {

@@ -4,8 +4,8 @@ import {
   SITES_FONTS_SOURCE,
   SITES_STYLES_ENTRY,
   SITES_STYLES_SOURCE,
-} from "@/sites/entrypoints";
-import type { SiteDocumentAssets } from "@/sites/server/types";
+} from "@/shared/sites/entrypoints";
+import type { SiteDocumentAssets } from "@/sites/types";
 
 interface ViteManifestEntry {
   file: string;

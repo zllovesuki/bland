@@ -2,7 +2,7 @@ import {
   parseSitePmJsonEnvelope as parseEnvelopeText,
   type SitePmJsonEnvelope,
   SitePmJsonEnvelopeSchema,
-} from "@/sites/shared/pm-json-schemas";
+} from "@/shared/sites/pm-json-schemas";
 import type { ResolvedPublishedPage, ResolvedSite } from "@/worker/lib/published-pages";
 
 const SITES_CACHE_NAME = "sites:v1";

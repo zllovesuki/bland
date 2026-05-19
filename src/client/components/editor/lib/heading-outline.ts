@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { normalizeOutlineText, readOutlineLevel, type OutlineItem } from "@/shared/editor/components/outline-model";
+import { normalizeOutlineText, readOutlineLevel, type OutlineItem } from "@/shared/editor/model/outline";
 
 export interface HeadingOutlineItem extends OutlineItem {
   pos: number;

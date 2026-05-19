@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@/worker/db/d1/client";
 import { uploads } from "@/worker/db/d1/schema";
 import type { ResolvedPublishedPage, ResolvedSite } from "@/worker/lib/published-pages";
-import { renderSiteNotFoundDocumentHtml } from "@/sites/server/document";
+import { renderSiteNotFoundDocumentHtml } from "@/sites/document";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
 
 export interface AssetGateArgs {

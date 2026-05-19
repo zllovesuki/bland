@@ -3,7 +3,7 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { ImageIcon, X } from "lucide-react";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { ImageElement } from "@/shared/editor/components/image";
+import { ImageElement, ImageErrorState, ImageLoadingSkeleton } from "@/shared/editor/presentation/image";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import { showImageInsertPanel } from "../../controllers/image/insert-panel";
@@ -198,13 +198,8 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
           onLoad={() => setLoadState({ src: resolvedSrc, status: "loaded" })}
           onError={() => setLoadState({ src: resolvedSrc, status: "errored" })}
         />
-        {isLoading && <Skeleton className="tiptap-image-load-skeleton" />}
-        {isErrored && (
-          <div className="tiptap-image-error">
-            <ImageIcon size={20} />
-            <span>Image failed to load</span>
-          </div>
-        )}
+        {isLoading && <ImageLoadingSkeleton />}
+        {isErrored && <ImageErrorState />}
         {editable && !isLoading && !isErrored && (
           <>
             <div className="tiptap-image-resize-handle left" onPointerDown={(e) => handleResizeStart("left", e)} />

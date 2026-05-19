@@ -2,7 +2,7 @@ import { useTiptap, useTiptapState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { collectEditorTextMetrics, type EditorTextMetrics } from "@/shared/editor/schema";
-import { EditorMetricsPresentation } from "@/shared/editor/components/metrics";
+import { EditorMetricsPresentation } from "@/shared/editor/presentation/metrics";
 
 type CharacterCountStorage = {
   words: (options?: { node?: ProseMirrorNode }) => number;

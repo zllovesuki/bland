@@ -1,7 +1,7 @@
 import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useCallback, useRef, useState } from "react";
-import { CalloutKindContent, getCalloutKindMeta } from "@/shared/editor/components/callout";
+import { CalloutKindContent, getCalloutKindMeta } from "@/shared/editor/presentation/callout";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { CALLOUT_KINDS, normalizeCalloutKind, type CalloutKind } from "./kinds";

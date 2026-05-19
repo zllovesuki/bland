@@ -9,7 +9,7 @@ import {
   OUTLINE_RAIL_MEDIA_QUERY,
   PAGE_CONTENT_COLUMN_CLASS,
   PAGE_SHELL_CLASS,
-} from "@/shared/editor/components/document-layout";
+} from "@/shared/editor/presentation/document-layout";
 import { useMediaQuery } from "@/client/hooks/use-media-query";
 import type { EditorAffordance } from "@/client/lib/affordance/editor";
 import { reportClientError } from "@/client/lib/report-client-error";

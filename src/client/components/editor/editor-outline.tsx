@@ -1,5 +1,5 @@
 import { useTiptap, useTiptapState } from "@tiptap/react";
-import { OutlinePresentation, type OutlinePresentationVariant } from "@/shared/editor/components/outline";
+import { OutlinePresentation, type OutlinePresentationVariant } from "@/shared/editor/presentation/outline";
 import {
   collectHeadings,
   jumpToHeading,

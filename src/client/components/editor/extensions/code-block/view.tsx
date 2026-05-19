@@ -2,12 +2,15 @@ import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { FloatingPortal } from "@floating-ui/react";
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { Check, Copy } from "lucide-react";
 import { CODE_LANGUAGES, resolveLanguage } from "@/shared/editor/schema/code-block";
-import { getCodeLanguageLabel } from "@/shared/editor/components/code-block";
+import {
+  CodeBlockCopyButtonChrome,
+  getCodeCopyButtonLabel,
+  getCodeLanguageLabel,
+} from "@/shared/editor/presentation/code-block";
 import { preserveEditorSelectionOnMouseDown, useEditorPopover } from "../../controllers/menu/popover";
 import { useEditorAffordance } from "../../editor-affordance-context";
-import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
+import { useCopyFeedback } from "@/shared/browser/use-copy-feedback";
 import "@/styles/editor/code-block.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
@@ -60,16 +63,12 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
 
   const controls = (
     <div className="tiptap-code-block-controls" contentEditable={false}>
-      <button
-        type="button"
-        className="tiptap-code-block-copy-btn"
+      <CodeBlockCopyButtonChrome
+        copied={isCopied}
         onClick={() => copy(copyId, node.textContent)}
         onMouseDown={(e) => e.preventDefault()}
-        aria-label={isCopied ? "Code copied" : "Copy code"}
-        title={isCopied ? "Code copied" : "Copy code"}
-      >
-        {isCopied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
-      </button>
+        aria-label={getCodeCopyButtonLabel(isCopied)}
+      />
       <button
         ref={btnRef}
         type="button"

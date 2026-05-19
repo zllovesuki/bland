@@ -205,6 +205,9 @@ making it the default.
   in the same diff.
 - Keep client-only behavior in client adapters. Keep static rendering explicit
   so internal attrs and restricted metadata are not leaked.
+- Keep `src/shared/editor/highlight/code-highlight-runtime.js` behind its local
+  `.d.ts` facade. `highlight.js` declarations pull in `lib.dom`, so converting
+  this runtime to TypeScript leaks DOM types into Worker/Sites typechecking.
 - Keep operational editor runtime context separate from UI editing affordance
   policy.
 - Canvas is a full-page kind sharing DocSync, not an editor block. It uses

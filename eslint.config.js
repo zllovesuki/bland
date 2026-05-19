@@ -46,17 +46,59 @@ export default tseslint.config(
     },
   },
   {
-    files: [
-      "src/client/**/*.{ts,tsx}",
-      "src/sites/client/**/*.{ts,tsx}",
-      "src/sites/islands/**/*.{ts,tsx}",
-      "src/lib/hooks/**/*.{ts,tsx}",
-    ],
+    files: ["src/client/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/sites/**", "@/worker/**"],
+              message: "Client code must use shared contracts instead of importing Sites server or Worker modules.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/sites/**/*.{js,ts,tsx}", "src/worker/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/client/**", "@/shared/browser/**"],
+              message: "Worker and Sites server code must stay free of client and browser-only shared modules.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/shared/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/client/**", "@/sites/**", "@/worker/**"],
+              message: "Shared modules must not depend on runtime-specific client, Sites server, or Worker modules.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/client/**/*.{ts,tsx}", "src/shared/browser/**/*.{ts,tsx}"],
     ...reactHooks.configs.flat["recommended-latest"],
   },
   {
-    files: ["src/client/**/*.tsx", "src/sites/islands/**/*.tsx"],
-    ignores: ["src/sites/islands/island-host.tsx"],
+    files: ["src/client/**/*.tsx"],
     ...reactRefresh.configs.vite,
   },
 );

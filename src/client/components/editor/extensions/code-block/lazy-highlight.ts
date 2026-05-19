@@ -2,24 +2,11 @@ import { findChildren } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-
-interface HighlightNode {
-  value?: string;
-  properties?: { className?: string[] };
-  children?: HighlightNode[];
-}
-
-interface HighlightResultNode {
-  value?: HighlightNode[];
-  children?: HighlightNode[];
-}
-
-interface CodeBlockHighlighter {
-  highlight(language: string, value: string): HighlightResultNode;
-  highlightAuto(value: string): HighlightResultNode;
-  listLanguages(): string[];
-  registered?(aliasOrLanguage: string): boolean;
-}
+import type {
+  CodeBlockHighlighter,
+  HighlightNode,
+  HighlightResultNode,
+} from "@/shared/editor/highlight/code-highlight-runtime";
 
 interface LazyHighlightMeta {
   refresh?: boolean;
@@ -32,12 +19,17 @@ let highlightRuntimePromise: Promise<CodeBlockHighlighter> | null = null;
 
 function parseNodes(nodes: HighlightNode[], className: string[] = []): Array<{ text: string; classes: string[] }> {
   return nodes.flatMap((node) => {
-    const classes = [...className, ...(node.properties?.className ?? [])];
+    const classes = [...className, ...readClassNames(node.properties?.className)];
     if (Array.isArray(node.children) && node.children.length > 0) {
       return parseNodes(node.children, classes);
     }
     return node.value ? [{ text: node.value, classes }] : [];
   });
+}
+
+function readClassNames(className: string[] | string | undefined): string[] {
+  if (Array.isArray(className)) return className;
+  return className ? [className] : [];
 }
 
 function getHighlightNodes(result: HighlightResultNode): HighlightNode[] {
@@ -171,8 +163,8 @@ function loadHighlightRuntime(): Promise<CodeBlockHighlighter> {
   }
 
   if (!highlightRuntimePromise) {
-    highlightRuntimePromise = import("@/shared/editor/components/code-highlight").then((mod) => {
-      highlightRuntime = mod.codeBlockLowlight as unknown as CodeBlockHighlighter;
+    highlightRuntimePromise = import("@/shared/editor/highlight/code-highlight-runtime").then((mod) => {
+      highlightRuntime = mod.codeBlockLowlight;
       return highlightRuntime;
     });
   }

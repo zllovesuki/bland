@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { confirm } from "@/client/components/confirm-store";
 import { useWorkspaceMembers } from "@/client/components/workspace/use-workspace-view";
-import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
+import { useCopyFeedback } from "@/shared/browser/use-copy-feedback";
 import { isActionEnabled } from "@/client/lib/affordance/action-state";
 import { deriveShareDialogAffordance } from "@/client/lib/affordance/share-dialog";
 import { api, toApiError } from "@/client/lib/api";

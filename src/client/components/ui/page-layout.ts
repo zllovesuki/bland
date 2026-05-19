@@ -15,7 +15,7 @@ export {
   PAGE_STAGE_CLASS,
   PAGE_STAGE_TRACKS_CLASS,
   PAGE_STAGE_WITH_TRACKS_CLASS,
-} from "@/shared/editor/components/document-layout";
+} from "@/shared/editor/presentation/document-layout";
 
 export const CANVAS_PAGE_BODY_CENTERED_CLASS = "mx-auto mt-4 max-w-3xl xl:max-w-[60rem]";
 export const CANVAS_PAGE_BODY_STAGE_CLASS = "mt-4 w-full";

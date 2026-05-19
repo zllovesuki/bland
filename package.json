@@ -14,7 +14,7 @@
     "test": "vitest run --passWithNoTests",
     "test:client": "vitest run --project client --project client-dom",
     "test:client-dom": "vitest run --project client-dom",
-    "test:sites": "vitest run --project sites --project sites-dom",
+    "test:sites": "vitest run --project sites",
     "test:shared": "vitest run --project shared",
     "test:worker": "vitest run --project worker-unit --project worker-runtime",
     "test:worker-unit": "vitest run --project worker-unit",

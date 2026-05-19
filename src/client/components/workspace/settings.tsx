@@ -28,7 +28,7 @@ import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import { useAuthStore } from "@/client/stores/auth-store";
 import { api, toApiError } from "@/client/lib/api";
 import { toast } from "@/client/components/toast-store";
-import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
+import { useCopyFeedback } from "@/shared/browser/use-copy-feedback";
 import { EmojiPicker } from "@/client/components/ui/emoji-picker";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import {

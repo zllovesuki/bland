@@ -1,8 +1,8 @@
 {
-  "src/sites/entries/browser.ts": {
+  "src/client/sites/entrypoints/browser.ts": {
     "file": "site-assets/sites-entry-test.js",
     "name": "sites",
-    "src": "src/sites/entries/browser.ts",
+    "src": "src/client/sites/entrypoints/browser.ts",
     "isEntry": true,
     "imports": ["_outline-model-test.js"]
   },

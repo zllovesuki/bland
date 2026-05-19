@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useCopyFeedback } from "@/lib/hooks/use-copy-feedback";
+import { useCopyFeedback } from "@/shared/browser/use-copy-feedback";
 import { api, toApiError } from "@/client/lib/api";
 import {
   sitePageStatusQueryKey,

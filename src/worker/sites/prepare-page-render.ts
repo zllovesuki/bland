@@ -4,8 +4,8 @@ import {
   type ResolvedMention,
   type ResolvedPublishedPage,
 } from "@/worker/lib/published-pages";
-import { collectMentionPageIds } from "@/sites/server/json-prewalk";
-import type { SiteDocumentAssets } from "@/sites/server/types";
+import { collectMentionPageIds } from "@/sites/json-prewalk";
+import type { SiteDocumentAssets } from "@/sites/types";
 import type { LoadedPmJson } from "@/worker/sites/load-page-pm-json";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
 

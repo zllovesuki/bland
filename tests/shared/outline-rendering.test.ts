@@ -8,7 +8,7 @@ import {
   readOutlineLevel,
   resolveViewportActiveOutlineHeading,
   type OutlineItem,
-} from "@/shared/editor/components";
+} from "@/shared/editor/presentation";
 
 describe("shared outline rendering", () => {
   it("normalizes outline text, heading levels, and duplicate-safe anchor ids", () => {
