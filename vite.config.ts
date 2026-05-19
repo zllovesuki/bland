@@ -65,6 +65,13 @@ function excalidrawFontsPlugin(): Plugin {
 }
 
 export default defineConfig({
+  environments: {
+    bland: {
+      build: {
+        sourcemap: true,
+      },
+    },
+  },
   plugins: [
     react(),
     babel({
