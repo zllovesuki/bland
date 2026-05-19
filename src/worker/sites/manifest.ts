@@ -27,16 +27,6 @@ export interface SitesAssetIndex {
 // Source path served by the Vite dev server during `npm run dev` (no build
 // manifest exists), so Vite's CSS pipeline processes @imports and Tailwind in
 // flight.
-export const VITE_DEV_SOURCE_PATH = SITES_STYLES_SOURCE;
-export const VITE_DEV_FONTS_SOURCE_PATH = SITES_FONTS_SOURCE;
-export const VITE_DEV_SCRIPT_SOURCE_PATH = SITES_BROWSER_ENTRY;
-
-const DEV_DOCUMENT_ASSETS: SiteDocumentAssets = {
-  stylesheetHref: `/${VITE_DEV_SOURCE_PATH}?direct`,
-  fontStylesheetHref: `/${VITE_DEV_FONTS_SOURCE_PATH}?direct`,
-  scriptSrc: `/${VITE_DEV_SCRIPT_SOURCE_PATH}`,
-  modulePreloadHrefs: [],
-};
 const SITES_MANIFEST_PATH = "/sites-manifest.json";
 
 let cachedIndexPromise: Promise<SitesAssetIndex | null> | null = null;
@@ -98,13 +88,15 @@ async function loadIndex(env: Pick<Env, "ASSETS">): Promise<SitesAssetIndex | nu
 
   const stylesheetHref = toPathname(cssRel);
   const fontStylesheetHref = toPathname(fontCssRel);
+  if (!stylesheetHref || !fontStylesheetHref) return null;
+
   const { scriptSrc, modulePreloadHrefs } = collectScriptGraph(manifest, SITES_BROWSER_ENTRY);
   if (!scriptSrc) return null;
 
   return {
     documentAssets: {
-      stylesheetHref: stylesheetHref ?? DEV_DOCUMENT_ASSETS.stylesheetHref,
-      fontStylesheetHref: fontStylesheetHref ?? DEV_DOCUMENT_ASSETS.fontStylesheetHref,
+      stylesheetHref,
+      fontStylesheetHref,
       scriptSrc,
       modulePreloadHrefs,
     },
@@ -125,9 +117,18 @@ export function resetSitesManifestCacheForTests(): void {
   cachedIndexPromise = null;
 }
 
+function getDevDocumentAssets(): SiteDocumentAssets {
+  return {
+    stylesheetHref: `/${SITES_STYLES_SOURCE}?direct`,
+    fontStylesheetHref: `/${SITES_FONTS_SOURCE}?direct`,
+    scriptSrc: `/${SITES_BROWSER_ENTRY}`,
+    modulePreloadHrefs: [],
+  };
+}
+
 export async function resolveSitesDocumentAssets(env: Pick<Env, "ASSETS">): Promise<SiteDocumentAssets | null> {
   const index = await getSitesAssetIndex(env);
   if (index) return index.documentAssets;
-  if (import.meta.env.DEV) return DEV_DOCUMENT_ASSETS;
+  if (import.meta.env.DEV) return getDevDocumentAssets();
   return null;
 }
