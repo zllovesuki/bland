@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
 import { countCharacters, countWords, createHeadlessEditorExtensions } from "@/shared/editor/schema";
@@ -24,7 +24,7 @@ function listSourceFiles(dir: string): string[] {
 
 describe("headless shared editor schema", () => {
   it("imports in the Node shared test runtime without a browser global", () => {
-    expect(globalThis.document).toBeUndefined();
+    expect((globalThis as { document?: unknown }).document).toBeUndefined();
     const schema = getSchema(createHeadlessEditorExtensions());
 
     expect(schema.nodes.callout).toBeDefined();

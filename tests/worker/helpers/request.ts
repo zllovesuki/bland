@@ -3,6 +3,7 @@ import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import { bearerFor } from "@tests/worker/helpers/auth";
 
 type JsonBody = Record<string, unknown> | unknown[] | null;
+type WorkerRequestRedirect = "error" | "follow" | "manual";
 
 export const LOOPBACK_ORIGIN = "http://127.0.0.1";
 export const PROD_ORIGIN = "https://bland.test";
@@ -19,7 +20,7 @@ export interface ApiRequestOptions {
   search?: Record<string, string>;
   // Set to "manual" to observe 3xx responses directly. workerd's default
   // Worker dispatch follows redirects internally.
-  redirect?: RequestRedirect;
+  redirect?: WorkerRequestRedirect;
 }
 
 /**

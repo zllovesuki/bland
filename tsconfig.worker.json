@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["./worker-configuration.d.ts", "vite/client"]
+  },
+  "include": [
+    "worker-configuration.d.ts",
+    "src/worker/**/*",
+    "src/sites/**/*",
+    "src/shared/**/*",
+    "src/lib/slugify.ts",
+    "src/types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "dist", "src/shared/browser/**/*"]
+}
