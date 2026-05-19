@@ -49,6 +49,7 @@
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",
     "@fontsource-variable/outfit": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "@lucide/lab": "^0.1.2",
     "@noble/hashes": "^2.0.1",
     "@sentry/react": "^10.53.1",
     "@serwist/window": "^9.5.11",

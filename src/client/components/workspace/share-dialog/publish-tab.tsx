@@ -1,4 +1,5 @@
-import { Check, Copy, Home, Loader2 } from "lucide-react";
+import { houseOff } from "@lucide/lab";
+import { Check, Copy, Home, Icon, Loader2 } from "lucide-react";
 
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { isActionEnabled, isActionVisible } from "@/client/lib/affordance/action-state";
@@ -26,10 +27,10 @@ export function PublishTabContent() {
     toggleSitePublished,
     publishPage,
     unpublishPage,
-    setHomePage,
+    isHome,
+    toggleHomePage,
     copyPublicUrl,
     copied,
-    pageId,
   } = useSitePublish();
 
   if (loading) {
@@ -49,7 +50,6 @@ export function PublishTabContent() {
   const siteRow = site?.site ?? null;
   const baseDomain = site?.base_domain ?? null;
   const sitePublished = !!siteRow?.published_at;
-  const isHome = siteRow?.home_page_id === pageId;
   const showManageSite = isActionVisible(publishAffordance.manageSite);
   const canManage = isActionEnabled(publishAffordance.manageSite);
   const siteReady = !!siteRow && sitePublished;
@@ -73,7 +73,7 @@ export function PublishTabContent() {
           onCopy={copyPublicUrl}
           onPublish={() => void publishPage()}
           onUnpublish={() => void unpublishPage()}
-          onSetHome={() => void setHomePage()}
+          onToggleHome={() => void toggleHomePage()}
         />
       ) : null}
 
@@ -111,7 +111,7 @@ interface PagePublicationSectionProps {
   onCopy: () => void;
   onPublish: () => void;
   onUnpublish: () => void;
-  onSetHome: () => void;
+  onToggleHome: () => void;
 }
 
 function PagePublicationSection({
@@ -128,7 +128,7 @@ function PagePublicationSection({
   onCopy,
   onPublish,
   onUnpublish,
-  onSetHome,
+  onToggleHome,
 }: PagePublicationSectionProps) {
   if (status.canvas) {
     return <p className="text-sm text-zinc-500">Canvas pages cannot be published.</p>;
@@ -151,7 +151,7 @@ function PagePublicationSection({
           isHome={isHome}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
-          onSetHome={onSetHome}
+          onToggleHome={onToggleHome}
         />
       ) : (
         <p className="text-xs text-zinc-500">Only admins can publish pages.</p>
@@ -214,7 +214,7 @@ interface PageActionsProps {
   isHome: boolean;
   onPublish: () => void;
   onUnpublish: () => void;
-  onSetHome: () => void;
+  onToggleHome: () => void;
 }
 
 function PageActions({
@@ -228,7 +228,7 @@ function PageActions({
   isHome,
   onPublish,
   onUnpublish,
-  onSetHome,
+  onToggleHome,
 }: PageActionsProps) {
   // Inherited-from-ancestor: explain the relationship and offer a way to
   // promote the page to its own root.
@@ -265,17 +265,21 @@ function PageActions({
           {unpublishPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           Stop publishing
         </button>
-        {!isHome ? (
-          <button
-            type="button"
-            disabled={!canManage || saving}
-            onClick={onSetHome}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-50"
-          >
-            {setHomePending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Home className="h-3.5 w-3.5" />}
-            Set as home
-          </button>
-        ) : null}
+        <button
+          type="button"
+          disabled={!canManage || saving}
+          onClick={onToggleHome}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-50"
+        >
+          {setHomePending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isHome ? (
+            <Icon iconNode={houseOff} className="h-3.5 w-3.5" />
+          ) : (
+            <Home className="h-3.5 w-3.5" />
+          )}
+          {isHome ? "Unset as home" : "Set as home"}
+        </button>
       </div>
     );
   }

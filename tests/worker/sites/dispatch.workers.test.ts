@@ -300,7 +300,7 @@ describe("Sites page resolution", () => {
       origin: SUBDOMAIN_ORIGIN,
       redirect: "manual",
     });
-    expect(res.status).toBe(308);
+    expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain(publicPagePath("Hello Sites", page.id));
   });
 
@@ -315,7 +315,7 @@ describe("Sites page resolution", () => {
       origin: SUBDOMAIN_ORIGIN,
       redirect: "manual",
     });
-    expect(res.status).toBe(308);
+    expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain(publicPagePath("Hello Sites", page.id));
   });
 
@@ -330,7 +330,7 @@ describe("Sites page resolution", () => {
       origin: SUBDOMAIN_ORIGIN,
       redirect: "manual",
     });
-    expect(res.status).toBe(308);
+    expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/\/$/);
   });
 

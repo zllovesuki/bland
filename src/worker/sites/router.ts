@@ -323,7 +323,7 @@ function redirect(c: Context<SitesContext>, path: string): Response {
   const originalUrl = new URL(c.req.url);
   const target = new URL(path, originalUrl);
   target.search = originalUrl.search;
-  return c.redirect(target.toString(), 308);
+  return c.redirect(target.toString(), 302);
 }
 
 async function siteNotFound(c: Context<SitesContext>, site: ResolvedSite | null = null): Promise<Response> {

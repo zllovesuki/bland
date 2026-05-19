@@ -86,7 +86,8 @@ export interface SitePublishValue {
   toggleSitePublished: () => Promise<void>;
   publishPage: () => Promise<void>;
   unpublishPage: () => Promise<void>;
-  setHomePage: () => Promise<void>;
+  isHome: boolean;
+  toggleHomePage: () => Promise<void>;
   copyPublicUrl: () => void;
   copied: boolean;
 }

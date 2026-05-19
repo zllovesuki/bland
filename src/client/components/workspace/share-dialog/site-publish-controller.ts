@@ -136,10 +136,11 @@ export function useSitePublishController({
     await unpublishMutation.mutateAsync();
   }, [unpublishMutation]);
 
-  const setHomePage = useCallback(async () => {
+  const isHome = siteRow?.home_page_id === pageId;
+  const toggleHomePage = useCallback(async () => {
     setUpdateAction("set-home");
-    await updateMutation.mutateAsync({ home_page_id: pageId });
-  }, [updateMutation, pageId]);
+    await updateMutation.mutateAsync({ home_page_id: isHome ? null : pageId });
+  }, [updateMutation, pageId, isHome]);
 
   const publicUrl = statusQuery.data?.public_url ?? null;
   const copyPublicUrl = useCallback(() => {
@@ -184,7 +185,8 @@ export function useSitePublishController({
       toggleSitePublished,
       publishPage,
       unpublishPage,
-      setHomePage,
+      isHome,
+      toggleHomePage,
       copyPublicUrl,
       copied: copiedId === pageId,
     }),
@@ -207,7 +209,8 @@ export function useSitePublishController({
       toggleSitePublished,
       publishPage,
       unpublishPage,
-      setHomePage,
+      isHome,
+      toggleHomePage,
       copyPublicUrl,
       copiedId,
     ],

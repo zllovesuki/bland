@@ -128,7 +128,7 @@ test.describe("sites - publish flow", () => {
         `${siteOrigin(e2eContext.baseUrl, slug)}/stale-sub-page-${subpagePublicId}`,
         { maxRedirects: 0 },
       );
-      expect(uncachedRenamedRes.status()).toBe(308);
+      expect(uncachedRenamedRes.status()).toBe(302);
       expect(uncachedRenamedRes.headers()["location"]).toContain(`/renamed-page-${subpagePublicId}`);
 
       // Unpublishing the subpage makes an uncached canonical URL 404.
