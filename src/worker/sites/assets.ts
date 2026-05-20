@@ -4,6 +4,7 @@ import type { Db } from "@/worker/db/d1/client";
 import { uploads } from "@/worker/db/d1/schema";
 import type { ResolvedPublishedPage, ResolvedSite } from "@/worker/lib/published-pages";
 import { renderSiteNotFoundDocumentHtml } from "@/sites/document";
+import { withSitesStaticDocumentPreloadHeaders } from "@/worker/sites/preload-headers";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
 
 export interface AssetGateArgs {
@@ -67,10 +68,13 @@ async function notFound(env: Pick<Env, "ASSETS">, site: ResolvedSite): Promise<R
     }),
     {
       status: 404,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
+      headers: withSitesStaticDocumentPreloadHeaders(
+        {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+        assets,
+      ),
     },
   );
 }

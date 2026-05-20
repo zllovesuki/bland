@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { resetD1Tables } from "@tests/worker/helpers/db";
 import { apiRequest } from "@tests/worker/helpers/request";
+import { expectSitesStaticDocumentPreloadLinks } from "@tests/worker/helpers/sites";
 import {
   seedPage,
   seedPublishedPage,
@@ -84,6 +85,7 @@ describe("Sites asset gate", () => {
 
     const res = await apiRequest(`/_assets/${pageB.id}/${upload.id}`, { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(404);
+    expectSitesStaticDocumentPreloadLinks(res);
   });
 
   it("404s when the upload belongs to a different workspace", async () => {

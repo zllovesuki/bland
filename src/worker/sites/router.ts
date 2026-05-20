@@ -12,6 +12,10 @@ import {
 } from "@/worker/lib/published-pages";
 import { buildSitePagePath } from "@/worker/lib/site-public-url";
 import { applySitesSecurityHeaders } from "@/worker/lib/security-headers";
+import {
+  withSitesPageDocumentPreloadHeaders,
+  withSitesStaticDocumentPreloadHeaders,
+} from "@/worker/sites/preload-headers";
 import { serveSiteAsset } from "@/worker/sites/assets";
 import {
   buildSiteCacheKey,
@@ -100,7 +104,7 @@ sitesApp.get("/", async (c) => {
   if (match.kind === "apex") {
     const assets = await resolveRequiredSitesDocumentAssets(c);
     if (!assets) return sitesAssetsUnavailable(c);
-    return c.html(renderApexDocumentHtml({ assets }), 200, HTML_HEADERS);
+    return c.html(renderApexDocumentHtml({ assets }), 200, withSitesStaticDocumentPreloadHeaders(HTML_HEADERS, assets));
   }
 
   const cached = await serveHtmlCacheHit(c);
@@ -202,11 +206,11 @@ async function serveCachedOrRender(
   const url = new URL(c.req.url);
   const canonicalUrl = `${url.protocol}//${url.host}${canonicalPath}`;
   const revision = await createSiteHtmlRevision({ rendererVersion, site, page, currentIsHome, canonicalPath });
-  const headers = buildHtmlHeaders(site, page, revision);
+  const baseHeaders = buildHtmlHeaders(site, page, revision);
 
-  if (siteHtmlEtagMatches(request.headers.get("If-None-Match"), headers.ETag)) {
+  if (siteHtmlEtagMatches(request.headers.get("If-None-Match"), baseHeaders.ETag)) {
     markSite(c, "cache_read", "skipped_304");
-    return c.body(null, 304, headers);
+    return c.body(null, 304, baseHeaders);
   }
 
   const cacheState = htmlCacheState(c);
@@ -217,8 +221,8 @@ async function serveCachedOrRender(
     cacheState.checked = true;
     if (cached?.body) {
       markSite(c, "cache_write", "skipped_hit");
-      if (c.req.method === "HEAD") return c.body(null, 200, headers);
-      return c.body(cached.body, 200, headers);
+      if (c.req.method === "HEAD") return c.body(null, 200, baseHeaders);
+      return c.body(cached.body, 200, baseHeaders);
     }
   }
 
@@ -237,6 +241,7 @@ async function serveCachedOrRender(
     canonicalUrl,
   });
   if (!prepared) return sitesAssetsUnavailable(c);
+  const headers = withSitesPageDocumentPreloadHeaders(baseHeaders, prepared.assets);
 
   const stream = await timeSite(c, "render_stream", () =>
     renderSitePageDocumentStream({ env: c.env, db, site, page, prepared }),
@@ -336,10 +341,13 @@ async function siteNotFound(c: Context<SitesContext>, site: ResolvedSite | null 
       assets,
     }),
     404,
-    {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
+    withSitesStaticDocumentPreloadHeaders(
+      {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+      assets,
+    ),
   );
 }
 

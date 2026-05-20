@@ -8,6 +8,10 @@ import { YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { resetD1Tables, getDb } from "@tests/worker/helpers/db";
 import { apiRequest } from "@tests/worker/helpers/request";
 import {
+  expectSitesPageDocumentPreloadLinks,
+  expectSitesStaticDocumentPreloadLinks,
+} from "@tests/worker/helpers/sites";
+import {
   deletePublishedPage,
   seedPage,
   seedPublishedPage,
@@ -108,6 +112,7 @@ describe("Sites host dispatch", () => {
     const res = await apiRequest("/", { origin: APEX_ORIGIN });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
+    expectSitesStaticDocumentPreloadLinks(res);
     const html = await res.text();
     expect(html).toContain("bland.");
     expect(html).toContain("bg-[linear-gradient(135deg");
@@ -134,6 +139,7 @@ describe("Sites host dispatch", () => {
   it("404s a subdomain that has no site row", async () => {
     const res = await apiRequest("/", { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(404);
+    expectSitesStaticDocumentPreloadLinks(res);
   });
 
   it("404s a subdomain whose site row is disabled", async () => {
@@ -180,6 +186,7 @@ describe("Sites page resolution", () => {
     const res = await apiRequest(publicPagePath("Hello Sites", page.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
+    expectSitesPageDocumentPreloadLinks(res);
     const html = await res.text();
     expect(html).toMatch(/^<!DOCTYPE html><html/);
     expect(html).not.toContain("<!doctype html><!DOCTYPE html>");
@@ -409,6 +416,7 @@ describe("Sites page resolution", () => {
 
     const cached = await waitForSitesCacheHit(path);
     expect(cached.status).toBe(200);
+    expectSitesPageDocumentPreloadLinks(cached);
     expect(cached.headers.get("server-timing")).not.toContain("site_page_lookup");
 
     // Option B deliberately allows request-keyed HTML to remain public until
