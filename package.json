@@ -24,6 +24,7 @@
     "test:worker-unit": "vitest run --project worker-unit",
     "test:worker-runtime": "vitest run --project worker-runtime",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "test:e2e:parallel": "BLAND_E2E_PARALLEL=1 playwright test -c tests/e2e/playwright.config.ts",
     "deploy": "npm run db:migrate:remote && npm run build && wrangler deploy",
     "db:generate:d1": "drizzle-kit generate --config=drizzle-d1.config.ts",
     "db:generate:docsync-do": "drizzle-kit generate --config=drizzle-docsync-do.config.ts",

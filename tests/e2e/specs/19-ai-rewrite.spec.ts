@@ -1,12 +1,12 @@
 import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
 
 test.describe("AI rewrite (mock backend)", () => {
   test("bubble menu proofread streams a mock suggestion and Accept commits it", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "AI Rewrite Target");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "AI Rewrite Target", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -41,9 +41,10 @@ test.describe("AI rewrite (mock backend)", () => {
 
   test("AI button is hidden when page content is not selected", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "AI Rewrite Empty");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "AI Rewrite Empty", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });

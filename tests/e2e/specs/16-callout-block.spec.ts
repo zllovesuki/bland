@@ -1,12 +1,12 @@
-import { test, expect, createShareLink, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createShareLink, createTestPage, waitForPersistedSnapshot } from "../fixtures/bland-test";
 
 test.describe("callout block", () => {
   test("slash inserts a callout, kind picker updates attrs, body persists through reload", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Callout Insert");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Callout Insert", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -34,6 +34,7 @@ test.describe("callout block", () => {
     await expect(callout).toContainText("Deploy freeze starts Thursday");
 
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForPersistedSnapshot(page, accessToken, { ...testPage, expectedText: "Deploy freeze starts Thursday" });
 
     await page.reload();
     const editorAfterReload = page.locator(".tiptap");
@@ -47,10 +48,11 @@ test.describe("callout block", () => {
 
   test("view-only share renders callout with a disabled kind picker", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Callout Share");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Callout Share", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -70,6 +72,7 @@ test.describe("callout block", () => {
 
     await expect(callout).toHaveAttribute("data-callout-kind", "tip");
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForPersistedSnapshot(page, accessToken, { ...testPage, expectedText: "Read only callout" });
 
     const share = await createShareLink(page, accessToken, testPage.pageId, "view");
 

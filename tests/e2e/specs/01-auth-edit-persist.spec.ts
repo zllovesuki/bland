@@ -1,15 +1,16 @@
-import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestPage, waitForDocEditorReady } from "../fixtures/bland-test";
 
 test.describe("auth + edit + persist", () => {
-  test("login, type in editor, reload, verify text persisted", async ({ authenticatedPage: { page, accessToken } }) => {
-    const testPage = await createTestPage(page, accessToken, "Persist Test");
+  test("login, type in editor, reload, verify text persisted", async ({
+    authenticatedPage: { page, accessToken },
+    e2eWorkspace,
+  }) => {
+    const testPage = await createTestPage(page, accessToken, "Persist Test", e2eWorkspace);
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     // Wait for the editor to mount and become editable
-    const editor = page.locator(".tiptap[contenteditable='true']");
-    await editor.waitFor({ timeout: 30_000 });
+    const editor = await waitForDocEditorReady(page, { editable: true });
 
     // Click into the editor and type
     await editor.click();
@@ -19,7 +20,7 @@ test.describe("auth + edit + persist", () => {
     await expect(editor).toContainText("Hello Playwright");
 
     // Wait for WebSocket sync by checking the sync status indicator
-    await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForDocEditorReady(page, { editable: true, connected: true });
 
     // Reload and verify persistence
     await page.reload();

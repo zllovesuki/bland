@@ -1,15 +1,16 @@
-import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
+import { test, expect, createTestPage, createShareLink, expectNoChangeFor } from "../fixtures/bland-test";
 import { TEST_CREDENTIALS } from "../harness";
 
 test.describe("discriminated awareness", () => {
   test("share viewer never receives the member's real name over the wire", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Discriminated Awareness Test");
+    const testPage = await createTestPage(page, accessToken, "Discriminated Awareness Test", e2eWorkspace);
     const share = await createShareLink(page, accessToken, testPage.pageId, "view");
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
     const memberEditor = page.locator(".tiptap[contenteditable='true']");
     await memberEditor.waitFor({ timeout: 30_000 });
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
@@ -34,9 +35,7 @@ test.describe("discriminated awareness", () => {
       await page.keyboard.type("Hello collaborators");
       await expect(shareEditor).toContainText("Hello collaborators", { timeout: 15_000 });
 
-      // Give awareness a beat to propagate after the doc update settles.
-      await shareViewer.waitForTimeout(1500);
-
+      await expectNoChangeFor(() => framePayloads.join("\n").includes(TEST_CREDENTIALS.name), 1_500);
       const combined = framePayloads.join("\n");
       expect(combined).not.toContain(TEST_CREDENTIALS.name);
 

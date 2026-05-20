@@ -1,8 +1,11 @@
-import { test, expect, createTestPage } from "../fixtures/bland-test";
+import { test, expect, createTestPage, waitForCanvasSceneCount } from "../fixtures/bland-test";
 
 test.describe("canvas page - basic", () => {
-  test("sidebar dropdown creates a canvas page and Excalidraw mounts", async ({ authenticatedPage: { page } }) => {
-    await page.goto("/");
+  test("sidebar dropdown creates a canvas page and Excalidraw mounts", async ({
+    authenticatedPage: { page },
+    e2eWorkspace,
+  }) => {
+    await page.goto(`/${e2eWorkspace.workspaceSlug}`);
 
     const newPageChevron = page.getByRole("button", { name: "New page options" });
     await newPageChevron.waitFor({ timeout: 15_000 });
@@ -24,9 +27,10 @@ test.describe("canvas page - basic", () => {
 
   test("API-created canvas page mounts Excalidraw (not the editor)", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    const testPage = await createTestPage(page, accessToken, "Canvas via API", undefined, "canvas");
+    const testPage = await createTestPage(page, accessToken, "Canvas via API", e2eWorkspace, "canvas");
 
     await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
@@ -35,8 +39,11 @@ test.describe("canvas page - basic", () => {
     await expect(page.locator("aside[aria-label='Document outline']")).toHaveCount(0);
   });
 
-  test("canvas page persists drawn elements across reload", async ({ authenticatedPage: { page, accessToken } }) => {
-    const testPage = await createTestPage(page, accessToken, "Canvas Persistence", undefined, "canvas");
+  test("canvas page persists drawn elements across reload", async ({
+    authenticatedPage: { page, accessToken },
+    e2eWorkspace,
+  }) => {
+    const testPage = await createTestPage(page, accessToken, "Canvas Persistence", e2eWorkspace, "canvas");
 
     await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
     await page.locator(".excalidraw").waitFor({ state: "attached", timeout: 30_000 });
@@ -60,22 +67,12 @@ test.describe("canvas page - basic", () => {
     await page.mouse.move(endX, endY, { steps: 10 });
     await page.mouse.up();
 
-    // Let the debounced Y write + IDB persistence flush.
-    await page.waitForTimeout(1_500);
+    await waitForCanvasSceneCount(page, 1);
 
     // Reload; the rectangle should still be present in the scene.
     await page.reload();
     await page.locator(".excalidraw").waitFor({ state: "attached", timeout: 30_000 });
 
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const fn = (window as unknown as { __E2E_CANVAS_SCENE_COUNT__?: () => number }).__E2E_CANVAS_SCENE_COUNT__;
-            return typeof fn === "function" ? fn() : null;
-          }),
-        { timeout: 15_000 },
-      )
-      .toBeGreaterThanOrEqual(1);
+    await waitForCanvasSceneCount(page, 1);
   });
 });

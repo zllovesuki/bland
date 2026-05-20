@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestPage, expectNoChangeFor } from "../fixtures/bland-test";
 
 async function expectPopoverNearTrigger(panel: Locator, trigger: Locator) {
   await expect(panel).toBeVisible();
@@ -88,9 +87,10 @@ async function blurEditorFocus(page: Page) {
 test.describe("toolbar popover anchoring", () => {
   test("text color and highlight panels anchor to the formatting toolbar buttons", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Toolbar Popover Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Toolbar Popover Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     await openFormattingToolbar(page);
 
@@ -106,9 +106,12 @@ test.describe("toolbar popover anchoring", () => {
     await expectColorPanelGrid(colorPanel);
   });
 
-  test("code block language menu still anchors to its button", async ({ authenticatedPage: { page, accessToken } }) => {
-    const testPage = await createTestPage(page, accessToken, "Code Block Popover Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+  test("code block language menu still anchors to its button", async ({
+    authenticatedPage: { page, accessToken },
+    e2eWorkspace,
+  }) => {
+    const testPage = await createTestPage(page, accessToken, "Code Block Popover Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -169,9 +172,10 @@ test.describe("toolbar popover anchoring", () => {
 
   test("link toolbar anchors to the linked text instead of the viewport origin", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Link Toolbar Popover Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Link Toolbar Popover Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     await openFormattingToolbar(page);
     await createLinkFromSelection(page, "https://example.com");
@@ -184,9 +188,10 @@ test.describe("toolbar popover anchoring", () => {
 
   test("link hover popup stays open when moving from the link into the toolbar", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Link Hover Toolbar Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Link Hover Toolbar Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     await openFormattingToolbar(page);
     await createLinkFromSelection(page, "https://example.com");
@@ -210,7 +215,7 @@ test.describe("toolbar popover anchoring", () => {
 
     await page.mouse.move(fromX, fromY);
     await page.mouse.move(toX, toY, { steps: 12 });
-    await page.waitForTimeout(300);
+    await expectNoChangeFor(() => linkToolbar.isVisible(), 300);
     await expect(linkToolbar).toBeVisible();
   });
 });

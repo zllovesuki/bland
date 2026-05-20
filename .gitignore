@@ -3,6 +3,7 @@ dist/
 .wrangler/
 .prompts/
 .dev.vars
+.dev.vars.e2e-*
 worker-configuration.d.ts
 playwright-report/
 test-results/

@@ -1,5 +1,5 @@
 import type { Page as PlaywrightPage } from "@playwright/test";
-import { test, expect, createTestPage } from "../fixtures/bland-test";
+import { test, expect, createTestPage, expectNoChangeFor } from "../fixtures/bland-test";
 
 function collectDocSyncErrors(page: PlaywrightPage): string[] {
   const errors: string[] = [];
@@ -26,10 +26,11 @@ function collectSnapshotRequests(page: PlaywrightPage, pageId: string): string[]
 test.describe("offline doc sync navigation", () => {
   test("authenticated offline navigation parks doc sync on the destination page", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     const [pageA, pageB] = await Promise.all([
-      createTestPage(page, accessToken, "Offline Source"),
-      createTestPage(page, accessToken, "Offline Target"),
+      createTestPage(page, accessToken, "Offline Source", e2eWorkspace),
+      createTestPage(page, accessToken, "Offline Target", e2eWorkspace),
     ]);
 
     const docSyncErrors = collectDocSyncErrors(page);
@@ -59,7 +60,7 @@ test.describe("offline doc sync navigation", () => {
     await page.locator(".tiptap").waitFor({ timeout: 30_000 });
     await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 10_000 });
 
-    await page.waitForTimeout(2_000);
+    await expectNoChangeFor(() => docSyncErrors.length, 2_000);
     expect(docSyncErrors.length).toBe(errorsBeforeNavigation);
 
     await page.context().setOffline(false);
@@ -67,10 +68,11 @@ test.describe("offline doc sync navigation", () => {
 
   test("authenticated offline navigation to an uncached page stays unavailable without snapshot bootstrap attempts", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     const [pageA, pageB] = await Promise.all([
-      createTestPage(page, accessToken, "Offline Cached Source"),
-      createTestPage(page, accessToken, "Offline Uncached Target"),
+      createTestPage(page, accessToken, "Offline Cached Source", e2eWorkspace),
+      createTestPage(page, accessToken, "Offline Uncached Target", e2eWorkspace),
     ]);
 
     const docSyncErrors = collectDocSyncErrors(page);
@@ -94,7 +96,13 @@ test.describe("offline doc sync navigation", () => {
     await expect(page.getByText("This page isn't available offline yet.")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator(".tiptap")).toHaveCount(0);
 
-    await page.waitForTimeout(2_000);
+    await expectNoChangeFor(
+      () => ({
+        docSyncErrors: docSyncErrors.length,
+        snapshotRequests: snapshotRequests.length,
+      }),
+      2_000,
+    );
     expect(snapshotRequests.length).toBe(snapshotRequestsBeforeNavigation);
     expect(docSyncErrors.length).toBe(errorsBeforeNavigation);
 

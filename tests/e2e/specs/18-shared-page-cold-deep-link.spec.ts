@@ -1,21 +1,28 @@
-import { test, expect, createShareLink, createTestPage } from "../fixtures/bland-test";
+import {
+  test,
+  expect,
+  createShareLink,
+  createTestPage,
+  waitForDocEditorReady,
+  waitForPersistedSnapshot,
+} from "../fixtures/bland-test";
 
 const SEEDED_BODY_TEXT = "Shared cold deep link preserves existing body content";
 
 test.describe("shared page route - cold deep-link", () => {
   test("fresh shared load hydrates existing body content without a leading blank block", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const sharedPage = await createTestPage(page, accessToken, "Shared Cold Page");
+    const sharedPage = await createTestPage(page, accessToken, "Shared Cold Page", e2eWorkspace);
 
     await page.goto(`/${sharedPage.workspaceSlug}/${sharedPage.pageId}`);
-    const seedEditor = page.locator(".tiptap[contenteditable='true']");
-    await seedEditor.waitFor({ timeout: 30_000 });
+    const seedEditor = await waitForDocEditorReady(page, { editable: true });
     await seedEditor.click();
     await page.keyboard.type(SEEDED_BODY_TEXT);
     await expect(seedEditor).toContainText(SEEDED_BODY_TEXT);
-    await page.waitForTimeout(2_500);
+    await waitForPersistedSnapshot(page, accessToken, { ...sharedPage, expectedText: SEEDED_BODY_TEXT });
 
     const share = await createShareLink(page, accessToken, sharedPage.pageId, "view");
     const sharedContext = await browser.newContext();
@@ -35,9 +42,10 @@ test.describe("shared page route - cold deep-link", () => {
 
   test("shared-root canvas page mounts the canvas surface (not the editor) via the seed path", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const canvasPage = await createTestPage(page, accessToken, "Shared Canvas Cold", undefined, "canvas");
+    const canvasPage = await createTestPage(page, accessToken, "Shared Canvas Cold", e2eWorkspace, "canvas");
     const share = await createShareLink(page, accessToken, canvasPage.pageId, "view");
 
     const sharedContext = await browser.newContext();

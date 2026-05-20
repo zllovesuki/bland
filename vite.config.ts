@@ -53,8 +53,9 @@ const useRemoteBindings = readDevVarsAiMode() === "workers-ai";
 function excalidrawFontsPlugin(): Plugin {
   const src = path.resolve(__dirname, "node_modules/@excalidraw/excalidraw/dist/prod/fonts");
   const dest = path.resolve(__dirname, "public/fonts");
+  const sentinel = path.join(dest, "Virgil", "Virgil-Regular.woff2");
   const copy = () => {
-    if (!existsSync(src)) return;
+    if (!existsSync(src) || existsSync(sentinel)) return;
     cpSync(src, dest, { recursive: true, force: false });
   };
   return {

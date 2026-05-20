@@ -1,14 +1,21 @@
-import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import {
+  test,
+  expect,
+  createTestPage,
+  createShareLink,
+  expectNoChangeFor,
+  waitForPersistedSnapshot,
+} from "../fixtures/bland-test";
 
 test.describe("read-only controller suppression", () => {
   test("formatting toolbar appears on selection in editable mode, absent in read-only", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
     // Create a page with text content
-    const testPage = await createTestPage(page, accessToken, "Controller Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Controller Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -18,6 +25,7 @@ test.describe("read-only controller suppression", () => {
     // Wait for content to appear and sync to complete
     await expect(editor).toContainText("Some text to select");
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForPersistedSnapshot(page, accessToken, { ...testPage, expectedText: "Some text to select" });
 
     // Select all text with keyboard (ControlOrMeta for cross-platform)
     await page.keyboard.press("ControlOrMeta+A");
@@ -48,8 +56,8 @@ test.describe("read-only controller suppression", () => {
     // Try to select text -- formatting toolbar should NOT appear
     await readOnlyEditor.click();
     await anonPage.keyboard.press("ControlOrMeta+A");
-    // Assert no toolbar appeared (use strict count assertion with short timeout)
-    await expect(anonPage.locator(".tiptap-toolbar")).toHaveCount(0, { timeout: 2_000 });
+    await expect(anonPage.locator(".tiptap-toolbar")).toHaveCount(0);
+    await expectNoChangeFor(() => anonPage.locator(".tiptap-toolbar").count(), 2_000);
 
     await anonContext.close();
   });

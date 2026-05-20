@@ -1,9 +1,13 @@
 import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
 
 test.describe("share link - editable", () => {
-  test("edit-permission share link allows typing", async ({ authenticatedPage: { page, accessToken }, browser }) => {
+  test("edit-permission share link allows typing", async ({
+    authenticatedPage: { page, accessToken },
+    e2eWorkspace,
+    browser,
+  }) => {
     // Create a page and an editable share link
-    const testPage = await createTestPage(page, accessToken, "Share Edit Test");
+    const testPage = await createTestPage(page, accessToken, "Share Edit Test", e2eWorkspace);
     const share = await createShareLink(page, accessToken, testPage.pageId, "edit");
 
     // Open the share link in a new unauthenticated browser context

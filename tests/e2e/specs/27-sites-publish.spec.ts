@@ -1,5 +1,13 @@
 import type { APIRequestContext, Page as PlaywrightPage } from "@playwright/test";
-import { test, expect, createTestPage, createTestWorkspace } from "../fixtures/bland-test";
+import {
+  test,
+  expect,
+  createTestPage,
+  createTestWorkspace,
+  waitForDocEditorReady,
+  waitForPersistedSnapshot,
+  waitForTitleProjection,
+} from "../fixtures/bland-test";
 
 function siteOrigin(baseUrl: string, slug: string): string {
   const { port } = new URL(baseUrl);
@@ -50,23 +58,29 @@ async function unpublishPage(
 
 async function typeIntoEditor(
   page: PlaywrightPage,
+  accessToken: string,
+  workspaceId: string,
   workspaceSlug: string,
   pageId: string,
   text: string,
 ): Promise<void> {
   await page.goto(`/${workspaceSlug}/${pageId}`);
-  const editor = page.locator(".tiptap[contenteditable='true']");
-  await editor.waitFor({ timeout: 30_000 });
+  const editor = await waitForDocEditorReady(page, { editable: true });
   await editor.click();
   await page.keyboard.type(text);
   await expect(editor).toContainText(text);
-  await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
-  // DocSync persists snapshots on a 2s debounce. Wait past it so the Sites
-  // renderer reads a snapshot that includes the typed body.
-  await page.waitForTimeout(2_500);
+  await waitForDocEditorReady(page, { editable: true, connected: true });
+  await waitForPersistedSnapshot(page, accessToken, { workspaceId, pageId, expectedText: text });
 }
 
-async function retitlePage(page: PlaywrightPage, workspaceSlug: string, pageId: string, title: string): Promise<void> {
+async function retitlePage(
+  page: PlaywrightPage,
+  accessToken: string,
+  workspaceId: string,
+  workspaceSlug: string,
+  pageId: string,
+  title: string,
+): Promise<void> {
   await page.goto(`/${workspaceSlug}/${pageId}`);
   const titleInput = page.locator("main textarea[placeholder='Untitled']");
   await titleInput.waitFor({ timeout: 30_000 });
@@ -75,8 +89,7 @@ async function retitlePage(page: PlaywrightPage, workspaceSlug: string, pageId: 
   await page.keyboard.type(title);
   await expect(titleInput).toHaveValue(title);
   await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
-  // Title syncs to pages.title via DocSync's debounced onSave path.
-  await page.waitForTimeout(2_500);
+  await waitForTitleProjection(page, accessToken, { workspaceId, pageId, title });
 }
 
 test.describe("sites - publish flow", () => {
@@ -89,8 +102,22 @@ test.describe("sites - publish flow", () => {
     const home = await createTestPage(page, accessToken, "Welcome", workspace);
     const subpage = await createTestPage(page, accessToken, "Sub Page", workspace);
 
-    await typeIntoEditor(page, workspace.workspaceSlug, home.pageId, "Welcome to the published site.");
-    await typeIntoEditor(page, workspace.workspaceSlug, subpage.pageId, "Sub page body content here.");
+    await typeIntoEditor(
+      page,
+      accessToken,
+      workspace.workspaceId,
+      workspace.workspaceSlug,
+      home.pageId,
+      "Welcome to the published site.",
+    );
+    await typeIntoEditor(
+      page,
+      accessToken,
+      workspace.workspaceId,
+      workspace.workspaceSlug,
+      subpage.pageId,
+      "Sub page body content here.",
+    );
 
     const slug = `e2e-${Date.now().toString(36)}`;
     await patchSite(page.request, accessToken, workspace.workspaceId, { slug, published: true });
@@ -117,7 +144,14 @@ test.describe("sites - publish flow", () => {
 
       // Retitle the subpage. Previously cached public HTML is allowed to stay
       // stale until the internal Sites cache TTL expires.
-      await retitlePage(page, workspace.workspaceSlug, subpage.pageId, "Renamed Page");
+      await retitlePage(
+        page,
+        accessToken,
+        workspace.workspaceId,
+        workspace.workspaceSlug,
+        subpage.pageId,
+        "Renamed Page",
+      );
       const staleRenamedRes = await anonPage.request.get(subUrl, { maxRedirects: 0 });
       expect(staleRenamedRes.status()).toBe(200);
       const staleRenamedHtml = await staleRenamedRes.text();

@@ -1,5 +1,8 @@
-import { test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
+import * as Y from "yjs";
+import { extractPlaintext } from "@/shared/editor/yjs-text";
 import { E2E_CONTEXT_PATH_ENV, type E2eContextFile } from "../global-setup";
 import { TEST_CREDENTIALS } from "../harness";
 
@@ -27,6 +30,7 @@ export interface AuthenticatedPage {
 interface BlandFixtures {
   e2eContext: E2eContextFile;
   authenticatedPage: AuthenticatedPage;
+  e2eWorkspace: TestWorkspace;
 }
 
 export const test = base.extend<BlandFixtures>({
@@ -41,9 +45,14 @@ export const test = base.extend<BlandFixtures>({
     const { accessToken } = await loginPage(page);
     await use({ page, accessToken });
   },
+
+  e2eWorkspace: async ({ authenticatedPage }, use) => {
+    const workspace = await createTestWorkspace(authenticatedPage.page, authenticatedPage.accessToken);
+    await use(workspace);
+  },
 });
 
-export { expect } from "@playwright/test";
+export { expect };
 
 /**
  * Log in via the browser context's request surface. page.request shares cookies
@@ -83,7 +92,11 @@ async function getWorkspaceBySlug(page: Page, accessToken: string, workspaceSlug
   };
 }
 
-export async function createTestWorkspace(page: Page, accessToken: string, namePrefix = "E2E Test Workspace") {
+export async function createTestWorkspace(
+  page: Page,
+  accessToken: string,
+  namePrefix = "E2E Test Workspace",
+): Promise<TestWorkspace> {
   const uniqueSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const workspaceName = `${namePrefix} ${uniqueSuffix}`;
   const workspaceSlug = `e2e-${uniqueSuffix}`;
@@ -146,4 +159,125 @@ export async function createShareLink(
   const data = (await res.json()) as { share: { link_token: string } };
 
   return { token: data.share.link_token, permission };
+}
+
+export async function waitForDocEditorReady(page: Page, options: { editable?: boolean; connected?: boolean } = {}) {
+  const selector =
+    options.editable === undefined ? ".tiptap" : `.tiptap[contenteditable='${options.editable ? "true" : "false"}']`;
+  const editor = page.locator(selector).first();
+  await editor.waitFor({ timeout: 30_000 });
+  if (options.connected) {
+    await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+  }
+  return editor;
+}
+
+export async function waitForPersistedSnapshot(
+  page: Page,
+  accessToken: string,
+  options: { workspaceId: string; pageId: string; minBytes?: number; expectedText?: string | string[] },
+): Promise<void> {
+  const minBytes = options.minBytes ?? 1;
+  const expectedTexts =
+    typeof options.expectedText === "string"
+      ? [options.expectedText]
+      : (options.expectedText ?? []).filter((text) => text.length > 0);
+
+  const readSnapshot = async (): Promise<{ byteLength: number; text: string } | null> => {
+    const res = await page.request.get(`/api/v1/workspaces/${options.workspaceId}/pages/${options.pageId}/snapshot`, {
+      headers: authHeaders(accessToken),
+    });
+    if (res.status() === 204) return null;
+    if (res.status() !== 200) {
+      throw new Error(`Snapshot poll failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = await res.body();
+    return { byteLength: body.byteLength, text: expectedTexts.length > 0 ? extractSnapshotDocumentText(body) : "" };
+  };
+
+  if (expectedTexts.length > 0) {
+    await expect
+      .poll(
+        async () => {
+          const snapshot = await readSnapshot();
+          if (!snapshot || snapshot.byteLength < minBytes) return false;
+          return expectedTexts.every((text) => snapshot.text.includes(text));
+        },
+        {
+          timeout: 30_000,
+          intervals: [500, 1000, 1500, 2000],
+          message: `persisted snapshot should include ${expectedTexts.join(", ")}`,
+        },
+      )
+      .toBe(true);
+    return;
+  }
+
+  await expect
+    .poll(
+      async () => {
+        const snapshot = await readSnapshot();
+        return snapshot?.byteLength ?? 0;
+      },
+      { timeout: 30_000, intervals: [500, 1000, 1500, 2000] },
+    )
+    .toBeGreaterThanOrEqual(minBytes);
+}
+
+function extractSnapshotDocumentText(bytes: Uint8Array): string {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, bytes);
+    return extractPlaintext(doc).bodyText;
+  } finally {
+    doc.destroy();
+  }
+}
+
+export async function waitForTitleProjection(
+  page: Page,
+  accessToken: string,
+  options: { workspaceId: string; pageId: string; title: string },
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(`/api/v1/workspaces/${options.workspaceId}/pages/${options.pageId}`, {
+          headers: authHeaders(accessToken),
+        });
+        if (res.status() !== 200) {
+          throw new Error(`Title projection poll failed: ${res.status()} ${await res.text()}`);
+        }
+        const body = (await res.json()) as { page: { title: string | null } };
+        return body.page.title;
+      },
+      { timeout: 30_000, intervals: [500, 1000, 1500, 2000] },
+    )
+    .toBe(options.title);
+}
+
+export async function waitForCanvasSceneCount(page: Page, minCount: number): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const fn = (window as unknown as { __E2E_CANVAS_SCENE_COUNT__?: () => number }).__E2E_CANVAS_SCENE_COUNT__;
+          return typeof fn === "function" ? fn() : null;
+        }),
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThanOrEqual(minCount);
+}
+
+export async function expectNoChangeFor<T>(readValue: () => Promise<T> | T, durationMs = 1_000): Promise<void> {
+  const initial = await readValue();
+  const deadline = Date.now() + durationMs;
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(100, Math.max(0, deadline - Date.now()))));
+    const next = await readValue();
+    if (!isDeepStrictEqual(next, initial)) {
+      throw new Error(`Expected value to remain unchanged for ${durationMs}ms.`);
+    }
+  }
 }

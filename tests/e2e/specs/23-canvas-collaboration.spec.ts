@@ -1,11 +1,12 @@
-import { test, expect, createTestPage, loginPage } from "../fixtures/bland-test";
+import { test, createTestPage, loginPage, waitForCanvasSceneCount } from "../fixtures/bland-test";
 
 test.describe("canvas page - collaboration", () => {
   test("two peers on the same canvas replicate drawn elements", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const canvasPage = await createTestPage(page, accessToken, "Canvas Collab", undefined, "canvas");
+    const canvasPage = await createTestPage(page, accessToken, "Canvas Collab", e2eWorkspace, "canvas");
 
     // Peer A — load the canvas and draw a rectangle.
     await page.goto(`/${canvasPage.workspaceSlug}/${canvasPage.pageId}`);
@@ -29,8 +30,7 @@ test.describe("canvas page - collaboration", () => {
     await page.mouse.move(endX, endY, { steps: 10 });
     await page.mouse.up();
 
-    // Wait for first WS sync of the local element.
-    await page.waitForTimeout(1_500);
+    await waitForCanvasSceneCount(page, 1);
 
     // Peer B — open the same canvas in a fresh context.
     const peerBContext = await browser.newContext();
@@ -39,17 +39,7 @@ test.describe("canvas page - collaboration", () => {
     await peerB.goto(`/${canvasPage.workspaceSlug}/${canvasPage.pageId}`);
     await peerB.locator(".excalidraw").waitFor({ state: "attached", timeout: 30_000 });
 
-    // Peer B's scene should converge to at least one element within 5s.
-    await expect
-      .poll(
-        () =>
-          peerB.evaluate(() => {
-            const fn = (window as unknown as { __E2E_CANVAS_SCENE_COUNT__?: () => number }).__E2E_CANVAS_SCENE_COUNT__;
-            return typeof fn === "function" ? fn() : null;
-          }),
-        { timeout: 10_000 },
-      )
-      .toBeGreaterThanOrEqual(1);
+    await waitForCanvasSceneCount(peerB, 1);
 
     await peerBContext.close();
   });

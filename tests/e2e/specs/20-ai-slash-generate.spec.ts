@@ -1,10 +1,12 @@
 import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
 
 test.describe("AI slash-menu generation (mock backend)", () => {
-  test("/continue streams mock text into the document", async ({ authenticatedPage: { page, accessToken } }) => {
-    const testPage = await createTestPage(page, accessToken, "AI Generate Target");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+  test("/continue streams mock text into the document", async ({
+    authenticatedPage: { page, accessToken },
+    e2eWorkspace,
+  }) => {
+    const testPage = await createTestPage(page, accessToken, "AI Generate Target", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });

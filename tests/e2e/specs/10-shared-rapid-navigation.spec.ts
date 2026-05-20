@@ -1,6 +1,12 @@
 import type { Page as PlaywrightPage } from "@playwright/test";
-import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import {
+  test,
+  expect,
+  createTestPage,
+  createShareLink,
+  waitForPersistedSnapshot,
+  type TestWorkspace,
+} from "../fixtures/bland-test";
 
 interface SharedPageNode {
   id: string;
@@ -78,13 +84,14 @@ function isSharedPageAncestorsRequest(url: string, workspaceId: string, pageId: 
 async function setupSharedNavigationFixture(
   page: PlaywrightPage,
   accessToken: string,
+  workspace: TestWorkspace,
 ): Promise<SharedNavigationFixture> {
-  const root = await createTestPage(page, accessToken, ROOT_TITLE);
+  const root = await createTestPage(page, accessToken, ROOT_TITLE, workspace);
   const children = (await Promise.all(
     CHILD_TITLES.map((title) => createChildPage(page, accessToken, root.workspaceId, root.pageId, title)),
   )) as [SharedPageNode, SharedPageNode, SharedPageNode];
 
-  await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${root.pageId}`);
+  await page.goto(`/${root.workspaceSlug}/${root.pageId}`);
 
   const rootEditor = page.locator(".tiptap[contenteditable='true']");
   await rootEditor.waitFor({ timeout: 30_000 });
@@ -92,6 +99,7 @@ async function setupSharedNavigationFixture(
   await page.keyboard.type(ROOT_BODY_TEXT);
   await expect(rootEditor).toContainText(ROOT_BODY_TEXT);
   await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+  await waitForPersistedSnapshot(page, accessToken, { ...root, expectedText: ROOT_BODY_TEXT });
 
   const share = await createShareLink(page, accessToken, root.pageId, "view");
 
@@ -101,9 +109,10 @@ async function setupSharedNavigationFixture(
 test.describe("rapid page navigation - shared view", () => {
   test("anonymous shared navigation settles without freezing", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const { share, children } = await setupSharedNavigationFixture(page, accessToken);
+    const { share, children } = await setupSharedNavigationFixture(page, accessToken, e2eWorkspace);
     const [childAlpha, childBeta] = children;
 
     const anonContext = await browser.newContext();
@@ -146,9 +155,10 @@ test.describe("rapid page navigation - shared view", () => {
 
   test("direct nested shared load expands the active sidebar branch", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken);
+    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken, e2eWorkspace);
     const [parent] = children;
     const grandchild = await createChildPage(
       page,
@@ -191,9 +201,10 @@ test.describe("rapid page navigation - shared view", () => {
 
   test("shared sidebar preserves expanded branches across navigation", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken);
+    const { root, share, children } = await setupSharedNavigationFixture(page, accessToken, e2eWorkspace);
     const [parent, sibling] = children;
     const nested = await createChildPage(page, accessToken, root.workspaceId, parent.id, "Persistent Sidebar Nested");
 
@@ -228,12 +239,13 @@ test.describe("rapid page navigation - shared view", () => {
 
   test("authenticated member on view-only share stays read-only end to end across root and subpages", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     // Regression: workspace members opening their own view-only share link
     // used to flip subpages into an editable state because `GET /pages/:id`
     // resolved them via the canonical member fast path. Share semantics must
     // win on `/s/:token`, even for members.
-    const { share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken);
+    const { share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken, e2eWorkspace);
     const [childAlpha, childBeta, childGamma] = children;
 
     const pageErrors: string[] = [];
@@ -294,8 +306,9 @@ test.describe("rapid page navigation - shared view", () => {
 
   test("authenticated member root-child-root races keep the shared root responsive", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const { root, share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken);
+    const { root, share, children, rootBodyText } = await setupSharedNavigationFixture(page, accessToken, e2eWorkspace);
     const [delayedChild] = children;
 
     const pageErrors: string[] = [];

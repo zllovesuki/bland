@@ -1,9 +1,9 @@
 import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
 
 test.describe("rapid page navigation - authenticated", () => {
   test("switching pages A -> B -> C quickly settles on C without freezing", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     // Track page errors (hard freeze / unrecoverable)
     const pageErrors: string[] = [];
@@ -11,13 +11,13 @@ test.describe("rapid page navigation - authenticated", () => {
 
     // Create three pages via API
     const [pageA, , pageC] = await Promise.all([
-      createTestPage(page, accessToken, "Page Alpha"),
-      createTestPage(page, accessToken, "Page Beta"),
-      createTestPage(page, accessToken, "Page Gamma"),
+      createTestPage(page, accessToken, "Page Alpha", e2eWorkspace),
+      createTestPage(page, accessToken, "Page Beta", e2eWorkspace),
+      createTestPage(page, accessToken, "Page Gamma", e2eWorkspace),
     ]);
 
     // Navigate to page A first
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${pageA.pageId}`);
+    await page.goto(`/${pageA.workspaceSlug}/${pageA.pageId}`);
     const editor = page.locator(".tiptap");
     await editor.waitFor({ timeout: 30_000 });
 
@@ -27,10 +27,10 @@ test.describe("rapid page navigation - authenticated", () => {
 
     // Wait for sidebar to render page links
     await sidebarLinkB.waitFor({ timeout: 15_000 });
+    await sidebarLinkC.waitFor({ timeout: 15_000 });
 
     // Click B then immediately click C (rapid switch)
     await sidebarLinkB.click();
-    await page.waitForTimeout(100);
     await sidebarLinkC.click();
 
     // Wait for the final page to settle

@@ -12,9 +12,17 @@ const execFile = promisify(execFileCallback);
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const VITE_BIN_PATH = resolve(REPO_ROOT, "node_modules/vite/bin/vite.js");
-const NPX_COMMAND = process.platform === "win32" ? "npx.cmd" : "npx";
+const WRANGLER_BIN_PATH = resolve(REPO_ROOT, "node_modules/wrangler/bin/wrangler.js");
+const EMOJI_GENERATOR_PATH = resolve(REPO_ROOT, "scripts/generate-emoji-data.ts");
 const SERVER_READY_TIMEOUT_MS = 120_000;
+const SERVER_START_ATTEMPTS = 5;
 const POLL_INTERVAL_MS = 1_000;
+const COMMAND_STDIO_MAX_BYTES = 10 * 1024 * 1024;
+const COMMAND_TAIL_BYTES = 8_000;
+const LOG_TAIL_LINES = 40;
+const PROCESS_TERM_TIMEOUT_MS = 10_000;
+const PROCESS_KILL_TIMEOUT_MS = 5_000;
+const PROCESS_CLOSE_TIMEOUT_MS = 2_000;
 const D1_DATABASE = "bland-prod";
 const DEV_VARS_PATH = resolve(REPO_ROOT, ".dev.vars");
 const DEV_VARS_EXAMPLE_PATH = resolve(REPO_ROOT, ".dev.vars.example");
@@ -29,6 +37,12 @@ const WORKSPACE_SLUG = "bland";
 // Generated with: argon2id("testpass123", fixedSalt, { t:2, m:19456, p:1, dkLen:32 })
 const TEST_PASSWORD_HASH =
   "$argon2id$v=19$m=19456,t=2,p=1$AQIDBAUGBwgJCgsMDQ4PEA$rA.QLz6haXry79CxQAJYTFYy9kR.h6L0nEpdIFqdDP4";
+
+const COMMAND_TIMEOUTS = {
+  emoji: 60_000,
+  migrations: 180_000,
+  seed: 60_000,
+} as const;
 
 export interface E2eContext {
   tempDir: string;
@@ -55,25 +69,38 @@ export const TEST_CREDENTIALS = {
   workspaceSlug: WORKSPACE_SLUG,
 } as const;
 
-const delayUntil = async <T>(description: string, timeoutMs: number, action: () => Promise<T | null>): Promise<T> => {
-  const deadline = Date.now() + timeoutMs;
-  let lastError: unknown = null;
+function formatElapsed(startedAt: number): string {
+  return `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+}
 
-  while (Date.now() < deadline) {
-    try {
-      const result = await action();
-      if (result !== null) return result;
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
+function stringifyOutput(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Buffer.isBuffer(value)) return value.toString("utf8");
+  return "";
+}
 
-  if (lastError instanceof Error) {
-    throw new Error(`${description} timed out: ${lastError.message}`);
+function tailText(value: string, maxBytes = COMMAND_TAIL_BYTES): string {
+  const trimmed = value.trimEnd();
+  if (trimmed.length <= maxBytes) return trimmed;
+  return `... truncated ...\n${trimmed.slice(-maxBytes)}`;
+}
+
+async function readLogTail(filePath: string, lineCount = LOG_TAIL_LINES): Promise<string> {
+  try {
+    const content = await readFile(filePath, "utf8");
+    return content.trim().split("\n").slice(-lineCount).join("\n");
+  } catch {
+    return "";
   }
-  throw new Error(`${description} timed out.`);
-};
+}
+
+async function formatLogTails(stdoutLogPath: string, stderrLogPath: string): Promise<string> {
+  const [stdoutTail, stderrTail] = await Promise.all([readLogTail(stdoutLogPath), readLogTail(stderrLogPath)]);
+  const sections: string[] = [];
+  if (stdoutTail) sections.push(`Last stdout log lines:\n${stdoutTail}`);
+  if (stderrTail) sections.push(`Last stderr log lines:\n${stderrTail}`);
+  return sections.join("\n\n");
+}
 
 const closeWriteStream = async (stream: WriteStream): Promise<void> =>
   await new Promise<void>((resolveClose, reject) => {
@@ -116,58 +143,160 @@ export const getFreePort = async (): Promise<number> =>
   });
 
 const execCommand = async (
+  label: string,
   command: string,
   args: string[],
   env: NodeJS.ProcessEnv,
-): Promise<{ stdout: string; stderr: string }> =>
-  await execFile(command, args, {
-    cwd: REPO_ROOT,
-    env,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  timeoutMs: number,
+): Promise<{ stdout: string; stderr: string }> => {
+  const startedAt = Date.now();
+  console.log(`[e2e] ${label} started`);
 
-const waitForServerReady = async (baseUrl: string): Promise<void> => {
-  await delayUntil("dev server readiness", SERVER_READY_TIMEOUT_MS, async () => {
-    const status = await fetch(new URL("/api/v1/health", baseUrl), {
-      signal: AbortSignal.timeout(5_000),
-    }).then((r) => r.status);
-    return status === 200 ? true : null;
-  });
+  try {
+    const result = await execFile(command, args, {
+      cwd: REPO_ROOT,
+      env,
+      killSignal: "SIGTERM",
+      maxBuffer: COMMAND_STDIO_MAX_BYTES,
+      timeout: timeoutMs,
+    });
+    console.log(`[e2e] ${label} completed in ${formatElapsed(startedAt)}`);
+    return result;
+  } catch (error) {
+    const commandError = error as Error & {
+      code?: number | string | null;
+      killed?: boolean;
+      signal?: NodeJS.Signals | null;
+      stderr?: string | Buffer;
+      stdout?: string | Buffer;
+      timedOut?: boolean;
+    };
+    const stdoutTail = tailText(stringifyOutput(commandError.stdout));
+    const stderrTail = tailText(stringifyOutput(commandError.stderr));
+    const details = [
+      `${label} failed after ${formatElapsed(startedAt)}`,
+      `command: ${command} ${args.join(" ")}`,
+      `code: ${String(commandError.code ?? "unknown")}`,
+      `signal: ${String(commandError.signal ?? "none")}`,
+      `killed: ${String(commandError.killed ?? false)}`,
+      `message: ${commandError.message}`,
+      stdoutTail ? `stdout tail:\n${stdoutTail}` : null,
+      stderrTail ? `stderr tail:\n${stderrTail}` : null,
+    ].filter(Boolean);
+    throw new Error(details.join("\n"), { cause: error });
+  }
 };
 
-function mergeAllowedOrigins(...rawValues: Array<string | undefined>): string {
-  const origins = new Set<string>();
+const execWrangler = async (
+  label: string,
+  args: string[],
+  persistTo: string,
+  timeoutMs: number,
+): Promise<{ stdout: string; stderr: string }> =>
+  await execCommand(
+    label,
+    process.execPath,
+    [WRANGLER_BIN_PATH, ...args],
+    { ...process.env, BLAND_PERSIST_STATE_PATH: persistTo, CI: "1", NO_D1_WARNING: "true" },
+    timeoutMs,
+  );
 
-  for (const rawValue of rawValues) {
-    if (!rawValue) continue;
+export const generateEmojiData = async (): Promise<void> => {
+  await execCommand(
+    "emoji generation",
+    process.execPath,
+    ["--import", "tsx", EMOJI_GENERATOR_PATH],
+    { ...process.env, CI: "1" },
+    COMMAND_TIMEOUTS.emoji,
+  );
+};
 
-    for (const rawOrigin of rawValue.split(",")) {
-      const trimmedOrigin = rawOrigin.trim();
-      if (!trimmedOrigin) continue;
-      origins.add(new URL(trimmedOrigin).origin);
+const waitForServerReady = async (
+  baseUrl: string,
+  logs: { stdoutLogPath: string; stderrLogPath: string },
+): Promise<void> => {
+  const startedAt = Date.now();
+  const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
+  let lastStatus: number | null = null;
+  let lastError: string | null = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const status = await fetch(new URL("/api/v1/health", baseUrl), {
+        signal: AbortSignal.timeout(5_000),
+      }).then((r) => r.status);
+      lastStatus = status;
+      lastError = null;
+      if (status === 200) {
+        console.log(`[e2e] dev server ready in ${formatElapsed(startedAt)}`);
+        return;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
+    await sleep(POLL_INTERVAL_MS);
   }
 
-  return [...origins].join(",");
+  const logTails = await formatLogTails(logs.stdoutLogPath, logs.stderrLogPath);
+  const details = [
+    `dev server readiness timed out after ${formatElapsed(startedAt)}`,
+    `health URL: ${new URL("/api/v1/health", baseUrl).toString()}`,
+    `last status: ${lastStatus ?? "none"}`,
+    `last error: ${lastError ?? "none"}`,
+    logTails || null,
+  ].filter(Boolean);
+  throw new Error(details.join("\n\n"));
+};
+
+async function withStartupLogTails(error: unknown, logs: { stdoutLogPath: string; stderrLogPath: string }) {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const logTails = await formatLogTails(logs.stdoutLogPath, logs.stderrLogPath);
+  return new Error(logTails ? `${baseMessage}\n\n${logTails}` : baseMessage, { cause: error });
+}
+
+async function waitForProcessExit(serverProcess: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) return true;
+
+  return await new Promise<boolean>((resolveExit) => {
+    function onExit() {
+      clearTimeout(timer);
+      resolveExit(true);
+    }
+
+    const timer = setTimeout(() => {
+      serverProcess.off("exit", onExit);
+      resolveExit(false);
+    }, timeoutMs);
+
+    serverProcess.once("exit", onExit);
+  });
+}
+
+function waitForProcessClose(serverProcess: ChildProcess): Promise<void> {
+  return new Promise<void>((resolveClose) => {
+    serverProcess.once("close", () => resolveClose());
+  });
+}
+
+async function waitForProcessCloseWithTimeout(closePromise: Promise<void>, timeoutMs: number): Promise<boolean> {
+  return await Promise.race([closePromise.then(() => true), sleep(timeoutMs).then(() => false)]);
 }
 
 async function loadDevVarsTemplate(): Promise<string> {
-  for (const path of [DEV_VARS_PATH, DEV_VARS_EXAMPLE_PATH]) {
-    try {
-      return await readFile(path, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
+  try {
+    return await readFile(DEV_VARS_EXAMPLE_PATH, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
-  throw new Error("Missing .dev.vars and .dev.vars.example");
+  throw new Error("Missing .dev.vars.example");
 }
 
 async function createE2eDevVarsFile(baseUrl: string): Promise<{ cloudflareEnv: string; devVarsPath: string }> {
   const cloudflareEnv = `e2e-${process.pid}-${Date.now()}`;
   const devVarsPath = `${DEV_VARS_PATH}.${cloudflareEnv}`;
   const template = await loadDevVarsTemplate();
-  const allowedOrigins = mergeAllowedOrigins(process.env.ALLOWED_ORIGINS, baseUrl);
+  const allowedOrigins = new URL(baseUrl).origin;
   const stripped = template
     .replace(/^ALLOWED_ORIGINS=.*$/gm, "")
     .replace(/^BLAND_AI_MODE=.*$/gm, "")
@@ -201,10 +330,11 @@ function generateUlid(): string {
 }
 
 export const applyMigrations = async (persistTo: string): Promise<void> => {
-  await execCommand(
-    NPX_COMMAND,
-    ["wrangler", "d1", "migrations", "apply", D1_DATABASE, "--local", "--persist-to", persistTo],
-    { ...process.env, CI: "1", NO_D1_WARNING: "true" },
+  await execWrangler(
+    "D1 migrations",
+    ["d1", "migrations", "apply", D1_DATABASE, "--local", "--persist-to", persistTo],
+    persistTo,
+    COMMAND_TIMEOUTS.migrations,
   );
 };
 
@@ -219,14 +349,39 @@ export const seedTestUser = async (persistTo: string): Promise<void> => {
     `INSERT INTO memberships (user_id, workspace_id, role, joined_at) VALUES ('${escapeSql(userId)}', '${escapeSql(workspaceId)}', 'owner', '${escapeSql(now)}');`,
   ].join("\n");
 
-  await execCommand(
-    NPX_COMMAND,
-    ["wrangler", "d1", "execute", D1_DATABASE, "--local", "--persist-to", persistTo, "--yes", "--command", sql],
-    { ...process.env, CI: "1", NO_D1_WARNING: "true" },
+  await execWrangler(
+    "D1 seed user",
+    ["d1", "execute", D1_DATABASE, "--local", "--persist-to", persistTo, "--yes", "--command", sql],
+    persistTo,
+    COMMAND_TIMEOUTS.seed,
   );
 };
 
+function isPortInUseStartupError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("is already in use") || message.includes("EADDRINUSE");
+}
+
 export const startDevServer = async (persistTo: string): Promise<E2eContext> => {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= SERVER_START_ATTEMPTS; attempt += 1) {
+    try {
+      return await startDevServerOnce(persistTo, attempt);
+    } catch (error) {
+      lastError = error;
+      if (!isPortInUseStartupError(error) || attempt === SERVER_START_ATTEMPTS) {
+        throw error;
+      }
+      console.warn(`[e2e] dev server port was busy on attempt ${attempt}; retrying with a fresh port`);
+      await sleep(250);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+};
+
+const startDevServerOnce = async (persistTo: string, attempt: number): Promise<E2eContext> => {
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const { cloudflareEnv, devVarsPath } = await createE2eDevVarsFile(baseUrl);
@@ -235,31 +390,46 @@ export const startDevServer = async (persistTo: string): Promise<E2eContext> => 
   const stdoutStream = createWriteStream(stdoutLogPath, { flags: "a" });
   const stderrStream = createWriteStream(stderrLogPath, { flags: "a" });
 
-  const serverProcess = spawn(process.execPath, [VITE_BIN_PATH, "dev", "--host", "127.0.0.1", "--port", String(port)], {
-    cwd: REPO_ROOT,
-    env: { ...process.env, BLAND_PERSIST_STATE_PATH: persistTo, CLOUDFLARE_ENV: cloudflareEnv },
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: process.platform !== "win32",
-  });
+  console.log(`[e2e] dev server startup attempt ${attempt}/${SERVER_START_ATTEMPTS} on ${baseUrl}`);
+
+  const serverProcess = spawn(
+    process.execPath,
+    [VITE_BIN_PATH, "dev", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    {
+      cwd: REPO_ROOT,
+      env: { ...process.env, BLAND_PERSIST_STATE_PATH: persistTo, CLOUDFLARE_ENV: cloudflareEnv },
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
+    },
+  );
 
   serverProcess.stdout?.pipe(stdoutStream);
   serverProcess.stderr?.pipe(stderrStream);
+  const closePromise = waitForProcessClose(serverProcess);
 
+  let removeExitListener = () => {};
   try {
-    await Promise.race([
-      waitForServerReady(baseUrl),
-      new Promise<never>((_, reject) => {
-        serverProcess.once("exit", (code, signal) => {
-          reject(new Error(`dev server exited before readiness (code=${code}, signal=${signal})`));
-        });
-      }),
-    ]);
+    const exitedEarly = new Promise<never>((_, reject) => {
+      const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+        reject(new Error(`dev server exited before readiness (code=${code}, signal=${signal})`));
+      };
+      serverProcess.once("exit", onExit);
+      removeExitListener = () => serverProcess.off("exit", onExit);
+    });
+
+    await Promise.race([waitForServerReady(baseUrl, { stdoutLogPath, stderrLogPath }), exitedEarly]);
+    removeExitListener();
   } catch (error) {
+    removeExitListener();
     await stopDevServer(serverProcess);
-    await rm(devVarsPath, { force: true });
+    await waitForProcessCloseWithTimeout(closePromise, PROCESS_CLOSE_TIMEOUT_MS);
+    serverProcess.stdout?.unpipe(stdoutStream);
+    serverProcess.stderr?.unpipe(stderrStream);
     await closeWriteStream(stdoutStream);
     await closeWriteStream(stderrStream);
-    throw error;
+    const startupError = await withStartupLogTails(error, { stdoutLogPath, stderrLogPath });
+    await rm(devVarsPath, { force: true });
+    throw startupError;
   }
 
   return {
@@ -279,28 +449,30 @@ export const startDevServer = async (persistTo: string): Promise<E2eContext> => 
 export const stopDevServer = async (serverProcess: ChildProcess): Promise<void> => {
   if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) return;
 
-  const killServer = (signal: NodeJS.Signals): void => {
-    if (serverProcess.pid === undefined) return;
-    if (process.platform === "win32") {
-      serverProcess.kill(signal);
-      return;
+  const killServer = (signal: NodeJS.Signals): boolean => {
+    if (serverProcess.pid === undefined) return false;
+    try {
+      if (process.platform === "win32") {
+        return serverProcess.kill(signal);
+      }
+      process.kill(-serverProcess.pid, signal);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+      throw error;
     }
-    process.kill(-serverProcess.pid, signal);
   };
 
-  killServer("SIGTERM");
-  const exited = await Promise.race([
-    new Promise<boolean>((resolveExit) => {
-      serverProcess.once("exit", () => resolveExit(true));
-    }),
-    sleep(10_000).then(() => false),
-  ]);
+  const termWait = waitForProcessExit(serverProcess, PROCESS_TERM_TIMEOUT_MS);
+  const termSent = killServer("SIGTERM");
+  if (!termSent || (await termWait)) return;
 
-  if (!exited && serverProcess.exitCode === null && serverProcess.signalCode === null) {
-    killServer("SIGKILL");
-    await new Promise<void>((resolveExit) => {
-      serverProcess.once("exit", () => resolveExit());
-    });
+  if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+    const killWait = waitForProcessExit(serverProcess, PROCESS_KILL_TIMEOUT_MS);
+    const killSent = killServer("SIGKILL");
+    if (killSent && !(await killWait)) {
+      console.error(`[e2e] dev server did not exit after SIGKILL within ${PROCESS_KILL_TIMEOUT_MS}ms`);
+    }
   }
 };
 
@@ -317,24 +489,18 @@ export const printFailureContext = (ctx: E2eContext): void => {
   console.error(`Dev server stdout: ${ctx.stdoutLogPath}`);
   console.error(`Dev server stderr: ${ctx.stderrLogPath}`);
   console.error(
-    `Reopen preserved state: CLOUDFLARE_ENV=${ctx.cloudflareEnv} BLAND_PERSIST_STATE_PATH=${ctx.tempDir} npm run dev -- --host 127.0.0.1 --port ${ctx.port}`,
+    `Reopen preserved state: CLOUDFLARE_ENV=${ctx.cloudflareEnv} BLAND_PERSIST_STATE_PATH=${ctx.tempDir} node ${VITE_BIN_PATH} dev --host 127.0.0.1 --port ${ctx.port} --strictPort`,
   );
 };
 
 export const printLogTails = async (ctx: E2eContext): Promise<void> => {
-  const { readFile } = await import("node:fs/promises");
   for (const [label, filePath] of [
     ["stdout", ctx.stdoutLogPath],
     ["stderr", ctx.stderrLogPath],
   ] as const) {
-    try {
-      const content = await readFile(filePath, "utf8");
-      const tail = content.trim().split("\n").slice(-20).join("\n");
-      if (tail.length > 0) {
-        console.error(`Last ${label} log lines:\n${tail}`);
-      }
-    } catch {
-      // Logs are optional when startup fails before the server opens files.
+    const tail = await readLogTail(filePath);
+    if (tail.length > 0) {
+      console.error(`Last ${label} log lines:\n${tail}`);
     }
   }
 };

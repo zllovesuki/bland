@@ -1,5 +1,5 @@
 import type { Locator } from "@playwright/test";
-import { test, expect, createTestPage } from "../fixtures/bland-test";
+import { test, expect } from "../fixtures/bland-test";
 
 async function getSearchSelection(input: Locator) {
   return await input.evaluate((element) => {
@@ -16,10 +16,10 @@ async function getSearchSelection(input: Locator) {
 
 test.describe("emoji picker", () => {
   test("keeps native caret movement in search while still allowing keyboard selection", async ({
-    authenticatedPage: { page, accessToken },
+    authenticatedPage: { page },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Emoji Picker Keyboard Test");
-    await page.goto(`/${testPage.workspaceSlug}/settings`);
+    await page.goto(`/${e2eWorkspace.workspaceSlug}/settings`);
     await expect(page.getByRole("heading", { name: "Workspace Settings" })).toBeVisible({ timeout: 15_000 });
 
     await page

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
-import { extractCanvasPlaintext } from "@/worker/lib/yjs-text";
+import { extractCanvasPlaintext } from "@/shared/editor/yjs-text";
 import { YJS_CANVAS_ELEMENTS, YJS_PAGE_TITLE } from "@/shared/constants";
 
 function seedElement(ydoc: Y.Doc, id: string, element: Record<string, unknown>): void {

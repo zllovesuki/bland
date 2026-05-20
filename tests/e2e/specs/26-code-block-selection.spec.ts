@@ -39,8 +39,9 @@ async function clickCodeBlockText(page: Page, text: string, clickCount: 2 | 3): 
 test.describe("code block selection", () => {
   test("double-click selects a word and triple-click selects the clicked line", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Code Block Selection Test");
+    const testPage = await createTestPage(page, accessToken, "Code Block Selection Test", e2eWorkspace);
 
     await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
@@ -60,7 +61,6 @@ test.describe("code block selection", () => {
     await clickCodeBlockText(page, "alpha", 2);
     await expect.poll(() => getSelectionText(page)).toBe("alpha");
 
-    await page.waitForTimeout(600);
     await clickCodeBlockText(page, "betaValue", 3);
     await expect.poll(() => getSelectionText(page)).toBe("let betaValue = alpha + 1;");
   });

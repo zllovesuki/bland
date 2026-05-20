@@ -1,13 +1,13 @@
-import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestPage, waitForPersistedSnapshot } from "../fixtures/bland-test";
 
 test.describe("AI summarize + ask page (mock backend)", () => {
   test.slow();
   test("summarize button fetches a mock summary and ask streams an answer", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "AI Summarize Target");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "AI Summarize Target", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -16,22 +16,10 @@ test.describe("AI summarize + ask page (mock backend)", () => {
     await page.keyboard.type("Launch freeze begins Thursday. Rollout is staged by region.");
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
 
-    // Poll the snapshot endpoint until DocSync has persisted a non-empty snapshot to DO storage —
-    // that is the same path /summarize reads from, so once this returns 200 with bytes we know
-    // getIndexPayload will find real body text.
-    await expect
-      .poll(
-        async () => {
-          const res = await page.request.get(
-            `/api/v1/workspaces/${testPage.workspaceId}/pages/${testPage.pageId}/snapshot`,
-            { headers: { Authorization: `Bearer ${accessToken}` } },
-          );
-          if (res.status() !== 200) return 0;
-          return (await res.body()).byteLength;
-        },
-        { timeout: 30_000, intervals: [500, 1000, 1500, 2000] },
-      )
-      .toBeGreaterThan(0);
+    await waitForPersistedSnapshot(page, accessToken, {
+      ...testPage,
+      expectedText: "Launch freeze begins Thursday. Rollout is staged by region.",
+    });
 
     const summarizeResponsePromise = page.waitForResponse((res) =>
       res.url().includes(`/workspaces/${testPage.workspaceId}/pages/${testPage.pageId}/summarize`),

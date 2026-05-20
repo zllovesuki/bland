@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
-import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestPage, createShareLink, waitForPersistedSnapshot } from "../fixtures/bland-test";
 
 const ONE_BY_ONE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0KsAAAAASUVORK5CYII=",
@@ -38,11 +37,12 @@ async function uploadTestImage(page: Page, accessToken: string, workspaceId: str
 test.describe("share link - view only", () => {
   test("view-only share link shows content but prevents editing", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
     // Create a page and add content as the authenticated user
-    const testPage = await createTestPage(page, accessToken, "Share View Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Share View Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -52,6 +52,7 @@ test.describe("share link - view only", () => {
     // Wait for content and sync before creating the share link
     await expect(editor).toContainText("Shared content visible");
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForPersistedSnapshot(page, accessToken, { ...testPage, expectedText: "Shared content visible" });
 
     // Create a view-only share link
     const share = await createShareLink(page, accessToken, testPage.pageId, "view");
@@ -86,12 +87,13 @@ test.describe("share link - view only", () => {
 
   test("shared image requests always include the share token", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Shared Image Test");
+    const testPage = await createTestPage(page, accessToken, "Shared Image Test", e2eWorkspace);
     const imageUrl = await uploadTestImage(page, accessToken, testPage.workspaceId, testPage.pageId);
 
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -107,6 +109,7 @@ test.describe("share link - view only", () => {
 
     await expect(page.locator(".tiptap-image")).toHaveCount(1, { timeout: 15_000 });
     await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
+    await waitForPersistedSnapshot(page, accessToken, testPage);
 
     const share = await createShareLink(page, accessToken, testPage.pageId, "view");
 

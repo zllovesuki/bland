@@ -1,21 +1,28 @@
-import { test, expect, createTestPage, loginPage } from "../fixtures/bland-test";
+import {
+  test,
+  expect,
+  createTestPage,
+  loginPage,
+  waitForDocEditorReady,
+  waitForPersistedSnapshot,
+} from "../fixtures/bland-test";
 
 const SEEDED_BODY_TEXT = "Cold deep link preserves existing body content";
 
 test.describe("canonical page route - cold deep-link", () => {
   test("cold deep-link hydrates existing body content without a leading blank block", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Cold Deep Link Page");
+    const testPage = await createTestPage(page, accessToken, "Cold Deep Link Page", e2eWorkspace);
     await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
-    const seedEditor = page.locator(".tiptap[contenteditable='true']");
-    await seedEditor.waitFor({ timeout: 30_000 });
+    const seedEditor = await waitForDocEditorReady(page, { editable: true });
     await seedEditor.click();
     await page.keyboard.type(SEEDED_BODY_TEXT);
     await expect(seedEditor).toContainText(SEEDED_BODY_TEXT);
-    await page.waitForTimeout(2_500);
+    await waitForPersistedSnapshot(page, accessToken, { ...testPage, expectedText: SEEDED_BODY_TEXT });
 
     const coldContext = await browser.newContext();
     const coldPage = await coldContext.newPage();
@@ -64,9 +71,10 @@ test.describe("canonical page route - cold deep-link", () => {
 
   test("brand-new cold deep-link waits for first sync when no persisted snapshot exists yet", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Cold Empty Page");
+    const testPage = await createTestPage(page, accessToken, "Cold Empty Page", e2eWorkspace);
 
     const coldContext = await browser.newContext();
     const coldPage = await coldContext.newPage();
@@ -98,9 +106,10 @@ test.describe("canonical page route - cold deep-link", () => {
 
   test("cold deep-link to a canvas page mounts the canvas surface, not the editor", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
-    const canvasPage = await createTestPage(page, accessToken, "Canvas Cold Deep Link", undefined, "canvas");
+    const canvasPage = await createTestPage(page, accessToken, "Canvas Cold Deep Link", e2eWorkspace, "canvas");
 
     const coldContext = await browser.newContext();
     const coldPage = await coldContext.newPage();

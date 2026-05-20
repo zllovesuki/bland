@@ -13,7 +13,7 @@ import { recordDocSyncPageSave } from "@/worker/lib/site-invalidation";
 import { YJS_PAGE_TITLE } from "@/shared/constants";
 import { parseDocMessage } from "@/shared/doc-messages";
 import type { PageKind } from "@/shared/types";
-import { extractCanvasPlaintext, extractPlaintext } from "@/worker/lib/yjs-text";
+import { extractCanvasPlaintext, extractPlaintext } from "@/shared/editor/yjs-text";
 import docSyncMigrations from "../../../drizzle/docsync-do/migrations.js";
 
 const MAX_CONNECTIONS_PER_DOC = 20;

@@ -1,6 +1,5 @@
 import type { Page as PlaywrightPage } from "@playwright/test";
-import { test, expect, createTestPage, createShareLink } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
+import { test, expect, createTestPage, createShareLink, waitForPersistedSnapshot } from "../fixtures/bland-test";
 
 const MOBILE_VIEWPORT = { width: 900, height: 900 };
 // Wide viewport where expanded workspace layout can place the doc-owned
@@ -111,11 +110,12 @@ async function expectActiveOutlineHeading(page: PlaywrightPage, text: string) {
 test.describe("document outline", () => {
   test("workspace outline stays inline in narrow layout and becomes a side rail in expanded layout on wide screens", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     await page.setViewportSize(MOBILE_VIEWPORT);
 
-    const testPage = await createTestPage(page, accessToken, "Outline Placement Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Outline Placement Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     await seedOutlineDocument(page);
     await expectInlineOutline(page);
@@ -135,13 +135,18 @@ test.describe("document outline", () => {
 
   test("read-only shared outline tracks the heading that is visible in the viewport", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
     browser,
   }) => {
     await page.setViewportSize(RAIL_VIEWPORT);
 
-    const testPage = await createTestPage(page, accessToken, "Outline Visibility Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Outline Visibility Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
     await seedOutlineDocument(page);
+    await waitForPersistedSnapshot(page, accessToken, {
+      ...testPage,
+      expectedText: ["Introduction", "Second section"],
+    });
 
     const share = await createShareLink(page, accessToken, testPage.pageId, "view");
 
@@ -171,11 +176,12 @@ test.describe("document outline", () => {
 
   test("focused workspace outline prioritizes selection over viewport visibility", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
     await page.setViewportSize(RAIL_VIEWPORT);
 
-    const testPage = await createTestPage(page, accessToken, "Outline Selection Priority Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Outline Selection Priority Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
     await seedOutlineDocument(page);
     await setWorkspaceLayout(page, true);
     await expectRailOutline(page);

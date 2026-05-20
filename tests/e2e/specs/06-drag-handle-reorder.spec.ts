@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect, createTestPage } from "../fixtures/bland-test";
-import { TEST_CREDENTIALS } from "../harness";
 
 async function expectHighlightedCodeBlock(page: Page) {
   await expect
@@ -98,9 +97,10 @@ async function selectEntireCodeBlockText(page: Page) {
 test.describe("drag handle block reordering", () => {
   test("retains code block syntax highlighting when moving via block actions", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Drag Handle Reorder Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Drag Handle Reorder Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -129,9 +129,10 @@ test.describe("drag handle block reordering", () => {
 
   test("refreshes syntax highlighting after collaborative code edits while the observer cursor stays outside the block", async ({
     authenticatedPage: { page, accessToken },
+    e2eWorkspace,
   }) => {
-    const testPage = await createTestPage(page, accessToken, "Collaborative Highlight Refresh Test");
-    await page.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+    const testPage = await createTestPage(page, accessToken, "Collaborative Highlight Refresh Test", e2eWorkspace);
+    await page.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
 
     const editor = page.locator(".tiptap[contenteditable='true']");
     await editor.waitFor({ timeout: 30_000 });
@@ -148,7 +149,7 @@ test.describe("drag handle block reordering", () => {
 
     const collaborator = await page.context().newPage();
     try {
-      await collaborator.goto(`/${TEST_CREDENTIALS.workspaceSlug}/${testPage.pageId}`);
+      await collaborator.goto(`/${testPage.workspaceSlug}/${testPage.pageId}`);
       const collaboratorEditor = collaborator.locator(".tiptap[contenteditable='true']");
       await collaboratorEditor.waitFor({ timeout: 30_000 });
       await expect(collaboratorEditor).toContainText("const count = 1");
