@@ -1,4 +1,17 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+/* ADR 2026-05-19:
+  Sites is a separate public asset surface from the app shell. Keep Tailwind's
+  candidate scan scoped to markup that can actually render in published Sites;
+  otherwise app-only utilities inflate the blocking Sites stylesheet.
+
+  Measured after scoping:
+  111,941 B raw / 18,240 B gzip -> 55,267 B raw / 10,615 B gzip.
+*/
+@source "../sites";
+@source "../client/sites";
+@source "../shared/sites";
+@source "../shared/editor/presentation";
+@source "../shared/components/ui";
 @import "./theme.css";
 @import "./editor/content.css";
 @import "./editor/callout.css";
