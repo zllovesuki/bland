@@ -66,6 +66,10 @@ making it the default.
   code.
 - Do not speculate when the live code, logs, types, or runtime can answer the
   question quickly.
+- Do not treat repo-answerable technical constraints as product-choice
+  questions. Inspect live code, config, tests, and local docs first; ask the
+  user only for product direction or missing external context the repo cannot
+  answer.
 - Unless the user explicitly asks for a modification, treat the repository,
   working tree, index, and staged or unstaged changes as read-only.
 - Do not run destructive git or index-mutating commands such as `git add`,
