@@ -3,7 +3,6 @@ import type { JSONContent } from "@tiptap/core";
 import type { EditorTextMetrics } from "@/shared/editor/schema/metrics";
 import type { ResolvedPublishedPage } from "@/worker/lib/published-pages";
 import { readSiteR2, writeSiteR2 } from "@/worker/sites/cache";
-import { projectPageJson } from "@/worker/sites/project-page-json";
 
 type SiteTiming = <T>(name: string, operation: () => Promise<T>) => Promise<T>;
 
@@ -30,7 +29,11 @@ export async function loadPagePmJson({ env, page, timings }: LoadPagePmJsonArgs)
     return { content: r2.envelope.content, metrics: r2.envelope.metrics, writeBack: null };
   }
 
-  const projected = await timeMaybe(timings, "docsync_document", () => projectPageJson(env, page.id));
+  const projected = await timeMaybe(timings, "docsync_document", async () => {
+    // ADR: keep Tiptap/y-tiptap projection out of Worker startup; load it only for stale/missing Sites R2 JSON.
+    const { projectPageJson } = await import("@/worker/sites/project-page-json");
+    return projectPageJson(env, page.id);
+  });
   if (!projected) return null;
 
   const envelope = {

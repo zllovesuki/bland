@@ -28,7 +28,6 @@ import {
 } from "@/worker/sites/cache";
 import { loadPagePmJson } from "@/worker/sites/load-page-pm-json";
 import { prepareSitePageRender } from "@/worker/sites/prepare-page-render";
-import { renderSitePageDocumentStream } from "@/worker/sites/render-page-stream";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
 import { renderApexDocumentHtml, renderRobotsTxt, renderSiteNotFoundDocumentHtml } from "@/sites/document";
 import type { SiteDocumentAssets } from "@/sites/types";
@@ -243,9 +242,11 @@ async function serveCachedOrRender(
   if (!prepared) return sitesAssetsUnavailable(c);
   const headers = withSitesPageDocumentPreloadHeaders(baseHeaders, prepared.assets);
 
-  const stream = await timeSite(c, "render_stream", () =>
-    renderSitePageDocumentStream({ env: c.env, db, site, page, prepared }),
-  );
+  const stream = await timeSite(c, "render_stream", async () => {
+    // ADR: keep Tiptap/static-renderer out of Worker startup; load it only on Sites HTML cache misses.
+    const { renderSitePageDocumentStream } = await import("@/worker/sites/render-page-stream");
+    return renderSitePageDocumentStream({ env: c.env, db, site, page, prepared });
+  });
   const [responseStream, cacheStream] = stream.tee();
 
   const cacheResponse = new Response(cacheStream, {
