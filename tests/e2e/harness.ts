@@ -34,7 +34,6 @@ const PROCESS_CLOSE_TIMEOUT_MS = 2_000;
 const D1_DATABASE = "bland-prod";
 const DEV_VARS_PATH = resolve(REPO_ROOT, ".dev.vars");
 const DEV_VARS_EXAMPLE_PATH = resolve(REPO_ROOT, ".dev.vars.example");
-const PASSWORD_DISABLED_SENTINEL = "tessera!disabled";
 
 const WORKSPACE_NAME = "bland";
 const WORKSPACE_SLUG = "bland";
@@ -358,7 +357,7 @@ export const seedTestUser = async (persistTo: string): Promise<void> => {
   const now = new Date().toISOString();
 
   const sql = [
-    `INSERT INTO users (id, email, password_hash, name, created_at, updated_at) VALUES ('${escapeSql(userId)}', '${escapeSql(E2E_BASELINE_EMAIL)}', '${escapeSql(PASSWORD_DISABLED_SENTINEL)}', '${escapeSql(E2E_BASELINE_NAME)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
+    `INSERT INTO users (id, email, name, created_at, updated_at) VALUES ('${escapeSql(userId)}', '${escapeSql(E2E_BASELINE_EMAIL)}', '${escapeSql(E2E_BASELINE_NAME)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
     `INSERT INTO tessera_identities (sub, user_id, created_at, last_seen_at) VALUES ('${escapeSql(E2E_BASELINE_TESSERA_SUB)}', '${escapeSql(userId)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
     `INSERT INTO workspaces (id, name, slug, owner_id, created_at) VALUES ('${escapeSql(workspaceId)}', '${escapeSql(WORKSPACE_NAME)}', '${escapeSql(WORKSPACE_SLUG)}', '${escapeSql(userId)}', '${escapeSql(now)}');`,
     `INSERT INTO memberships (user_id, workspace_id, role, joined_at) VALUES ('${escapeSql(userId)}', '${escapeSql(workspaceId)}', 'owner', '${escapeSql(now)}');`,

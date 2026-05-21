@@ -5,7 +5,6 @@ import * as oidc from "openid-client";
 
 import { __test, OIDC_TX_COOKIE, encodeTxCookie, type ResolvedClaims, type TxCookiePayload } from "@/worker/lib/oidc";
 import { memberships, tesseraIdentities, users, workspaces } from "@/worker/db/d1/schema";
-import { PASSWORD_DISABLED_SENTINEL } from "@/worker/lib/auth";
 import { getDb, resetD1Tables } from "@tests/worker/helpers/db";
 import { apiRequest, LOOPBACK_ORIGIN } from "@tests/worker/helpers/request";
 import { seedTesseraIdentity, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
@@ -209,7 +208,6 @@ describe("OIDC callback identity binding", () => {
 
     const newUser = await getDb().select().from(users).where(eq(users.email, "fresh@example.com")).get();
     expect(newUser).toBeTruthy();
-    expect(newUser?.password_hash).toBe(PASSWORD_DISABLED_SENTINEL);
     expect(newUser?.name).toBe("Fresh Person");
 
     const identity = await getDb()

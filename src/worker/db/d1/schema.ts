@@ -13,7 +13,6 @@ import {
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").unique().notNull(),
-  password_hash: text("password_hash").notNull(),
   name: text("name").notNull(),
   avatar_url: text("avatar_url"),
   created_at: text("created_at")

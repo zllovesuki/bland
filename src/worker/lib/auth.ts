@@ -4,11 +4,9 @@ import type { Context } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import type { CookieOptions } from "hono/utils/cookie";
 
-import { PASSWORD_DISABLED_SENTINEL, SESSION_HINT_COOKIE } from "@/shared/auth";
+import { SESSION_HINT_COOKIE } from "@/shared/auth";
 import { users } from "@/worker/db/d1/schema";
 import { JWT_ALGORITHM, REFRESH_COOKIE_MAX_AGE } from "@/worker/lib/constants";
-
-export { PASSWORD_DISABLED_SENTINEL };
 
 export const REFRESH_COOKIE = "bland_refresh";
 

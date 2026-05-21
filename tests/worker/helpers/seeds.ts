@@ -1,6 +1,5 @@
 import { ulid } from "ulid";
 import { and, eq } from "drizzle-orm";
-import { PASSWORD_DISABLED_SENTINEL } from "@/worker/lib/auth";
 import {
   invites,
   memberships,
@@ -39,7 +38,6 @@ export async function seedUser(opts: SeedUserOptions = {}): Promise<SeedUser> {
     .values({
       id,
       email,
-      password_hash: PASSWORD_DISABLED_SENTINEL,
       name,
       avatar_url: opts.avatar_url ?? null,
       created_at: TEST_TIMESTAMP,

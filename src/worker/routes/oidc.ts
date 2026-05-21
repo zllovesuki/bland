@@ -9,7 +9,7 @@ import type { Configuration, IDToken } from "openid-client";
 import type { AppContext } from "@/worker/app-context";
 import type { Db } from "@/worker/db/d1/client";
 import { memberships, tesseraIdentities, users, workspaces } from "@/worker/db/d1/schema";
-import { createRefreshToken, PASSWORD_DISABLED_SENTINEL, setRefreshCookie } from "@/worker/lib/auth";
+import { createRefreshToken, setRefreshCookie } from "@/worker/lib/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { isAllowedOrigin } from "@/worker/lib/origins";
 import { createLogger } from "@/worker/lib/logger";
@@ -224,7 +224,6 @@ export async function bindIdentity(db: Db, claims: ResolvedClaims): Promise<Bind
       db.insert(users).values({
         id: userId,
         email: claims.email,
-        password_hash: PASSWORD_DISABLED_SENTINEL,
         name: displayName,
       }),
       db.insert(tesseraIdentities).values({

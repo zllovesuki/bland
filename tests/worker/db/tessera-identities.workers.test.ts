@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
-import { PASSWORD_DISABLED_SENTINEL } from "@/worker/lib/auth";
 import { tesseraIdentities, users } from "@/worker/db/d1/schema";
 import { getDb, resetD1Tables } from "@tests/worker/helpers/db";
 import { seedTesseraIdentity, seedUser } from "@tests/worker/helpers/seeds";
@@ -24,18 +23,6 @@ describe("tessera_identities schema", () => {
     await seedTesseraIdentity({ sub: "sub-1", user_id: user.id });
 
     await expect(seedTesseraIdentity({ sub: "sub-2", user_id: user.id })).rejects.toThrow();
-  });
-
-  it("accepts a user with the disabled-password sentinel", async () => {
-    const db = getDb();
-    await db.insert(users).values({
-      id: "sentinel-user",
-      email: "sentinel@example.com",
-      password_hash: PASSWORD_DISABLED_SENTINEL,
-      name: "Sentinel User",
-    });
-    const stored = await db.select().from(users).where(eq(users.id, "sentinel-user")).get();
-    expect(stored?.password_hash).toBe(PASSWORD_DISABLED_SENTINEL);
   });
 
   it("loads legacy users without an identity row", async () => {

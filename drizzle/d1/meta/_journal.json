@@ -36,6 +36,13 @@
       "when": 1779292122275,
       "tag": "0004_tan_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1779296504331,
+      "tag": "0005_famous_juggernaut",
+      "breakpoints": true
     }
   ]
 }
