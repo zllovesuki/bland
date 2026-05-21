@@ -74,7 +74,7 @@ function toSnapshotChunkView(data: unknown): Uint8Array<ArrayBuffer> {
   return new Uint8Array(data);
 }
 
-export class DocSync extends YServer<Env> {
+export class DocSync extends YServer<Cloudflare.Env> {
   static options = { hibernate: true };
 
   static callbackOptions = {
@@ -84,7 +84,7 @@ export class DocSync extends YServer<Env> {
 
   private readonly doDb: DocSyncDb;
 
-  constructor(ctx: DurableObjectState, env: Env) {
+  constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env);
     this.doDb = drizzle(ctx.storage, { schema: docSyncSchema });
 

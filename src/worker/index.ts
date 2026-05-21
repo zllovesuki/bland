@@ -18,7 +18,7 @@ export { WorkspaceIndexer } from "@/worker/durable-objects/workspace-indexer";
 
 const log = createLogger("websocket");
 
-async function handlePartyRequest(request: Request, env: Env) {
+async function handlePartyRequest(request: Request, env: Cloudflare.Env) {
   const response = await routePartykitRequest(request, env, {
     onBeforeConnect: async (req, lobby) => {
       const pageId = lobby.name;
@@ -116,7 +116,7 @@ async function handlePartyRequest(request: Request, env: Env) {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     setLevel(env.LOG_LEVEL);
     return handleHttpRequest(request, env, ctx, {
       handlePartyRequest,
@@ -127,7 +127,7 @@ export default {
       handleShellRequest: renderSpaShell,
     });
   },
-  async queue(batch: MessageBatch, env: Env) {
+  async queue(batch: MessageBatch, env: Cloudflare.Env) {
     setLevel(env.LOG_LEVEL);
     const log = createLogger("queue");
 
@@ -150,4 +150,4 @@ export default {
       }
     }
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Cloudflare.Env>;
