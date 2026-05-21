@@ -3,7 +3,6 @@ import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { readStorageString, writeStorageString } from "@/client/lib/storage";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 import type {
-  LoginRequest,
   User,
   Workspace,
   WorkspaceMembershipSummary,
@@ -73,6 +72,10 @@ export function refreshSession(): Promise<
         return { ok: false as const, reason: "rejected" as const };
       }
 
+      // ADR: refresh is the first authenticated read after an OIDC callback,
+      // and the callback may have just written a new identity/user/workspace
+      // row. Persist the response bookmark so subsequent GETs observe it.
+      persistBookmark(res);
       const data = (await res.json()) as { user: User; accessToken: string };
       useAuthStore.getState().setAuth(data.accessToken, data.user);
       return { ok: true as const, data };
@@ -138,11 +141,9 @@ export async function sendApiRequest(
     const err = await parseApiError(res);
 
     // Auto-refresh on 401, or the local-dev 403 workaround for unauthorized responses.
-    if (
-      (res.status === 401 || (res.status === 403 && err.error === "unauthorized")) &&
-      path !== AUTH_REFRESH_PATH &&
-      path !== "/auth/login"
-    ) {
+    // OIDC start/callback are top-level navigations, not JSON API calls, so they
+    // never reach `sendApiRequest` and need no exclusion here.
+    if ((res.status === 401 || (res.status === 403 && err.error === "unauthorized")) && path !== AUTH_REFRESH_PATH) {
       const refreshResult = await refreshSession();
       if (!refreshResult.ok) {
         throw err;
@@ -178,13 +179,6 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   auth: {
-    login: async (data: LoginRequest) => {
-      const res = await apiFetch<{ user: User; accessToken: string }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-      return res;
-    },
     refresh: async () => {
       const res = await apiFetch<{ user: User; accessToken: string }>(AUTH_REFRESH_PATH, {
         method: "POST",
@@ -401,13 +395,10 @@ export const api = {
       const res = await apiFetch<{ invite: InvitePreview }>(`/invite/${token}`);
       return res.invite;
     },
-    accept: async (
-      token: string,
-      data: { turnstileToken: string; name?: string; email?: string; password?: string },
-    ) => {
+    accept: async (token: string) => {
       const res = await apiFetch<{ user: User; workspace_id: string; accessToken: string }>(`/invite/${token}/accept`, {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({}),
       });
       return res;
     },

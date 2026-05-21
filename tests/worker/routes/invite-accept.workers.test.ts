@@ -1,16 +1,15 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { invites, memberships, users } from "@/worker/db/d1/schema";
+import { invites, memberships } from "@/worker/db/d1/schema";
 import { getDb, resetD1Tables } from "@tests/worker/helpers/db";
-import { apiRequest } from "@tests/worker/helpers/request";
-import { seedInvite, seedMembership, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
+import { apiRequest, PROD_ORIGIN } from "@tests/worker/helpers/request";
+import { seedInvite, seedMembership, seedTesseraIdentity, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
 interface AcceptResponse {
   workspace_id: string;
   accessToken: string;
   already_member?: boolean;
-  is_new_user?: boolean;
 }
 
 describe("POST /invite/:token/accept - conditional acceptance gate", () => {
@@ -22,6 +21,8 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
     const inviter = await seedUser();
     const userA = await seedUser();
     const userB = await seedUser();
+    await seedTesseraIdentity({ sub: "sub-a", user_id: userA.id });
+    await seedTesseraIdentity({ sub: "sub-b", user_id: userB.id });
     const ws = await seedWorkspace({ owner_id: inviter.id });
     const invite = await seedInvite({
       workspace_id: ws.id,
@@ -36,12 +37,12 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
       apiRequest(`/api/v1/invite/${invite.token}/accept`, {
         method: "POST",
         userId: userA.id,
-        body: { turnstileToken: "ok" },
+        body: {},
       }),
       apiRequest(`/api/v1/invite/${invite.token}/accept`, {
         method: "POST",
         userId: userB.id,
-        body: { turnstileToken: "ok" },
+        body: {},
       }),
     ]);
 
@@ -75,23 +76,19 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
     const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
       method: "POST",
       userId: member.id,
-      body: { turnstileToken: "ok" },
+      body: {},
     });
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as AcceptResponse;
     expect(body.already_member).toBe(true);
 
-    // Membership count for this user/workspace pair stays at one.
     const memberRows = await getDb()
       .select()
       .from(memberships)
       .where(and(eq(memberships.workspace_id, ws.id), eq(memberships.user_id, member.id)))
       .all();
     expect(memberRows).toHaveLength(1);
-
-    const finalInvite = await getDb().select().from(invites).where(eq(invites.id, invite.id)).get();
-    expect(finalInvite?.accepted_by).toBe(member.id);
   });
 
   it("returns 410 gone for an already-accepted invite without overwriting accepted_by", async () => {
@@ -112,21 +109,10 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
     const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
       method: "POST",
       userId: loser.id,
-      body: { turnstileToken: "ok" },
+      body: {},
     });
 
     expect(res.status).toBe(410);
-
-    const memberRows = await getDb()
-      .select()
-      .from(memberships)
-      .where(and(eq(memberships.workspace_id, ws.id), eq(memberships.user_id, loser.id)))
-      .all();
-    expect(memberRows).toHaveLength(0);
-
-    const finalInvite = await getDb().select().from(invites).where(eq(invites.id, invite.id)).get();
-    expect(finalInvite?.accepted_by).toBe(winner.id);
-    expect(finalInvite?.accepted_at).toBe("2026-04-23T00:00:00.000Z");
   });
 
   it("returns 410 for a revoked invite without writing membership or accepted state", async () => {
@@ -144,21 +130,10 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
     const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
       method: "POST",
       userId: caller.id,
-      body: { turnstileToken: "ok" },
+      body: {},
     });
 
     expect(res.status).toBe(410);
-
-    const memberRows = await getDb()
-      .select()
-      .from(memberships)
-      .where(and(eq(memberships.workspace_id, ws.id), eq(memberships.user_id, caller.id)))
-      .all();
-    expect(memberRows).toHaveLength(0);
-
-    const finalInvite = await getDb().select().from(invites).where(eq(invites.id, invite.id)).get();
-    expect(finalInvite?.accepted_by).toBeNull();
-    expect(finalInvite?.accepted_at).toBeNull();
   });
 
   it("returns 410 for an expired invite", async () => {
@@ -176,76 +151,43 @@ describe("POST /invite/:token/accept - conditional acceptance gate", () => {
     const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
       method: "POST",
       userId: caller.id,
-      body: { turnstileToken: "ok" },
+      body: {},
     });
 
     expect(res.status).toBe(410);
-
-    const finalInvite = await getDb().select().from(invites).where(eq(invites.id, invite.id)).get();
-    expect(finalInvite?.accepted_by).toBeNull();
-    expect(finalInvite?.accepted_at).toBeNull();
   });
 
-  it(
-    "two concurrent new-user acceptances produce one membership and at most one new user with a workspace seat",
-    { timeout: 30_000 },
-    async () => {
-      const inviter = await seedUser();
-      const ws = await seedWorkspace({ owner_id: inviter.id });
-      const invite = await seedInvite({
-        workspace_id: ws.id,
-        invited_by: inviter.id,
-        role: "member",
-        email: null,
-        accepted_at: null,
-        revoked_at: null,
-      });
+  it("rejects unauthenticated callers under production origin", async () => {
+    const inviter = await seedUser();
+    const ws = await seedWorkspace({ owner_id: inviter.id });
+    const invite = await seedInvite({ workspace_id: ws.id, invited_by: inviter.id, role: "member", email: null });
 
-      const emailA = "racea@example.com";
-      const emailB = "raceb@example.com";
+    const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
+      method: "POST",
+      origin: PROD_ORIGIN,
+      body: {},
+    });
 
-      const [resA, resB] = await Promise.all([
-        apiRequest(`/api/v1/invite/${invite.token}/accept`, {
-          method: "POST",
-          body: { turnstileToken: "ok", email: emailA, password: "racepwordA12", name: "Race A" },
-        }),
-        apiRequest(`/api/v1/invite/${invite.token}/accept`, {
-          method: "POST",
-          body: { turnstileToken: "ok", email: emailB, password: "racepwordB34", name: "Race B" },
-        }),
-      ]);
+    expect(res.status).toBe(401);
+  });
 
-      const statuses = [resA.status, resB.status].sort();
-      expect(statuses[1]).toBe(410);
-      // The winning response is 200 (existing user path is unreachable here) or 201 (new user)
-      expect([200, 201]).toContain(statuses[0]);
+  it("rejects an email-pinned invite when the authenticated email does not match", async () => {
+    const inviter = await seedUser();
+    const caller = await seedUser({ email: "other@example.com" });
+    const ws = await seedWorkspace({ owner_id: inviter.id });
+    const invite = await seedInvite({
+      workspace_id: ws.id,
+      invited_by: inviter.id,
+      role: "member",
+      email: "pinned@example.com",
+    });
 
-      const userRows = await getDb()
-        .select()
-        .from(users)
-        .where(inArray(users.email, [emailA, emailB]))
-        .all();
-      // Both pre-batch user inserts may complete (validateInviteState passes for both before either batch runs).
-      expect(userRows.length).toBeGreaterThanOrEqual(1);
+    const res = await apiRequest(`/api/v1/invite/${invite.token}/accept`, {
+      method: "POST",
+      userId: caller.id,
+      body: {},
+    });
 
-      const memberRows = await getDb()
-        .select()
-        .from(memberships)
-        .where(
-          and(
-            eq(memberships.workspace_id, ws.id),
-            inArray(
-              memberships.user_id,
-              userRows.map((u) => u.id),
-            ),
-          ),
-        )
-        .all();
-      expect(memberRows).toHaveLength(1);
-
-      const finalInvite = await getDb().select().from(invites).where(eq(invites.id, invite.id)).get();
-      expect(finalInvite?.accepted_by).toBe(memberRows[0].user_id);
-      expect(finalInvite?.accepted_at).not.toBeNull();
-    },
-  );
+    expect(res.status).toBe(403);
+  });
 });

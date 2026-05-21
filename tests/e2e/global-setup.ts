@@ -14,6 +14,7 @@ import {
   type E2eContext,
   type E2eContextFile,
 } from "./harness";
+import { startMockOidcProvider, type MockOidcServer } from "./oidc-mock";
 
 export type { E2eContextFile } from "./harness";
 export const E2E_CONTEXT_PATH_ENV = "BLAND_E2E_CONTEXT_PATH";
@@ -21,17 +22,21 @@ export const E2E_CONTEXT_PATH_ENV = "BLAND_E2E_CONTEXT_PATH";
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const tempDir = await mkdtemp(join(tmpdir(), "bland-e2e-"));
   let ctx: E2eContext | null = null;
+  let mockOidc: MockOidcServer | null = null;
   console.log(`[e2e] temp state: ${tempDir}`);
 
   try {
     await generateEmojiData();
     await applyMigrations(tempDir);
     await seedTestUser(tempDir);
-    ctx = await startDevServer(tempDir);
+    mockOidc = await startMockOidcProvider();
+    console.log(`[e2e] mock OIDC provider issuer: ${mockOidc.issuer}`);
+    ctx = await startDevServer(tempDir, mockOidc.issuer);
 
     const contextFile: E2eContextFile = {
       baseUrl: ctx.baseUrl,
       tempDir,
+      oidcIssuer: mockOidc.issuer,
     };
 
     const contextPath = join(tempDir, ".e2e-context.json");
@@ -40,13 +45,17 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     process.env.BLAND_E2E_BASE_URL = ctx.baseUrl;
     process.env[E2E_CONTEXT_PATH_ENV] = contextPath;
 
+    const captured = { ctx, mockOidc };
     return async () => {
-      if (ctx) await teardown(ctx, tempDir);
+      await teardown(captured.ctx, captured.mockOidc, tempDir);
     };
   } catch (error) {
     if (ctx) {
       await stopDevServer(ctx.serverProcess);
       await closeContextLogs(ctx);
+    }
+    if (mockOidc) {
+      await mockOidc.close().catch(() => undefined);
     }
 
     if (process.env.BLAND_E2E_PRESERVE === "1") {
@@ -65,9 +74,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   }
 }
 
-async function teardown(ctx: E2eContext, tempDir: string): Promise<void> {
+async function teardown(ctx: E2eContext, mockOidc: MockOidcServer | null, tempDir: string): Promise<void> {
   await stopDevServer(ctx.serverProcess);
   await closeContextLogs(ctx);
+  if (mockOidc) {
+    await mockOidc.close().catch(() => undefined);
+  }
 
   if (process.env.BLAND_E2E_PRESERVE === "1") {
     printFailureContext(ctx);

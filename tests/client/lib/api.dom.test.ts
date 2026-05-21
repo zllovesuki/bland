@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createUser } from "@tests/client/util/fixtures";
-import { SESSION_MODES } from "@/client/lib/constants";
+import { SESSION_MODES, STORAGE_KEYS } from "@/client/lib/constants";
 import { D1_BOOKMARK_HEADER } from "@/shared/bookmark";
 
 let useAuthStore: typeof import("@/client/stores/auth-store").useAuthStore;
@@ -111,17 +111,6 @@ describe("apiFetch auto-refresh", () => {
     expect(useAuthStore.getState().sessionMode).toBe(SESSION_MODES.LOCAL_ONLY);
   });
 
-  it("does not attempt refresh for login endpoint", async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: "unauthorized", message: "bad creds" }));
-
-    await expect(
-      api.auth.login({ email: "test@test.com", password: "password123", turnstileToken: "tok" }),
-    ).rejects.toEqual(expect.objectContaining({ error: "unauthorized" }));
-
-    // Only 1 fetch call — no refresh attempted
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
   it("does not attempt refresh for the refresh endpoint itself", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: "unauthorized", message: "bad refresh" }));
 
@@ -167,6 +156,31 @@ describe("apiFetch auto-refresh", () => {
 
     await expect(api.workspaces.list()).resolves.toEqual([]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("refreshSession bookmark persistence", () => {
+  const user = createUser();
+
+  it("persists the response D1 bookmark on successful refresh", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, { accessToken: "fresh-token", user }, { [D1_BOOKMARK_HEADER]: "post-oidc-bookmark" }),
+    );
+
+    const { refreshSession } = await import("@/client/lib/api");
+    const result = await refreshSession();
+    expect(result.ok).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEYS.D1_BOOKMARK)).toBe("post-oidc-bookmark");
+  });
+
+  it("leaves stored bookmark untouched on failure", async () => {
+    localStorage.setItem(STORAGE_KEYS.D1_BOOKMARK, "preserved");
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: "unauthorized", message: "bad" }));
+
+    const { refreshSession } = await import("@/client/lib/api");
+    const result = await refreshSession();
+    expect(result.ok).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.D1_BOOKMARK)).toBe("preserved");
   });
 });
 

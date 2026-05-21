@@ -97,6 +97,13 @@ making it the default.
 - D1 is authoritative for relational metadata and control-plane state: users,
   workspaces, memberships, invites, shares, upload metadata, publication state,
   and Worker-readable page metadata projections.
+- tessera owns human identity and verified email. bland owns local JWT sessions,
+  workspace memberships, roles, and product authorization. One verified tessera
+  `sub` maps to exactly one `users.id`, and a bland user has at most one
+  tessera identity.
+- First-user and new-user bootstrap should flow through OIDC identity binding,
+  not password login or seed-script paths, unless the user explicitly asks for a
+  product change.
 - `pages.title` is a Worker-readable projection updated from DocSync saves in
   the current architecture. Do not treat title edits as ordinary `PATCH /pages`
   metadata writes unless intentionally changing that flow.
@@ -134,14 +141,15 @@ making it the default.
 - Refresh tokens live in the `bland_refresh` cookie. Access tokens are stored
   only in client memory; they are sent as bearer headers for HTTP API calls and
   as DocSync connection params where required.
-- Auth, invites, refresh cookies, Turnstile, uploads, share links, AI, and site
-  publishing are security-sensitive. Keep them fail-closed and do not weaken
-  cookie flags, origin checks, publication checks, permission checks, or
-  rate-limit coverage.
-- Local-hostname Turnstile and rate-limit bypasses are intentional for local
-  development only. Do not extend them beyond loopback request hostnames.
-- Do not log secrets, bearer tokens, refresh cookies, password material, or
-  share tokens.
+- Auth, tessera/OIDC, invites, refresh cookies, uploads, share links, AI, and
+  site publishing are security-sensitive. Keep them fail-closed and do not
+  weaken issuer, cookie, origin, publication, permission, or rate-limit checks.
+- Loopback-only insecure OIDC issuer/discovery allowances and local rate-limit
+  bypasses are intentional for local development only. Do not extend them beyond
+  loopback request or issuer hostnames.
+- Do not log secrets, bearer tokens, refresh cookies, password material, share
+  tokens, OIDC authorization codes, ID tokens, transaction cookies, or client
+  secrets.
 - Prefer security-sensitive worker helpers in
   `src/worker/lib/{auth,origins,membership,permissions}.ts` rather than
   re-encoding auth, origin, membership, or access logic inline. Do not add new
@@ -171,6 +179,9 @@ making it the default.
 - Dexie tables are durable local projections. Small Zustand stores are
   in-memory read models. Bootstrap code owns owner validation, hydration,
   route-change rehydration, and cache clearing.
+- OIDC start and callback are top-level navigations, not JSON API calls.
+  Post-OIDC redirects must force blocking refresh and owner validation before
+  rendering cached workspace or Dexie state, then remove the one-shot marker.
 - `/$workspaceSlug/$pageId` treats the slug as decorative for page routes.
   Prefer page context by `pageId` when online and authenticated, then canonical
   slug redirects. Avoid slug-first rewrites for page deep links.
@@ -275,7 +286,8 @@ making it the default.
   specs when that behavior is touched.
 - For Sites changes, include focused shared/static renderer, worker Sites, and
   Sites publish E2E coverage as applicable.
-- The E2E harness applies local D1 migrations, seeds the test user, and starts
+- The E2E harness applies local D1 migrations, seeds a baseline tessera-bound
+  user/workspace, starts the mock OIDC provider, injects OIDC env, and starts
   its own isolated dev server. Do not start `npm run dev` just to run E2E unless
   the task explicitly requires manual debugging outside the harness.
 - Use `BLAND_E2E_PRESERVE=1 npm run test:e2e` when debugging E2E failures.
@@ -295,9 +307,14 @@ explicitly calls for them.
   deferred to a future explicit GC feature.
 - Workspace deletion does not proactively clear every DocSync Durable Object;
   rely on eventual eviction unless the task is specifically about cleanup.
-- The default Playwright harness reuses one seeded `bland` workspace; specs
-  that depend on a short or empty tree should create isolated workspaces.
+- The default Playwright harness reuses one baseline tessera-bound `bland`
+  workspace; specs that depend on a short or empty tree should create isolated
+  workspaces.
 - AI rewrite and generate output is still plain-text parsed into paragraphs and
   bullet lists only; richer structure is deferred.
 - Refresh token rotation is deferred; the `bland_refresh` JWT is reused until
   expiry.
+- Stage 1 keeps `users.password_hash` with `PASSWORD_DISABLED_SENTINEL` for
+  tessera-bound accounts; dropping the column is deferred to Stage 2.
+- RP-initiated tessera logout is deferred; `/auth/logout` clears only bland
+  session cookies.

@@ -104,21 +104,6 @@ export const Invite = z.object({
 });
 export type Invite = z.infer<typeof Invite>;
 
-export const LoginRequest = z.object({
-  email: z.email().max(255),
-  password: z.string().min(8).max(128),
-  turnstileToken: z.string().min(1),
-});
-export type LoginRequest = z.infer<typeof LoginRequest>;
-
-export const CreateAccountRequest = z.object({
-  email: z.email().max(255),
-  password: z.string().min(8).max(128),
-  name: z.string().min(1).max(100),
-  turnstileToken: z.string().min(1),
-});
-export type CreateAccountRequest = z.infer<typeof CreateAccountRequest>;
-
 export const ApiError = z.object({
   error: z.string(),
   message: z.string(),
@@ -126,7 +111,6 @@ export const ApiError = z.object({
 export type ApiError = z.infer<typeof ApiError>;
 
 export const PublicClientConfig = z.object({
-  turnstile_site_key: z.string().min(1),
   sentry_dsn: z.string().min(1).nullable(),
 });
 export type PublicClientConfig = z.infer<typeof PublicClientConfig>;
@@ -147,12 +131,7 @@ export const CreateInviteRequest = z.object({
 });
 export type CreateInviteRequest = z.infer<typeof CreateInviteRequest>;
 
-export const AcceptInviteRequest = z.object({
-  turnstileToken: z.string().min(1),
-  email: z.email().max(255).optional(),
-  password: z.string().min(8).max(128).optional(),
-  name: z.string().min(1).max(100).optional(),
-});
+export const AcceptInviteRequest = z.object({}).optional();
 export type AcceptInviteRequest = z.infer<typeof AcceptInviteRequest>;
 
 // Reserved slugs that conflict with frontend routes

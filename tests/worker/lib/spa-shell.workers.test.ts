@@ -10,9 +10,8 @@ describe("createPublicClientConfigScript", () => {
   it("escapes unsafe html sequences inside the injected JSON", () => {
     const script = createPublicClientConfigScript(
       {
-        TURNSTILE_SITE_KEY: "turnstile-test-key",
         SENTRY_DSN: "https://public@example.ingest.sentry.io/1?x=</script><script>alert(1)</script>",
-      } as Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">,
+      } as Pick<Env, "SENTRY_DSN">,
       "nonce-test",
     );
 
@@ -27,13 +26,12 @@ describe("renderSpaShell", () => {
   it("injects bootstrap config, applies one nonce to all scripts, and appends shell hint link headers", async () => {
     const response = await renderSpaShell(
       new Request("https://bland.tools/acme/page-1"),
-      env as Pick<Env, "ASSETS" | "TURNSTILE_SITE_KEY" | "SENTRY_DSN">,
+      env as Pick<Env, "ASSETS" | "SENTRY_DSN">,
     );
 
     const responseHtml = await response.text();
     expect(responseHtml).toContain("window.__BLAND_PUBLIC_CONFIG__=");
     expect(responseHtml).toContain("window.__BLAND_CSP_NONCE__=");
-    expect(responseHtml).toContain(env.TURNSTILE_SITE_KEY);
 
     const nonceMatches = [...responseHtml.matchAll(/nonce="([^"]+)"/g)].map((match) => match[1]);
     expect(new Set(nonceMatches).size).toBe(1);

@@ -75,9 +75,5 @@ describe("classifyFailure", () => {
     it("bad_request maps to unknown", () => {
       expect(classify({ error: "bad_request", message: "Invalid" })).toBe("unknown");
     });
-
-    it("turnstile_failed maps to unknown", () => {
-      expect(classify({ error: "turnstile_failed", message: "Turnstile check failed" })).toBe("unknown");
-    });
   });
 });

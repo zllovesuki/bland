@@ -27,17 +27,13 @@ function serializeJsonForInlineScript(value: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-function getPublicClientConfig(env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">): PublicClientConfig {
+function getPublicClientConfig(env: Pick<Env, "SENTRY_DSN">): PublicClientConfig {
   return {
-    turnstile_site_key: env.TURNSTILE_SITE_KEY,
     sentry_dsn: env.SENTRY_DSN || null,
   };
 }
 
-export function createPublicClientConfigScript(
-  env: Pick<Env, "TURNSTILE_SITE_KEY" | "SENTRY_DSN">,
-  cspNonce?: string,
-): string {
+export function createPublicClientConfigScript(env: Pick<Env, "SENTRY_DSN">, cspNonce?: string): string {
   let script = `window.__BLAND_PUBLIC_CONFIG__=${serializeJsonForInlineScript(getPublicClientConfig(env))};`;
   if (cspNonce) {
     script += `window.__BLAND_CSP_NONCE__=${serializeJsonForInlineScript(cspNonce)};`;
@@ -164,10 +160,7 @@ export function resetShellHintsCacheForTests() {
   shellHintsPromise = null;
 }
 
-export async function renderSpaShell(
-  request: Request,
-  env: Pick<Env, "ASSETS" | "TURNSTILE_SITE_KEY" | "SENTRY_DSN">,
-): Promise<Response> {
+export async function renderSpaShell(request: Request, env: Pick<Env, "ASSETS" | "SENTRY_DSN">): Promise<Response> {
   const shell = await env.ASSETS.fetch(request);
   if (!shell.ok) {
     return applyBaselineSecurityHeaders(shell);

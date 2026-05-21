@@ -17,6 +17,7 @@
 		"LOG_LEVEL": "info",
 		"ALLOWED_ORIGINS": "https://bland.tools,https://docs.limic.dev",
 		"PUBLISHED_SITE_DOMAIN": "bland.site",
+		"TESSERA_OIDC_ISSUER": "https://auth.limic.dev",
 	},
 	"assets": {
 		"binding": "ASSETS",

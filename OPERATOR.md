@@ -149,21 +149,15 @@ npm run deploy
 
 This applies remote migrations, builds the Worker, and deploys. The first deploy also creates the Durable Object namespaces and rate-limit bindings declared in `wrangler.jsonc`.
 
-### 8. Seed the bootstrap user
+### 8. Bootstrap the first user
 
-`bland` has no open signup — the first user has to be created out-of-band. Run the seed script against the remote database:
+`bland` authenticates through tessera. After the first deploy, sign in through tessera with a verified account:
 
-```bash
-npm run db:seed-initial-user -- --remote --email you@example.com --name "Your Name"
-```
+1. Confirm tessera has the bland redirect URI registered.
+2. Open `https://bland.tools/login`.
+3. Complete tessera sign-in.
 
-The script:
-
-- Refuses to run if any users already exist in the target D1.
-- Prompts interactively for a password (or pass `--password <pw>`; minimum 8 characters) and hashes it with Argon2id.
-- Creates a workspace named `bland` and an owner membership for the new user.
-
-Log in at `https://bland.tools/login` with that password, then issue invites to everyone else from workspace settings.
+bland will create the user, default workspace, and owner membership from the valid tessera `sub`. Then issue invites to everyone else from workspace settings.
 
 ### 9. Post-setup smoke check
 

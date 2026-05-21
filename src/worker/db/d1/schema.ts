@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, primaryKey, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  primaryKey,
+  index,
+  uniqueIndex,
+  type AnySQLiteColumn,
+} from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -14,6 +23,21 @@ export const users = sqliteTable("users", {
     .notNull()
     .default(sql`(datetime('now'))`),
 });
+
+export const tesseraIdentities = sqliteTable(
+  "tessera_identities",
+  {
+    sub: text("sub").primaryKey(),
+    user_id: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    created_at: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    last_seen_at: text("last_seen_at"),
+  },
+  (table) => [uniqueIndex("idx_tessera_identities_user_id").on(table.user_id)],
+);
 
 export const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),

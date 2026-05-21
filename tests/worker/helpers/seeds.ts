@@ -1,12 +1,13 @@
 import { ulid } from "ulid";
 import { and, eq } from "drizzle-orm";
-import { hashPassword } from "@/worker/lib/auth";
+import { PASSWORD_DISABLED_SENTINEL } from "@/worker/lib/auth";
 import {
   invites,
   memberships,
   pageShares,
   pages,
   publishedPages,
+  tesseraIdentities,
   uploads,
   users,
   workspaces,
@@ -19,44 +20,53 @@ export interface SeedUser {
   id: string;
   email: string;
   name: string;
-  password: string;
 }
 
 export interface SeedUserOptions {
   id?: string;
   email?: string;
   name?: string;
-  /**
-   * When provided, the user is seeded with a real argon2id hash of this value.
-   * Omit to store a deterministic placeholder — faster, and adequate for tests
-   * that authenticate via JWT rather than password login.
-   */
-  password?: string;
   avatar_url?: string | null;
 }
-
-const UNUSED_PASSWORD_PLACEHOLDER = "$argon2id$test-placeholder-not-verifiable";
 
 export async function seedUser(opts: SeedUserOptions = {}): Promise<SeedUser> {
   const id = opts.id ?? `user_${ulid()}`;
   const email = opts.email ?? `${id}@example.com`;
   const name = opts.name ?? "Test User";
-  const password = opts.password ?? "";
-  const password_hash = password ? hashPassword(password) : UNUSED_PASSWORD_PLACEHOLDER;
 
   await getDb()
     .insert(users)
     .values({
       id,
       email,
-      password_hash,
+      password_hash: PASSWORD_DISABLED_SENTINEL,
       name,
       avatar_url: opts.avatar_url ?? null,
       created_at: TEST_TIMESTAMP,
       updated_at: TEST_TIMESTAMP,
     });
 
-  return { id, email, name, password };
+  return { id, email, name };
+}
+
+export interface SeedTesseraIdentityOptions {
+  sub: string;
+  user_id: string;
+  created_at?: string;
+  last_seen_at?: string | null;
+}
+
+export async function seedTesseraIdentity(
+  opts: SeedTesseraIdentityOptions,
+): Promise<typeof tesseraIdentities.$inferSelect> {
+  const row: typeof tesseraIdentities.$inferSelect = {
+    sub: opts.sub,
+    user_id: opts.user_id,
+    created_at: opts.created_at ?? TEST_TIMESTAMP,
+    last_seen_at: opts.last_seen_at ?? null,
+  };
+  await getDb().insert(tesseraIdentities).values(row);
+  return row;
 }
 
 export interface SeedWorkspace {

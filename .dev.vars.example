@@ -1,9 +1,10 @@
 LOG_LEVEL=debug
 ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 JWT_SECRET=dev-jwt-secret-replace-in-production
-# https://developers.cloudflare.com/turnstile/troubleshooting/testing/
-TURNSTILE_SITE_KEY=1x00000000000000000000AA
-TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+# Tessera OIDC. Point ISSUER at a dev tessera instance (loopback HTTP allowed).
+TESSERA_OIDC_ISSUER=http://127.0.0.1:8787
+TESSERA_OIDC_CLIENT_ID=bland-dev
+TESSERA_OIDC_CLIENT_SECRET=dev-tessera-client-secret-replace-in-production
 SENTRY_DSN=
 # AI backend selection.
 #   workers-ai   - production, uses Cloudflare Workers AI binding

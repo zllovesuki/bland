@@ -20,5 +20,6 @@ export async function resetD1Tables(): Promise<void> {
   await db.run(sql`DELETE FROM invites`);
   await db.run(sql`DELETE FROM memberships`);
   await db.run(sql`DELETE FROM workspaces`);
+  await db.run(sql`DELETE FROM tessera_identities`);
   await db.run(sql`DELETE FROM users`);
 }

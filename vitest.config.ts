@@ -64,6 +64,9 @@ export default defineConfig(() => {
             sequence: { groupOrder: 1 },
             include: ["tests/worker/**/*.workers.test.ts"],
             setupFiles: ["./tests/setup/worker.ts"],
+            // Worker runtime cold-start can exceed vitest's 5s default for the
+            // first request that hits a given handler family.
+            testTimeout: 30_000,
           },
         }),
       ],

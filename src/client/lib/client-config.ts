@@ -20,14 +20,9 @@ function isPublicClientConfig(rawConfig: unknown): rawConfig is PublicClientConf
   }
 
   const value = rawConfig as Record<string, unknown>;
-  const turnstileSiteKey = value.turnstile_site_key;
   const sentryDsn = value.sentry_dsn;
 
-  return (
-    typeof turnstileSiteKey === "string" &&
-    turnstileSiteKey.length > 0 &&
-    (sentryDsn === null || (typeof sentryDsn === "string" && sentryDsn.length > 0))
-  );
+  return sentryDsn === null || (typeof sentryDsn === "string" && sentryDsn.length > 0);
 }
 
 function resolveClientConfigState(): ClientConfigState {

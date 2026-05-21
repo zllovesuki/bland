@@ -27,9 +27,12 @@ const loginWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: StandaloneLayout,
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string; error?: string } => {
+    const out: { redirect?: string; error?: string } = {};
+    if (typeof search.redirect === "string") out.redirect = search.redirect;
+    if (typeof search.error === "string") out.error = search.error;
+    return out;
+  },
   beforeLoad: ({ search }) => {
     if (selectIsAuthenticated(useAuthStore.getState())) {
       throw redirect({ to: search.redirect || "/" });
@@ -47,6 +50,9 @@ const inviteWrapper = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
   component: StandaloneLayout,
+  validateSearch: (search: Record<string, unknown>) => ({
+    accept: search.accept === "1" || search.accept === 1 ? ("1" as const) : undefined,
+  }),
 });
 
 const inviteRoute = createRoute({

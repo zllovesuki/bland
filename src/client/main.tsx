@@ -4,7 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { refreshSession } from "./lib/api";
 import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "./lib/client-config";
-import { getSessionBootstrapStrategy } from "./lib/session-bootstrap";
+import { getSessionBootstrapStrategy, hasOidcMarker, performBootstrapRefresh } from "./lib/session-bootstrap";
 import { queryClient } from "./lib/query-client";
 import { routeTree } from "./route-tree";
 import { primeClientErrorReporting, reportClientError } from "./lib/report-client-error";
@@ -85,10 +85,20 @@ async function bootstrap() {
   }
 
   const store = useAuthStore.getState();
-  const bootstrapStrategy = getSessionBootstrapStrategy(window.location.pathname, !!store.user, document.cookie);
+  const bootstrapStrategy = getSessionBootstrapStrategy(
+    window.location.pathname,
+    !!store.user,
+    document.cookie,
+    window.location.search,
+  );
 
   if (bootstrapStrategy === "block") {
-    await refreshSession();
+    const outcome = await performBootstrapRefresh(hasOidcMarker(window.location.search), {
+      refreshSession,
+      clearAuth: () => useAuthStore.getState().clearAuth(),
+      navigate: (url) => window.location.replace(url),
+    });
+    if (outcome === "redirected") return;
   }
 
   // Evict the orphan v6 zustand persist blob from previous releases.

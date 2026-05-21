@@ -1,7 +1,7 @@
 import { isLocalRequestUrl } from "@/worker/http";
+import { base64UrlEncode } from "@/lib/encoding";
 
 const REFERRER_POLICY = "strict-origin-when-cross-origin";
-const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 const CLOUDFLARE_ANALYTICS_ORIGIN = "https://static.cloudflareinsights.com";
 const CLOUDFLARE_ANALYTICS_CONNECT_ORIGIN = "https://cloudflareinsights.com";
 // Excalidraw's ExcalidrawFontFace unconditionally appends its esm.sh fallback
@@ -11,14 +11,6 @@ const CLOUDFLARE_ANALYTICS_CONNECT_ORIGIN = "https://cloudflareinsights.com";
 // allowlist it. Fonts-only; canvas surface only uses this for its built-in
 // font set.
 const EXCALIDRAW_FONTS_FALLBACK_ORIGIN = "https://esm.sh";
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 
 function cloneResponse(response: Response): Response {
   return new Response(response.body, response);
@@ -48,14 +40,13 @@ export function buildDocumentCsp(options: { nonce: string; requestUrl: string; s
   const sentryOrigin = maybeGetSentryOrigin(sentryDsn);
   const connectSrc = [
     "'self'",
-    TURNSTILE_ORIGIN,
     CLOUDFLARE_ANALYTICS_CONNECT_ORIGIN,
     ...(isLocal ? ["http:", "https:", "ws:", "wss:"] : []),
     ...(sentryOrigin ? [sentryOrigin] : []),
   ];
   const scriptSrc = isLocal
-    ? ["'self'", TURNSTILE_ORIGIN, CLOUDFLARE_ANALYTICS_ORIGIN, "'unsafe-inline'", "'unsafe-eval'"]
-    : ["'self'", `'nonce-${nonce}'`, TURNSTILE_ORIGIN, CLOUDFLARE_ANALYTICS_ORIGIN];
+    ? ["'self'", CLOUDFLARE_ANALYTICS_ORIGIN, "'unsafe-inline'", "'unsafe-eval'"]
+    : ["'self'", `'nonce-${nonce}'`, CLOUDFLARE_ANALYTICS_ORIGIN];
 
   const directives = [
     joinDirective("default-src", ["'self'"]),
@@ -68,7 +59,6 @@ export function buildDocumentCsp(options: { nonce: string; requestUrl: string; s
     joinDirective("style-src", ["'self'", "'unsafe-inline'"]),
     joinDirective("font-src", ["'self'", EXCALIDRAW_FONTS_FALLBACK_ORIGIN]),
     joinDirective("img-src", ["'self'", "data:", "blob:", "https:"]),
-    joinDirective("frame-src", [TURNSTILE_ORIGIN]),
     ...(!isLocal ? ["upgrade-insecure-requests"] : []),
   ];
 

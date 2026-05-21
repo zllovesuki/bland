@@ -13,12 +13,9 @@ describe("document security headers", () => {
       sentryDsn: "https://public@example.ingest.sentry.io/1",
     });
 
-    expect(csp).toContain(
-      "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com https://example.ingest.sentry.io",
-    );
-    expect(csp).toContain(
-      "script-src 'self' 'nonce-nonce-test' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
-    );
+    expect(csp).toContain("connect-src 'self' https://cloudflareinsights.com https://example.ingest.sentry.io");
+    expect(csp).toContain("script-src 'self' 'nonce-nonce-test' https://static.cloudflareinsights.com");
+    expect(csp).not.toContain("challenges.cloudflare.com");
     expect(csp).toContain("upgrade-insecure-requests");
   });
 
@@ -43,12 +40,8 @@ describe("document security headers", () => {
       sentryDsn: null,
     });
 
-    expect(csp).toContain(
-      "connect-src 'self' https://challenges.cloudflare.com https://cloudflareinsights.com http: https: ws: wss:",
-    );
-    expect(csp).toContain(
-      "script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com 'unsafe-inline' 'unsafe-eval'",
-    );
+    expect(csp).toContain("connect-src 'self' https://cloudflareinsights.com http: https: ws: wss:");
+    expect(csp).toContain("script-src 'self' https://static.cloudflareinsights.com 'unsafe-inline' 'unsafe-eval'");
     expect(csp).not.toContain("upgrade-insecure-requests");
   });
 

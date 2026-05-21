@@ -10,6 +10,14 @@ import { fileURLToPath } from "node:url";
 
 const execFile = promisify(execFileCallback);
 
+import {
+  E2E_BASELINE_EMAIL,
+  E2E_BASELINE_NAME,
+  E2E_BASELINE_TESSERA_SUB,
+  TEST_OIDC_CLIENT_ID,
+  TEST_OIDC_CLIENT_SECRET,
+} from "./oidc-mock";
+
 const REPO_ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const VITE_BIN_PATH = resolve(REPO_ROOT, "node_modules/vite/bin/vite.js");
 const WRANGLER_BIN_PATH = resolve(REPO_ROOT, "node_modules/wrangler/bin/wrangler.js");
@@ -26,17 +34,10 @@ const PROCESS_CLOSE_TIMEOUT_MS = 2_000;
 const D1_DATABASE = "bland-prod";
 const DEV_VARS_PATH = resolve(REPO_ROOT, ".dev.vars");
 const DEV_VARS_EXAMPLE_PATH = resolve(REPO_ROOT, ".dev.vars.example");
+const PASSWORD_DISABLED_SENTINEL = "tessera!disabled";
 
-const TEST_EMAIL = "e2e@bland.test";
-const TEST_PASSWORD = "testpass123";
-const TEST_USER_NAME = "E2E Test User";
 const WORKSPACE_NAME = "bland";
 const WORKSPACE_SLUG = "bland";
-
-// Pre-computed Argon2id hash for TEST_PASSWORD with fixed salt.
-// Generated with: argon2id("testpass123", fixedSalt, { t:2, m:19456, p:1, dkLen:32 })
-const TEST_PASSWORD_HASH =
-  "$argon2id$v=19$m=19456,t=2,p=1$AQIDBAUGBwgJCgsMDQ4PEA$rA.QLz6haXry79CxQAJYTFYy9kR.h6L0nEpdIFqdDP4";
 
 const COMMAND_TIMEOUTS = {
   emoji: 60_000,
@@ -60,12 +61,13 @@ export interface E2eContext {
 export interface E2eContextFile {
   baseUrl: string;
   tempDir: string;
+  oidcIssuer: string;
 }
 
 export const TEST_CREDENTIALS = {
-  email: TEST_EMAIL,
-  password: TEST_PASSWORD,
-  name: TEST_USER_NAME,
+  email: E2E_BASELINE_EMAIL,
+  name: E2E_BASELINE_NAME,
+  tesseraSub: E2E_BASELINE_TESSERA_SUB,
   workspaceSlug: WORKSPACE_SLUG,
 } as const;
 
@@ -292,7 +294,10 @@ async function loadDevVarsTemplate(): Promise<string> {
   throw new Error("Missing .dev.vars.example");
 }
 
-async function createE2eDevVarsFile(baseUrl: string): Promise<{ cloudflareEnv: string; devVarsPath: string }> {
+async function createE2eDevVarsFile(
+  baseUrl: string,
+  oidcIssuer: string,
+): Promise<{ cloudflareEnv: string; devVarsPath: string }> {
   const cloudflareEnv = `e2e-${process.pid}-${Date.now()}`;
   const devVarsPath = `${DEV_VARS_PATH}.${cloudflareEnv}`;
   const template = await loadDevVarsTemplate();
@@ -300,8 +305,17 @@ async function createE2eDevVarsFile(baseUrl: string): Promise<{ cloudflareEnv: s
   const stripped = template
     .replace(/^ALLOWED_ORIGINS=.*$/gm, "")
     .replace(/^BLAND_AI_MODE=.*$/gm, "")
+    .replace(/^TESSERA_OIDC_ISSUER=.*$/gm, "")
+    .replace(/^TESSERA_OIDC_CLIENT_ID=.*$/gm, "")
+    .replace(/^TESSERA_OIDC_CLIENT_SECRET=.*$/gm, "")
     .trimEnd();
-  const content = `${stripped}\nALLOWED_ORIGINS=${allowedOrigins}\nBLAND_AI_MODE=mock\n`;
+  const content =
+    `${stripped}\n` +
+    `ALLOWED_ORIGINS=${allowedOrigins}\n` +
+    `BLAND_AI_MODE=mock\n` +
+    `TESSERA_OIDC_ISSUER=${oidcIssuer}\n` +
+    `TESSERA_OIDC_CLIENT_ID=${TEST_OIDC_CLIENT_ID}\n` +
+    `TESSERA_OIDC_CLIENT_SECRET=${TEST_OIDC_CLIENT_SECRET}\n`;
 
   await writeFile(devVarsPath, content);
 
@@ -344,7 +358,8 @@ export const seedTestUser = async (persistTo: string): Promise<void> => {
   const now = new Date().toISOString();
 
   const sql = [
-    `INSERT INTO users (id, email, password_hash, name, created_at, updated_at) VALUES ('${escapeSql(userId)}', '${escapeSql(TEST_EMAIL)}', '${escapeSql(TEST_PASSWORD_HASH)}', '${escapeSql(TEST_USER_NAME)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
+    `INSERT INTO users (id, email, password_hash, name, created_at, updated_at) VALUES ('${escapeSql(userId)}', '${escapeSql(E2E_BASELINE_EMAIL)}', '${escapeSql(PASSWORD_DISABLED_SENTINEL)}', '${escapeSql(E2E_BASELINE_NAME)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
+    `INSERT INTO tessera_identities (sub, user_id, created_at, last_seen_at) VALUES ('${escapeSql(E2E_BASELINE_TESSERA_SUB)}', '${escapeSql(userId)}', '${escapeSql(now)}', '${escapeSql(now)}');`,
     `INSERT INTO workspaces (id, name, slug, owner_id, created_at) VALUES ('${escapeSql(workspaceId)}', '${escapeSql(WORKSPACE_NAME)}', '${escapeSql(WORKSPACE_SLUG)}', '${escapeSql(userId)}', '${escapeSql(now)}');`,
     `INSERT INTO memberships (user_id, workspace_id, role, joined_at) VALUES ('${escapeSql(userId)}', '${escapeSql(workspaceId)}', 'owner', '${escapeSql(now)}');`,
   ].join("\n");
@@ -362,12 +377,12 @@ function isPortInUseStartupError(error: unknown): boolean {
   return message.includes("is already in use") || message.includes("EADDRINUSE");
 }
 
-export const startDevServer = async (persistTo: string): Promise<E2eContext> => {
+export const startDevServer = async (persistTo: string, oidcIssuer: string): Promise<E2eContext> => {
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= SERVER_START_ATTEMPTS; attempt += 1) {
     try {
-      return await startDevServerOnce(persistTo, attempt);
+      return await startDevServerOnce(persistTo, oidcIssuer, attempt);
     } catch (error) {
       lastError = error;
       if (!isPortInUseStartupError(error) || attempt === SERVER_START_ATTEMPTS) {
@@ -381,10 +396,10 @@ export const startDevServer = async (persistTo: string): Promise<E2eContext> => 
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 };
 
-const startDevServerOnce = async (persistTo: string, attempt: number): Promise<E2eContext> => {
+const startDevServerOnce = async (persistTo: string, oidcIssuer: string, attempt: number): Promise<E2eContext> => {
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const { cloudflareEnv, devVarsPath } = await createE2eDevVarsFile(baseUrl);
+  const { cloudflareEnv, devVarsPath } = await createE2eDevVarsFile(baseUrl, oidcIssuer);
   const stdoutLogPath = join(persistTo, "dev.stdout.log");
   const stderrLogPath = join(persistTo, "dev.stderr.log");
   const stdoutStream = createWriteStream(stdoutLogPath, { flags: "a" });

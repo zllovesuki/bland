@@ -1,40 +1,31 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { UserPlus, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { UserPlus, AlertCircle, CheckCircle, LogIn } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
-import { Input } from "@/client/components/ui/input";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
-import { getClientConfigErrorSnapshot, getClientConfigSnapshot } from "@/client/lib/client-config";
-import { SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE } from "@/client/lib/constants";
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
 import { ensureWorkspaceLocalOwner } from "@/client/stores/bootstrap";
 import { directoryCommands } from "@/client/stores/db/workspace-directory";
-import { TurnstileWidget } from "./turnstile-widget";
 import { useDocumentTitle } from "@/client/hooks/use-document-title";
 import type { InvitePreview } from "@/shared/types";
 
+function buildOidcStartUrl(token: string): string {
+  const params = new URLSearchParams({ return_to: `/invite/${token}?accept=1` });
+  return `/api/v1/oidc/start?${params.toString()}`;
+}
+
 export function InvitePage() {
   const { token } = useParams({ strict: false }) as { token: string };
+  const { accept: acceptMarker } = useSearch({ from: "/invite/$token" });
   const navigate = useNavigate();
   useDocumentTitle("Accept Invite");
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
-  const config = getClientConfigSnapshot();
-  const configError = getClientConfigErrorSnapshot();
 
   const [invite, setInvite] = useState<InvitePreview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingInvite, setIsLoadingInvite] = useState(true);
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
-  const [turnstileUnavailable, setTurnstileUnavailable] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const showVerificationUnavailable = !!configError || !config || turnstileUnavailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +35,6 @@ export function InvitePage() {
         const data = await api.invites.get(token);
         if (!cancelled) {
           setInvite(data);
-          if (data.email) setEmail(data.email);
         }
       } catch (err) {
         if (!cancelled) {
@@ -61,42 +51,11 @@ export function InvitePage() {
     };
   }, [token]);
 
-  async function handleAccept(e: FormEvent) {
-    e.preventDefault();
-    if (showVerificationUnavailable) {
-      setError(SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE);
-      return;
-    }
-    if (!turnstileToken) {
-      setError("Please complete the verification.");
-      return;
-    }
-
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const body: {
-        turnstileToken: string;
-        name?: string;
-        email?: string;
-        password?: string;
-      } = { turnstileToken };
-
-      if (!isAuthenticated) {
-        body.name = name;
-        body.email = email;
-        body.password = password;
-      }
-
-      const result = await api.invites.accept(token, body);
+  const acceptMutation = useMutation({
+    mutationFn: () => api.invites.accept(token),
+    onSuccess: async (result) => {
       useAuthStore.getState().setAuth(result.accessToken, result.user);
-      // Ensure the local replica belongs to this user before we write the
-      // workspace directory; the owner-change branch clears prior-user data
-      // atomically.
       await ensureWorkspaceLocalOwner(result.user.id, true);
-
-      // Fetch workspaces and navigate to the joined workspace
       const workspaceData = await api.workspaces.list();
       await directoryCommands.replaceAll(workspaceData);
       const joined = workspaceData.find((w) => w.id === result.workspace_id);
@@ -105,14 +64,19 @@ export function InvitePage() {
       } else {
         navigate({ to: "/" });
       }
-    } catch (err) {
-      setError(toApiError(err).message);
-      setTurnstileResetKey((k) => k + 1);
-      setTurnstileToken(null);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+    },
+  });
+
+  const autoAcceptedRef = useRef(false);
+  useEffect(() => {
+    if (autoAcceptedRef.current) return;
+    if (acceptMarker !== "1") return;
+    if (!isAuthenticated) return;
+    autoAcceptedRef.current = true;
+    acceptMutation.mutate();
+  }, [acceptMarker, isAuthenticated, acceptMutation]);
+
+  const acceptError = acceptMutation.error ? toApiError(acceptMutation.error).message : null;
 
   if (isLoadingInvite) {
     return (
@@ -124,15 +88,6 @@ export function InvitePage() {
             <Skeleton className="mt-2 h-4 w-52" />
           </div>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Skeleton className="h-3 w-12" />
-              <Skeleton className="h-10 w-full rounded-lg" />
-            </div>
-            <div className="space-y-1.5">
-              <Skeleton className="h-3 w-12" />
-              <Skeleton className="h-10 w-full rounded-lg" />
-            </div>
-            <Skeleton className="h-16 w-full rounded-lg" />
             <Skeleton className="h-10 w-full rounded-lg" />
           </div>
         </div>
@@ -152,6 +107,8 @@ export function InvitePage() {
     );
   }
 
+  const oidcStartUrl = buildOidcStartUrl(token);
+
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4">
       <div className="animate-slide-up w-full max-w-sm">
@@ -163,95 +120,43 @@ export function InvitePage() {
           </p>
         </div>
 
-        <form onSubmit={handleAccept} className="space-y-4">
-          {error && (
-            <div
-              id="invite-error"
-              role="alert"
-              className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-400"
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        {acceptError && (
+          <div
+            id="invite-error"
+            role="alert"
+            className="mb-4 flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-400"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{acceptError}</span>
+          </div>
+        )}
 
-          {!isAuthenticated && (
-            <>
-              <Input
-                id="invite-name"
-                type="text"
-                required
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                icon={<User className="h-4 w-4" />}
-                label="Name"
-              />
-
-              <Input
-                id="invite-email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                readOnly={!!invite?.email}
-                icon={<Mail className="h-4 w-4" />}
-                label="Email"
-              />
-
-              <Input
-                id="invite-password"
-                type="password"
-                required
-                autoComplete="new-password"
-                placeholder="Create a password"
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                icon={<Lock className="h-4 w-4" />}
-                label="Password"
-              />
-            </>
-          )}
-
-          {showVerificationUnavailable ? (
-            <div
-              role="alert"
-              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-3 text-sm text-red-400"
-            >
-              <p>{SECURITY_VERIFICATION_UNAVAILABLE_MESSAGE}</p>
-              <Button variant="secondary" size="sm" className="mt-3" onClick={() => window.location.reload()}>
-                Reload
-              </Button>
-            </div>
-          ) : (
-            <TurnstileWidget
-              siteKey={config.turnstile_site_key}
-              onTokenChange={setTurnstileToken}
-              onUnavailable={() => setTurnstileUnavailable(true)}
-              action="accept_invite"
-              resetKey={turnstileResetKey}
-            />
-          )}
-
+        {!isAuthenticated ? (
+          <a
+            href={oidcStartUrl}
+            className="bg-accent-500 hover:bg-accent-400 focus-visible:outline-accent-400 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <LogIn className="h-4 w-4" />
+            Sign in with tessera to accept
+          </a>
+        ) : (
           <Button
             variant="primary"
-            type="submit"
-            disabled={isSubmitting || showVerificationUnavailable || !turnstileToken}
+            type="button"
+            disabled={acceptMutation.isPending}
+            onClick={() => acceptMutation.mutate()}
             className="w-full"
             icon={
-              isSubmitting ? (
+              acceptMutation.isPending ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
                 <UserPlus className="h-4 w-4" />
               )
             }
           >
-            {isSubmitting ? "Joining..." : isAuthenticated ? "Accept invite" : "Create account & join"}
+            {acceptMutation.isPending ? "Joining..." : "Accept invite"}
           </Button>
-        </form>
+        )}
       </div>
     </div>
   );

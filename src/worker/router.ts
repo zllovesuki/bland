@@ -6,6 +6,7 @@ import { createSessionDb, selectHttpSessionConstraint } from "@/worker/db/d1/cli
 import type { AppContext } from "@/worker/app-context";
 import { auth } from "@/worker/routes/auth";
 import { invitesRouter } from "@/worker/routes/invites";
+import { oidcRouter } from "@/worker/routes/oidc";
 import { workspacesRouter } from "@/worker/routes/workspaces";
 import { pagesRouter } from "@/worker/routes/pages";
 import { pageTreeRouter } from "@/worker/routes/page-tree";
@@ -79,6 +80,7 @@ app.use("*", async (c, next) => {
 
 app.route("/api/v1", health);
 app.route("/api/v1", auth);
+app.route("/api/v1", oidcRouter);
 app.route("/api/v1", invitesRouter);
 app.route("/api/v1", workspacesRouter);
 app.route("/api/v1", pagesRouter);

@@ -41,7 +41,6 @@ describe("reportClientError", () => {
     const { primeClientErrorReporting, reportClientError } = await import("@/client/lib/report-client-error");
 
     const initPromise = primeClientErrorReporting({
-      turnstile_site_key: "turnstile-test-key",
       sentry_dsn: "https://public@example.ingest.sentry.io/1",
     });
     const error = new Error("boom");
@@ -82,7 +81,6 @@ describe("reportClientError", () => {
     const { primeClientErrorReporting, reportClientError } = await import("@/client/lib/report-client-error");
 
     await primeClientErrorReporting({
-      turnstile_site_key: "turnstile-test-key",
       sentry_dsn: "https://public@example.ingest.sentry.io/1",
     });
 
@@ -99,7 +97,6 @@ describe("reportClientError", () => {
     const { primeClientErrorReporting, reportClientError } = await import("@/client/lib/report-client-error");
 
     await primeClientErrorReporting({
-      turnstile_site_key: "turnstile-test-key",
       sentry_dsn: null,
     });
 

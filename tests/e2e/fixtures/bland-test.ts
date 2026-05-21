@@ -55,22 +55,86 @@ export const test = base.extend<BlandFixtures>({
 export { expect };
 
 /**
- * Log in via the browser context's request surface. page.request shares cookies
- * with the browser context, so the Set-Cookie: bland_refresh=... lands in the
- * context cookie jar — the subsequent page.goto() is then authenticated.
+ * Drive a tessera sign-in via the browser context's request surface. The mock
+ * OIDC provider auto-approves the authorize request and the callback issues a
+ * refresh cookie, so by the time we call /auth/refresh the cookie jar is
+ * authenticated and we can capture the access token for downstream API helpers.
  */
 export async function loginPage(page: Page): Promise<{ accessToken: string }> {
-  const res = await page.request.post("/api/v1/auth/login", {
-    data: {
-      email: TEST_CREDENTIALS.email,
-      password: TEST_CREDENTIALS.password,
-      turnstileToken: "test",
-    },
-  });
-  if (!res.ok()) {
-    throw new Error(`Login failed: ${res.status()} ${await res.text()}`);
+  await runOidcFlow(page, "/");
+  return refreshAndCaptureToken(page);
+}
+
+export interface FreshTesseraIdentity {
+  sub: string;
+  email: string;
+  name?: string;
+}
+
+/**
+ * Configure the mock OIDC provider to return the given identity for the next
+ * authorization request, then drive a sign-in. Used by specs that exercise
+ * first-time-login or sub-swap behavior without colliding with the baseline
+ * identity seeded in global-setup.
+ */
+export async function loginAsFreshTesseraUser(
+  page: Page,
+  identity: FreshTesseraIdentity,
+  returnTo = "/",
+): Promise<{ accessToken: string }> {
+  await setMockOidcIdentity(page, { ...identity, email_verified: true });
+  await runOidcFlow(page, returnTo);
+  return refreshAndCaptureToken(page);
+}
+
+async function runOidcFlow(page: Page, returnTo: string): Promise<void> {
+  // page.goto exercises the real browser cookie jar, which treats
+  // http://127.0.0.1 as a secure context and accepts __Host- cookies. The
+  // page-context request API does not, so it would drop the tx cookie.
+  const startUrl = `/api/v1/oidc/start?return_to=${encodeURIComponent(returnTo)}`;
+  const response = await page.goto(startUrl, { waitUntil: "load" });
+  if (!response) {
+    throw new Error("OIDC flow returned no response");
   }
-  return (await res.json()) as { accessToken: string };
+  if (!response.ok()) {
+    throw new Error(`OIDC flow failed: ${response.status()} ${await response.text()}`);
+  }
+}
+
+async function refreshAndCaptureToken(page: Page): Promise<{ accessToken: string }> {
+  // Run the refresh from inside the page so the browser sends the Secure
+  // bland_refresh cookie. page.request would otherwise drop the cookie since
+  // Node fetch does not honor the loopback secure-context exception.
+  const result = (await page.evaluate(async () => {
+    const res = await fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, body: text };
+  })) as { ok: boolean; status: number; body: string };
+
+  if (!result.ok) {
+    throw new Error(`Auth refresh failed: ${result.status} ${result.body}`);
+  }
+  const parsed = JSON.parse(result.body) as { accessToken: string };
+  return { accessToken: parsed.accessToken };
+}
+
+async function setMockOidcIdentity(
+  page: Page,
+  identity: { sub: string; email: string; name?: string; email_verified: boolean },
+): Promise<void> {
+  const contextPath = process.env[E2E_CONTEXT_PATH_ENV]!;
+  const raw = await readFile(contextPath, "utf8");
+  const ctx = JSON.parse(raw) as E2eContextFile;
+  const params = new URLSearchParams({
+    sub: identity.sub,
+    email: identity.email,
+    email_verified: identity.email_verified ? "true" : "false",
+  });
+  if (identity.name) params.set("name", identity.name);
+  const res = await page.request.get(`${ctx.oidcIssuer}/__test/identity?${params.toString()}`);
+  if (!res.ok()) {
+    throw new Error(`Failed to set mock OIDC identity: ${res.status()} ${await res.text()}`);
+  }
 }
 
 function authHeaders(token: string): Record<string, string> {

@@ -4,22 +4,13 @@ import { ulid } from "ulid";
 
 import type { AppContext } from "@/worker/app-context";
 import { invites, memberships, users, workspaces } from "@/worker/db/d1/schema";
-import { requireAuth, extractBearerToken } from "@/worker/middleware/auth";
+import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { verifyTurnstileToken } from "@/worker/middleware/turnstile";
-import {
-  hashPassword,
-  verifyPassword,
-  createAccessToken,
-  createRefreshToken,
-  setRefreshCookie,
-  verifyAccessToken,
-  generateSecureToken,
-} from "@/worker/lib/auth";
+import { createAccessToken, createRefreshToken, setRefreshCookie, generateSecureToken } from "@/worker/lib/auth";
 import { checkMembership } from "@/worker/lib/membership";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
-import { CF_IP_HEADER, INVITE_EXPIRY_MS } from "@/worker/lib/constants";
+import { INVITE_EXPIRY_MS } from "@/worker/lib/constants";
 import { CreateInviteRequest, AcceptInviteRequest } from "@/shared/types";
 
 const log = createLogger("invites");
@@ -137,27 +128,16 @@ invitesRouter.get("/invite/:token", async (c) => {
 });
 
 // POST /invite/:token/accept
-invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
+invitesRouter.post("/invite/:token/accept", requireAuth, rateLimit("RL_AUTH"), async (c) => {
   const token = c.req.param("token");
   const db = c.get("db");
+  const user = c.get("user")!;
 
+  // Body is currently empty by contract, but we still validate so future fields
+  // get the same boundary treatment as the rest of the API.
   const data = await parseBody(c, AcceptInviteRequest);
   if (data instanceof Response) return data;
 
-  const { turnstileToken, email, password, name } = data;
-
-  const turnstile = await verifyTurnstileToken(c.env, {
-    token: turnstileToken,
-    expectedAction: "accept_invite",
-    remoteIp: c.req.header(CF_IP_HEADER),
-    requestUrl: c.req.url,
-  });
-
-  if (!turnstile.ok) {
-    return c.json({ error: "turnstile_failed", message: turnstile.message }, turnstile.status);
-  }
-
-  // Load invite
   const invite = await db.select().from(invites).where(eq(invites.token, token)).get();
 
   if (!invite) {
@@ -167,91 +147,18 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
   const stateError = validateInviteState(invite);
   if (stateError) return c.json(stateError, 410);
 
-  // If invite is pinned to a specific email, enforce it (pre-check for new-user flow)
-  if (invite.email && email && email.toLowerCase() !== invite.email) {
+  // Email-pinned invites must match the authenticated user's tessera-owned email.
+  if (invite.email && user.email.toLowerCase() !== invite.email) {
     return c.json({ error: "forbidden", message: "This invite is for a different email address" }, 403);
   }
 
-  let userId: string;
-  let userName: string;
-  let userEmail: string;
-  let userAvatarUrl: string | null = null;
-  let userCreatedAt: string = new Date().toISOString();
-  let isNewUser = false;
-
-  // Check if creating a new user account
-  if (email && password && name) {
-    // Creating new user
-    const existingUser = await db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
-
-    if (existingUser) {
-      // User exists - verify password before proceeding
-      if (!verifyPassword(password, existingUser.password_hash)) {
-        return c.json({ error: "unauthorized", message: "Invalid password for existing account" }, 401);
-      }
-
-      userId = existingUser.id;
-      userName = existingUser.name;
-      userEmail = existingUser.email;
-      userAvatarUrl = existingUser.avatar_url;
-      userCreatedAt = existingUser.created_at;
-    } else {
-      userId = ulid();
-      const passwordHash = hashPassword(password);
-
-      await db.insert(users).values({
-        id: userId,
-        email: email.toLowerCase(),
-        password_hash: passwordHash,
-        name,
-      });
-
-      userName = name;
-      userEmail = email.toLowerCase();
-      isNewUser = true;
-    }
-  } else {
-    // Existing user must be authenticated
-    const token = extractBearerToken(c.req.header("authorization"));
-    if (!token) {
-      return c.json(
-        {
-          error: "bad_request",
-          message: "Either provide email/password/name to create an account, or authenticate with a Bearer token",
-        },
-        400,
-      );
-    }
-
-    try {
-      const { sub } = await verifyAccessToken(token, c.env);
-      userId = sub;
-      const fullUser = await db.select().from(users).where(eq(users.id, userId)).get();
-
-      if (!fullUser) {
-        return c.json({ error: "unauthorized", message: "User not found" }, 401);
-      }
-
-      userName = fullUser.name;
-      userEmail = fullUser.email;
-      userAvatarUrl = fullUser.avatar_url;
-      userCreatedAt = fullUser.created_at;
-
-      // If invite is pinned to a specific email, enforce it (authenticated user flow)
-      if (invite.email && userEmail.toLowerCase() !== invite.email) {
-        return c.json({ error: "forbidden", message: "This invite is for a different email address" }, 403);
-      }
-    } catch {
-      return c.json({ error: "unauthorized", message: "Invalid token" }, 401);
-    }
-  }
-
+  const userId = user.id;
   const userPayload = {
-    id: userId,
-    email: userEmail,
-    name: userName,
-    avatar_url: userAvatarUrl,
-    created_at: userCreatedAt,
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatar_url: user.avatar_url,
+    created_at: user.created_at,
   };
 
   // Conditional acceptance gate, atomic with the membership insert.
@@ -311,7 +218,6 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
       inviteId: invite.id,
       userId,
       workspaceId: invite.workspace_id,
-      isNewUser: false,
       alreadyMember: true,
     });
     return c.json({
@@ -326,19 +232,14 @@ invitesRouter.post("/invite/:token/accept", rateLimit("RL_AUTH"), async (c) => {
     inviteId: invite.id,
     userId,
     workspaceId: invite.workspace_id,
-    isNewUser,
     alreadyMember: false,
   });
 
-  return c.json(
-    {
-      user: userPayload,
-      workspace_id: invite.workspace_id,
-      accessToken,
-      is_new_user: isNewUser,
-    },
-    isNewUser ? 201 : 200,
-  );
+  return c.json({
+    user: userPayload,
+    workspace_id: invite.workspace_id,
+    accessToken,
+  });
 });
 
 // DELETE /invite/:id

@@ -1,4 +1,4 @@
-import { test, expect, createTestWorkspace, createTestPage } from "../fixtures/bland-test";
+import { test, expect, createTestWorkspace, createTestPage, loginAsFreshTesseraUser } from "../fixtures/bland-test";
 import type { Page as PlaywrightPage } from "@playwright/test";
 
 async function createGuestInvite(
@@ -29,27 +29,12 @@ async function shareWithUserByEmail(
   if (!res.ok()) throw new Error(`Failed to share with user: ${res.status()} ${await res.text()}`);
 }
 
-async function acceptInviteAsNewUser(
+async function signInAndAcceptInvite(
   page: PlaywrightPage,
   token: string,
-  email: string,
-  password: string,
-  name: string,
+  identity: { sub: string; email: string; name: string },
 ): Promise<{ accessToken: string }> {
-  const res = await page.request.post(`/api/v1/invite/${token}/accept`, {
-    data: { turnstileToken: "test", email, password, name },
-  });
-  if (!res.ok()) throw new Error(`Failed to accept invite: ${res.status()} ${await res.text()}`);
-  const body = (await res.json()) as { accessToken: string };
-  return { accessToken: body.accessToken };
-}
-
-async function loginAs(page: PlaywrightPage, email: string, password: string): Promise<{ accessToken: string }> {
-  const res = await page.request.post("/api/v1/auth/login", {
-    data: { email, password, turnstileToken: "test" },
-  });
-  if (!res.ok()) throw new Error(`Login failed: ${res.status()}`);
-  return (await res.json()) as { accessToken: string };
+  return loginAsFreshTesseraUser(page, identity, `/invite/${token}?accept=1`);
 }
 
 test.describe("guest workspace shell", () => {
@@ -65,11 +50,10 @@ test.describe("guest workspace shell", () => {
 
     const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const guestEmail = `e2e-guest-empty-${suffix}@example.com`;
-    const guestPassword = "password1234";
+    const guestSub = `e2e-guest-empty-sub-${suffix}`;
     const guestName = `Guest Empty ${suffix}`;
 
-    await acceptInviteAsNewUser(guestPage, invite.token, guestEmail, guestPassword, guestName);
-    await loginAs(guestPage, guestEmail, guestPassword);
+    await signInAndAcceptInvite(guestPage, invite.token, { sub: guestSub, email: guestEmail, name: guestName });
 
     await guestPage.goto(`/${ownerWorkspace.workspaceSlug}`);
     await expect(guestPage.getByText("Nothing here yet.")).toBeVisible({ timeout: 15_000 });
@@ -92,10 +76,10 @@ test.describe("guest workspace shell", () => {
 
     const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const guestEmail = `e2e-guest-${suffix}@example.com`;
-    const guestPassword = "password1234";
+    const guestSub = `e2e-guest-sub-${suffix}`;
     const guestName = `Guest ${suffix}`;
 
-    await acceptInviteAsNewUser(guestPage, invite.token, guestEmail, guestPassword, guestName);
+    await signInAndAcceptInvite(guestPage, invite.token, { sub: guestSub, email: guestEmail, name: guestName });
     // Grant the guest view access to the canonical page so the page actually
     // loads for them. Without this share grant, a guest hits 404 and the
     // "Summarize/Ask absent" assertion trivially passes on the error state.
@@ -103,8 +87,6 @@ test.describe("guest workspace shell", () => {
 
     const pageErrors: string[] = [];
     guestPage.on("pageerror", (err) => pageErrors.push(err.message));
-
-    await loginAs(guestPage, guestEmail, guestPassword);
 
     // The guest must land in the workspace shell (not /), and the shell must
     // never surface the "Create first page" CTA — guests cannot create pages.
@@ -164,11 +146,10 @@ test.describe("guest workspace shell", () => {
 
     const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const guestEmail = `e2e-guest-exit-${suffix}@example.com`;
-    const guestPassword = "password1234";
+    const guestSub = `e2e-guest-exit-sub-${suffix}`;
     const guestName = `Guest Exit ${suffix}`;
 
-    await acceptInviteAsNewUser(guestPage, invite.token, guestEmail, guestPassword, guestName);
-    await loginAs(guestPage, guestEmail, guestPassword);
+    await signInAndAcceptInvite(guestPage, invite.token, { sub: guestSub, email: guestEmail, name: guestName });
 
     await guestPage.goto(`/${ownerWorkspace.workspaceSlug}/settings`);
     await expect(guestPage.getByRole("heading", { name: "Leave workspace" })).toBeVisible({ timeout: 10_000 });

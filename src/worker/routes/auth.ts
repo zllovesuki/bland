@@ -7,68 +7,14 @@ import type { AppContext } from "@/worker/app-context";
 import { users } from "@/worker/db/d1/schema";
 import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
-import { verifyTurnstileToken } from "@/worker/middleware/turnstile";
-import {
-  verifyPassword,
-  createAccessToken,
-  createRefreshToken,
-  setRefreshCookie,
-  clearRefreshCookie,
-  toUserResponse,
-  getJwtSecret,
-  REFRESH_COOKIE,
-} from "@/worker/lib/auth";
+import { createAccessToken, clearRefreshCookie, toUserResponse, getJwtSecret, REFRESH_COOKIE } from "@/worker/lib/auth";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
-import { CF_IP_HEADER, JWT_ALGORITHM } from "@/worker/lib/constants";
-import { LoginRequest, UpdateProfileRequest } from "@/shared/types";
+import { JWT_ALGORITHM } from "@/worker/lib/constants";
+import { UpdateProfileRequest } from "@/shared/types";
 
 const auth = new Hono<AppContext>();
 const log = createLogger("auth");
-
-// POST /auth/login
-auth.post("/auth/login", rateLimit("RL_AUTH"), async (c) => {
-  const data = await parseBody(c, LoginRequest);
-  if (data instanceof Response) return data;
-
-  const { email, password, turnstileToken } = data;
-  log.debug("login_attempt", { email });
-
-  const turnstile = await verifyTurnstileToken(c.env, {
-    token: turnstileToken,
-    expectedAction: "login",
-    remoteIp: c.req.header(CF_IP_HEADER),
-    requestUrl: c.req.url,
-  });
-
-  if (!turnstile.ok) {
-    return c.json({ error: "turnstile_failed", message: turnstile.message }, turnstile.status);
-  }
-
-  const db = c.get("db");
-
-  const user = await db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
-
-  if (!user) {
-    log.info("login_failed", { email, reason: "user_not_found" });
-    return c.json({ error: "unauthorized", message: "Invalid email or password" }, 401);
-  }
-
-  if (!verifyPassword(password, user.password_hash)) {
-    log.info("login_failed", { email, reason: "bad_password" });
-    return c.json({ error: "unauthorized", message: "Invalid email or password" }, 401);
-  }
-
-  const [accessToken, refreshToken] = await Promise.all([
-    createAccessToken(user.id, c.env),
-    createRefreshToken(user.id, c.env),
-  ]);
-
-  setRefreshCookie(c, refreshToken);
-  log.info("login_success", { userId: user.id });
-
-  return c.json({ user: toUserResponse(user), accessToken });
-});
 
 // POST /auth/refresh
 auth.post("/auth/refresh", rateLimit("RL_AUTH"), async (c) => {

@@ -16,7 +16,7 @@ type NormalizedClientErrorReport = {
 
 type SentryModule = typeof import("@sentry/react");
 
-const EXPECTED_API_ERRORS = new Set(["validation_error", "unauthorized", "forbidden", "not_found", "turnstile_failed"]);
+const EXPECTED_API_ERRORS = new Set(["validation_error", "unauthorized", "forbidden", "not_found"]);
 const MAX_PENDING_REPORTS = 50;
 
 let pendingReports: NormalizedClientErrorReport[] = [];
