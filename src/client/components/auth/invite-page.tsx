@@ -3,6 +3,11 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { UserPlus, AlertCircle, CheckCircle, LogIn } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
+import {
+  BUTTON_BASE_CLASSES,
+  BUTTON_SIZE_CLASSES,
+  BUTTON_VARIANT_CLASSES,
+} from "@/client/components/ui/button-classes";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { api, toApiError } from "@/client/lib/api";
 import { useAuthStore, selectIsAuthenticated } from "@/client/stores/auth-store";
@@ -134,7 +139,7 @@ export function InvitePage() {
         {!isAuthenticated ? (
           <a
             href={oidcStartUrl}
-            className="bg-accent-500 hover:bg-accent-400 focus-visible:outline-accent-400 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition focus-visible:outline-2 focus-visible:outline-offset-2"
+            className={`${BUTTON_BASE_CLASSES} ${BUTTON_SIZE_CLASSES.md} ${BUTTON_VARIANT_CLASSES.primary} w-full`}
           >
             <LogIn className="h-4 w-4" />
             Sign in with tessera to accept

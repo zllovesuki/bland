@@ -23,6 +23,8 @@ If you find yourself writing `className="… absolute z-N"` for a menu, stop —
 
 Every interactive _action_ renders through `<Button>` (app) or `<ToolbarButton>` (editor). Hover, focus, and disabled vocabularies are owned by the primitives.
 
+The one exception is **actions that perform top-level navigation** (e.g. an OIDC sign-in that hands off to an identity-provider URL). Those render as `<a href>` to preserve native link semantics — cmd/ctrl-click new-tab, hover URL preview, right-click → "Open in new tab", link role for AT — and consume the same visual tokens from `button-classes.ts`. The rationale, contract, and current callers are documented in the `// ADR:` block at the top of that file.
+
 Raw `<button>` is reserved for _non-action_ elements:
 
 - **Data badges that toggle a menu** — `workspace/settings.tsx:323` member role chip, `workspace/settings.tsx:152` workspace icon chip. The badge IS the data display; its dropdown affordance is incidental.

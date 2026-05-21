@@ -251,6 +251,7 @@ Shadows are reserved for the floating layer — popovers, dialogs, dropdowns, th
 - **Ghost** (`text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100`): No border, no background at rest. Used for utility actions in dense UI (editor toolbars, row actions).
 - **Press feedback:** `active:scale-[0.98]` on primary/secondary/danger, `active:scale-[0.97]` on ghost. Transition: `transition-transform` (not `transition-all`).
 - **Focus:** Inherits the global `*:focus-visible` rule (`ring-2 ring-accent-500/50 ring-offset-2 ring-offset-canvas`).
+- **Source of truth.** The class strings live in `src/client/components/ui/button-classes.ts`. Both `<Button>` and the link-shaped CTAs that render `<a href>` for top-level navigation (e.g. the OIDC sign-in hand-off) consume the same tokens. Never reconstruct primary-button classes inline at the call site — that's how the brand shade drifts a rung lighter. The `// ADR:` block at the top of `button-classes.ts` covers the rationale.
 
 ### Cards / Containers
 
