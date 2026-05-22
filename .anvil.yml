@@ -7,9 +7,11 @@ run:
   steps:
     - name: install
       run: npm ci
+    - name: generate types
+      run: npm run types:generate
     - name: typecheck
       run: npm run typecheck
-    - name: test
+    - name: vitest
       run: npm test
     - name: build
       run: npm run build
