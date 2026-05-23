@@ -20,7 +20,7 @@ Current production runtime from `wrangler.jsonc`:
 | Worker name     | `bland`                                                     |
 | Domain          | `https://bland.tools`                                       |
 | D1              | `bland-prod`                                                |
-| R2              | `bland-uploads`                                             |
+| R2              | `bland-uploads`, `bland-sites`                              |
 | Queue           | `bland-tasks`                                               |
 | Durable Objects | `DocSync`, `WorkspaceIndexer`                               |
 | Workers AI      | binding `AI`, default model `@cf/google/gemma-4-26b-a4b-it` |
@@ -29,6 +29,7 @@ Current production runtime from `wrangler.jsonc`:
 
 Request routing in the live Worker:
 
+- Requests for the configured public Sites domain dispatch to the Sites router before `/api`, `/uploads`, assets, and the SPA shell.
 - `GET /api/v1/*` and `/uploads/*` go through the Hono app.
 - `/parties/*` goes through PartyServer / `DocSync`.
 - AI requests `POST /api/v1/workspaces/:wid/pages/:id/{rewrite,generate,summarize,ask}` go through the Hono app, gated by `RL_AI` and member-only entitlements, and stream SSE back to the client.
@@ -40,7 +41,7 @@ Request routing in the live Worker:
 - D1 is authoritative for users, workspaces, memberships, page metadata, invites, shares, and upload metadata.
 - `DocSync` DO-local SQLite is authoritative for persisted Yjs document snapshots.
 - `WorkspaceIndexer` DO-local SQLite is authoritative for the derived FTS index.
-- R2 stores upload blobs only. It is not an authorization store.
+- R2 stores upload blobs and derived public Sites artifacts. It is not an authorization store.
 - The search queue carries derived `index-page` work only. Lost queue messages can stale search, but they do not lose source-of-truth data.
 - D1 read-after-write across requests depends on bookmark propagation via `x-bland-d1-bookmark`.
 
@@ -50,17 +51,19 @@ Production requires these runtime values:
 
 - `LOG_LEVEL`
 - `ALLOWED_ORIGINS`
+- `PUBLISHED_SITE_DOMAIN`
 - `JWT_SECRET`
-- `TURNSTILE_SITE_KEY`
-- `TURNSTILE_SECRET`
-- `SENTRY_DSN`
+- `TESSERA_OIDC_ISSUER`
+- `TESSERA_OIDC_CLIENT_ID`
+- `TESSERA_OIDC_CLIENT_SECRET`
 
 Notes:
 
-- `JWT_SECRET` and `TURNSTILE_SECRET` are secrets.
-- `TURNSTILE_SITE_KEY` is public config, but still required at runtime because the Worker injects it into the SPA shell.
-- `SENTRY_DSN` is used for client-side Sentry only. Worker-side Sentry is not implemented.
+- `JWT_SECRET`, `TESSERA_OIDC_CLIENT_ID`, and `TESSERA_OIDC_CLIENT_SECRET` are secrets.
+- `SENTRY_DSN` is optional and used for client-side Sentry only. Worker-side Sentry is not implemented.
 - `ALLOWED_ORIGINS` controls both HTTP CORS and WebSocket origin checks. Keep it exact.
+- `PUBLISHED_SITE_DOMAIN` controls public Sites host dispatch. Empty disables Sites.
+- Register one tessera redirect URI per allowed app origin, ending in `/api/v1/oidc/callback`.
 
 Optional AI backend selection (defaults to Workers AI in production):
 
@@ -94,6 +97,7 @@ R2:
 
 ```bash
 npx wrangler r2 bucket create bland-uploads
+npx wrangler r2 bucket create bland-sites
 ```
 
 Queue:
@@ -104,9 +108,14 @@ npx wrangler queues create bland-tasks
 
 Durable Objects (`DocSync`, `WorkspaceIndexer`), rate-limit bindings (`RL_AUTH`, `RL_API`, `RL_AI`), and the Workers AI binding (`AI`) are created implicitly on the first `wrangler deploy` from the classes and config already in the repo. Workers AI is enabled per-account in the Cloudflare dashboard; no secret or extra binding setup is required to use the default model.
 
-### 3. Turnstile widget
+### 3. Register tessera OIDC client
 
-Create a Cloudflare Turnstile widget for the production hostname in the Cloudflare dashboard. You will need the site key and secret in the next step.
+Register bland as an OIDC relying party with tessera:
+
+- Redirect URI: `https://bland.tools/api/v1/oidc/callback`
+- Redirect URI for every other app origin in `ALLOWED_ORIGINS`, such as `https://docs.limic.dev/api/v1/oidc/callback`
+- Scopes: `openid email profile`
+- Flow: authorization code with PKCE
 
 ### 4. Set runtime config
 
@@ -116,16 +125,16 @@ Secrets (prompts for the value):
 
 ```bash
 npx wrangler secret put JWT_SECRET       # 32+ random bytes, e.g. `openssl rand -base64 48`
-npx wrangler secret put TURNSTILE_SECRET
-npx wrangler secret put TURNSTILE_SITE_KEY
+npx wrangler secret put TESSERA_OIDC_CLIENT_ID
+npx wrangler secret put TESSERA_OIDC_CLIENT_SECRET
 npx wrangler secret put SENTRY_DSN       # optional; leave unset to disable client Sentry
 ```
 
 Notes:
 
-- `LOG_LEVEL` and `ALLOWED_ORIGINS` are already in `wrangler.jsonc` vars. Change them there if needed and redeploy.
-- `TURNSTILE_SITE_KEY` is public, but the Worker injects it into the SPA shell at request time, so it must be set as a secret (or a var) in the deployed environment.
+- `LOG_LEVEL`, `ALLOWED_ORIGINS`, `PUBLISHED_SITE_DOMAIN`, and `TESSERA_OIDC_ISSUER` are already in `wrangler.jsonc` vars. Change them there if needed and redeploy.
 - `JWT_SECRET` must never be logged or committed. Rotate by setting a new value and redeploying; all existing access tokens become invalid and clients re-authenticate via the refresh cookie flow.
+- If upgrading a password-era deployment, follow [MIGRATION-OIDC.md](MIGRATION-OIDC.md) before applying the password-column closure migration.
 
 ### 5. Attach the custom domain
 
@@ -172,7 +181,7 @@ There is no separate staging Wrangler environment configured in the live repo to
 Run these from repo root before deployment:
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run typecheck
 npm test
 npm run build
@@ -215,8 +224,8 @@ Do not use `db:migrate:local` as part of production deployment.
 Run these checks immediately after production deploy:
 
 1. `GET https://bland.tools/api/v1/health`
-2. Load `https://bland.tools/login` and confirm Turnstile renders.
-3. Log in with a real account and confirm session refresh works after reload.
+2. Load `https://bland.tools/login` and confirm the tessera sign-in action starts `/api/v1/oidc/start`.
+3. Complete tessera sign-in with a verified account and confirm session refresh works after reload.
 4. Open a page, edit content, reload, and confirm content persists.
 5. Open the same page in a second client and confirm collaboration still connects.
 6. Create or open a share link and verify the expected view/edit behavior.
@@ -270,6 +279,8 @@ High-signal Worker and DO events in the live source tree:
 - `rate_limit_exceeded`
 - `origin_rejected`
 - `auth_failed`
+- `oidc_start`, `oidc_callback_success`
+- `discovery_failed`, `oidc_token_exchange_failed`
 - `access_denied`
 - `share_access_denied`
 - `ai_request`, `ai_response` — every AI call emits a paired request/response log with action, surface, page access, duration, and outcome
@@ -289,9 +300,6 @@ High-signal client capture sources:
 - `page.load`
 - `shared-page.resolve`
 - `shared-page.active-page-load`
-- `turnstile.missing-api`
-- `turnstile.render-failed`
-- `turnstile.script-load-failed`
 
 ## Incident Runbooks
 
