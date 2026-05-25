@@ -23,7 +23,7 @@ import "@/styles/app.css";
 
 const router = createRouter({
   routeTree,
-  defaultPreload: "render",
+  defaultPreload: "intent",
 });
 
 // Route-aware re-hydrate: users who bootstrapped on a non-local path
