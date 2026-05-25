@@ -29,7 +29,12 @@ import {
 import { loadPagePmJson } from "@/worker/sites/load-page-pm-json";
 import { prepareSitePageRender } from "@/worker/sites/prepare-page-render";
 import { resolveSitesDocumentAssets } from "@/worker/sites/manifest";
-import { renderApexDocumentHtml, renderRobotsTxt, renderSiteNotFoundDocumentHtml } from "@/sites/document";
+import {
+  renderApexDocumentHtml,
+  renderRobotsTxt,
+  renderSiteBuildingDocumentHtml,
+  renderSiteNotFoundDocumentHtml,
+} from "@/sites/document";
 import type { SiteDocumentAssets } from "@/sites/types";
 
 const PAGE_ID_LENGTH = 26;
@@ -204,30 +209,31 @@ async function serveCachedOrRender(
   const canonicalPath = currentIsHome ? "/" : buildSitePagePath(page.id, page.title);
   const url = new URL(c.req.url);
   const canonicalUrl = `${url.protocol}//${url.host}${canonicalPath}`;
-  const revision = await createSiteHtmlRevision({ rendererVersion, site, page, currentIsHome, canonicalPath });
-  const baseHeaders = buildHtmlHeaders(site, page, revision);
+
+  const pmJson = await loadPagePmJson({ env: c.env, page, timings: (name, operation) => timeSite(c, name, operation) });
+  if (!pmJson) {
+    c.executionCtx.waitUntil(enqueuePageProjection(c.env, page.id));
+    return siteBuilding(c, site);
+  }
+
+  const revision = await createSiteHtmlRevision({
+    rendererVersion,
+    artifactEtag: pmJson.artifactEtag,
+    site,
+    page,
+    currentIsHome,
+    canonicalPath,
+  });
+  const baseHeaders = buildHtmlHeaders(site, revision, pmJson.artifactUpdatedAt);
 
   if (siteHtmlEtagMatches(request.headers.get("If-None-Match"), baseHeaders.ETag)) {
     markSite(c, "cache_read", "skipped_304");
     return c.body(null, 304, baseHeaders);
   }
 
-  const cacheState = htmlCacheState(c);
-
-  if (!cacheState.checked) {
-    const cache = await cacheState.cache;
-    const cached = await timeSite(c, "cache_read", () => cache.match(cacheState.key));
-    cacheState.checked = true;
-    if (cached?.body) {
-      markSite(c, "cache_write", "skipped_hit");
-      if (c.req.method === "HEAD") return c.body(null, 200, baseHeaders);
-      return c.body(cached.body, 200, baseHeaders);
-    }
+  if (pmJson.stale) {
+    c.executionCtx.waitUntil(enqueuePageProjection(c.env, page.id));
   }
-
-  const pmJson = await loadPagePmJson({ env: c.env, page, timings: (name, operation) => timeSite(c, name, operation) });
-  if (!pmJson) return siteNotFound(c, site);
-  if (pmJson.writeBack) c.executionCtx.waitUntil(pmJson.writeBack());
 
   const prepared = await prepareSitePageRender({
     env: c.env,
@@ -245,10 +251,11 @@ async function serveCachedOrRender(
   const stream = await timeSite(c, "render_stream", async () => {
     // ADR: keep Tiptap/static-renderer out of Worker startup; load it only on Sites HTML cache misses.
     const { renderSitePageDocumentStream } = await import("@/worker/sites/render-page-stream");
-    return renderSitePageDocumentStream({ env: c.env, db, site, page, prepared });
+    return renderSitePageDocumentStream({ db, site, page, prepared });
   });
   const [responseStream, cacheStream] = stream.tee();
 
+  const cacheState = htmlCacheState(c);
   const cacheResponse = new Response(cacheStream, {
     status: 200,
     headers: internalHtmlHeaders(headers, site, page),
@@ -292,11 +299,11 @@ function htmlCacheState(c: Context<SitesContext>): HtmlCacheState {
   return state;
 }
 
-function buildHtmlHeaders(site: ResolvedSite, page: ResolvedPublishedPage, revision: string) {
+function buildHtmlHeaders(site: ResolvedSite, revision: string, artifactUpdatedAt: string) {
   return {
     ...HTML_HEADERS,
     ETag: buildSiteHtmlEtag(revision),
-    "Last-Modified": newestHttpDate(site.updated_at, page.updated_at),
+    "Last-Modified": newestHttpDate(site.updated_at, artifactUpdatedAt),
   };
 }
 
@@ -350,6 +357,35 @@ async function siteNotFound(c: Context<SitesContext>, site: ResolvedSite | null 
       assets,
     ),
   );
+}
+
+async function siteBuilding(c: Context<SitesContext>, site: ResolvedSite): Promise<Response> {
+  const assets = await resolveRequiredSitesDocumentAssets(c);
+  if (!assets) return sitesAssetsUnavailable(c);
+
+  return c.html(
+    renderSiteBuildingDocumentHtml({
+      site: { workspaceName: site.workspace_name, workspaceIcon: site.workspace_icon, homeHref: "/" },
+      assets,
+    }),
+    503,
+    withSitesStaticDocumentPreloadHeaders(
+      {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Retry-After": "5",
+      },
+      assets,
+    ),
+  );
+}
+
+async function enqueuePageProjection(env: Pick<Env, "TASKS_QUEUE">, pageId: string): Promise<void> {
+  try {
+    await env.TASKS_QUEUE.send({ type: "page-projection", pageId });
+  } catch {
+    // Derived Sites JSON is repaired by the next save or request-path self-heal.
+  }
 }
 
 function methodNotAllowed(c: Context<SitesContext>): Response {

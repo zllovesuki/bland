@@ -56,6 +56,35 @@ async function unpublishPage(
   if (!res.ok()) throw new Error(`Unpublish page failed: ${res.status()} ${await res.text()}`);
 }
 
+async function readPageUpdatedAt(
+  request: APIRequestContext,
+  accessToken: string,
+  workspaceId: string,
+  pageId: string,
+): Promise<string> {
+  const res = await request.get(`/api/v1/workspaces/${workspaceId}/pages/${pageId}`, {
+    headers: authHeaders(accessToken),
+  });
+  if (!res.ok()) throw new Error(`Read page failed: ${res.status()} ${await res.text()}`);
+  const body = (await res.json()) as { page: { updated_at: string } };
+  return body.page.updated_at;
+}
+
+async function waitForPageUpdatedAfter(
+  request: APIRequestContext,
+  accessToken: string,
+  workspaceId: string,
+  pageId: string,
+  previousUpdatedAt: string,
+): Promise<void> {
+  await expect
+    .poll(() => readPageUpdatedAt(request, accessToken, workspaceId, pageId), {
+      timeout: 30_000,
+      intervals: [500, 1000, 1500, 2000],
+    })
+    .not.toBe(previousUpdatedAt);
+}
+
 async function typeIntoEditor(
   page: PlaywrightPage,
   accessToken: string,
@@ -64,6 +93,7 @@ async function typeIntoEditor(
   pageId: string,
   text: string,
 ): Promise<void> {
+  const previousUpdatedAt = await readPageUpdatedAt(page.request, accessToken, workspaceId, pageId);
   await page.goto(`/${workspaceSlug}/${pageId}`);
   const editor = await waitForDocEditorReady(page, { editable: true });
   await editor.click();
@@ -71,6 +101,12 @@ async function typeIntoEditor(
   await expect(editor).toContainText(text);
   await waitForDocEditorReady(page, { editable: true, connected: true });
   await waitForPersistedSnapshot(page, accessToken, { workspaceId, pageId, expectedText: text });
+  await waitForPageUpdatedAfter(page.request, accessToken, workspaceId, pageId, previousUpdatedAt);
+  // The save-side page projection is queued after the D1 metadata mirror. There
+  // is no non-public R2 readiness endpoint in the E2E harness, so cover the
+  // configured 5s queue batch timeout before first public navigation to avoid
+  // poisoning the public HTML cache with the create-time empty artifact.
+  await page.waitForTimeout(6500);
 }
 
 async function retitlePage(
@@ -90,6 +126,20 @@ async function retitlePage(
   await expect(titleInput).toHaveValue(title);
   await expect(page.getByText("Connected")).toBeVisible({ timeout: 15_000 });
   await waitForTitleProjection(page, accessToken, { workspaceId, pageId, title });
+}
+
+async function gotoPublicDocWhenReady(
+  page: PlaywrightPage,
+  url: string,
+  expectedTitle: string,
+  expectedBody: string,
+): Promise<void> {
+  await expect(async () => {
+    const response = await page.goto(url);
+    expect(response?.status()).toBe(200);
+    await expect(page.locator("h1.site-title")).toHaveText(expectedTitle, { timeout: 1000 });
+    await expect(page.locator(".tiptap")).toContainText(expectedBody, { timeout: 1000 });
+  }).toPass({ timeout: 30_000, intervals: [500, 1000, 2000] });
 }
 
 test.describe("sites - publish flow", () => {
@@ -133,14 +183,10 @@ test.describe("sites - publish flow", () => {
 
     try {
       const homeUrl = `${siteOrigin(e2eContext.baseUrl, slug)}/`;
-      await anonPage.goto(homeUrl);
-      await expect(anonPage.locator("h1.site-title")).toHaveText("Welcome");
-      await expect(anonPage.locator(".tiptap")).toContainText("Welcome to the published site.");
+      await gotoPublicDocWhenReady(anonPage, homeUrl, "Welcome", "Welcome to the published site.");
 
       const subUrl = `${siteOrigin(e2eContext.baseUrl, slug)}/sub-page-${subpagePublicId}`;
-      await anonPage.goto(subUrl);
-      await expect(anonPage.locator("h1.site-title")).toHaveText("Sub Page");
-      await expect(anonPage.locator(".tiptap")).toContainText("Sub page body content here.");
+      await gotoPublicDocWhenReady(anonPage, subUrl, "Sub Page", "Sub page body content here.");
 
       // Retitle the subpage. Previously cached public HTML is allowed to stay
       // stale until the internal Sites cache TTL expires.

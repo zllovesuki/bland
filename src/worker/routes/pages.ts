@@ -27,6 +27,7 @@ import {
 } from "@/shared/entitlements";
 import { getPage } from "@/worker/lib/page-access";
 import { getPageAncestorChain, getPageAncestorDepthFromChain, validatePageMove } from "@/worker/lib/page-tree";
+import type { TasksQueueMessage } from "@/worker/queues/messages";
 import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
 
 const log = createLogger("pages");
@@ -100,11 +101,13 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
 
   log.info("page_created", { pageId, workspaceId, kind, parentId: parent_id ?? null, userId: user.id });
 
-  // Index newly created page in FTS
+  // Index and project newly created pages through derived background tasks.
   try {
-    await c.env.SEARCH_QUEUE.send({ type: "index-page", pageId });
+    const messages: TasksQueueMessage[] = [{ type: "index-page", pageId }];
+    if (kind === "doc") messages.push({ type: "page-projection", pageId });
+    await c.env.TASKS_QUEUE.sendBatch(messages.map((body) => ({ body })));
   } catch {
-    // Non-critical: FTS is a derived projection
+    // Non-critical: FTS and Sites JSON are derived projections.
   }
 
   const now = new Date().toISOString();
@@ -383,7 +386,7 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
 
   // Remove from search index (consumer handles archived pages)
   try {
-    await c.env.SEARCH_QUEUE.send({ type: "index-page", pageId });
+    await c.env.TASKS_QUEUE.send({ type: "index-page", pageId });
   } catch {
     // Non-critical: FTS is a derived projection
   }

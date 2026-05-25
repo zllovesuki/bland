@@ -2,21 +2,20 @@ import type { JSONContent } from "@tiptap/core";
 
 import type { EditorTextMetrics } from "@/shared/editor/schema/metrics";
 import type { ResolvedPublishedPage } from "@/worker/lib/published-pages";
-import { readSiteR2, writeSiteR2 } from "@/worker/sites/cache";
+import { readSiteR2 } from "@/worker/sites/cache";
 
 type SiteTiming = <T>(name: string, operation: () => Promise<T>) => Promise<T>;
 
 export interface LoadedPmJson {
   content: JSONContent;
   metrics: EditorTextMetrics;
-  // Set when R2 was stale (or missing) and the freshly projected envelope
-  // should be written back. Caller wraps it in ctx.waitUntil so the visitor
-  // response is not delayed by the R2 PUT.
-  writeBack: (() => Promise<void>) | null;
+  stale: boolean;
+  artifactEtag: string;
+  artifactUpdatedAt: string;
 }
 
 export interface LoadPagePmJsonArgs {
-  env: Pick<Env, "SITES" | "DocSync">;
+  env: Pick<Env, "SITES">;
   page: ResolvedPublishedPage;
   timings?: SiteTiming;
 }
@@ -25,27 +24,13 @@ export async function loadPagePmJson({ env, page, timings }: LoadPagePmJsonArgs)
   const r2 = await timeMaybe(timings, "r2_document", () =>
     readSiteR2(env, page.workspace_id, page.id, page.updated_at),
   );
-  if (r2?.envelope && r2.fresh) {
-    return { content: r2.envelope.content, metrics: r2.envelope.metrics, writeBack: null };
-  }
-
-  const projected = await timeMaybe(timings, "docsync_document", async () => {
-    // ADR: keep Tiptap/y-tiptap projection out of Worker startup; load it only for stale/missing Sites R2 JSON.
-    const { projectPageJson } = await import("@/worker/sites/project-page-json");
-    return projectPageJson(env, page.id);
-  });
-  if (!projected) return null;
-
-  const envelope = {
-    content: projected.content,
-    metrics: projected.metrics,
-    updatedAt: page.updated_at,
-  };
-
+  if (!r2?.envelope) return null;
   return {
-    content: projected.content,
-    metrics: projected.metrics,
-    writeBack: () => writeSiteR2(env, page.workspace_id, page.id, envelope),
+    content: r2.envelope.content,
+    metrics: r2.envelope.metrics,
+    stale: !r2.fresh,
+    artifactEtag: r2.etag,
+    artifactUpdatedAt: r2.envelope.updatedAt,
   };
 }
 

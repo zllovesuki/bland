@@ -239,9 +239,12 @@ export class DocSync extends YServer<Cloudflare.Env> {
       dl.error("page_save_sync_failed", errorContext(e));
     }
 
-    // FTS indexing must not break snapshot persistence (spec S7)
+    // Derived indexing/projection must not break snapshot persistence (spec S7)
     try {
-      await this.env.SEARCH_QUEUE.send({ type: "index-page", pageId: this.name });
+      await this.env.TASKS_QUEUE.sendBatch([
+        { body: { type: "index-page", pageId: this.name } },
+        { body: { type: "page-projection", pageId: this.name } },
+      ]);
     } catch (e) {
       dl.error("queue_send_failed", errorContext(e));
     }

@@ -408,7 +408,7 @@ describe("Sites management API", () => {
       expect(rows).toHaveLength(0);
     });
 
-    it("DELETE removes the page's cached R2 artifact", async () => {
+    it("DELETE leaves the page's private R2 projection artifact", async () => {
       const owner = await seedUser();
       const ws = await seedWorkspace({ owner_id: owner.id });
       const page = await seedPage({ workspace_id: ws.id, created_by: owner.id });
@@ -430,7 +430,7 @@ describe("Sites management API", () => {
         userId: owner.id,
       });
       expect(del.status).toBe(200);
-      expect(await readSiteR2(env, ws.id, page.id, updatedAt)).toBeNull();
+      expect(await readSiteR2(env, ws.id, page.id, updatedAt)).not.toBeNull();
     });
 
     it("bumps the workspace site revision from route-owned public HTML mutations", async () => {

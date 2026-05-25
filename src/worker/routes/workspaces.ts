@@ -18,7 +18,7 @@ import { requireAuth } from "@/worker/middleware/auth";
 import { rateLimit } from "@/worker/middleware/rate-limit";
 import { checkMembership } from "@/worker/lib/membership";
 import { parseBody } from "@/worker/lib/validate";
-import { createLogger } from "@/worker/lib/logger";
+import { createLogger, errorContext } from "@/worker/lib/logger";
 import { bumpPublicSiteRevision } from "@/worker/lib/site-invalidation";
 import { CreateWorkspaceRequest, UpdateWorkspaceRequest, UpdateMemberRoleRequest } from "@/shared/types";
 import { canChangeMemberRole, canRemoveMember } from "@/shared/entitlements";
@@ -185,6 +185,12 @@ workspacesRouter.delete("/workspaces/:id", requireAuth, rateLimit("RL_API"), asy
   // db.batch() requires a non-empty tuple type; cast needed for dynamically-built arrays
   await db.batch(batchOps as [(typeof batchOps)[number], ...(typeof batchOps)[number][]]);
   log.info("workspace_deleted", { workspaceId, userId: user.id, pageCount: pageIds.length });
+
+  try {
+    await c.env.TASKS_QUEUE.send({ type: "workspace-sites-cleanup", workspaceId });
+  } catch (e) {
+    log.error("sites_cleanup_enqueue_failed", { workspaceId, ...errorContext(e) });
+  }
 
   return c.json({ ok: true });
 });

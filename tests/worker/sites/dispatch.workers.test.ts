@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
-import { workspaceSites, workspaces } from "@/worker/db/d1/schema";
+import { pages, workspaceSites, workspaces } from "@/worker/db/d1/schema";
 import { YJS_DOCUMENT_STORE } from "@/shared/constants";
 import { resetD1Tables, getDb } from "@tests/worker/helpers/db";
 import { apiRequest } from "@tests/worker/helpers/request";
 import {
   expectSitesPageDocumentPreloadLinks,
   expectSitesStaticDocumentPreloadLinks,
+  projectSitePage,
 } from "@tests/worker/helpers/sites";
 import {
   deletePublishedPage,
@@ -182,6 +183,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Hello Sites" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest(publicPagePath("Hello Sites", page.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -247,6 +249,7 @@ describe("Sites page resolution", () => {
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
     await seedDocSyncSnapshot(page.id, buildOutlineDocBytes());
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest(publicPagePath("Outline Page", page.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -286,6 +289,7 @@ describe("Sites page resolution", () => {
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
     await seedPublishedPage({ workspace_id: ws.id, page_id: target.id, published_by: owner.id });
     await seedDocSyncSnapshot(page.id, buildMentionDocBytes(target.id));
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest(publicPagePath("Mentions", page.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -332,6 +336,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Welcome" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme", home_page_id: page.id });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest(publicPagePath("Welcome", page.id), {
       origin: SUBDOMAIN_ORIGIN,
@@ -347,6 +352,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Welcome" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme", home_page_id: page.id });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest("/", { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -409,6 +415,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Ephemeral" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const path = publicPagePath("Ephemeral", page.id);
     const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
@@ -446,6 +453,7 @@ describe("Sites page resolution", () => {
     });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: parent.id, published_by: owner.id });
+    await projectSitePage(env, child.id);
 
     const res = await apiRequest(publicPagePath("Child", child.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -484,6 +492,7 @@ describe("Sites page resolution", () => {
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
     await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Seeded", "First paragraph of body"));
+    await projectSitePage(env, page.id);
 
     const res = await apiRequest(publicPagePath("Seeded", page.id), { origin: SUBDOMAIN_ORIGIN });
     expect(res.status).toBe(200);
@@ -517,6 +526,95 @@ describe("Sites page resolution", () => {
     expect(html).toContain('aria-label="Document metrics: 3 words, 14 chars, 1 min read"');
   });
 
+  it("returns an uncached unavailable page when R2 PM JSON is missing", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Not Ready" });
+    await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+
+    const path = publicPagePath("Not Ready", page.id);
+    const res = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("retry-after")).toBe("5");
+    expect(res.headers.get("etag")).toBeNull();
+    expectSitesStaticDocumentPreloadLinks(res);
+    const html = await res.text();
+    expect(html).toContain("This page is being prepared. Come back in a moment.");
+    expect(html).not.toContain('http-equiv="refresh"');
+
+    const cache = await getSitesCache();
+    const stored = await cache.match(buildSiteCacheKey(new Request(new URL(path, SUBDOMAIN_ORIGIN).toString())));
+    expect(stored).toBeUndefined();
+  });
+
+  it("renders a stale R2 PM JSON envelope while self-healing in the background", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Stale Projection" });
+    await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+
+    await writeSiteR2(env, ws.id, page.id, {
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "STALE R2 BODY" }] }],
+      },
+      metrics: { words: 3, characters: 13 },
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const res = await apiRequest(publicPagePath("Stale Projection", page.id), { origin: SUBDOMAIN_ORIGIN });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("STALE R2 BODY");
+    expect(html).toContain('aria-label="Document metrics: 3 words, 13 chars, 1 min read"');
+  });
+
+  it("changes the HTML ETag when the rendered artifact identity changes", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Artifact ETag" });
+    await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+
+    const path = publicPagePath("Artifact ETag", page.id);
+    await writeSiteR2(env, ws.id, page.id, {
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "OLD BODY" }] }],
+      },
+      metrics: { words: 2, characters: 8 },
+      updatedAt: page.updated_at,
+    });
+    const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
+    expect(first.status).toBe(200);
+    const oldEtag = first.headers.get("etag");
+    expect(oldEtag).toMatch(/^"sites-html:/);
+
+    await waitForSitesCacheHit(path);
+    await deleteHtmlCache(path);
+    const repairedAt = "2030-01-01T00:00:00.000Z";
+    await getDb().update(pages).set({ updated_at: repairedAt }).where(eq(pages.id, page.id));
+    await writeSiteR2(env, ws.id, page.id, {
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "REPAIRED BODY" }] }],
+      },
+      metrics: { words: 2, characters: 13 },
+      updatedAt: repairedAt,
+    });
+
+    const fresh = await apiRequest(path, {
+      origin: SUBDOMAIN_ORIGIN,
+      headers: { "If-None-Match": oldEtag ?? "" },
+    });
+    expect(fresh.status).toBe(200);
+    expect(fresh.headers.get("etag")).not.toBe(oldEtag);
+    expect(await fresh.text()).toContain("REPAIRED BODY");
+  });
+
   it("serves repeat HTML from Cache API before reading R2 or rendering", async () => {
     const owner = await seedUser();
     const ws = await seedWorkspace({ owner_id: owner.id });
@@ -524,6 +622,7 @@ describe("Sites page resolution", () => {
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
     await seedDocSyncSnapshot(page.id, buildYjsDocBytes("Repeat Cache", "First cached body"));
+    await projectSitePage(env, page.id);
 
     const path = publicPagePath("Repeat Cache", page.id);
     const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
@@ -564,6 +663,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Tagged" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const path = publicPagePath("Tagged", page.id);
     const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });
@@ -618,7 +718,7 @@ describe("Sites page resolution", () => {
     expect(html).not.toContain('aria-label="Workspace home"');
   });
 
-  it("falls through to DocSync projection when R2 holds a legacy SiteRenderArtifact shape", async () => {
+  it("returns the unavailable page when R2 holds a legacy SiteRenderArtifact shape", async () => {
     const owner = await seedUser();
     const ws = await seedWorkspace({ owner_id: owner.id });
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Deploy Fresh" });
@@ -641,10 +741,14 @@ describe("Sites page resolution", () => {
     );
 
     const res = await apiRequest(publicPagePath("Deploy Fresh", page.id), { origin: SUBDOMAIN_ORIGIN });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("retry-after")).toBe("5");
     const html = await res.text();
-    expect(html).toContain("<title>Deploy Fresh</title>");
-    expect(html).toContain("Fresh body");
+    expect(html).toContain("<title>Preparing page - ");
+    expect(html).toContain("This page is being prepared. Come back in a moment.");
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(html).not.toContain("Fresh body");
     expect(html).not.toContain("STALE LEGACY BODY");
   });
 
@@ -654,6 +758,7 @@ describe("Sites page resolution", () => {
     const page = await seedPage({ workspace_id: ws.id, created_by: owner.id, title: "Renamed" });
     await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
     await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
 
     const path = publicPagePath("Renamed", page.id);
     const first = await apiRequest(path, { origin: SUBDOMAIN_ORIGIN });

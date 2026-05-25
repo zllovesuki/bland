@@ -39,6 +39,7 @@ export function getSitesRendererVersion(env: Pick<Env, "CF_VERSION_METADATA">): 
 
 export interface SiteHtmlRevisionInput {
   rendererVersion: string;
+  artifactEtag: string;
   site: Pick<
     ResolvedSite,
     "workspace_id" | "slug" | "home_page_id" | "updated_at" | "workspace_name" | "workspace_icon"
@@ -51,6 +52,7 @@ export interface SiteHtmlRevisionInput {
 export async function createSiteHtmlRevision(input: SiteHtmlRevisionInput): Promise<string> {
   return createRenderDependencyHash({
     rendererVersion: input.rendererVersion,
+    artifactEtag: input.artifactEtag,
     site: {
       workspaceId: input.site.workspace_id,
       slug: input.site.slug,
@@ -92,6 +94,7 @@ export function siteHtmlEtagMatches(ifNoneMatch: string | null, etag: string): b
 export interface SiteR2Read {
   envelope: SitePmJsonEnvelope | null;
   fresh: boolean;
+  etag: string;
 }
 
 export async function readSiteR2(
@@ -106,6 +109,7 @@ export async function readSiteR2(
   return {
     envelope,
     fresh: envelope !== null && object.customMetadata?.updated_at === expectedUpdatedAt,
+    etag: object.httpEtag,
   };
 }
 
@@ -119,10 +123,6 @@ export async function writeSiteR2(
     httpMetadata: { contentType: "application/json; charset=utf-8" },
     customMetadata: { updated_at: envelope.updatedAt },
   });
-}
-
-export async function deleteSiteR2(env: Pick<Env, "SITES">, workspaceId: string, pageId: string): Promise<void> {
-  await env.SITES.delete(buildSiteR2ObjectKey(workspaceId, pageId));
 }
 
 export function buildSiteR2ObjectKey(workspaceId: string, pageId: string): string {

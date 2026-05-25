@@ -15,7 +15,6 @@ import type { PreparedSitePageRender } from "@/worker/sites/prepare-page-render"
 const UPLOAD_PATH = /^\/uploads\/([A-Za-z0-9_-]+)$/;
 
 export interface RenderSitePageDocumentStreamArgs {
-  env: Pick<Env, "DocSync" | "SITES" | "ASSETS">;
   db: Db;
   site: ResolvedSite;
   page: ResolvedPublishedPage;

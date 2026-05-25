@@ -71,7 +71,7 @@
 	"queues": {
 		"producers": [
 			{
-				"binding": "SEARCH_QUEUE",
+				"binding": "TASKS_QUEUE",
 				"queue": "bland-tasks",
 			},
 		],

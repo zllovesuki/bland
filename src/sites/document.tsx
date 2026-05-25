@@ -166,13 +166,71 @@ export function NotFoundDocument() {
   const docTitle = site ? `Not found - ${site.workspaceName}` : "Not found - bland";
 
   return (
+    <SiteStatusDocument
+      mark="404"
+      variantClass="site-not-found"
+      heading={heading}
+      sub={sub}
+      ctaLabel={ctaLabel}
+      ctaHref={ctaHref}
+      docTitle={docTitle}
+      showHeader={Boolean(site)}
+    />
+  );
+}
+
+export function BuildingDocument() {
+  const header = readSitesHeaderRenderState();
+  const site = header
+    ? { workspaceName: header.workspaceName, workspaceIcon: header.workspaceIcon, homeHref: header.homeHref }
+    : null;
+  const ctaLabel = site ? `Back to ${site.workspaceName}` : "Visit bland.tools";
+  const ctaHref = site ? site.homeHref : "https://bland.tools";
+  const docTitle = site ? `Preparing page - ${site.workspaceName}` : "Preparing page - bland";
+
+  return (
+    <SiteStatusDocument
+      mark="hold on"
+      variantClass="site-building"
+      heading="Hang tight."
+      sub="This page is being prepared. Come back in a moment."
+      ctaLabel={ctaLabel}
+      ctaHref={ctaHref}
+      docTitle={docTitle}
+      showHeader={Boolean(site)}
+    />
+  );
+}
+
+function SiteStatusDocument({
+  mark,
+  variantClass,
+  heading,
+  sub,
+  ctaLabel,
+  ctaHref,
+  docTitle,
+  showHeader,
+}: {
+  mark: string;
+  variantClass: string;
+  heading: string;
+  sub: string;
+  ctaLabel: string;
+  ctaHref: string;
+  docTitle: string;
+  showHeader: boolean;
+}) {
+  return (
     <html lang="en" className="dark scheme-dark">
       <SiteHead title={docTitle} includeModulePreloads={false} />
-      <body className="site-not-found flex min-h-screen flex-col bg-canvas font-sans font-[450] text-zinc-100 antialiased">
-        {site ? <SiteHeader /> : null}
+      <body
+        className={`${variantClass} flex min-h-screen flex-col bg-canvas font-sans font-[450] text-zinc-100 antialiased`}
+      >
+        {showHeader ? <SiteHeader /> : null}
         <main className="flex flex-1 items-center justify-center px-4 py-16">
           <div className="max-w-md text-center">
-            <p className="site-not-found-mark font-display text-7xl font-bold tracking-tighter text-zinc-700">404</p>
+            <p className="font-display text-7xl font-bold tracking-tighter text-zinc-700">{mark}</p>
             <h1 className="mt-4 font-display text-xl font-semibold text-zinc-200">{heading}</h1>
             <p className="mt-2 text-sm text-zinc-400">{sub}</p>
             <a
@@ -212,6 +270,13 @@ export function renderSiteNotFoundDocumentHtml(props: NotFoundDocumentProps): st
   return runWithSitesReactRenderContext(
     createSitesNotFoundRenderContext(props),
     () => `<!doctype html>${renderToStaticMarkup(<NotFoundDocument />)}`,
+  );
+}
+
+export function renderSiteBuildingDocumentHtml(props: NotFoundDocumentProps): string {
+  return runWithSitesReactRenderContext(
+    createSitesNotFoundRenderContext(props),
+    () => `<!doctype html>${renderToStaticMarkup(<BuildingDocument />)}`,
   );
 }
 

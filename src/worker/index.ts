@@ -11,7 +11,10 @@ import { createLogger, errorContext, setLevel } from "@/worker/lib/logger";
 import { isAllowedOrigin } from "@/worker/lib/origins";
 import { applyBaselineSecurityHeaders } from "@/worker/lib/security-headers";
 import { renderSpaShell } from "@/worker/lib/spa-shell";
+import type { TasksQueueMessage, TasksQueueResult } from "@/worker/queues/messages";
+import { handlePageProjection } from "@/worker/queues/page-projection";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
+import { handleWorkspaceSitesCleanup } from "@/worker/queues/workspace-sites-cleanup";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
 export { WorkspaceIndexer } from "@/worker/durable-objects/workspace-indexer";
@@ -127,27 +130,46 @@ export default {
       handleShellRequest: renderSpaShell,
     });
   },
-  async queue(batch: MessageBatch, env: Cloudflare.Env) {
+  async queue(batch: MessageBatch<TasksQueueMessage>, env: Cloudflare.Env, _ctx: ExecutionContext) {
     setLevel(env.LOG_LEVEL);
     const log = createLogger("queue");
 
     for (const msg of batch.messages) {
-      const body = msg.body as { type: string; pageId?: string };
+      const body = msg.body;
       try {
-        if (body.type === "index-page" && body.pageId) {
-          const result = await handleSearchIndexMessage({ type: "index-page", pageId: body.pageId }, env);
-          if (result.kind === "retry") {
-            msg.retry({ delaySeconds: result.delaySeconds });
-            continue;
-          }
-        } else {
-          log.warn("unknown_message_type", { type: body.type });
+        let result: TasksQueueResult = { kind: "ok" };
+        switch (body.type) {
+          case "index-page":
+            result = await handleSearchIndexMessage({ type: "index-page", pageId: body.pageId }, env);
+            break;
+          case "page-projection":
+            result = await handlePageProjection(body.pageId, env);
+            break;
+          case "workspace-sites-cleanup":
+            result = await handleWorkspaceSitesCleanup(body.workspaceId, env);
+            break;
+          default:
+            log.warn("unknown_message_type", { type: (body as { type?: string }).type });
+        }
+        if (result.kind === "retry") {
+          msg.retry({ delaySeconds: result.delaySeconds });
+          continue;
         }
         msg.ack();
       } catch (e) {
-        log.error("message_failed", { type: body.type, pageId: body.pageId, ...errorContext(e) });
+        log.error("message_failed", { ...queueMessageLogContext(body), ...errorContext(e) });
         msg.retry();
       }
     }
   },
-} satisfies ExportedHandler<Cloudflare.Env>;
+} satisfies ExportedHandler<Cloudflare.Env, TasksQueueMessage>;
+
+function queueMessageLogContext(body: TasksQueueMessage): { type: string; pageId?: string; workspaceId?: string } {
+  switch (body.type) {
+    case "index-page":
+    case "page-projection":
+      return { type: body.type, pageId: body.pageId };
+    case "workspace-sites-cleanup":
+      return { type: body.type, workspaceId: body.workspaceId };
+  }
+}

@@ -14,7 +14,6 @@ import {
   updatePublicSiteSettingsWithRevision,
   siteRevisionTimestamp,
 } from "@/worker/lib/site-invalidation";
-import { deleteSiteR2 } from "@/worker/sites/cache";
 import { parseBody } from "@/worker/lib/validate";
 import { createLogger } from "@/worker/lib/logger";
 import { sitesSlug } from "@/shared/site-slug";
@@ -207,14 +206,6 @@ sitesRouter.delete("/workspaces/:wid/site/pages/:id", requireAuth, rateLimit("RL
 
   await db.delete(publishedPages).where(and(eq(publishedPages.workspace_id, wid), eq(publishedPages.page_id, pageId)));
   await bumpPublicSiteRevision(db, wid);
-  // Drop the stale R2 object so storage does not accumulate after unpublish.
-  // Inherited subpages keep their R2 objects; they will 404 via resolver-first
-  // and get rewritten by the freshness check on next publish.
-  try {
-    await deleteSiteR2(c.env, wid, pageId);
-  } catch (e) {
-    log.error("site_r2_delete_failed", { wid, pageId, error: e instanceof Error ? e.message : String(e) });
-  }
   log.info("page_unpublished", { wid, pageId, userId: user.id });
   return c.json({ ok: true });
 });

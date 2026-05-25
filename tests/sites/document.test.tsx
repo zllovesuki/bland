@@ -1,9 +1,9 @@
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { SitePageDocument } from "@/sites/document";
+import { renderSiteBuildingDocumentHtml, SitePageDocument } from "@/sites/document";
 import { runWithSitesReactRenderContext } from "@/sites/react-render-context";
-import { createTestSitesPageRenderContext } from "./render-context";
+import { createTestSitesPageRenderContext, TEST_SITE_DOCUMENT_ASSETS } from "./render-context";
 
 async function renderSiteDocumentHtml(): Promise<string> {
   const context = createTestSitesPageRenderContext();
@@ -90,5 +90,19 @@ describe("SitePageDocument", () => {
     expect(second).toContain('href="/site-assets/second.css"');
     expect(second).not.toContain("First Page");
     expect(second).not.toContain("/site-assets/first.css");
+  });
+
+  it("renders the building status document without a meta refresh", () => {
+    const html = renderSiteBuildingDocumentHtml({
+      assets: TEST_SITE_DOCUMENT_ASSETS,
+      site: { workspaceName: "Acme", workspaceIcon: "A", homeHref: "/" },
+    });
+
+    expect(html).toContain("<title>Preparing page - Acme</title>");
+    expect(html).toContain("Hang tight.");
+    expect(html).toContain("This page is being prepared. Come back in a moment.");
+    expect(html).toContain("Back to Acme");
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(html).not.toContain("httpEquiv");
   });
 });

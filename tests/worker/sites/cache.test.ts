@@ -69,7 +69,7 @@ describe("Sites cache helpers", () => {
     ).toBeNull();
   });
 
-  it("rejects the old SiteRenderArtifact shape so it falls through to projection", () => {
+  it("rejects the old SiteRenderArtifact shape", () => {
     expect(
       parseSitePmJsonEnvelope(
         JSON.stringify({
@@ -105,6 +105,7 @@ describe("Sites cache helpers", () => {
 describe("createSiteHtmlRevision", () => {
   const base = {
     rendererVersion: "worker-version-1",
+    artifactEtag: '"artifact-1"',
     site: {
       workspace_id: "ws1",
       slug: "acme",
@@ -129,6 +130,7 @@ describe("createSiteHtmlRevision", () => {
     const revision = await createSiteHtmlRevision(base);
     const changedInputs = [
       { ...base, rendererVersion: "worker-version-2" },
+      { ...base, artifactEtag: '"artifact-2"' },
       { ...base, site: { ...base.site, updated_at: "2026-05-17T12:01:00.000Z" } },
       { ...base, site: { ...base.site, workspace_name: "Renamed" } },
       { ...base, site: { ...base.site, workspace_icon: "B" } },
