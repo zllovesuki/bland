@@ -135,6 +135,7 @@ export interface SeedPageOptions {
   cover_url?: string | null;
   position?: number;
   archived_at?: string | null;
+  archive_root_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -155,6 +156,7 @@ export async function seedPage(opts: SeedPageOptions): Promise<typeof pages.$inf
     created_at: opts.created_at ?? TEST_TIMESTAMP,
     updated_at: opts.updated_at ?? TEST_TIMESTAMP,
     archived_at: opts.archived_at ?? null,
+    archive_root_id: opts.archive_root_id ?? null,
   };
   await getDb().insert(pages).values(row);
   return row;

@@ -48,6 +48,7 @@ export function createPage(overrides: Partial<Page> = {}): Page {
     created_at: TEST_TIMESTAMP,
     updated_at: TEST_TIMESTAMP,
     archived_at: null,
+    archive_root_id: null,
     ...overrides,
   };
 }

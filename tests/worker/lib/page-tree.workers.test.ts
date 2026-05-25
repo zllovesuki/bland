@@ -87,6 +87,23 @@ describe("worker page tree helpers (real D1)", () => {
     await expect(getPageSubtreeMaxDepth(getDb(), root.id, ws.id)).resolves.toBe(3);
   });
 
+  it("counts archived descendants when reading subtree depth", async () => {
+    const user = await seedUser();
+    const ws = await seedWorkspace({ owner_id: user.id });
+    const root = await seedPage({ workspace_id: ws.id, created_by: user.id, title: "root" });
+    const archivedChild = await seedPage({
+      workspace_id: ws.id,
+      created_by: user.id,
+      parent_id: root.id,
+      title: "hidden",
+      archived_at: "2026-04-01T00:00:00.000Z",
+      archive_root_id: root.id,
+    });
+    await seedPage({ workspace_id: ws.id, created_by: user.id, parent_id: archivedChild.id, title: "hidden leaf" });
+
+    await expect(getPageSubtreeMaxDepth(getDb(), root.id, ws.id)).resolves.toBe(2);
+  });
+
   it("returns zero subtree depth for a leaf page with no descendants", async () => {
     const user = await seedUser();
     const ws = await seedWorkspace({ owner_id: user.id });
@@ -141,5 +158,26 @@ describe("worker page tree helpers (real D1)", () => {
     const movable = await seedPage({ workspace_id: ws.id, created_by: user.id, title: "movable" });
 
     await expect(validatePageMove(getDb(), movable.id, mid.id, ws.id)).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects moves that would exceed depth after restoring archived descendants", async () => {
+    const user = await seedUser();
+    const ws = await seedWorkspace({ owner_id: user.id });
+    const chainIds = Array.from({ length: MAX_TREE_DEPTH - 1 }, (_, i) => `anc-${i}`);
+    await seedChain(ws.id, user.id, chainIds);
+    const movable = await seedPage({ workspace_id: ws.id, created_by: user.id, title: "movable" });
+    await seedPage({
+      workspace_id: ws.id,
+      created_by: user.id,
+      parent_id: movable.id,
+      title: "archived child",
+      archived_at: "2026-04-01T00:00:00.000Z",
+      archive_root_id: movable.id,
+    });
+
+    await expect(validatePageMove(getDb(), movable.id, chainIds[0], ws.id)).resolves.toEqual({
+      ok: false,
+      reason: "depth_exceeded",
+    });
   });
 });

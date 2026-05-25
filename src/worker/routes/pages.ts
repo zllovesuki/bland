@@ -26,12 +26,23 @@ import {
   type ResolvedWorkspaceRole,
 } from "@/shared/entitlements";
 import { getPage } from "@/worker/lib/page-access";
-import { getPageAncestorChain, getPageAncestorDepthFromChain, validatePageMove } from "@/worker/lib/page-tree";
+import {
+  archivePageSubtree,
+  getArchivedAncestorRows,
+  getArchivedPageRootRows,
+  getPageAncestorChain,
+  getPageAncestorDepthFromChain,
+  getPageSubtreeRows,
+  restorePageSubtree,
+  validatePageMove,
+  type PageSubtreeRow,
+} from "@/worker/lib/page-tree";
 import type { TasksQueueMessage } from "@/worker/queues/messages";
-import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
+import { CreatePageRequest, UpdatePageRequest, type Page } from "@/shared/types";
 import { isGradientPreset, parseUploadCoverUrl } from "@/shared/page-cover";
 
 const log = createLogger("pages");
+const INDEX_QUEUE_BATCH_SIZE = 100;
 
 const pagesRouter = new Hono<AppContext>();
 
@@ -128,6 +139,7 @@ pagesRouter.post("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asy
         created_at: now,
         updated_at: now,
         archived_at: null,
+        archive_root_id: null,
       },
     },
     201,
@@ -168,6 +180,25 @@ pagesRouter.get("/workspaces/:wid/pages", requireAuth, rateLimit("RL_API"), asyn
   }
 
   return c.json({ pages: allPages });
+});
+
+// GET /workspaces/:wid/pages/archived - List archive roots for trash management
+pagesRouter.get("/workspaces/:wid/pages/archived", requireAuth, rateLimit("RL_API"), async (c) => {
+  const workspaceId = c.req.param("wid");
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
+
+  const canListAllArchivedPages = membership.role === "owner" || membership.role === "admin";
+  const archivedPages = await getArchivedPageRootRows(
+    db,
+    workspaceId,
+    canListAllArchivedPages ? {} : { createdBy: user.id },
+  );
+
+  return c.json({ pages: archivedPages });
 });
 
 // GET /workspaces/:wid/pages/:id - Get page metadata
@@ -353,6 +384,68 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   return c.json({ page: updated });
 });
 
+// POST /workspaces/:wid/pages/:id/restore - Restore an archived page operation
+pagesRouter.post("/workspaces/:wid/pages/:id/restore", requireAuth, rateLimit("RL_API"), async (c) => {
+  const workspaceId = c.req.param("wid");
+  const pageId = c.req.param("id");
+  const user = c.get("user")!;
+  const db = c.get("db");
+
+  const membership = await requireMembership(c, db, user.id, workspaceId, true);
+  if (membership instanceof Response) return membership;
+
+  const existing = await db
+    .select()
+    .from(pages)
+    .where(and(eq(pages.id, pageId), eq(pages.workspace_id, workspaceId)))
+    .get();
+  if (!existing) {
+    return c.json({ error: "not_found", message: "Page not found" }, 404);
+  }
+  if (!existing.archived_at) {
+    return c.json({ error: "not_archived", message: "Page is not archived" }, 409);
+  }
+  if (existing.archive_root_id !== pageId) {
+    return c.json({ error: "not_archive_root", message: "Only archive roots can be restored" }, 409);
+  }
+
+  const archivedAncestors = await getArchivedAncestorRows(db, pageId, workspaceId);
+  if (archivedAncestors.length > 0) {
+    return c.json({ error: "archived_ancestor", message: "Restore the archived parent first" }, 409);
+  }
+
+  const subtreeRows = await getPageSubtreeRows(db, pageId, workspaceId);
+  const rowsToRestore = subtreeRows.filter((row) => row.archive_root_id === pageId);
+  const entitlements = getPageStructureEntitlements(membership.role, existing.created_by === user.id);
+  if (
+    !entitlements.archiveAnyPage &&
+    (!entitlements.archiveOwnPage || rowsToRestore.some((row) => row.created_by !== user.id))
+  ) {
+    return c.json({ error: "forbidden", message: "You do not have permission to restore this archived page" }, 403);
+  }
+
+  const now = new Date().toISOString();
+  await restorePageSubtree(db, pageId, workspaceId, now);
+  await bumpPublicSiteRevision(db, workspaceId, now);
+  log.info("page_restored", { pageId, workspaceId, userId: user.id, restoredCount: rowsToRestore.length });
+
+  try {
+    await enqueueIndexPageMessages(
+      c.env,
+      rowsToRestore.map((row) => row.id),
+    );
+  } catch {
+    // Non-critical: FTS is a derived projection.
+  }
+
+  return c.json({
+    ok: true,
+    pages: rowsToRestore.map((row) =>
+      serializeSubtreePage(row, { archived_at: null, archive_root_id: null, updated_at: now }),
+    ),
+  });
+});
+
 // DELETE /workspaces/:wid/pages/:id - Archive page
 pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"), async (c) => {
   const workspaceId = c.req.param("wid");
@@ -371,31 +464,33 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
   // Check permission: page creator, admin, or owner
   const isCreator = existing.created_by === user.id;
 
-  if (!getPageStructureEntitlements(membership.role, isCreator).archivePage) {
-    return c.json({ error: "forbidden", message: "Only the page creator or workspace admins can delete pages" }, 403);
+  const entitlements = getPageStructureEntitlements(membership.role, isCreator);
+  if (!entitlements.archivePage) {
+    return c.json({ error: "forbidden", message: "Only the page creator or workspace admins can archive pages" }, 403);
+  }
+
+  const subtreeRows = await getPageSubtreeRows(db, pageId, workspaceId);
+  const rowsToArchive = subtreeRows.filter((row) => row.archived_at === null);
+  if (!entitlements.archiveAnyPage && rowsToArchive.some((row) => row.created_by !== user.id)) {
+    return c.json({ error: "forbidden", message: "Members can only archive pages they created" }, 403);
   }
 
   const now = new Date().toISOString();
 
-  // Archive page and orphan children (set their parent_id to NULL)
-  await db.batch([
-    db.update(pages).set({ archived_at: now, updated_at: now }).where(eq(pages.id, pageId)),
-    db
-      .update(pages)
-      .set({ parent_id: null, updated_at: now })
-      .where(and(eq(pages.parent_id, pageId), eq(pages.workspace_id, workspaceId))),
-  ]);
+  await archivePageSubtree(db, pageId, workspaceId, now);
   await bumpPublicSiteRevision(db, workspaceId, now);
-  log.info("page_archived", { pageId, workspaceId, userId: user.id });
+  log.info("page_archived", { pageId, workspaceId, userId: user.id, archivedCount: rowsToArchive.length });
 
-  // Remove from search index (consumer handles archived pages)
   try {
-    await c.env.TASKS_QUEUE.send({ type: "index-page", pageId });
+    await enqueueIndexPageMessages(
+      c.env,
+      rowsToArchive.map((row) => row.id),
+    );
   } catch {
-    // Non-critical: FTS is a derived projection
+    // Non-critical: FTS is a derived projection.
   }
 
-  return c.json({ ok: true });
+  return c.json({ ok: true, archived_page_ids: rowsToArchive.map((row) => row.id) });
 });
 
 export { pagesRouter };
@@ -411,5 +506,41 @@ async function enqueueSiteCover(env: Pick<Env, "TASKS_QUEUE">, pageId: string): 
     await env.TASKS_QUEUE.send({ type: "site-cover", pageId });
   } catch {
     // Cover images are derived artifacts; save success should not depend on queue delivery.
+  }
+}
+
+function serializeSubtreePage(
+  row: PageSubtreeRow,
+  overrides: Partial<Pick<Page, "archived_at" | "archive_root_id" | "updated_at">> = {},
+): Page {
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    parent_id: row.parent_id,
+    kind: row.kind,
+    title: row.title,
+    icon: row.icon,
+    cover_url: row.cover_url,
+    position: row.position,
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: "updated_at" in overrides ? (overrides.updated_at ?? row.updated_at) : row.updated_at,
+    archived_at: "archived_at" in overrides ? (overrides.archived_at ?? null) : row.archived_at,
+    archive_root_id: "archive_root_id" in overrides ? (overrides.archive_root_id ?? null) : row.archive_root_id,
+  };
+}
+
+export async function enqueueIndexPageMessages(
+  env: Pick<Env, "TASKS_QUEUE">,
+  pageIds: readonly string[],
+): Promise<void> {
+  for (let offset = 0; offset < pageIds.length; offset += INDEX_QUEUE_BATCH_SIZE) {
+    const batch = pageIds.slice(offset, offset + INDEX_QUEUE_BATCH_SIZE).map((pageId) => {
+      const body: TasksQueueMessage = { type: "index-page", pageId };
+      return { body };
+    });
+    if (batch.length > 0) {
+      await env.TASKS_QUEUE.sendBatch(batch);
+    }
   }
 }

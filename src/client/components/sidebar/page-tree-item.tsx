@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   ArrowDown,
@@ -20,7 +21,11 @@ import { api, toApiError } from "@/client/lib/api";
 import { useCurrentWorkspace } from "@/client/components/workspace/use-workspace-view";
 import { replicaCommands } from "@/client/stores/db/workspace-replica";
 import { useAuthStore } from "@/client/stores/auth-store";
-import { getArchivePageConfirmMessage } from "@/client/lib/page-archive";
+import {
+  getActiveDescendantIds,
+  getArchivePageConfirmMessage,
+  shouldNavigateAwayAfterArchive,
+} from "@/client/lib/page-archive";
 import { useCreatePage } from "@/client/hooks/use-create-page";
 import { EmojiIcon } from "@/client/components/ui/emoji-icon";
 import { confirm } from "@/client/components/confirm-store";
@@ -37,6 +42,7 @@ import {
   type PageTreeIndex,
 } from "@/client/lib/page-tree-model";
 import { toast } from "@/client/components/toast-store";
+import { archivedPagesQueryKey } from "@/client/lib/queries/archived-pages";
 const SidebarMoveDialog = lazy(() =>
   import("./sidebar-move-dialog").then((mod) => ({ default: mod.SidebarMoveDialog })),
 );
@@ -85,6 +91,7 @@ export function PageTreeItem({
     pageId?: string;
   };
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const currentWorkspace = useCurrentWorkspace();
   const currentUser = useAuthStore((s) => s.user);
   const rowAffordance = deriveSidebarRowAffordance({
@@ -158,18 +165,22 @@ export function PageTreeItem({
       e.stopPropagation();
       if (!currentWorkspace || archiving) return;
       setMenuOpen(false);
+      const activeDescendantIds = getActiveDescendantIds(index, page.id);
       const ok = await confirm({
         title: "Archive page",
-        message: getArchivePageConfirmMessage(page.title, childPages.length),
+        message: getArchivePageConfirmMessage(page.title, activeDescendantIds.length),
       });
       if (!ok) return;
       setArchiving(true);
       try {
-        await api.pages.delete(currentWorkspace.id, page.id);
-        await replicaCommands.archivePage(currentWorkspace.id, page.id);
-        if (params.pageId === page.id) {
+        const archived = await api.pages.delete(currentWorkspace.id, page.id);
+        await replicaCommands.removePages(currentWorkspace.id, archived.archived_page_ids);
+        await queryClient.invalidateQueries({ queryKey: archivedPagesQueryKey(currentWorkspace.id) });
+        if (shouldNavigateAwayAfterArchive(params.pageId, archived.archived_page_ids)) {
           navigate({ to: "/$workspaceSlug", params: { workspaceSlug: params.workspaceSlug || currentWorkspace.slug } });
         }
+      } catch (err) {
+        toast.error(toApiError(err).message || "Failed to archive page");
       } finally {
         setArchiving(false);
         setMenuOpen(false);
@@ -180,10 +191,11 @@ export function PageTreeItem({
       archiving,
       page.id,
       page.title,
-      childPages.length,
+      index,
       params.pageId,
       params.workspaceSlug,
       navigate,
+      queryClient,
     ],
   );
 

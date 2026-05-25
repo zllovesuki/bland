@@ -133,6 +133,12 @@ const settingsRoute = createRoute({
   component: lazyRouteComponent(() => import("@/client/components/workspace/settings"), "WorkspaceSettings"),
 });
 
+const archiveRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: "/archive",
+  component: lazyRouteComponent(() => import("@/client/components/workspace/archive"), "WorkspaceArchive"),
+});
+
 const pageRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/$pageId",
@@ -146,5 +152,5 @@ export const routeTree = rootRoute.addChildren([
   profileWrapper.addChildren([profileRoute]),
   sharedWithMeWrapper.addChildren([sharedWithMeRoute]),
   shareWrapper.addChildren([shareRoute]),
-  workspaceRoute.addChildren([workspaceIndexRoute, settingsRoute, pageRoute]),
+  workspaceRoute.addChildren([workspaceIndexRoute, settingsRoute, archiveRoute, pageRoute]),
 ]);

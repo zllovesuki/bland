@@ -7,6 +7,7 @@ import {
   ChevronsRight,
   Loader2,
   Settings,
+  Archive,
   ArrowLeft,
   ChevronDown,
   FileText,
@@ -71,6 +72,7 @@ export function Sidebar({ collapsed, onCollapsedChange, mobileOpen, onMobileClos
           <ExpandedSidebarContent
             currentWorkspace={currentWorkspace}
             isSharedMode={isSharedMode}
+            workspaceRole={workspaceRole}
             createPageAction={sidebarAffordance.createPage}
             createPage={createPage}
             isCreating={isCreating}
@@ -178,6 +180,7 @@ function CollapsedSidebarRail({ createPageAction, createPage, openSearch, onExpa
 interface ExpandedSidebarContentProps {
   currentWorkspace: ReturnType<typeof useCurrentWorkspace>;
   isSharedMode: boolean;
+  workspaceRole: SidebarWorkspaceRole;
   createPageAction: CreatePageAction;
   createPage: CreatePageFn;
   isCreating: boolean;
@@ -190,6 +193,7 @@ interface ExpandedSidebarContentProps {
 function ExpandedSidebarContent({
   currentWorkspace,
   isSharedMode,
+  workspaceRole,
   createPageAction,
   createPage,
   isCreating,
@@ -218,6 +222,7 @@ function ExpandedSidebarContent({
       <SidebarFooter
         currentWorkspace={currentWorkspace}
         isSharedMode={isSharedMode}
+        workspaceRole={workspaceRole}
         mobileOpen={mobileOpen}
         onCollapse={onCollapse}
       />
@@ -357,15 +362,19 @@ function CreatePageControls({ createPageAction, createPage, isCreating, menuZInd
 interface SidebarFooterProps {
   currentWorkspace: ReturnType<typeof useCurrentWorkspace>;
   isSharedMode: boolean;
+  workspaceRole: SidebarWorkspaceRole;
   mobileOpen: boolean;
   onCollapse: () => void;
 }
 
-function SidebarFooter({ currentWorkspace, isSharedMode, mobileOpen, onCollapse }: SidebarFooterProps) {
+function SidebarFooter({ currentWorkspace, isSharedMode, workspaceRole, mobileOpen, onCollapse }: SidebarFooterProps) {
   // Settings link is available to any membership (including guest, so they
   // can reach Leave Workspace). Shared-surface viewers do not see it because
   // they cannot act on workspace settings.
   const showSettings = !!currentWorkspace && !isSharedMode;
+  // Archive is writer-surface only: guests get Settings (for Leave Workspace)
+  // but cannot manage archived pages.
+  const showArchive = !!currentWorkspace && !isSharedMode && workspaceRole !== "guest";
   return (
     <div className="flex items-center gap-1 border-t border-zinc-800/60 px-2 py-2">
       {showSettings && (
@@ -377,6 +386,17 @@ function SidebarFooter({ currentWorkspace, isSharedMode, mobileOpen, onCollapse 
           title="Settings"
         >
           <Settings className="h-4 w-4" />
+        </Link>
+      )}
+      {showArchive && (
+        <Link
+          to="/$workspaceSlug/archive"
+          params={{ workspaceSlug: currentWorkspace.slug }}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
+          aria-label="Archive"
+          title="Archive"
+        >
+          <Archive className="h-4 w-4" />
         </Link>
       )}
       <div className="flex-1" />

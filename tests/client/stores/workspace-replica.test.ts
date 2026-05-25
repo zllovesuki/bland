@@ -101,8 +101,8 @@ describe("replicaCommands.replaceWorkspace", () => {
   });
 });
 
-describe("replicaCommands.archivePage", () => {
-  it("promotes children to root, deletes the parent, and drops its pageAccess row", async () => {
+describe("replicaCommands.removePages", () => {
+  it("deletes every returned archived page id without reparenting children and drops matching pageAccess rows", async () => {
     const workspace = createWorkspace({ id: "ws-1" });
     const parent = createPage({ id: "parent", workspace_id: "ws-1", parent_id: null });
     const child = createPage({ id: "child", workspace_id: "ws-1", parent_id: "parent" });
@@ -116,14 +116,35 @@ describe("replicaCommands.archivePage", () => {
       members: [],
     });
     await replicaCommands.upsertPageAccess("parent", "edit");
+    await replicaCommands.upsertPageAccess("child", "view");
 
-    await replicaCommands.archivePage("ws-1", "parent");
+    await replicaCommands.removePages("ws-1", ["parent", "child"]);
 
     const remaining = await db.workspacePages.toArray();
     expect(remaining.find((p) => p.id === "parent")).toBeUndefined();
-    expect(remaining.find((p) => p.id === "child")?.parent_id).toBeNull();
+    expect(remaining.find((p) => p.id === "child")).toBeUndefined();
     expect(remaining.find((p) => p.id === "sibling")?.parent_id).toBeNull();
     expect(await db.pageAccess.get("parent")).toBeUndefined();
+    expect(await db.pageAccess.get("child")).toBeUndefined();
+  });
+});
+
+describe("replicaCommands.upsertPages", () => {
+  it("upserts restored page rows returned by the restore route", async () => {
+    const workspace = createWorkspace({ id: "ws-1" });
+    const restored = createPage({ id: "restored", workspace_id: "ws-1", title: "Restored" });
+
+    await replicaCommands.replaceWorkspace({
+      workspace,
+      accessMode: "member",
+      workspaceRole: "member",
+      pages: [],
+      members: [],
+    });
+
+    await replicaCommands.upsertPages("ws-1", [restored]);
+
+    expect(await db.workspacePages.get("restored")).toEqual(restored);
   });
 });
 

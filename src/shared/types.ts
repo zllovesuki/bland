@@ -68,8 +68,13 @@ export const Page = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   archived_at: z.string().nullable(),
+  archive_root_id: z.string().nullable(),
 });
 export type Page = z.infer<typeof Page>;
+
+export type ArchivedPage = Page & {
+  archived_descendant_count: number;
+};
 
 export const GranteeUser = z.object({
   id: z.string(),

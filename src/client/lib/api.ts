@@ -25,6 +25,7 @@ import type {
   SiteSlugAvailability,
   WorkspaceSiteResponse,
   WorkspaceSiteUpdateRequest,
+  ArchivedPage,
 } from "@/shared/types";
 
 const API_BASE = "/api/v1";
@@ -261,7 +262,19 @@ export const api = {
       return res.page;
     },
     delete: (workspaceId: string, pageId: string) =>
-      apiFetch<{ ok: boolean }>(`/workspaces/${workspaceId}/pages/${pageId}`, { method: "DELETE" }),
+      apiFetch<{ ok: boolean; archived_page_ids: string[] }>(`/workspaces/${workspaceId}/pages/${pageId}`, {
+        method: "DELETE",
+      }),
+    restore: async (workspaceId: string, pageId: string) => {
+      const res = await apiFetch<{ ok: boolean; pages: Page[] }>(`/workspaces/${workspaceId}/pages/${pageId}/restore`, {
+        method: "POST",
+      });
+      return res.pages;
+    },
+    archived: async (workspaceId: string) => {
+      const res = await apiFetch<{ pages: ArchivedPage[] }>(`/workspaces/${workspaceId}/pages/archived`);
+      return res.pages;
+    },
     children: async (workspaceId: string, pageId: string, shareToken?: string) => {
       const qs = shareToken ? `?share=${encodeURIComponent(shareToken)}` : "";
       const res = await apiFetch<{ pages: Page[] }>(`/workspaces/${workspaceId}/pages/${pageId}/children${qs}`);

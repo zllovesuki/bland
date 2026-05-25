@@ -121,10 +121,15 @@ export const pages = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
     archived_at: text("archived_at"),
+    archive_root_id: text("archive_root_id"),
   },
   (table) => [
     index("idx_pages_parent").on(table.workspace_id, table.parent_id, table.position),
     index("idx_pages_workspace").on(table.workspace_id, table.archived_at),
+    index("idx_pages_archive_operation").on(table.workspace_id, table.archive_root_id, table.archived_at),
+    index("idx_pages_trash_roots")
+      .on(table.workspace_id, table.archived_at)
+      .where(sql`${table.archived_at} IS NOT NULL AND ${table.archive_root_id} = ${table.id}`),
   ],
 );
 

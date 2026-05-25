@@ -85,6 +85,13 @@ async function upsertPage(_workspaceId: string, page: Page): Promise<void> {
   });
 }
 
+async function upsertPages(_workspaceId: string, pages: Page[]): Promise<void> {
+  if (pages.length === 0) return;
+  await db.transaction("rw", db.workspacePages, async () => {
+    await db.workspacePages.bulkPut(pages as WorkspacePageRow[]);
+  });
+}
+
 async function patchPage(_workspaceId: string, pageId: string, updates: Partial<Page>): Promise<void> {
   await db.transaction("rw", db.workspacePages, async () => {
     const existing = await db.workspacePages.get(pageId);
@@ -93,23 +100,16 @@ async function patchPage(_workspaceId: string, pageId: string, updates: Partial<
   });
 }
 
-async function removePage(_workspaceId: string, pageId: string): Promise<void> {
+async function removePages(_workspaceId: string, pageIds: string[]): Promise<void> {
+  if (pageIds.length === 0) return;
   await db.transaction("rw", [db.workspacePages, db.pageAccess], async () => {
-    await db.workspacePages.delete(pageId);
-    await db.pageAccess.delete(pageId);
+    await db.workspacePages.bulkDelete(pageIds);
+    await db.pageAccess.bulkDelete(pageIds);
   });
 }
 
-async function archivePage(workspaceId: string, pageId: string): Promise<void> {
+async function removePage(_workspaceId: string, pageId: string): Promise<void> {
   await db.transaction("rw", [db.workspacePages, db.pageAccess], async () => {
-    const children = await db.workspacePages
-      .where("workspace_id")
-      .equals(workspaceId)
-      .filter((p) => p.parent_id === pageId)
-      .toArray();
-    if (children.length > 0) {
-      await db.workspacePages.bulkPut(children.map((c) => ({ ...c, parent_id: null })));
-    }
     await db.workspacePages.delete(pageId);
     await db.pageAccess.delete(pageId);
   });
@@ -133,9 +133,10 @@ export const replicaCommands = {
   replaceMembers,
   addPage,
   upsertPage,
+  upsertPages,
   patchPage,
   removePage,
-  archivePage,
+  removePages,
   upsertPageAccess,
   removePageAccess,
   removeReplica,
