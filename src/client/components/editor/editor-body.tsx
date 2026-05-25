@@ -105,6 +105,10 @@ export const EditorBody = memo(function EditorBody({
       }),
       editable: affordance.documentEditable,
       enableContentCheck: true,
+      // CollaborationCaret writes to awareness while ProseMirror plugins are
+      // built, so create the editor after React commits to avoid notifying
+      // awareness subscribers during this component's render.
+      immediatelyRender: false,
       shouldRerenderOnTransaction: false,
       coreExtensionOptions: EDITOR_CORE_EXTENSION_OPTIONS,
       onContentError: ({ editor, error, disableCollaboration }) => {
