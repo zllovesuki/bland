@@ -29,6 +29,7 @@ import { getPage } from "@/worker/lib/page-access";
 import { getPageAncestorChain, getPageAncestorDepthFromChain, validatePageMove } from "@/worker/lib/page-tree";
 import type { TasksQueueMessage } from "@/worker/queues/messages";
 import { CreatePageRequest, UpdatePageRequest } from "@/shared/types";
+import { isGradientPreset, parseUploadCoverUrl } from "@/shared/page-cover";
 
 const log = createLogger("pages");
 
@@ -311,18 +312,14 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
     }
   }
 
+  const updatedAt = new Date().toISOString();
   const updateValues: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
+    updated_at: updatedAt,
   };
 
   if (updates.icon !== undefined) updateValues.icon = updates.icon;
   if (updates.cover_url !== undefined) {
-    // Only allow null, gradient strings, or local upload paths
-    if (
-      updates.cover_url !== null &&
-      !updates.cover_url.startsWith("linear-gradient(") &&
-      !updates.cover_url.startsWith("/uploads/")
-    ) {
+    if (!isAllowedPageCoverUrl(updates.cover_url)) {
       return c.json({ error: "bad_request", message: "Cover must be a gradient or an uploaded image" }, 400);
     }
     updateValues.cover_url = updates.cover_url;
@@ -335,8 +332,15 @@ pagesRouter.patch("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API")
   }
 
   await db.update(pages).set(updateValues).where(eq(pages.id, pageId));
-  if (updates.icon !== undefined || (updates.parent_id !== undefined && updates.parent_id !== existing.parent_id)) {
-    await bumpPublicSiteRevision(db, workspaceId);
+  if (
+    updates.icon !== undefined ||
+    updates.cover_url !== undefined ||
+    (updates.parent_id !== undefined && updates.parent_id !== existing.parent_id)
+  ) {
+    await bumpPublicSiteRevision(db, workspaceId, updatedAt);
+  }
+  if (updates.cover_url !== undefined && updates.cover_url !== null) {
+    await enqueueSiteCover(c.env, pageId);
   }
   log.debug("page_updated", { pageId, workspaceId, fields: Object.keys(updateValues) });
 
@@ -395,3 +399,17 @@ pagesRouter.delete("/workspaces/:wid/pages/:id", requireAuth, rateLimit("RL_API"
 });
 
 export { pagesRouter };
+
+function isAllowedPageCoverUrl(coverUrl: string | null): boolean {
+  if (coverUrl === null) return true;
+  if (parseUploadCoverUrl(coverUrl)) return true;
+  return isGradientPreset(coverUrl);
+}
+
+async function enqueueSiteCover(env: Pick<Env, "TASKS_QUEUE">, pageId: string): Promise<void> {
+  try {
+    await env.TASKS_QUEUE.send({ type: "site-cover", pageId });
+  } catch {
+    // Cover images are derived artifacts; save success should not depend on queue delivery.
+  }
+}

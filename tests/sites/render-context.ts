@@ -26,6 +26,7 @@ export function createTestSitesPageRenderContext(
       title: "Hello Sites",
       icon: "😀",
       coverUrl: null,
+      ogImage: null,
       outline: [],
       metrics: { words: 1, characters: 4 },
       description: "Body excerpt for search snippets",

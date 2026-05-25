@@ -10,6 +10,7 @@ import { extractSiteDescription } from "@/sites/excerpt";
 import { SitePageDocument } from "@/sites/document";
 import { runWithSitesReactRenderContext, type SitesReactRenderContext } from "@/sites/react-render-context";
 import type { SitesPageMentionRenderInfo } from "@/sites/types";
+import { resolveOgCover } from "@/worker/sites/cover";
 import type { PreparedSitePageRender } from "@/worker/sites/prepare-page-render";
 
 const UPLOAD_PATH = /^\/uploads\/([A-Za-z0-9_-]+)$/;
@@ -24,12 +25,13 @@ export interface RenderSitePageDocumentStreamArgs {
 export async function renderSitePageDocumentStream(
   args: RenderSitePageDocumentStreamArgs,
 ): Promise<ReadableStream<Uint8Array>> {
-  const { site, page, prepared } = args;
+  const { db, site, page, prepared } = args;
   const renderContent = structuredClone(prepared.pmJson.content);
   preWalkSitesJson(renderContent, { pageId: page.id, mentions: prepared.mentions });
   const description = extractSiteDescription(renderContent);
 
   const outline = collectSitesOutline(renderContent);
+  const ogImage = await resolveOgCover(db, page, prepared.canonicalUrl);
   const context: SitesReactRenderContext = {
     kind: "page",
     assets: prepared.assets,
@@ -39,6 +41,7 @@ export async function renderSitePageDocumentStream(
       title: page.title || "Untitled",
       icon: page.icon,
       coverUrl: rewriteSiteCoverUrl(page.cover_url, page.id),
+      ogImage,
       outline: outline.items,
       metrics: prepared.pmJson.metrics,
       description,

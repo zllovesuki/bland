@@ -99,6 +99,9 @@
 		"binding": "AI",
 		"remote": true,
 	},
+	"images": {
+		"binding": "IMAGES",
+	},
 	"ratelimits": [
 		{
 			"name": "RL_AUTH",

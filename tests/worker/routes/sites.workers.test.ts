@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
+import { GRADIENT_PRESETS } from "@/shared/page-cover";
 import { publishedPages, workspaceSites, workspaces, memberships, pages } from "@/worker/db/d1/schema";
 import { resetD1Tables, getDb } from "@tests/worker/helpers/db";
 import { apiRequest } from "@tests/worker/helpers/request";
@@ -475,6 +476,14 @@ describe("Sites management API", () => {
         apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}`, {
           method: "PATCH",
           body: { icon: "P" },
+          userId: owner.id,
+        }),
+      );
+
+      await expectSiteBump(ws.id, () =>
+        apiRequest(`/api/v1/workspaces/${ws.id}/pages/${page.id}`, {
+          method: "PATCH",
+          body: { cover_url: GRADIENT_PRESETS[0] },
           userId: owner.id,
         }),
       );

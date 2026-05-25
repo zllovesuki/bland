@@ -19,7 +19,7 @@ import {
   readSitesPageRenderState,
   runWithSitesReactRenderContext,
 } from "./react-render-context";
-import type { ApexDocumentProps, NotFoundDocumentProps, SitePageDocumentProps } from "./types";
+import type { ApexDocumentProps, NotFoundDocumentProps, SiteOgImage, SitePageDocumentProps } from "./types";
 
 function isGradient(cover: string): boolean {
   return cover.startsWith("linear-gradient(");
@@ -42,6 +42,7 @@ function SiteHead({
   ogTitle,
   ogUrl,
   ogType,
+  ogImage,
   description,
   includeModulePreloads = true,
 }: {
@@ -50,6 +51,7 @@ function SiteHead({
   ogTitle?: string;
   ogUrl?: string;
   ogType?: "article" | "website";
+  ogImage?: SiteOgImage | null;
   description?: string | null;
   includeModulePreloads?: boolean;
 }) {
@@ -74,6 +76,14 @@ function SiteHead({
       {ogTitle ? <meta property="og:title" content={ogTitle} /> : null}
       {description ? <meta property="og:description" content={description} /> : null}
       {ogUrl ? <meta property="og:url" content={ogUrl} /> : null}
+      {ogImage ? (
+        <>
+          <meta property="og:image" content={ogImage.url} />
+          <meta property="og:image:type" content={ogImage.type} />
+          <meta property="og:image:width" content={String(ogImage.width)} />
+          <meta property="og:image:height" content={String(ogImage.height)} />
+        </>
+      ) : null}
       {includeModulePreloads
         ? assets.modulePreloadHrefs.map((href) => <link key={href} rel="modulepreload" href={href} />)
         : null}
@@ -88,7 +98,7 @@ function SiteDeferredStyles() {
 
 export function SitePageDocument({ children }: SitePageDocumentProps) {
   const {
-    page: { title, icon, coverUrl, outline, metrics, description, canonicalUrl },
+    page: { title, icon, coverUrl, ogImage, outline, metrics, description, canonicalUrl },
   } = readSitesPageRenderState();
   const coverStyle = coverUrl
     ? { backgroundImage: isGradient(coverUrl) ? coverUrl : `url(${JSON.stringify(coverUrl)})` }
@@ -103,6 +113,7 @@ export function SitePageDocument({ children }: SitePageDocumentProps) {
         ogTitle={title}
         ogUrl={canonicalUrl}
         ogType="article"
+        ogImage={ogImage}
         description={description}
       />
       <body className="site-shell flex min-h-screen flex-col bg-canvas font-sans font-[450] text-zinc-100 antialiased">

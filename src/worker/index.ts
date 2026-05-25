@@ -14,6 +14,7 @@ import { renderSpaShell } from "@/worker/lib/spa-shell";
 import type { TasksQueueMessage, TasksQueueResult } from "@/worker/queues/messages";
 import { handlePageProjection } from "@/worker/queues/page-projection";
 import { handleSearchIndexMessage } from "@/worker/queues/search-indexer";
+import { handleSiteCover } from "@/worker/queues/site-cover";
 import { handleWorkspaceSitesCleanup } from "@/worker/queues/workspace-sites-cleanup";
 
 export { DocSync } from "@/worker/durable-objects/doc-sync";
@@ -148,6 +149,9 @@ export default {
           case "workspace-sites-cleanup":
             result = await handleWorkspaceSitesCleanup(body.workspaceId, env);
             break;
+          case "site-cover":
+            result = await handleSiteCover(body.pageId, env);
+            break;
           default:
             log.warn("unknown_message_type", { type: (body as { type?: string }).type });
         }
@@ -168,6 +172,7 @@ function queueMessageLogContext(body: TasksQueueMessage): { type: string; pageId
   switch (body.type) {
     case "index-page":
     case "page-projection":
+    case "site-cover":
       return { type: body.type, pageId: body.pageId };
     case "workspace-sites-cleanup":
       return { type: body.type, workspaceId: body.workspaceId };

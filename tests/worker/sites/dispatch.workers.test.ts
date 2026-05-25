@@ -5,6 +5,7 @@ import * as Y from "yjs";
 
 import { pages, workspaceSites, workspaces } from "@/worker/db/d1/schema";
 import { YJS_DOCUMENT_STORE } from "@/shared/constants";
+import { GRADIENT_PRESETS } from "@/shared/page-cover";
 import { resetD1Tables, getDb } from "@tests/worker/helpers/db";
 import { apiRequest } from "@tests/worker/helpers/request";
 import {
@@ -16,12 +17,14 @@ import {
   deletePublishedPage,
   seedPage,
   seedPublishedPage,
+  seedUpload,
   seedUser,
   seedWorkspace,
   seedWorkspaceSite,
 } from "@tests/worker/helpers/seeds";
 import { seedDocSyncSnapshot, buildYjsDocBytes } from "@tests/worker/helpers/do";
 import { buildSiteCacheKey, buildSiteR2ObjectKey, getSitesCache, writeSiteR2 } from "@/worker/sites/cache";
+import { createSiteCoverHash } from "@/worker/sites/cover";
 import { buildSitePagePath } from "@/worker/lib/site-public-url";
 
 const SUBDOMAIN_ORIGIN = "https://acme.sites.test";
@@ -273,6 +276,81 @@ describe("Sites page resolution", () => {
     expect(html).not.toContain("site-header-stage--with-outline");
     expect(html).not.toContain("site-stage--with-outline");
     expect(html).not.toContain("site-outline-rail");
+  });
+
+  it("emits versioned Open Graph image metadata for supported gradient covers", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const cover = GRADIENT_PRESETS[0];
+    const page = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      title: "Gradient Cover",
+      cover_url: cover,
+    });
+    await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: page.id, published_by: owner.id });
+    await projectSitePage(env, page.id);
+
+    const res = await apiRequest(publicPagePath("Gradient Cover", page.id), { origin: SUBDOMAIN_ORIGIN });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    const coverUrl = `https://acme.sites.test/_assets/${page.id}/cover?v=${await createSiteCoverHash(cover)}`;
+    expect(html).toContain(`property="og:image" content="${coverUrl}"`);
+    expect(html).toContain('property="og:image:type" content="image/png"');
+    expect(html).toContain('property="og:image:width" content="1200"');
+    expect(html).toContain('property="og:image:height" content="630"');
+  });
+
+  it("emits Open Graph image metadata for safe upload covers only", async () => {
+    const owner = await seedUser();
+    const ws = await seedWorkspace({ owner_id: owner.id });
+    const safePage = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      title: "Upload Cover",
+      cover_url: "/uploads/upload-cover",
+    });
+    await seedUpload({
+      id: "upload-cover",
+      workspace_id: ws.id,
+      uploaded_by: owner.id,
+      page_id: safePage.id,
+      content_type: "image/jpeg",
+    });
+    const unsafePage = await seedPage({
+      workspace_id: ws.id,
+      created_by: owner.id,
+      title: "Unsafe Cover",
+      cover_url: "/uploads/pdf-cover",
+    });
+    await seedUpload({
+      id: "pdf-cover",
+      workspace_id: ws.id,
+      uploaded_by: owner.id,
+      page_id: unsafePage.id,
+      content_type: "application/pdf",
+    });
+    await seedWorkspaceSite({ workspace_id: ws.id, slug: "acme" });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: safePage.id, published_by: owner.id });
+    await seedPublishedPage({ workspace_id: ws.id, page_id: unsafePage.id, published_by: owner.id });
+    await projectSitePage(env, safePage.id);
+    await projectSitePage(env, unsafePage.id);
+
+    const safe = await apiRequest(publicPagePath("Upload Cover", safePage.id), { origin: SUBDOMAIN_ORIGIN });
+    expect(safe.status).toBe(200);
+    const safeHtml = await safe.text();
+    const safeCoverUrl = `https://acme.sites.test/_assets/${safePage.id}/cover?v=${await createSiteCoverHash(
+      "/uploads/upload-cover",
+    )}`;
+    expect(safeHtml).toContain(`property="og:image" content="${safeCoverUrl}"`);
+    expect(safeHtml).toContain('property="og:image:type" content="image/png"');
+    expect(safeHtml).toContain('property="og:image:width" content="1200"');
+    expect(safeHtml).toContain('property="og:image:height" content="630"');
+
+    const unsafe = await apiRequest(publicPagePath("Unsafe Cover", unsafePage.id), { origin: SUBDOMAIN_ORIGIN });
+    expect(unsafe.status).toBe(200);
+    expect(await unsafe.text()).not.toContain('property="og:image"');
   });
 
   it("renders page icons for accessible page mentions", async () => {

@@ -41,6 +41,7 @@
     "pretest": "npm run emoji:generate"
   },
   "dependencies": {
+    "@cf-wasm/png": "^0.3.3",
     "@excalidraw/excalidraw": "^0.18.1",
     "@floating-ui/dom": "^1.7.6",
     "@floating-ui/react": "^0.27.19",

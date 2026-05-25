@@ -17,6 +17,7 @@ import {
   withSitesStaticDocumentPreloadHeaders,
 } from "@/worker/sites/preload-headers";
 import { serveSiteAsset } from "@/worker/sites/assets";
+import { coverNotFound, serveSiteCover } from "@/worker/sites/cover";
 import {
   buildSiteCacheKey,
   buildSiteCacheTags,
@@ -40,6 +41,7 @@ import type { SiteDocumentAssets } from "@/sites/types";
 const PAGE_ID_LENGTH = 26;
 const PAGE_SEGMENT_ROUTE =
   "/:pageSegment{[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?-[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}}";
+const COVER_ASSET_ROUTE = "/_assets/:pageId{[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}}/cover";
 const ASSET_ROUTE = "/_assets/:pageId{[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}}/:uploadId{[A-Za-z0-9_-]+}";
 
 const HTML_HEADERS = {
@@ -118,6 +120,21 @@ sitesApp.get("/", async (c) => {
   if (!resolved) return siteNotFound(c);
   if (!resolved.page) return siteNotFound(c, resolved.site);
   return servePage(c, resolved.site, resolved.page, { isHome: true });
+});
+
+sitesApp.get(COVER_ASSET_ROUTE, async (c) => {
+  const match = c.get("siteHost");
+  if (match.kind === "apex") return coverNotFound();
+
+  const resolved = await resolveCurrentSitePage(c, c.req.param("pageId").toUpperCase());
+  if (!resolved?.page) return coverNotFound();
+
+  return serveSiteCover({
+    env: c.env,
+    db: c.get("db"),
+    page: resolved.page,
+    versionHash: c.req.query("v") ?? null,
+  });
 });
 
 sitesApp.get(ASSET_ROUTE, async (c) => {

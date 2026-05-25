@@ -28,6 +28,7 @@ export interface SitePageRenderState {
   title: string;
   icon: string | null;
   coverUrl: string | null;
+  ogImage: SiteOgImage | null;
   outline: OutlineItem[];
   metrics: EditorTextMetrics;
   description?: string | null;
@@ -37,6 +38,13 @@ export interface SitePageRenderState {
 
 export interface SitePageDocumentProps {
   children: ReactNode;
+}
+
+export interface SiteOgImage {
+  url: string;
+  type: string;
+  width: number;
+  height: number;
 }
 
 export interface NotFoundDocumentProps {

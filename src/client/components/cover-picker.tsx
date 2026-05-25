@@ -5,21 +5,7 @@ import { toast } from "@/client/components/toast-store";
 import { Button } from "@/client/components/ui/button";
 import { Dialog } from "@/client/components/ui/dialog";
 import { UPLOAD_MIME_SET } from "@/shared/constants";
-
-const GRADIENT_PRESETS = [
-  "linear-gradient(135deg, #5e3497 0%, #2a2729 100%)",
-  "linear-gradient(135deg, #4d2a7c 0%, #1b181a 100%)",
-  "linear-gradient(135deg, #423f42 0%, #2a2729 100%)",
-  "linear-gradient(135deg, #7241b8 0%, #423f42 100%)",
-  "linear-gradient(135deg, #2a2729 0%, #5e3497 50%, #2a2729 100%)",
-  "linear-gradient(135deg, #3d2d4a 0%, #1b181a 100%)",
-  "linear-gradient(135deg, #2a2729 0%, #352530 100%)",
-  "linear-gradient(135deg, #423f42 0%, #3d2d4a 50%, #2a2729 100%)",
-  "linear-gradient(135deg, #8854d4 0%, #2a2729 100%)",
-  "linear-gradient(135deg, #1b181a 0%, #423f42 100%)",
-  "linear-gradient(135deg, #352530 0%, #423f42 100%)",
-  "linear-gradient(135deg, #2a2729 0%, #4d2a7c 50%, #1b181a 100%)",
-];
+import { GRADIENT_PRESETS } from "@/shared/page-cover";
 
 export function CoverPicker({
   currentCover,
