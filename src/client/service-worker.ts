@@ -17,14 +17,20 @@ declare const self: ServiceWorkerGlobalScope &
 
 const SHELL_PRECACHE_URL = "/__pwa-shell";
 const UPLOAD_CACHE_NAME = "bland-uploads-v1";
+const APP_SHELL_EXCLUDED_PATH_PREFIXES = ["/api/", "/uploads/", "/parties/"];
+
+function isAppShellExcludedPath(pathname: string): boolean {
+  return APP_SHELL_EXCLUDED_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 function isAppNavigation({ url, request, sameOrigin }: RouteMatchCallbackOptions): boolean {
   if (!sameOrigin) return false;
   if (request.mode !== "navigate") return false;
-  if (url.pathname.startsWith("/api/")) return false;
-  if (url.pathname.startsWith("/uploads/")) return false;
-  if (url.pathname.startsWith("/parties/")) return false;
-  return true;
+  return !isAppShellExcludedPath(url.pathname);
+}
+
+function isNetworkOnlyNavigation({ url, request, sameOrigin }: RouteMatchCallbackOptions): boolean {
+  return sameOrigin && request.mode === "navigate" && isAppShellExcludedPath(url.pathname);
 }
 
 function isCacheableUpload({ url, request, sameOrigin }: RouteMatchCallbackOptions): boolean {
@@ -67,5 +73,11 @@ serwist.registerCapture(
     ],
   }),
 );
+
+// Navigation preload starts before Serwist chooses a route. Handle excluded
+// navigations explicitly so Serwist consumes that response instead of letting
+// the browser issue a second request. Keep this after the upload route so
+// cacheable upload GETs continue to use NetworkFirst.
+serwist.registerCapture(isNetworkOnlyNavigation, new NetworkOnly());
 
 serwist.addEventListeners();
