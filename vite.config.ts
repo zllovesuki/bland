@@ -28,8 +28,8 @@ const fontAssetPattern = /\.(?:woff2?|ttf|otf|eot)$/i;
 function readDevVarsAiMode(): string {
   const cloudflareEnv = process.env.CLOUDFLARE_ENV;
   const devVarsPaths = [
-    ...(cloudflareEnv ? [path.resolve(__dirname, `.dev.vars.${cloudflareEnv}`)] : []),
-    path.resolve(__dirname, ".dev.vars"),
+    ...(cloudflareEnv ? [path.resolve(import.meta.dirname, `.dev.vars.${cloudflareEnv}`)] : []),
+    path.resolve(import.meta.dirname, ".dev.vars"),
   ];
 
   for (const devVarsPath of devVarsPaths) {
@@ -51,8 +51,8 @@ const useRemoteBindings = readDevVarsAiMode() === "workers-ai";
 // `npm run build` pick up the assets. The esm.sh origin stays in CSP
 // `font-src` as a fallback; see `src/worker/lib/security-headers.ts`.
 function excalidrawFontsPlugin(): Plugin {
-  const src = path.resolve(__dirname, "node_modules/@excalidraw/excalidraw/dist/prod/fonts");
-  const dest = path.resolve(__dirname, "public/fonts");
+  const src = path.resolve(import.meta.dirname, "node_modules/@excalidraw/excalidraw/dist/prod/fonts");
+  const dest = path.resolve(import.meta.dirname, "public/fonts");
   const sentinel = path.join(dest, "Virgil", "Virgil-Regular.woff2");
   const copy = () => {
     if (!existsSync(src) || existsSync(sentinel)) return;
@@ -113,7 +113,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(import.meta.dirname, "src"),
     },
   },
   build: {
@@ -123,7 +123,7 @@ export default defineConfig({
     manifest: "manifest.json",
     rollupOptions: {
       input: {
-        index: path.resolve(__dirname, "index.html"),
+        index: path.resolve(import.meta.dirname, "index.html"),
       },
       output: {
         codeSplitting: {

@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, defineProject } from "vitest/config";
 
-import { cloudflareWorkerPlugin } from "./tests/vitest/cloudflare";
+import { cloudflareWorkerPlugin } from "./tests/vitest/cloudflare.ts";
 
 const srcDirectory = fileURLToPath(new URL("./src", import.meta.url));
 const testsDirectory = fileURLToPath(new URL("./tests", import.meta.url));

@@ -4,7 +4,7 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-import { sitesEntrypoints } from "./src/shared/sites/entrypoints";
+import { sitesEntrypoints } from "./src/shared/sites/entrypoints.ts";
 
 const fontAssetPattern = /\.(?:woff2?|ttf|otf|eot)$/i;
 
@@ -18,7 +18,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
+      "@": path.resolve(import.meta.dirname, "src"),
     },
   },
   build: {
