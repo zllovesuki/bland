@@ -3,7 +3,7 @@ import { test, createTestPage, waitForCanvasSceneCount, waitForPersistedSnapshot
 // Smallest legal PNG (1x1) as base64 — enough to validate the upload
 // round-trip without shipping a test asset.
 const TINY_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 
 test.describe("canvas page - images", () => {
   test("dropping an image uploads + persists across reload via hydration", async ({
