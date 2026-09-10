@@ -15,7 +15,7 @@ import { resetD1Tables } from "@tests/worker/helpers/db";
 import { seedPage, seedUpload, seedUser, seedWorkspace } from "@tests/worker/helpers/seeds";
 
 const TINY_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 const UPLOAD_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 
 function bytesFromBase64(input: string): Uint8Array {
