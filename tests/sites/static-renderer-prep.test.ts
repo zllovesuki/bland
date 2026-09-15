@@ -98,4 +98,17 @@ describe("Bland Sites static renderer prep", () => {
     expect(html).toContain("Intro");
     expect(html).toContain("Roadmap");
   });
+
+  it("renders dimmed images in initial HTML and carries brightness into hydration", () => {
+    const html = renderToStaticMarkup(
+      renderBlandSitesDocumentToReactElement({
+        type: "doc",
+        content: [{ type: "image", attrs: { src: "/uploads/dimmed.png", brightness: 75 } }],
+      }),
+    );
+    expect(html).toMatch(/<img[^>]+style="filter:brightness\(0\.75\)"/);
+    expect(html).toContain('"brightness":75');
+    expect(html).not.toMatch(/<img[^>]*\sbrightness=/);
+    expect(html).not.toMatch(/<figure[^>]*filter:/);
+  });
 });

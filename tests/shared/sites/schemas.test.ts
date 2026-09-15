@@ -102,6 +102,15 @@ describe("readIslandProps", () => {
     expect(readIslandProps("sites-image", '{"src":"/_assets/1/x"')).toBeNull();
   });
 
+  it("accepts image brightness percentages and rejects unsafe hydration values", () => {
+    expect(readIslandProps("sites-image", JSON.stringify({ src: "/_assets/1/x", brightness: 75 }))?.brightness).toBe(
+      75,
+    );
+    for (const brightness of [0, 101, "75", "brightness(0.75)"]) {
+      expect(readIslandProps("sites-image", JSON.stringify({ src: "/_assets/1/x", brightness }))).toBeNull();
+    }
+  });
+
   it("rejects wrong types", () => {
     expect(readIslandProps("sites-image", JSON.stringify({ src: 0 }))).toBeNull();
     expect(readIslandProps("site-outline-controller", JSON.stringify({ items: "not an array" }))).toBeNull();

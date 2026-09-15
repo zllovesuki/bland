@@ -163,6 +163,7 @@ describe("headless editor schema parity", () => {
       { type: "callout", attrs: { bid: "callout-bid", kind: "tip" }, content: [{ type: "paragraph" }] },
       { type: "codeBlock", attrs: { bid: "code-bid", language: "typescript" }, content: [{ type: "text", text: "x" }] },
       { type: "image", attrs: { bid: "image-bid", src: "/uploads/a.png", align: "center", width: 320 } },
+      { type: "image", attrs: { bid: "dimmed-bid", src: "/uploads/b.png", brightness: 75 } },
       {
         type: "details",
         attrs: { bid: "details-bid", open: true },

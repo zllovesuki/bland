@@ -28,6 +28,13 @@ export function ToolbarButton({ ref, active, disabled, title, onActivate, childr
         if (disabled) return;
         onActivate();
       }}
+      onClick={(e) => {
+        // Keyboard and assistive-technology activation has no preceding mouse down.
+        if (e.detail !== 0 || disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onActivate();
+      }}
     >
       {children}
     </button>

@@ -11,6 +11,7 @@ import { readOptionalSitesReactRenderContext } from "@/sites/react-render-contex
 import { CopyCodeButtonIslandHost } from "@/sites/island-hosts/copy-code-button";
 import { SitesImageIslandHost } from "@/sites/island-hosts/sites-image";
 import { readOptionalString, readPositiveNumber } from "./attrs";
+import { normalizeImageBrightness } from "@/shared/editor/schema/image-model";
 import type { StaticNodeMappingProps } from "./types";
 
 type HeadingTag = `h${OutlineLevel}`;
@@ -195,6 +196,7 @@ function readImageProps(node: StaticNodeMappingProps["node"]): SitesImageProps |
     width: readPositiveNumber(node.attrs.width),
     naturalWidth: readPositiveNumber(node.attrs.naturalWidth),
     naturalHeight: readPositiveNumber(node.attrs.naturalHeight),
+    brightness: normalizeImageBrightness(node.attrs.brightness),
   };
 }
 

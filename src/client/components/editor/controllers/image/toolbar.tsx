@@ -1,9 +1,15 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, useId, type CSSProperties } from "react";
 import { useTiptap, useTiptapState, type Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
 import { autoUpdate as autoUpdateDom, computePosition, offset, shift } from "@floating-ui/dom";
 import { FloatingPortal } from "@floating-ui/react";
-import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Replace, Trash2, TextCursorInput, AlignLeft, AlignCenter, AlignRight, RotateCcw } from "lucide-react";
+import {
+  MAX_IMAGE_BRIGHTNESS,
+  MIN_IMAGE_BRIGHTNESS,
+  normalizeImageBrightness,
+} from "@/shared/editor/schema/image-model";
+import { ToolbarButton } from "../toolbar-button";
 import { useEditorAffordance } from "../../editor-affordance-context";
 import { useEditorRuntime } from "../../editor-runtime-context";
 import {
@@ -19,6 +25,7 @@ interface ImageState {
   src: string;
   alt: string;
   align: string;
+  brightness: number;
 }
 
 interface ImageInsetState {
@@ -40,8 +47,16 @@ interface ImageAltEditState {
 const IMAGE_TOOLBAR_MIN_INSET_WIDTH = 236;
 const IMAGE_TOOLBAR_MIN_INSET_HEIGHT = 88;
 
-function canInsetImageToolbar(rect: Pick<DOMRectReadOnly, "width" | "height">, editingAlt: boolean) {
-  return !editingAlt && rect.width >= IMAGE_TOOLBAR_MIN_INSET_WIDTH && rect.height >= IMAGE_TOOLBAR_MIN_INSET_HEIGHT;
+function canInsetImageToolbar(
+  rect: Pick<DOMRectReadOnly, "width" | "height">,
+  toolbar: Pick<DOMRectReadOnly, "width" | "height">,
+  editingAlt: boolean,
+) {
+  return (
+    !editingAlt &&
+    rect.width >= Math.max(IMAGE_TOOLBAR_MIN_INSET_WIDTH, toolbar.width + 16) &&
+    rect.height >= Math.max(IMAGE_TOOLBAR_MIN_INSET_HEIGHT, toolbar.height + 16)
+  );
 }
 
 function hiddenToolbarStyles(): CSSProperties {
@@ -69,6 +84,7 @@ function resolveImageReference(editor: Editor, pos: number) {
 }
 
 export function ImageToolbar() {
+  const brightnessId = useId();
   const { editor } = useTiptap();
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const affordance = useEditorAffordance();
@@ -93,6 +109,7 @@ export function ImageToolbar() {
           src: node.attrs.src as string,
           alt: (node.attrs.alt as string) ?? "",
           align: (node.attrs.align as string) ?? "left",
+          brightness: normalizeImageBrightness(node.attrs.brightness),
         };
       }
       forcedPosRef.current = null;
@@ -106,6 +123,7 @@ export function ImageToolbar() {
       src: node.attrs.src as string,
       alt: (node.attrs.alt as string) ?? "",
       align: (node.attrs.align as string) ?? "left",
+      brightness: normalizeImageBrightness(node.attrs.brightness),
     };
   });
 
@@ -119,7 +137,10 @@ export function ImageToolbar() {
 
   const placement = useInsetPosition ? "top-end" : "top";
   const middleware = useMemo(
-    () => [offset(useInsetPosition ? { mainAxis: -50, crossAxis: -8 } : 10), shift({ padding: 10 })],
+    () => [
+      offset(({ rects }) => (useInsetPosition ? { mainAxis: -rects.floating.height - 8, crossAxis: -8 } : 10)),
+      shift({ padding: 10, crossAxis: true }),
+    ],
     [useInsetPosition],
   );
 
@@ -196,7 +217,7 @@ export function ImageToolbar() {
   }, [commitFloatingState, editor, floatingElement, hideToolbar, imageKey, imagePos, middleware, open, placement]);
 
   useEffect(() => {
-    if (!imageKey || imagePos === null) return;
+    if (!imageKey || imagePos === null || !floatingElement) return;
 
     const referenceEl = resolveImageReference(editor, imagePos);
     if (!referenceEl) return;
@@ -205,7 +226,11 @@ export function ImageToolbar() {
     const updatePlacement = () => {
       const currentReference = resolveImageReference(editor, imagePos);
       if (!currentReference) return;
-      const nextInsetPosition = canInsetImageToolbar(currentReference.getBoundingClientRect(), editingAlt);
+      const nextInsetPosition = canInsetImageToolbar(
+        currentReference.getBoundingClientRect(),
+        floatingElement.getBoundingClientRect(),
+        editingAlt,
+      );
       setInsetState((current) =>
         current.key === imageKey && current.value === nextInsetPosition
           ? current
@@ -223,11 +248,12 @@ export function ImageToolbar() {
 
     const observer = new ResizeObserver(schedule);
     observer.observe(referenceEl);
+    observer.observe(floatingElement);
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
     };
-  }, [editor, editingAlt, imageKey, imagePos]);
+  }, [editor, editingAlt, floatingElement, imageKey, imagePos]);
 
   const updateImageAttr = useCallback(
     (attrs: Record<string, unknown>) => {
@@ -309,62 +335,90 @@ export function ImageToolbar() {
           </div>
         ) : (
           <>
-            <button
-              type="button"
-              title="Replace image"
-              aria-label="Replace image"
-              disabled={!affordance.canInsertImages}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (!imageState) return;
-                if (!affordance.canInsertImages) return;
-                triggerFileUploadAtTarget(editor, uploadCtx, createImageNodeTarget(editor, imageState.pos));
-              }}
-            >
-              <Replace size={16} />
-            </button>
-            <button
-              type="button"
-              title="Alt text"
-              aria-label="Alt text"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleAltEdit();
-              }}
-            >
-              <TextCursorInput size={16} />
-            </button>
-            <button
-              type="button"
-              title="Delete image"
-              aria-label="Delete image"
-              className="text-red-400"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                deleteImage();
-              }}
-            >
-              <Trash2 size={16} />
-            </button>
-            <div className="tiptap-toolbar-sep" />
-            {(["left", "center", "right"] as const).map((a) => {
-              const Icon = a === "left" ? AlignLeft : a === "center" ? AlignCenter : AlignRight;
-              return (
-                <button
-                  key={a}
-                  type="button"
-                  title={`Align ${a}`}
-                  aria-label={`Align ${a}`}
-                  className={imageState.align === a ? "is-active" : undefined}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    updateImageAttr({ align: a });
-                  }}
+            <div className="tiptap-image-toolbar-actions">
+              <button
+                type="button"
+                title="Replace image"
+                aria-label="Replace image"
+                disabled={!affordance.canInsertImages}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (!imageState) return;
+                  if (!affordance.canInsertImages) return;
+                  triggerFileUploadAtTarget(editor, uploadCtx, createImageNodeTarget(editor, imageState.pos));
+                }}
+              >
+                <Replace size={16} />
+              </button>
+              <button
+                type="button"
+                title="Alt text"
+                aria-label="Alt text"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleAltEdit();
+                }}
+              >
+                <TextCursorInput size={16} />
+              </button>
+              <button
+                type="button"
+                title="Delete image"
+                aria-label="Delete image"
+                className="text-red-400"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  deleteImage();
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+              <div className="tiptap-toolbar-sep" />
+              {(["left", "center", "right"] as const).map((a) => {
+                const Icon = a === "left" ? AlignLeft : a === "center" ? AlignCenter : AlignRight;
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    title={`Align ${a}`}
+                    aria-label={`Align ${a}`}
+                    className={imageState.align === a ? "is-active" : undefined}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      updateImageAttr({ align: a });
+                    }}
+                  >
+                    <Icon size={16} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="tiptap-image-brightness">
+              <div className="tiptap-image-brightness-label">
+                <label htmlFor={brightnessId}>Brightness</label>
+                <output htmlFor={brightnessId} aria-hidden="true">
+                  {imageState.brightness}%
+                </output>
+                <ToolbarButton
+                  title="Reset brightness"
+                  disabled={imageState.brightness === MAX_IMAGE_BRIGHTNESS}
+                  onActivate={() => updateImageAttr({ brightness: MAX_IMAGE_BRIGHTNESS })}
                 >
-                  <Icon size={16} />
-                </button>
-              );
-            })}
+                  <RotateCcw size={14} />
+                </ToolbarButton>
+              </div>
+              <input
+                id={brightnessId}
+                type="range"
+                min={MIN_IMAGE_BRIGHTNESS}
+                max={MAX_IMAGE_BRIGHTNESS}
+                step={1}
+                value={imageState.brightness}
+                aria-label="Image brightness"
+                aria-valuetext={`${imageState.brightness}%`}
+                onChange={(event) => updateImageAttr({ brightness: Number(event.currentTarget.value) })}
+              />
+            </div>
           </>
         )}
       </div>

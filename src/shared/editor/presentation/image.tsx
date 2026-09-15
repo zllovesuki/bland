@@ -2,7 +2,11 @@ import { forwardRef } from "react";
 import type { CSSProperties, ImgHTMLAttributes, ReactNode } from "react";
 import { ImageIcon } from "lucide-react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { normalizeImageAlign } from "@/shared/editor/schema/image-model";
+import {
+  MAX_IMAGE_BRIGHTNESS,
+  normalizeImageAlign,
+  normalizeImageBrightness,
+} from "@/shared/editor/schema/image-model";
 import { bidAttribute, type BlockIdentityProps } from "./attrs";
 
 export const IMAGE_FRAME_FALLBACK_ASPECT_RATIO = 16 / 9;
@@ -13,13 +17,28 @@ export interface ImagePresentationProps extends BlockIdentityProps {
   title?: string | null;
   align?: unknown;
   width?: number | null;
+  brightness?: unknown;
 }
 
-export const ImageElement = forwardRef<HTMLImageElement, ImgHTMLAttributes<HTMLImageElement>>(
-  function ImageElement(props, ref) {
-    return <img {...props} className={["tiptap-image", props.className].filter(Boolean).join(" ")} ref={ref} />;
-  },
-);
+interface ImageElementProps extends ImgHTMLAttributes<HTMLImageElement> {
+  brightness?: unknown;
+}
+
+export const ImageElement = forwardRef<HTMLImageElement, ImageElementProps>(function ImageElement(
+  { brightness, style, ...props },
+  ref,
+) {
+  const value = normalizeImageBrightness(brightness);
+  const imageStyle = value === MAX_IMAGE_BRIGHTNESS ? style : { ...style, filter: `brightness(${value / 100})` };
+  return (
+    <img
+      {...props}
+      className={["tiptap-image", props.className].filter(Boolean).join(" ")}
+      style={imageStyle}
+      ref={ref}
+    />
+  );
+});
 
 export function resolveImageAlignClass(align: unknown): string {
   const normalized = normalizeImageAlign(align);
@@ -89,7 +108,7 @@ export function ImageErrorState() {
   );
 }
 
-export function ImagePresentation({ bid, src, alt, title, align, width }: ImagePresentationProps) {
+export function ImagePresentation({ bid, src, alt, title, align, width, brightness }: ImagePresentationProps) {
   if (!src) return null;
 
   const containerStyle: CSSProperties | undefined = width && width > 0 ? { width: `${width}px` } : undefined;
@@ -97,7 +116,13 @@ export function ImagePresentation({ bid, src, alt, title, align, width }: ImageP
 
   return (
     <ImageFigureFrame bid={bid} align={align} containerStyle={containerStyle} caption={alt}>
-      <ImageElement src={src} alt={alt ?? undefined} title={title ?? undefined} style={imageStyle} />
+      <ImageElement
+        src={src}
+        alt={alt ?? undefined}
+        title={title ?? undefined}
+        style={imageStyle}
+        brightness={brightness}
+      />
     </ImageFigureFrame>
   );
 }

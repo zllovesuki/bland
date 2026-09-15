@@ -63,4 +63,18 @@ describe("SitesImage", () => {
     expect(document.querySelector(".tiptap-image-error")).not.toBeNull();
     expect(document.querySelector(".tiptap-image-container.is-loading")).toBeNull();
   });
+
+  it("keeps brightness through image loading and resets it without filtering the caption", () => {
+    const props = { src: "/_assets/1/x", align: "left" as const, alt: "Screenshot", brightness: 75 };
+    mount(props);
+    const img = container.querySelector("img")!;
+    expect(img.style.filter).toBe("brightness(0.75)");
+    act(() => img.dispatchEvent(new Event("load")));
+    expect(img.style.filter).toBe("brightness(0.75)");
+    expect(container.querySelector("figcaption")?.textContent).toBe("Screenshot");
+    expect(container.querySelector("figure")?.style.filter).toBe("");
+    mount({ ...props, brightness: 100 });
+    expect(img.style.filter).toBe("");
+    expect(img.getAttribute("src")).toBe(props.src);
+  });
 });

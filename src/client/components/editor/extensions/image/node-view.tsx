@@ -16,7 +16,17 @@ const FALLBACK_ASPECT_RATIO = 16 / 9;
 export function ImageNodeView({ node, selected, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const { workspaceId, pageId, shareToken } = useEditorRuntime();
   const { canInsertImages } = useEditorAffordance();
-  const { src, alt = "", title, align = "left", width, naturalWidth, naturalHeight, pendingInsertId } = node.attrs;
+  const {
+    src,
+    alt = "",
+    title,
+    align = "left",
+    width,
+    naturalWidth,
+    naturalHeight,
+    pendingInsertId,
+    brightness,
+  } = node.attrs;
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -190,6 +200,7 @@ export function ImageNodeView({ node, selected, updateAttributes, deleteNode, ed
         <ImageElement
           ref={imgRef}
           src={resolvedSrc}
+          brightness={brightness}
           alt={alt ?? undefined}
           title={title ?? undefined}
           draggable={false}

@@ -1,4 +1,5 @@
 import { z } from "zod/mini";
+import { MAX_IMAGE_BRIGHTNESS, MIN_IMAGE_BRIGHTNESS } from "@/shared/editor/schema/image-model";
 
 const OutlineLevelSchema = z.union([
   z.literal(1),
@@ -25,6 +26,7 @@ export const SitesImagePropsSchema = z.object({
   width: z.optional(z.nullable(z.number().check(z.positive()))),
   naturalWidth: z.optional(z.nullable(z.number().check(z.positive()))),
   naturalHeight: z.optional(z.nullable(z.number().check(z.positive()))),
+  brightness: z.optional(z.number().check(z.minimum(MIN_IMAGE_BRIGHTNESS), z.maximum(MAX_IMAGE_BRIGHTNESS))),
 });
 
 export type SitesImageProps = z.infer<typeof SitesImagePropsSchema>;

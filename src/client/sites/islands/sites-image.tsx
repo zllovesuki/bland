@@ -8,7 +8,17 @@ import {
 } from "@/shared/editor/presentation/image";
 import type { SitesImageProps } from "@/shared/sites/island-schemas";
 
-export function SitesImage({ bid, src, alt, title, align, width, naturalWidth, naturalHeight }: SitesImageProps) {
+export function SitesImage({
+  bid,
+  src,
+  alt,
+  title,
+  align,
+  width,
+  naturalWidth,
+  naturalHeight,
+  brightness,
+}: SitesImageProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -37,6 +47,7 @@ export function SitesImage({ bid, src, alt, title, align, width, naturalWidth, n
         <ImageElement
           ref={imgRef}
           src={src}
+          brightness={brightness}
           alt={alt ?? undefined}
           title={title ?? undefined}
           style={width && width > 0 && !isLoading ? { width: "100%" } : undefined}
