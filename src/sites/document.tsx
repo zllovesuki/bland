@@ -98,7 +98,7 @@ function SiteDeferredStyles() {
 
 export function SitePageDocument({ children }: SitePageDocumentProps) {
   const {
-    page: { title, icon, coverUrl, ogImage, outline, metrics, description, canonicalUrl },
+    page: { title, icon, coverUrl, ogImage, outline, metrics, description, canonicalUrl, site },
   } = readSitesPageRenderState();
   const coverStyle = coverUrl
     ? { backgroundImage: isGradient(coverUrl) ? coverUrl : `url(${JSON.stringify(coverUrl)})` }
@@ -149,9 +149,11 @@ export function SitePageDocument({ children }: SitePageDocumentProps) {
                   ) : null}
                   <div className="tiptap tiptap-page-body">{children}</div>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-                  <EditorMetricsPresentation metrics={metrics} />
-                </div>
+                {site.currentIsHome ? null : (
+                  <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+                    <EditorMetricsPresentation metrics={metrics} />
+                  </div>
+                )}
               </div>
             }
             rail={hasOutline ? <SiteOutlineControllerIslandHost items={outline} /> : undefined}
