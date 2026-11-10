@@ -54,7 +54,7 @@
 		{
 			"binding": "DB",
 			"database_name": "bland-prod",
-			"database_id": "6002a99f-fd84-43d3-846a-707e12b3ec24",
+			"database_id": "bd3b92ce-3708-4098-a6b0-31f531ee47b6",
 			"migrations_dir": "drizzle/d1",
 		},
 	],
